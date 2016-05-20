@@ -47,29 +47,29 @@ public final class Definition {
     public static final Definition INSTANCE = new Definition(new Definition());
     
     /** Some native types as constants: */
-    public static final Type voidType = INSTANCE.getType("void");
-    public static final Type booleanType = INSTANCE.getType("boolean");
-    public static final Type booleanobjType = INSTANCE.getType("Boolean");
-    public static final Type byteType = INSTANCE.getType("byte");
-    public static final Type byteobjType = INSTANCE.getType("Byte");
-    public static final Type shortType = INSTANCE.getType("short");
-    public static final Type shortobjType = INSTANCE.getType("Short");
-    public static final Type intType = INSTANCE.getType("int");
-    public static final Type intobjType = INSTANCE.getType("Integer");
-    public static final Type longType = INSTANCE.getType("long");
-    public static final Type longobjType = INSTANCE.getType("Long");
-    public static final Type floatType = INSTANCE.getType("float");
-    public static final Type floatobjType = INSTANCE.getType("Float");
-    public static final Type doubleType = INSTANCE.getType("double");
-    public static final Type doubleobjType = INSTANCE.getType("Double");
-    public static final Type charType = INSTANCE.getType("char");
-    public static final Type charobjType = INSTANCE.getType("Character");
-    public static final Type objectType = INSTANCE.getType("Object");
-    public static final Type defType = INSTANCE.getType("def");
-    public static final Type defobjType = INSTANCE.getType("Def");
-    public static final Type stringType = INSTANCE.getType("String");
-    public static final Type exceptionType = INSTANCE.getType("Exception");
-    public static final Type utilityType = INSTANCE.getType("Utility");
+    public static final Type voidType = getType("void");
+    public static final Type booleanType = getType("boolean");
+    public static final Type booleanobjType = getType("Boolean");
+    public static final Type byteType = getType("byte");
+    public static final Type byteobjType = getType("Byte");
+    public static final Type shortType = getType("short");
+    public static final Type shortobjType = getType("Short");
+    public static final Type intType = getType("int");
+    public static final Type intobjType = getType("Integer");
+    public static final Type longType = getType("long");
+    public static final Type longobjType = getType("Long");
+    public static final Type floatType = getType("float");
+    public static final Type floatobjType = getType("Float");
+    public static final Type doubleType = getType("double");
+    public static final Type doubleobjType = getType("Double");
+    public static final Type charType = getType("char");
+    public static final Type charobjType = getType("Character");
+    public static final Type objectType = getType("Object");
+    public static final Type defType = getType("def");
+    public static final Type defobjType = getType("Def");
+    public static final Type stringType = getType("String");
+    public static final Type exceptionType = getType("Exception");
+    public static final Type utilityType = getType("Utility");
 
     public enum Sort {
         VOID(       void.class      , 0 , true  , false , false , false ),
@@ -394,8 +394,29 @@ public final class Definition {
         }
     }
 
-    final Map<Cast, Cast> transformsMap;
-    final Map<Class<?>, RuntimeClass> runtimeMap;
+    
+    /** Gets the type given by its name */
+    public static Type getType(final String name) {
+        return INSTANCE.getTypeInternal(name);
+    }
+
+    /** Creates an array type from the given Struct. */
+    public static Type getType(final Struct struct, final int dimensions) {
+        return INSTANCE.getTypeInternal(struct, dimensions);
+    }
+    
+    public static RuntimeClass getRuntimeClass(Class<?> clazz) {
+        return INSTANCE.runtimeMap.get(clazz);
+    }
+    
+    public static Cast getTransform(Cast cast) {
+        return INSTANCE.transformsMap.get(cast);
+    }
+    
+    // INTERNAL IMPLEMENTATION:
+    
+    private final Map<Cast, Cast> transformsMap;
+    private final Map<Class<?>, RuntimeClass> runtimeMap;
     private final Map<String, Struct> structsMap;
     private final Map<String, Type> simpleTypesMap;
 
@@ -531,26 +552,26 @@ public final class Definition {
     }
 
     private void addTransforms() {
-        Type booleanType = getType("boolean");
-        Type objectType = getType("Object");
-        Type defType = getType("def");
-        Type booleanobjType = getType("Boolean");
-        Type byteType = getType("byte");
-        Type shortType = getType("short");
-        Type intType = getType("int");
-        Type charType = getType("char");
-        Type longType = getType("long");
-        Type floatType = getType("float");
-        Type doubleType = getType("double");
-        Type numberType = getType("Number");
-        Type byteobjType = getType("Byte");
-        Type shortobjType = getType("Short");
-        Type charobjType = getType("Character");
-        Type intobjType = getType("Integer");
-        Type longobjType = getType("Long");
-        Type floatobjType = getType("Float");
-        Type doubleobjType = getType("Double");
-        Type stringType = getType("String");
+        Type booleanType = getTypeInternal("boolean");
+        Type objectType = getTypeInternal("Object");
+        Type defType = getTypeInternal("def");
+        Type booleanobjType = getTypeInternal("Boolean");
+        Type byteType = getTypeInternal("byte");
+        Type shortType = getTypeInternal("short");
+        Type intType = getTypeInternal("int");
+        Type charType = getTypeInternal("char");
+        Type longType = getTypeInternal("long");
+        Type floatType = getTypeInternal("float");
+        Type doubleType = getTypeInternal("double");
+        Type numberType = getTypeInternal("Number");
+        Type byteobjType = getTypeInternal("Byte");
+        Type shortobjType = getTypeInternal("Short");
+        Type charobjType = getTypeInternal("Character");
+        Type intobjType = getTypeInternal("Integer");
+        Type longobjType = getTypeInternal("Long");
+        Type floatobjType = getTypeInternal("Float");
+        Type doubleobjType = getTypeInternal("Double");
+        Type stringType = getTypeInternal("String");
         
         addTransform(booleanType, objectType, "Boolean", "valueOf", true, false);
         addTransform(booleanType, defType, "Boolean", "valueOf", true, false);
@@ -848,7 +869,7 @@ public final class Definition {
         final Struct struct = new Struct(name, clazz, org.objectweb.asm.Type.getType(clazz));
 
         structsMap.put(name, struct);
-        simpleTypesMap.put(name, getType(name));
+        simpleTypesMap.put(name, getTypeInternal(name));
     }
     
     private final void addConstructorInternal(final String struct, final String name, final Type[] args) {
@@ -919,7 +940,7 @@ public final class Definition {
             throw new IllegalArgumentException("Malformed signature: " + signature);
         }
         // method or field type (e.g. return type)
-        Type rtn = getType(elements[0]);
+        Type rtn = getTypeInternal(elements[0]);
         int parenIndex = elements[1].indexOf('(');
         if (parenIndex != -1) {
             // method or ctor
@@ -929,7 +950,7 @@ public final class Definition {
                 String arguments[] = elements[1].substring(parenIndex + 1, parenEnd).split(",");
                 args = new Type[arguments.length];
                 for (int i = 0; i < arguments.length; i++) {
-                    args[i] = getType(arguments[i]);
+                    args[i] = getTypeInternal(arguments[i]);
                 }
             } else {
                 args = new Type[0];
@@ -1275,7 +1296,7 @@ public final class Definition {
 
             if (!owner.clazz.isAssignableFrom(from.clazz)) {
                 if (from.clazz.isAssignableFrom(owner.clazz)) {
-                    upcast = getType(owner.name);
+                    upcast = getTypeInternal(owner.name);
                 } else {
                     throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
                         " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
@@ -1351,7 +1372,7 @@ public final class Definition {
         runtimeMap.put(struct.clazz, new RuntimeClass(methods, getters, setters));
     }
 
-    public final Type getType(final String name) {
+    private Type getTypeInternal(final String name) {
         // simple types (e.g. 0 array dimensions) are a simple hash lookup for speed
         Type simple = simpleTypesMap.get(name);
         if (simple != null) {
@@ -1365,10 +1386,10 @@ public final class Definition {
             throw new IllegalArgumentException("The struct with name [" + name + "] has not been defined.");
         }
 
-        return getType(struct, dimensions);
+        return getTypeInternal(struct, dimensions);
     }
 
-    public final Type getType(final Struct struct, final int dimensions) {
+    private Type getTypeInternal(final Struct struct, final int dimensions) {
         String name = struct.name;
         org.objectweb.asm.Type type = struct.type;
         Class<?> clazz = struct.clazz;

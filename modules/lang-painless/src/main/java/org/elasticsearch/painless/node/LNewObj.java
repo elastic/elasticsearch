@@ -57,7 +57,7 @@ public final class LNewObj extends ALink {
         final Type type;
 
         try {
-            type = definition.getType(this.type);
+            type = Definition.getType(this.type);
         } catch (final IllegalArgumentException exception) {
             throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
         }

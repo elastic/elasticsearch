@@ -54,7 +54,7 @@ public final class LBrace extends ALink {
             index.analyze(settings, definition, variables);
             index = index.cast(settings, definition, variables);
 
-            after = definition.getType(before.struct, before.dimensions - 1);
+            after = Definition.getType(before.struct, before.dimensions - 1);
 
             return this;
         } else if (sort == Sort.DEF) {

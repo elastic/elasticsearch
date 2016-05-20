@@ -145,7 +145,7 @@ public final class Def {
          Definition.MethodKey key = new Definition.MethodKey(name, type.parameterCount());
          // check whitelist for matching method
          for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-             RuntimeClass struct = definition.runtimeMap.get(clazz);
+             RuntimeClass struct = Definition.getRuntimeClass(clazz);
 
              if (struct != null) {
                  Method method = struct.methods.get(key);
@@ -155,7 +155,7 @@ public final class Def {
              }
 
              for (final Class<?> iface : clazz.getInterfaces()) {
-                 struct = definition.runtimeMap.get(iface);
+                 struct = Definition.getRuntimeClass(iface);
 
                  if (struct != null) {
                      Method method = struct.methods.get(key);
@@ -200,7 +200,7 @@ public final class Def {
     static MethodHandle lookupGetter(Class<?> receiverClass, String name, Definition definition) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            RuntimeClass struct = definition.runtimeMap.get(clazz);
+            RuntimeClass struct = Definition.getRuntimeClass(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.getters.get(name);
@@ -210,7 +210,7 @@ public final class Def {
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.runtimeMap.get(iface);
+                struct = Definition.getRuntimeClass(iface);
 
                 if (struct != null) {
                     MethodHandle handle = struct.getters.get(name);
@@ -271,7 +271,7 @@ public final class Def {
     static MethodHandle lookupSetter(Class<?> receiverClass, String name, Definition definition) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            RuntimeClass struct = definition.runtimeMap.get(clazz);
+            RuntimeClass struct = Definition.getRuntimeClass(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.setters.get(name);
@@ -281,7 +281,7 @@ public final class Def {
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.runtimeMap.get(iface);
+                struct = Definition.getRuntimeClass(iface);
 
                 if (struct != null) {
                     MethodHandle handle = struct.setters.get(name);

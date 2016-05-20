@@ -51,7 +51,7 @@ public final class LVariable extends ALink {
         Type type = null;
 
         try {
-            type = definition.getType(name);
+            type = Definition.getType(name);
         } catch (final IllegalArgumentException exception) {
             // Do nothing.
         }

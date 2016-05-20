@@ -182,7 +182,7 @@ public final class Variables {
         final Type type;
 
         try {
-            type = definition.getType(typestr);
+            type = Definition.getType(typestr);
         } catch (final IllegalArgumentException exception) {
             throw new IllegalArgumentException("Error " + location + ": Not a type [" + typestr + "].");
         }
@@ -190,7 +190,7 @@ public final class Variables {
         boolean legal = !name.contains("<");
 
         try {
-            definition.getType(name);
+            Definition.getType(name);
             legal = false;
         } catch (final IllegalArgumentException exception) {
             // Do nothing.

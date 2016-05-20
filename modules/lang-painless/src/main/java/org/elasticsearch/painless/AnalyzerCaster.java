@@ -41,10 +41,10 @@ public final class AnalyzerCaster {
             return null;
         }
 
-        Cast transform = definition.transformsMap.get(cast);
+        Cast transform = Definition.getTransform(cast);
 
         if (transform == null && explicit) {
-            transform = definition.transformsMap.get(new Cast(actual, expected, false));
+            transform = Definition.getTransform(new Cast(actual, expected, false));
         }
 
         if (transform != null) {

@@ -42,7 +42,7 @@ public final class EExplicit extends AExpression {
     @Override
     void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         try {
-            actual = definition.getType(this.type);
+            actual = Definition.getType(this.type);
         } catch (final IllegalArgumentException exception) {
             throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
         }

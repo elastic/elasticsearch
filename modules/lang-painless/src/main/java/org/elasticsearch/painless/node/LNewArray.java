@@ -55,7 +55,7 @@ public final class LNewArray extends ALink {
         final Type type;
 
         try {
-            type = definition.getType(this.type);
+            type = Definition.getType(this.type);
         } catch (final IllegalArgumentException exception) {
             throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
         }
@@ -68,7 +68,7 @@ public final class LNewArray extends ALink {
             arguments.set(argument, expression.cast(settings, definition, variables));
         }
 
-        after = definition.getType(type.struct, arguments.size());
+        after = Definition.getType(type.struct, arguments.size());
 
         return this;
     }
@@ -87,7 +87,7 @@ public final class LNewArray extends ALink {
         if (arguments.size() > 1) {
             adapter.visitMultiANewArrayInsn(after.type.getDescriptor(), after.type.getDimensions());
         } else {
-            adapter.newArray(definition.getType(after.struct, 0).type);
+            adapter.newArray(Definition.getType(after.struct, 0).type);
         }
     }
 

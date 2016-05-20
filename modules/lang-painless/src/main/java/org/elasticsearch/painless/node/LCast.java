@@ -50,7 +50,7 @@ public final class LCast extends ALink {
         }
 
         try {
-            after = definition.getType(type);
+            after = Definition.getType(type);
         } catch (final IllegalArgumentException exception) {
             throw new IllegalArgumentException(error("Not a type [" + type + "]."));
         }

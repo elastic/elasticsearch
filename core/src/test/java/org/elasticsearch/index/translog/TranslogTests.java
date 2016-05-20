@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.translog;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.Term;
@@ -604,7 +605,8 @@ public class TranslogTests extends ESTestCase {
         final List<Throwable> errors = new CopyOnWriteArrayList<>();
         logger.debug("using [{}] readers. [{}] writers. flushing every ~[{}] ops.", readers.length, writers.length, flushEveryOps);
         for (int i = 0; i < writers.length; i++) {
-            final String threadId = "writer_" + i;
+            final String threadName = "writer_" + i;
+            final int threadId = i;
             writers[i] = new Thread(new AbstractRunnable() {
                 @Override
                 public void doRun() throws BrokenBarrierException, InterruptedException, IOException {
@@ -629,18 +631,21 @@ public class TranslogTests extends ESTestCase {
                         if (existing != null) {
                             fail("duplicate op [" + op + "], old entry at " + location);
                         }
+                        if (id % writers.length == threadId) {
+                            translog.ensureSynced(location);
+                        }
                         writtenOpsLatch.get().countDown();
                         counter++;
                     }
-                    logger.debug("--> [{}] done. wrote [{}] ops.", threadId, counter);
+                    logger.debug("--> [{}] done. wrote [{}] ops.", threadName, counter);
                 }
 
                 @Override
                 public void onFailure(Throwable t) {
-                    logger.error("--> writer [{}] had an error", t, threadId);
+                    logger.error("--> writer [{}] had an error", t, threadName);
                     errors.add(t);
                 }
-            }, threadId);
+            }, threadName);
             writers[i].start();
         }
 

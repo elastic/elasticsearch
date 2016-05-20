@@ -136,6 +136,11 @@ specific index module:
     experimental[] Disables the purge of <<mapping-ttl-field,expired docs>> on
     the current index.
 
+`index.max_refresh_listeners`::
+
+    Maximum number of refresh listeners available on each shard of the index.
+    These listeners are used to implement <<block-until-refresh>>.
+
 
 [float]
 === Settings in other index modules

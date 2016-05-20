@@ -237,7 +237,16 @@ The write consistency of the index/delete operation.
 
 Refresh the relevant primary and replica shards (not the whole index)
 immediately after the operation occurs, so that the updated document appears
-in search results  immediately.
+in search results immediately. This should *ONLY* be done after careful thought
+and verification that it does not lead to poor performance, both from an
+indexing and a search standpoint.
+
+`block_until_refresh`::
+
+Wait to reply to the request until the primary and replica shards have been
+refreshed to make this operation's changes visible for search. Use this if
+`refresh` is too inefficient and you can tolerate slower responses. See
+<<block-until-refresh>> for more details.
 
 `fields`::
 

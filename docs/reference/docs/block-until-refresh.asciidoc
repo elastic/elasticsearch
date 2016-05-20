@@ -1,0 +1,42 @@
+[[block-until-refresh]]
+== Block Until Refresh
+
+The <<docs-index_,Index>>, <<docs-update,Update>>, <<docs-delete,Delete>>, and
+<<docs-bulk,Bulk>> APIs support setting `block_until_refresh` to `true` which
+will cause Elasticsearch to wait for the changes made by the request to become
+visible to search before returning. The operation that makes the changes
+visible is called a refresh and Elasticsearch automatically performs one on
+every shard that has been modified every `index.refresh_interval` which
+defaults to one second. That setting is <<dynamic-index-settings,dynamic>>.
+
+Refreshes can also be forced with the <<indices-refresh>> and that will also
+cause any requests that blocking-until-refresh to return. Setting `refresh` to
+`true` in any of the APIs that support it will also force a refresh but that
+refresh typically is only on the shards affected by the request.
+
+=== Compared to Setting `refresh` to `true`
+
+All of the APIs that support `block_until_refresh` also support `refresh`, but
+`refresh` is a much heavier operation, causing Elasticsearch to immediately
+make all pending changes visible for search on the shards affected by the
+request immediately. Frequently forcing refreshes causes Elasticsearch to make
+many small segments. Searching and creating many small segments is much less
+efficient than searching a single large segment. And small segments must
+eventually be merged into larger segments, causing yet more work.
+
+On the other hand, setting `refresh` causes the request to be returned as fast
+as the segment can be made visible. Setting `block_until_refresh` slots the
+request into process that will be called by default every second and a second
+is a long time sometimes. So the tradeoff is clear: `block_until_refresh` is
+slower but puts less load on Elasticsearch.
+
+=== Forced a Refresh Anyway
+
+If a `block_until_refresh` request comes in when there are already
+`index.max_refresh_listeners` (defaults to 1000) requests
+blocking-until-refresh then that request will behave just as though it had
+`refresh` set to `true` on it. It will force a refresh. This keeps the promise
+that when a `block_until_refresh` request returns that its changes are visible
+for search while preventing unchecked resource usage for blocked requests. If
+a request forced a refresh because it ran out of listener slots then its
+response will contain `"forced_refresh": true`.

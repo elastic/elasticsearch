@@ -363,6 +363,16 @@ a document using the get API is completely realtime and doesn't require a
 refresh.
 
 [float]
+[[index-block-until-refresh]]
+=== Block Until Refresh
+
+If `refresh` is too heavy for your use case then you can instead set
+`block_until_refresh` to `true` to wait until the operation has been made
+visible for search by a refresh. This is *much* lower overhead than `refresh`
+but the downside is that the request will wait for the next refresh. See
+<<block-until-refresh>> for more details.
+
+[float]
 [[index-noop]]
 === Noop Updates
 

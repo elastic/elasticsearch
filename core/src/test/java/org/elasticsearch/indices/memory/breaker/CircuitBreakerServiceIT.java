@@ -75,6 +75,9 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
     /** Reset all breaker settings back to their defaults */
     private void reset() {
         logger.info("--> resetting breaker settings");
+        // clear all caches, we could be very close (or even above) the limit and then we will not be able to reset the breaker settings
+        client().admin().indices().prepareClearCache().setFieldDataCache(true).setQueryCache(true).setRequestCache(true).get();
+
         Settings resetSettings = Settings.builder()
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(),
                         HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getDefaultRaw(null))
@@ -214,7 +217,6 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
      * Test that a breaker correctly redistributes to a different breaker, in
      * this case, the fielddata breaker borrows space from the request breaker
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/18325")
     public void testParentChecking() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");
@@ -274,9 +276,6 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
                 cause.toString(), startsWith("CircuitBreakingException[[parent] Data too large"));
             assertThat("Exception: [" + cause.toString() + "] should contain a CircuitBreakingException",
                 cause.toString(), endsWith(errMsg));
-        } finally {
-            // reset before teardown as it requires properly set up breakers
-            reset();
         }
     }
 

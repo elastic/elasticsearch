@@ -24,9 +24,9 @@ import java.net.UnknownHostException;
 
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeAggregationBuilder;
 
-public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregatorBuilder> {
+public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregationBuilder> {
 
     private static String randomIp(boolean v4) {
         try {
@@ -45,9 +45,9 @@ public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregatorBuild
     }
 
     @Override
-    protected IpRangeAggregatorBuilder createTestAggregatorBuilder() {
+    protected IpRangeAggregationBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
-        IpRangeAggregatorBuilder factory = new IpRangeAggregatorBuilder("foo");
+        IpRangeAggregationBuilder factory = new IpRangeAggregationBuilder("foo");
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {

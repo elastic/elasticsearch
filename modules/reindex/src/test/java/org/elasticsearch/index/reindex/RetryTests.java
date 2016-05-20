@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -43,6 +44,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * Integration test for retry behavior. Useful because retrying relies on the way that the rest of Elasticsearch throws exceptions and unit
  * tests won't verify that.
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/18456")
 public class RetryTests extends ReindexTestCase {
     /**
      * The number of concurrent requests to test.

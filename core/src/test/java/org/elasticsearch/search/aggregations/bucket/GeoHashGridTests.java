@@ -20,14 +20,14 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 
-public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregatorBuilder> {
+public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregationBuilder> {
 
     @Override
-    protected GeoGridAggregatorBuilder createTestAggregatorBuilder() {
+    protected GeoGridAggregationBuilder createTestAggregatorBuilder() {
         String name = randomAsciiOfLengthBetween(3, 20);
-        GeoGridAggregatorBuilder factory = new GeoGridAggregatorBuilder(name);
+        GeoGridAggregationBuilder factory = new GeoGridAggregationBuilder(name);
         if (randomBoolean()) {
             int precision = randomIntBetween(1, 12);
             factory.precision(precision);

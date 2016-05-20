@@ -11,6 +11,7 @@ by a search hit.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "fields" : ["user", "postDate"],
     "query" : {
@@ -18,6 +19,7 @@ by a search hit.
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 `*` can be used to load all stored fields from the document.
 
@@ -26,6 +28,7 @@ returned, for example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "fields" : [],
     "query" : {
@@ -33,6 +36,7 @@ returned, for example:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 
 For backwards compatibility, if the fields parameter specifies fields which are not stored (`store` mapping set to

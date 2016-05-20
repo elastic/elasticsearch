@@ -44,8 +44,8 @@ public class AvgParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected AvgAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new AvgAggregatorBuilder(aggregationName);
+    protected AvgAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                  ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        return new AvgAggregationBuilder(aggregationName);
     }
 }

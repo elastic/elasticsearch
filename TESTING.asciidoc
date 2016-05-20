@@ -201,7 +201,7 @@ gradle test -Dtests.timeoutSuite=5000! ...
 Change the logging level of ES (not gradle)
 
 --------------------------------
-gradle test -Des.logger.level=DEBUG
+gradle test -Dtests.logger.level=DEBUG
 --------------------------------
 
 Print all the logging output from the test runs to the commandline

@@ -33,6 +33,12 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 
+import static org.elasticsearch.painless.WriterConstants.BOOLEAN_OBJECT;
+import static org.elasticsearch.painless.WriterConstants.BOOLEAN_VALUE_OF;
+import static org.elasticsearch.painless.WriterConstants.BYTE_OBJECT;
+import static org.elasticsearch.painless.WriterConstants.BYTE_VALUE_OF;
+import static org.elasticsearch.painless.WriterConstants.CHARACTER_OBJECT;
+import static org.elasticsearch.painless.WriterConstants.CHARACTER_VALUE_OF;
 import static org.elasticsearch.painless.WriterConstants.CHAR_TO_STRING;
 import static org.elasticsearch.painless.WriterConstants.DEF_ADD_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_AND_CALL;
@@ -61,9 +67,19 @@ import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_IMPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
 import static org.elasticsearch.painless.WriterConstants.DEF_USH_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_XOR_CALL;
+import static org.elasticsearch.painless.WriterConstants.DOUBLE_OBJECT;
+import static org.elasticsearch.painless.WriterConstants.DOUBLE_VALUE_OF;
+import static org.elasticsearch.painless.WriterConstants.FLOAT_OBJECT;
+import static org.elasticsearch.painless.WriterConstants.FLOAT_VALUE_OF;
 import static org.elasticsearch.painless.WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
+import static org.elasticsearch.painless.WriterConstants.INTEGER_OBJECT;
+import static org.elasticsearch.painless.WriterConstants.INTEGER_VALUE_OF;
+import static org.elasticsearch.painless.WriterConstants.LONG_OBJECT;
+import static org.elasticsearch.painless.WriterConstants.LONG_VALUE_OF;
 import static org.elasticsearch.painless.WriterConstants.MAX_INDY_STRING_CONCAT_ARGS;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
+import static org.elasticsearch.painless.WriterConstants.SHORT_OBJECT;
+import static org.elasticsearch.painless.WriterConstants.SHORT_VALUE_OF;
 import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_APPEND_BOOLEAN;
 import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_APPEND_CHAR;
 import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_APPEND_DOUBLE;
@@ -181,6 +197,22 @@ public final class MethodWriter extends GeneratorAdapter {
             if (!to.clazz.isAssignableFrom(from.clazz)) {
                 checkCast(to.type);
             }
+        }
+    }
+
+    @Override
+    public void box(final org.objectweb.asm.Type type) {
+        switch (type.getSort()) {
+            case org.objectweb.asm.Type.BOOLEAN: invokeStatic(BOOLEAN_OBJECT  , BOOLEAN_VALUE_OF);   break;
+            case org.objectweb.asm.Type.BYTE:    invokeStatic(BYTE_OBJECT     , BYTE_VALUE_OF);      break;
+            case org.objectweb.asm.Type.SHORT:   invokeStatic(SHORT_OBJECT    , SHORT_VALUE_OF);     break;
+            case org.objectweb.asm.Type.CHAR:    invokeStatic(CHARACTER_OBJECT, CHARACTER_VALUE_OF); break;
+            case org.objectweb.asm.Type.INT:     invokeStatic(INTEGER_OBJECT  , INTEGER_VALUE_OF);   break;
+            case org.objectweb.asm.Type.LONG:    invokeStatic(LONG_OBJECT     , LONG_VALUE_OF);      break;
+            case org.objectweb.asm.Type.FLOAT:   invokeStatic(FLOAT_OBJECT    , FLOAT_VALUE_OF);     break;
+            case org.objectweb.asm.Type.DOUBLE:  invokeStatic(DOUBLE_OBJECT   , DOUBLE_VALUE_OF);    break;
+            default:
+                throw new IllegalArgumentException("Illegal tree structure.");
         }
     }
 

@@ -138,6 +138,25 @@ public final class WriterConstants {
     public final static Method CHECKEQUALS              =
         getAsmMethod(boolean.class, "checkEquals",              Object.class, Object.class);
 
+    public final static Type BOOLEAN_OBJECT   = Type.getType(Boolean.class);
+    public final static Type BYTE_OBJECT      = Type.getType(Byte.class);
+    public final static Type SHORT_OBJECT     = Type.getType(Short.class);
+    public final static Type CHARACTER_OBJECT = Type.getType(Character.class);
+    public final static Type INTEGER_OBJECT   = Type.getType(Integer.class);
+    public final static Type LONG_OBJECT      = Type.getType(Long.class);
+    public final static Type FLOAT_OBJECT     = Type.getType(Float.class);
+    public final static Type DOUBLE_OBJECT    = Type.getType(Double.class);
+
+    /** box methods to replace the GeneratorAdapter's slow way of boxing */
+    public final static Method BOOLEAN_VALUE_OF   = getAsmMethod(Boolean.class  , "valueOf", boolean.class);
+    public final static Method BYTE_VALUE_OF      = getAsmMethod(Byte.class     , "valueOf", byte.class);
+    public final static Method SHORT_VALUE_OF     = getAsmMethod(Short.class    , "valueOf", short.class);
+    public final static Method CHARACTER_VALUE_OF = getAsmMethod(Character.class, "valueOf", char.class);
+    public final static Method INTEGER_VALUE_OF   = getAsmMethod(Integer.class  , "valueOf", int.class);
+    public final static Method LONG_VALUE_OF      = getAsmMethod(Long.class     , "valueOf", long.class);
+    public final static Method FLOAT_VALUE_OF     = getAsmMethod(Float.class    , "valueOf", float.class);
+    public final static Method DOUBLE_VALUE_OF    = getAsmMethod(Double.class   , "valueOf", double.class);
+
     private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());
     }

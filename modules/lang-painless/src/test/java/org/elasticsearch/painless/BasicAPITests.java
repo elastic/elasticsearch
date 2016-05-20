@@ -45,39 +45,49 @@ public class BasicAPITests extends ScriptTestCase {
         assertEquals(3, exec("Map x = new HashMap(); x.put(2, 2); x.put(3, 3); x.put(-2, -2); Iterator y = x.values().iterator(); " +
             "int total = 0; while (y.hasNext()) total += (int)y.next(); return total;"));
     }
-    
+
     /** Test loads and stores with a map */
     public void testMapLoadStore() {
         assertEquals(5, exec("def x = new HashMap(); x.abc = 5; return x.abc;"));
         assertEquals(5, exec("def x = new HashMap(); x['abc'] = 5; return x['abc'];"));
     }
-    
+
     /** Test loads and stores with a list */
     public void testListLoadStore() {
         assertEquals(5, exec("def x = new ArrayList(); x.add(3); x.0 = 5; return x.0;"));
         assertEquals(5, exec("def x = new ArrayList(); x.add(3); x[0] = 5; return x[0];"));
     }
-    
+
     /** Test shortcut for getters with isXXXX */
     public void testListEmpty() {
         assertEquals(true, exec("def x = new ArrayList(); return x.empty;"));
         assertEquals(true, exec("def x = new HashMap(); return x.empty;"));
     }
-    
+
     /** Test list method invocation */
     public void testListGet() {
         assertEquals(5, exec("def x = new ArrayList(); x.add(5); return x.get(0);"));
         assertEquals(5, exec("def x = new ArrayList(); x.add(5); def index = 0; return x.get(index);"));
     }
-    
+
     public void testListAsArray() {
         assertEquals(1, exec("def x = new ArrayList(); x.add(5); return x.length"));
         assertEquals(5, exec("def x = new ArrayList(); x.add(5); return x[0]"));
         assertEquals(1, exec("List x = new ArrayList(); x.add('Hallo'); return x.length"));
     }
-    
+
     public void testDefAssignments() {
         assertEquals(2, exec("int x; def y = 2.0; x = (int)y;"));
     }
-    
+
+    public void testInternalBoxing() {
+        assertBytecodeExists("def x = true", "INVOKESTATIC java/lang/Boolean.valueOf (Z)Ljava/lang/Boolean;");
+        assertBytecodeExists("def x = (byte)1", "INVOKESTATIC java/lang/Byte.valueOf (B)Ljava/lang/Byte;");
+        assertBytecodeExists("def x = (short)1", "INVOKESTATIC java/lang/Short.valueOf (S)Ljava/lang/Short;");
+        assertBytecodeExists("def x = (char)1", "INVOKESTATIC java/lang/Character.valueOf (C)Ljava/lang/Character;");
+        assertBytecodeExists("def x = 1", "INVOKESTATIC java/lang/Integer.valueOf (I)Ljava/lang/Integer;");
+        assertBytecodeExists("def x = 1L", "INVOKESTATIC java/lang/Long.valueOf (J)Ljava/lang/Long;");
+        assertBytecodeExists("def x = 1F", "INVOKESTATIC java/lang/Float.valueOf (F)Ljava/lang/Float;");
+        assertBytecodeExists("def x = 1D", "INVOKESTATIC java/lang/Double.valueOf (D)Ljava/lang/Double;");
+    }
 }

@@ -38,10 +38,10 @@ import java.io.IOException;
  * Request to submit cluster reroute allocation commands
  */
 public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteRequest> {
-    AllocationCommands commands = new AllocationCommands();
-    boolean dryRun;
-    boolean explain;
-    boolean retryFailed;
+    private AllocationCommands commands = new AllocationCommands();
+    private boolean dryRun;
+    private boolean explain;
+    private boolean retryFailed;
 
     public ClusterRerouteRequest() {
     }
@@ -115,6 +115,13 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
     }
 
     /**
+     * Returns the allocation commands to execute
+     */
+    public AllocationCommands getCommands() {
+        return commands;
+    }
+
+    /**
      * Sets the source for the request.
      */
     public ClusterRerouteRequest source(BytesReference source, AllocationCommandRegistry registry, ParseFieldMatcher parseFieldMatcher)
@@ -154,6 +161,7 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         commands = AllocationCommands.readFrom(in);
         dryRun = in.readBoolean();
         explain = in.readBoolean();
+        retryFailed = in.readBoolean();
         readTimeout(in);
     }
 
@@ -163,6 +171,7 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         AllocationCommands.writeTo(commands, out);
         out.writeBoolean(dryRun);
         out.writeBoolean(explain);
+        out.writeBoolean(retryFailed);
         writeTimeout(out);
     }
 }

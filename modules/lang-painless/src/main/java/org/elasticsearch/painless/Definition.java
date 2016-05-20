@@ -40,11 +40,8 @@ public final class Definition {
     
     private static final String DEFINITION_FILE = "definition.txt";
 
-    /**
-     * The default language API to be used with Painless.  The second construction is used
-     * to finalize all the variables, so there is no mistake of modification afterwards.
-     */
-    public static final Definition INSTANCE = new Definition(new Definition());
+    // The second construction is used to finalize all the variables, so there is no mistake of modification afterwards.
+    private static final Definition INSTANCE = new Definition(new Definition());
     
     /** Some native types as constants: */
     public static final Type voidType = getType("void");

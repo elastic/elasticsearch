@@ -41,12 +41,12 @@ public final class SWhile extends AStatement {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Variables variables) {
         variables.incrementScope();
 
         condition.expected = Definition.booleanType;
-        condition.analyze(settings, definition, variables);
-        condition = condition.cast(settings, definition, variables);
+        condition.analyze(settings, variables);
+        condition = condition.cast(settings, variables);
 
         boolean continuous = false;
 
@@ -68,7 +68,7 @@ public final class SWhile extends AStatement {
             block.beginLoop = true;
             block.inLoop = true;
 
-            block.analyze(settings, definition, variables);
+            block.analyze(settings, variables);
 
             if (block.loopEscape && !block.anyContinue) {
                 throw new IllegalArgumentException(error("Extranous while loop."));
@@ -92,7 +92,7 @@ public final class SWhile extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         writeDebugInfo(adapter);
         final Label begin = new Label();
         final Label end = new Label();
@@ -100,14 +100,14 @@ public final class SWhile extends AStatement {
         adapter.mark(begin);
 
         condition.fals = end;
-        condition.write(settings, definition, adapter);
+        condition.write(settings, adapter);
 
         if (block != null) {
             adapter.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount));
 
             block.continu = begin;
             block.brake = end;
-            block.write(settings, definition, adapter);
+            block.write(settings, adapter);
         } else {
             adapter.writeLoopCounter(loopCounterSlot, 1);
         }

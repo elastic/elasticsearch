@@ -42,7 +42,7 @@ public final class LCast extends ALink {
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         } else if (store) {
@@ -55,23 +55,23 @@ public final class LCast extends ALink {
             throw new IllegalArgumentException(error("Not a type [" + type + "]."));
         }
 
-        cast = AnalyzerCaster.getLegalCast(definition, location, before, after, true);
+        cast = AnalyzerCaster.getLegalCast(location, before, after, true);
 
         return cast != null ? this : null;
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         adapter.writeCast(cast);
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void load(final CompilerSettings settings, final MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void store(final CompilerSettings settings, final MethodWriter adapter) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

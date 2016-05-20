@@ -48,24 +48,24 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Variables variables) {
         if (operation == Operation.NOT) {
-            analyzeNot(settings, definition, variables);
+            analyzeNot(settings, variables);
         } else if (operation == Operation.BWNOT) {
-            analyzeBWNot(settings, definition, variables);
+            analyzeBWNot(settings, variables);
         } else if (operation == Operation.ADD) {
-            analyzerAdd(settings, definition, variables);
+            analyzerAdd(settings, variables);
         } else if (operation == Operation.SUB) {
-            analyzerSub(settings, definition, variables);
+            analyzerSub(settings, variables);
         } else {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
     }
 
-    void analyzeNot(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyzeNot(final CompilerSettings settings, final Variables variables) {
         child.expected = Definition.booleanType;
-        child.analyze(settings, definition, variables);
-        child = child.cast(settings, definition, variables);
+        child.analyze(settings, variables);
+        child = child.cast(settings, variables);
 
         if (child.constant != null) {
             constant = !(boolean)child.constant;
@@ -74,17 +74,17 @@ public final class EUnary extends AExpression {
         actual = Definition.booleanType;
     }
 
-    void analyzeBWNot(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        child.analyze(settings, definition, variables);
+    void analyzeBWNot(final CompilerSettings settings, final Variables variables) {
+        child.analyze(settings, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, child.actual, false, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(child.actual, false, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply not [~] to type [" + child.actual.name + "]."));
         }
 
         child.expected = promote;
-        child = child.cast(settings, definition, variables);
+        child = child.cast(settings, variables);
 
         if (child.constant != null) {
             final Sort sort = promote.sort;
@@ -101,17 +101,17 @@ public final class EUnary extends AExpression {
         actual = promote;
     }
 
-    void analyzerAdd(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        child.analyze(settings, definition, variables);
+    void analyzerAdd(final CompilerSettings settings, final Variables variables) {
+        child.analyze(settings, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, child.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(child.actual, true, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply positive [+] to type [" + child.actual.name + "]."));
         }
 
         child.expected = promote;
-        child = child.cast(settings, definition, variables);
+        child = child.cast(settings, variables);
 
         if (child.constant != null) {
             final Sort sort = promote.sort;
@@ -132,17 +132,17 @@ public final class EUnary extends AExpression {
         actual = promote;
     }
 
-    void analyzerSub(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        child.analyze(settings, definition, variables);
+    void analyzerSub(final CompilerSettings settings, final Variables variables) {
+        child.analyze(settings, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, child.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(child.actual, true, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply negative [-] to type [" + child.actual.name + "]."));
         }
 
         child.expected = promote;
-        child = child.cast(settings, definition, variables);
+        child = child.cast(settings, variables);
 
         if (child.constant != null) {
             final Sort sort = promote.sort;
@@ -164,14 +164,14 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         if (operation == Operation.NOT) {
             if (tru == null && fals == null) {
                 final Label localfals = new Label();
                 final Label end = new Label();
 
                 child.fals = localfals;
-                child.write(settings, definition, adapter);
+                child.write(settings, adapter);
 
                 adapter.push(false);
                 adapter.goTo(end);
@@ -181,13 +181,13 @@ public final class EUnary extends AExpression {
             } else {
                 child.tru = fals;
                 child.fals = tru;
-                child.write(settings, definition, adapter);
+                child.write(settings, adapter);
             }
         } else {
             final org.objectweb.asm.Type type = actual.type;
             final Sort sort = actual.sort;
 
-            child.write(settings, definition, adapter);
+            child.write(settings, adapter);
 
             if (operation == Operation.BWNOT) {
                 if (sort == Sort.DEF) {

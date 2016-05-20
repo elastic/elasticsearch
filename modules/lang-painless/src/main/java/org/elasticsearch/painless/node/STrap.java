@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.Variables.Variable;
 import org.objectweb.asm.Label;
@@ -51,7 +50,7 @@ public final class STrap extends AStatement {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Variables variables) {
         variable = variables.addVariable(location, type, name, true, false);
 
         if (!Exception.class.isAssignableFrom(variable.type.clazz)) {
@@ -63,7 +62,7 @@ public final class STrap extends AStatement {
             block.inLoop = inLoop;
             block.lastLoop = lastLoop;
 
-            block.analyze(settings, definition, variables);
+            block.analyze(settings, variables);
 
             methodEscape = block.methodEscape;
             loopEscape = block.loopEscape;
@@ -75,7 +74,7 @@ public final class STrap extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         writeDebugInfo(adapter);
         final Label jump = new Label();
 
@@ -85,7 +84,7 @@ public final class STrap extends AStatement {
         if (block != null) {
             block.continu = continu;
             block.brake = brake;
-            block.write(settings, definition, adapter);
+            block.write(settings, adapter);
         }
 
         adapter.visitTryCatchBlock(begin, end, jump, variable.type.type.getInternalName());

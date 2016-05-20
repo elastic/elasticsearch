@@ -86,14 +86,12 @@ public final class Variables {
         }
     }
 
-    private final Definition definition;
     final Reserved reserved;
 
     private final Deque<Integer> scopes = new ArrayDeque<>();
     private final Deque<Variable> variables = new ArrayDeque<>();
 
-    public Variables(final CompilerSettings settings, final Definition definition, final Reserved reserved) {
-        this.definition = definition;
+    public Variables(final CompilerSettings settings, final Reserved reserved) {
         this.reserved = reserved;
 
         incrementScope();

@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -41,18 +40,18 @@ public final class SDeclBlock extends AStatement {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Variables variables) {
         for (final SDeclaration declaration : declarations) {
-            declaration.analyze(settings, definition, variables);
+            declaration.analyze(settings, variables);
         }
 
         statementCount = declarations.size();
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         for (final SDeclaration declaration : declarations) {
-            declaration.write(settings, definition, adapter);
+            declaration.write(settings, adapter);
         }
     }
 }

@@ -38,7 +38,7 @@ public final class LArrayLength extends ALink {
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Variables variables) {
         if ("length".equals(value)) {
             if (!load) {
                 throw new IllegalArgumentException(error("Must read array field [length]."));
@@ -55,17 +55,17 @@ public final class LArrayLength extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void load(final CompilerSettings settings, final MethodWriter adapter) {
         adapter.arrayLength();
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void store(final CompilerSettings settings, final MethodWriter adapter) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

@@ -46,7 +46,7 @@ public final class LField extends ALink {
     }
 
     @Override
-    ALink analyze(CompilerSettings settings, Definition definition, Variables variables) {
+    ALink analyze(CompilerSettings settings, Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
@@ -54,9 +54,9 @@ public final class LField extends ALink {
         final Sort sort = before.sort;
 
         if (sort == Sort.ARRAY) {
-            return new LArrayLength(line, location, value).copy(this).analyze(settings, definition, variables);
+            return new LArrayLength(line, location, value).copy(this).analyze(settings, variables);
         } else if (sort == Sort.DEF) {
-            return new LDefField(line, location, value).copy(this).analyze(settings, definition, variables);
+            return new LDefField(line, location, value).copy(this).analyze(settings, variables);
         }
 
         final Struct struct = before.struct;
@@ -80,17 +80,17 @@ public final class LField extends ALink {
                         Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
             if (shortcut) {
-                return new LShortcut(line, location, value).copy(this).analyze(settings, definition, variables);
+                return new LShortcut(line, location, value).copy(this).analyze(settings, variables);
             } else {
                 final EConstant index = new EConstant(line, location, value);
-                index.analyze(settings, definition, variables);
+                index.analyze(settings, variables);
 
                 if (Map.class.isAssignableFrom(before.clazz)) {
-                    return new LMapShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
+                    return new LMapShortcut(line, location, index).copy(this).analyze(settings, variables);
                 }
                 
                 if (List.class.isAssignableFrom(before.clazz)) {
-                    return new LListShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
+                    return new LListShortcut(line, location, index).copy(this).analyze(settings, variables);
                 }
             }
         }
@@ -99,12 +99,12 @@ public final class LField extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void load(final CompilerSettings settings, final MethodWriter adapter) {
         if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
             adapter.getStatic(field.owner.type, field.reflect.getName(), field.type.type);
         } else {
@@ -113,7 +113,7 @@ public final class LField extends ALink {
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void store(final CompilerSettings settings, final MethodWriter adapter) {
         if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
             adapter.putStatic(field.owner.type, field.reflect.getName(), field.type.type);
         } else {

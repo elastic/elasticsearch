@@ -43,7 +43,7 @@ public final class LNewArray extends ALink {
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Variables variables) {
         if (before != null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         } else if (store) {
@@ -64,8 +64,8 @@ public final class LNewArray extends ALink {
             final AExpression expression = arguments.get(argument);
 
             expression.expected = Definition.intType;
-            expression.analyze(settings, definition, variables);
-            arguments.set(argument, expression.cast(settings, definition, variables));
+            expression.analyze(settings, variables);
+            arguments.set(argument, expression.cast(settings, variables));
         }
 
         after = Definition.getType(type.struct, arguments.size());
@@ -74,14 +74,14 @@ public final class LNewArray extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void load(final CompilerSettings settings, final MethodWriter adapter) {
         for (final AExpression argument : arguments) {
-            argument.write(settings, definition, adapter);
+            argument.write(settings, adapter);
         }
 
         if (arguments.size() > 1) {
@@ -92,7 +92,7 @@ public final class LNewArray extends ALink {
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void store(final CompilerSettings settings, final MethodWriter adapter) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

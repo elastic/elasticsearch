@@ -41,7 +41,7 @@ public final class ENumeric extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Variables variables) {
         if (value.endsWith("d") || value.endsWith("D")) {
             if (radix != 10) {
                 throw new IllegalStateException(error("Invalid tree structure."));
@@ -96,7 +96,7 @@ public final class ENumeric extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         throw new IllegalArgumentException(error("Illegal tree structure."));
     }
 }

@@ -46,19 +46,19 @@ public final class SFor extends AStatement {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Variables variables) {
         variables.incrementScope();
 
         boolean continuous = false;
 
         if (initializer != null) {
             if (initializer instanceof SDeclBlock) {
-                ((SDeclBlock)initializer).analyze(settings, definition, variables);
+                ((SDeclBlock)initializer).analyze(settings, variables);
             } else if (initializer instanceof AExpression) {
                 final AExpression initializer = (AExpression)this.initializer;
 
                 initializer.read = false;
-                initializer.analyze(settings, definition, variables);
+                initializer.analyze(settings, variables);
 
                 if (!initializer.statement) {
                     throw new IllegalArgumentException(initializer.error("Not a statement."));
@@ -71,8 +71,8 @@ public final class SFor extends AStatement {
         if (condition != null) {
 
             condition.expected = Definition.booleanType;
-            condition.analyze(settings, definition, variables);
-            condition = condition.cast(settings, definition, variables);
+            condition.analyze(settings, variables);
+            condition = condition.cast(settings, variables);
 
             if (condition.constant != null) {
                 continuous = (boolean)condition.constant;
@@ -91,7 +91,7 @@ public final class SFor extends AStatement {
 
         if (afterthought != null) {
             afterthought.read = false;
-            afterthought.analyze(settings, definition, variables);
+            afterthought.analyze(settings, variables);
 
             if (!afterthought.statement) {
                 throw new IllegalArgumentException(afterthought.error("Not a statement."));
@@ -104,7 +104,7 @@ public final class SFor extends AStatement {
             block.beginLoop = true;
             block.inLoop = true;
 
-            block.analyze(settings, definition, variables);
+            block.analyze(settings, variables);
 
             if (block.loopEscape && !block.anyContinue) {
                 throw new IllegalArgumentException(error("Extraneous for loop."));
@@ -128,18 +128,18 @@ public final class SFor extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         writeDebugInfo(adapter);
         final Label start = new Label();
         final Label begin = afterthought == null ? start : new Label();
         final Label end = new Label();
 
         if (initializer instanceof SDeclBlock) {
-            ((SDeclBlock)initializer).write(settings, definition, adapter);
+            ((SDeclBlock)initializer).write(settings, adapter);
         } else if (initializer instanceof AExpression) {
             AExpression initializer = (AExpression)this.initializer;
 
-            initializer.write(settings, definition, adapter);
+            initializer.write(settings, adapter);
             adapter.writePop(initializer.expected.sort.size);
         }
 
@@ -147,7 +147,7 @@ public final class SFor extends AStatement {
 
         if (condition != null) {
             condition.fals = end;
-            condition.write(settings, definition, adapter);
+            condition.write(settings, adapter);
         }
 
         boolean allEscape = false;
@@ -162,14 +162,14 @@ public final class SFor extends AStatement {
             }
 
             adapter.writeLoopCounter(loopCounterSlot, statementCount);
-            block.write(settings, definition, adapter);
+            block.write(settings, adapter);
         } else {
             adapter.writeLoopCounter(loopCounterSlot, 1);
         }
 
         if (afterthought != null) {
             adapter.mark(begin);
-            afterthought.write(settings, definition, adapter);
+            afterthought.write(settings, adapter);
         }
 
         if (afterthought != null || !allEscape) {

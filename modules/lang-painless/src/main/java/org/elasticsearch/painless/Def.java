@@ -135,11 +135,10 @@ public final class Def {
      * @param receiverClass Class of the object to invoke the method on.
      * @param name Name of the method.
      * @param type Callsite signature. Need not match exactly, except the number of parameters.
-     * @param definition Whitelist to check.
      * @return pointer to matching method to invoke. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      */
-     static MethodHandle lookupMethod(Class<?> receiverClass, String name, MethodType type, Definition definition) {
+     static MethodHandle lookupMethod(Class<?> receiverClass, String name, MethodType type) {
          // we don't consider receiver an argument/counting towards arity
          type = type.dropParameterTypes(0, 1);
          Definition.MethodKey key = new Definition.MethodKey(name, type.parameterCount());
@@ -193,11 +192,10 @@ public final class Def {
      * <p>
      * @param receiverClass Class of the object to retrieve the field from.
      * @param name Name of the field.
-     * @param definition Whitelist to check.
      * @return pointer to matching field. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted field was found.
      */
-    static MethodHandle lookupGetter(Class<?> receiverClass, String name, Definition definition) {
+    static MethodHandle lookupGetter(Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
             RuntimeClass struct = Definition.getRuntimeClass(clazz);
@@ -264,11 +262,10 @@ public final class Def {
      * <p>
      * @param receiverClass Class of the object to retrieve the field from.
      * @param name Name of the field.
-     * @param definition Whitelist to check.
      * @return pointer to matching field. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted field was found.
      */
-    static MethodHandle lookupSetter(Class<?> receiverClass, String name, Definition definition) {
+    static MethodHandle lookupSetter(Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
             RuntimeClass struct = Definition.getRuntimeClass(clazz);

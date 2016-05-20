@@ -46,10 +46,10 @@ public final class EConditional extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Variables variables) {
         condition.expected = Definition.booleanType;
-        condition.analyze(settings, definition, variables);
-        condition = condition.cast(settings, definition, variables);
+        condition.analyze(settings, variables);
+        condition = condition.cast(settings, variables);
 
         if (condition.constant != null) {
             throw new IllegalArgumentException(error("Extraneous conditional statement."));
@@ -61,23 +61,23 @@ public final class EConditional extends AExpression {
         right.explicit = explicit;
         actual = expected;
 
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+        left.analyze(settings, variables);
+        right.analyze(settings, variables);
 
         if (expected == null) {
-            final Type promote = AnalyzerCaster.promoteConditional(definition, left.actual, right.actual, left.constant, right.constant);
+            final Type promote = AnalyzerCaster.promoteConditional(left.actual, right.actual, left.constant, right.constant);
 
             left.expected = promote;
             right.expected = promote;
             actual = promote;
         }
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(settings, variables);
+        right = right.cast(settings, variables);
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         final Label localfals = new Label();
         final Label end = new Label();
 
@@ -85,11 +85,11 @@ public final class EConditional extends AExpression {
         left.tru = right.tru = tru;
         left.fals = right.fals = fals;
 
-        condition.write(settings, definition, adapter);
-        left.write(settings, definition, adapter);
+        condition.write(settings, adapter);
+        left.write(settings, adapter);
         adapter.goTo(end);
         adapter.mark(localfals);
-        right.write(settings, definition, adapter);
+        right.write(settings, adapter);
         adapter.mark(end);
     }
 }

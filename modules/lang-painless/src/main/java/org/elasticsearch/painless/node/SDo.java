@@ -41,21 +41,21 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Variables variables) {
         variables.incrementScope();
 
         block.beginLoop = true;
         block.inLoop = true;
 
-        block.analyze(settings, definition, variables);
+        block.analyze(settings, variables);
 
         if (block.loopEscape && !block.anyContinue) {
             throw new IllegalArgumentException(error("Extraneous do while loop."));
         }
 
         condition.expected = Definition.booleanType;
-        condition.analyze(settings, definition, variables);
-        condition = condition.cast(settings, definition, variables);
+        condition.analyze(settings, variables);
+        condition = condition.cast(settings, variables);
 
         if (condition.constant != null) {
             final boolean continuous = (boolean)condition.constant;
@@ -80,7 +80,7 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         writeDebugInfo(adapter);
         final Label start = new Label();
         final Label begin = new Label();
@@ -90,12 +90,12 @@ public final class SDo extends AStatement {
 
         block.continu = begin;
         block.brake = end;
-        block.write(settings, definition, adapter);
+        block.write(settings, adapter);
 
         adapter.mark(begin);
 
         condition.fals = end;
-        condition.write(settings, definition, adapter);
+        condition.write(settings, adapter);
 
         adapter.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount));
 

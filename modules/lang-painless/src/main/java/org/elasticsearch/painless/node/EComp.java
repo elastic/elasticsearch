@@ -54,33 +54,33 @@ public final class EComp extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Variables variables) {
         if (operation == Operation.EQ) {
-            analyzeEq(settings, definition, variables);
+            analyzeEq(settings, variables);
         } else if (operation == Operation.EQR) {
-            analyzeEqR(settings, definition, variables);
+            analyzeEqR(settings, variables);
         } else if (operation == Operation.NE) {
-            analyzeNE(settings, definition, variables);
+            analyzeNE(settings, variables);
         } else if (operation == Operation.NER) {
-            analyzeNER(settings, definition, variables);
+            analyzeNER(settings, variables);
         } else if (operation == Operation.GTE) {
-            analyzeGTE(settings, definition, variables);
+            analyzeGTE(settings, variables);
         } else if (operation == Operation.GT) {
-            analyzeGT(settings, definition, variables);
+            analyzeGT(settings, variables);
         } else if (operation == Operation.LTE) {
-            analyzeLTE(settings, definition, variables);
+            analyzeLTE(settings, variables);
         } else if (operation == Operation.LT) {
-            analyzeLT(settings, definition, variables);
+            analyzeLT(settings, variables);
         } else {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
     }
 
-    private void analyzeEq(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeEq(final CompilerSettings settings, final Variables variables) {
+        left.analyze(settings, variables);
+        right.analyze(settings, variables);
 
-        final Type promote = AnalyzerCaster.promoteEquality(definition, left.actual, right.actual);
+        final Type promote = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply equals [==] to types " +
@@ -90,8 +90,8 @@ public final class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(settings, variables);
+        right = right.cast(settings, variables);
 
         if (left.isNull && right.isNull) {
             throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
@@ -122,11 +122,11 @@ public final class EComp extends AExpression {
         actual = Definition.booleanType;
     }
 
-    private void analyzeEqR(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeEqR(final CompilerSettings settings, final Variables variables) {
+        left.analyze(settings, variables);
+        right.analyze(settings, variables);
 
-        final Type promote = AnalyzerCaster.promoteReference(definition, left.actual, right.actual);
+        final Type promote = AnalyzerCaster.promoteReference(left.actual, right.actual);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply reference equals [===] to types " +
@@ -136,8 +136,8 @@ public final class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(settings, variables);
+        right = right.cast(settings, variables);
 
         if (left.isNull && right.isNull) {
             throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
@@ -164,11 +164,11 @@ public final class EComp extends AExpression {
         actual = Definition.booleanType;
     }
 
-    private void analyzeNE(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeNE(final CompilerSettings settings, final Variables variables) {
+        left.analyze(settings, variables);
+        right.analyze(settings, variables);
 
-        final Type promote = AnalyzerCaster.promoteEquality(definition, left.actual, right.actual);
+        final Type promote = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply not equals [!=] to types " +
@@ -178,8 +178,8 @@ public final class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(settings, variables);
+        right = right.cast(settings, variables);
 
         if (left.isNull && right.isNull) {
             throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
@@ -210,11 +210,11 @@ public final class EComp extends AExpression {
         actual = Definition.booleanType;
     }
 
-    private void analyzeNER(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeNER(final CompilerSettings settings, final Variables variables) {
+        left.analyze(settings, variables);
+        right.analyze(settings, variables);
 
-        final Type promote = AnalyzerCaster.promoteReference(definition, left.actual, right.actual);
+        final Type promote = AnalyzerCaster.promoteReference(left.actual, right.actual);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply reference not equals [!==] to types " +
@@ -224,8 +224,8 @@ public final class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(settings, variables);
+        right = right.cast(settings, variables);
 
         if (left.isNull && right.isNull) {
             throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
@@ -252,11 +252,11 @@ public final class EComp extends AExpression {
         actual = Definition.booleanType;
     }
 
-    private void analyzeGTE(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeGTE(final CompilerSettings settings, final Variables variables) {
+        left.analyze(settings, variables);
+        right.analyze(settings, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply greater than or equals [>=] to types " +
@@ -266,8 +266,8 @@ public final class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(settings, variables);
+        right = right.cast(settings, variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -288,11 +288,11 @@ public final class EComp extends AExpression {
         actual = Definition.booleanType;
     }
 
-    private void analyzeGT(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeGT(final CompilerSettings settings, final Variables variables) {
+        left.analyze(settings, variables);
+        right.analyze(settings, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply greater than [>] to types " +
@@ -302,8 +302,8 @@ public final class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(settings, variables);
+        right = right.cast(settings, variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -324,11 +324,11 @@ public final class EComp extends AExpression {
         actual = Definition.booleanType;
     }
 
-    private void analyzeLTE(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeLTE(final CompilerSettings settings, final Variables variables) {
+        left.analyze(settings, variables);
+        right.analyze(settings, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply less than or equals [<=] to types " +
@@ -338,8 +338,8 @@ public final class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(settings, variables);
+        right = right.cast(settings, variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -360,11 +360,11 @@ public final class EComp extends AExpression {
         actual = Definition.booleanType;
     }
 
-    private void analyzeLT(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeLT(final CompilerSettings settings, final Variables variables) {
+        left.analyze(settings, variables);
+        right.analyze(settings, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply less than [>=] to types " +
@@ -374,8 +374,8 @@ public final class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(settings, variables);
+        right = right.cast(settings, variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -397,15 +397,15 @@ public final class EComp extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         final boolean branch = tru != null || fals != null;
         final org.objectweb.asm.Type rtype = right.actual.type;
         final Sort rsort = right.actual.sort;
 
-        left.write(settings, definition, adapter);
+        left.write(settings, adapter);
 
         if (!right.isNull) {
-            right.write(settings, definition, adapter);
+            right.write(settings, adapter);
         }
 
         final Label jump = tru != null ? tru : fals != null ? fals : new Label();

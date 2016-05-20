@@ -38,7 +38,7 @@ public final class EDecimal extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Variables variables) {
         if (value.endsWith("f") || value.endsWith("F")) {
             try {
                 constant = Float.parseFloat(value.substring(0, value.length() - 1));
@@ -57,7 +57,7 @@ public final class EDecimal extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         throw new IllegalArgumentException(error("Illegal tree structure."));
     }
 }

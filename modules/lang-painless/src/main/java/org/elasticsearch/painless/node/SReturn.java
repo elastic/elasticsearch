@@ -38,10 +38,10 @@ public final class SReturn extends AStatement {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Variables variables) {
         expression.expected = Definition.objectType;
-        expression.analyze(settings, definition, variables);
-        expression = expression.cast(settings, definition, variables);
+        expression.analyze(settings, variables);
+        expression = expression.cast(settings, variables);
 
         methodEscape = true;
         loopEscape = true;
@@ -51,9 +51,9 @@ public final class SReturn extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         writeDebugInfo(adapter);
-        expression.write(settings, definition, adapter);
+        expression.write(settings, adapter);
         adapter.returnValue();
     }
 }

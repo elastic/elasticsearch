@@ -33,8 +33,7 @@ import java.lang.reflect.InvocationTargetException;
  */
 public final class AnalyzerCaster {
 
-    public static Cast getLegalCast(final Definition definition,
-                                    final String location, final Type actual, final Type expected, final boolean explicit) {
+    public static Cast getLegalCast(final String location, final Type actual, final Type expected, final boolean explicit) {
         final Cast cast = new Cast(actual, expected, explicit);
 
         if (actual.equals(expected)) {
@@ -115,7 +114,7 @@ public final class AnalyzerCaster {
         }
     }
 
-    public static Type promoteNumeric(final Definition definition, final Type from, final boolean decimal, final boolean primitive) {
+    public static Type promoteNumeric(final Type from, final boolean decimal, final boolean primitive) {
         final Sort sort = from.sort;
 
         if (sort == Sort.DEF) {
@@ -136,8 +135,7 @@ public final class AnalyzerCaster {
         return null;
     }
 
-    public static Type promoteNumeric(final Definition definition,
-                                      final Type from0, final Type from1, final boolean decimal, final boolean primitive) {
+    public static Type promoteNumeric(final Type from0, final Type from1, final boolean decimal, final boolean primitive) {
         final Sort sort0 = from0.sort;
         final Sort sort1 = from1.sort;
 
@@ -171,7 +169,7 @@ public final class AnalyzerCaster {
         return null;
     }
 
-    public static Type promoteAdd(final Definition definition, final Type from0, final Type from1) {
+    public static Type promoteAdd(final Type from0, final Type from1) {
         final Sort sort0 = from0.sort;
         final Sort sort1 = from1.sort;
 
@@ -179,10 +177,10 @@ public final class AnalyzerCaster {
             return Definition.stringType;
         }
 
-        return promoteNumeric(definition, from0, from1, true, true);
+        return promoteNumeric(from0, from1, true, true);
     }
 
-    public static Type promoteXor(final Definition definition, final Type from0, final Type from1) {
+    public static Type promoteXor(final Type from0, final Type from1) {
         final Sort sort0 = from0.sort;
         final Sort sort1 = from1.sort;
 
@@ -190,10 +188,10 @@ public final class AnalyzerCaster {
             return Definition.booleanType;
         }
 
-        return promoteNumeric(definition, from0, from1, false, true);
+        return promoteNumeric(from0, from1, false, true);
     }
 
-    public static Type promoteEquality(final Definition definition, final Type from0, final Type from1) {
+    public static Type promoteEquality(final Type from0, final Type from1) {
         final Sort sort0 = from0.sort;
         final Sort sort1 = from1.sort;
 
@@ -208,13 +206,13 @@ public final class AnalyzerCaster {
         }
 
         if (sort0.numeric && sort1.numeric) {
-            return promoteNumeric(definition, from0, from1, true, primitive);
+            return promoteNumeric(from0, from1, true, primitive);
         }
 
         return Definition.objectType;
     }
 
-    public static Type promoteReference(final Definition definition, final Type from0, final Type from1) {
+    public static Type promoteReference(final Type from0, final Type from1) {
         final Sort sort0 = from0.sort;
         final Sort sort1 = from1.sort;
 
@@ -228,15 +226,14 @@ public final class AnalyzerCaster {
             }
 
             if (sort0.numeric && sort1.numeric) {
-                return promoteNumeric(definition, from0, from1, true, true);
+                return promoteNumeric(from0, from1, true, true);
             }
         }
 
         return Definition.objectType;
     }
 
-    public static Type promoteConditional(final Definition definition,
-                                          final Type from0, final Type from1, final Object const0, final Object const1) {
+    public static Type promoteConditional(final Type from0, final Type from1, final Object const0, final Object const1) {
         if (from0.equals(from1)) {
             return from0;
         }

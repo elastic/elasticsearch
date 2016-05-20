@@ -44,10 +44,10 @@ public final class SIfElse extends AStatement {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Variables variables) {
         condition.expected = Definition.booleanType;
-        condition.analyze(settings, definition, variables);
-        condition = condition.cast(settings, definition, variables);
+        condition.analyze(settings, variables);
+        condition = condition.cast(settings, variables);
 
         if (condition.constant != null) {
             throw new IllegalArgumentException(error("Extraneous if statement."));
@@ -58,7 +58,7 @@ public final class SIfElse extends AStatement {
         ifblock.lastLoop = lastLoop;
 
         variables.incrementScope();
-        ifblock.analyze(settings, definition, variables);
+        ifblock.analyze(settings, variables);
         variables.decrementScope();
 
         anyContinue = ifblock.anyContinue;
@@ -71,7 +71,7 @@ public final class SIfElse extends AStatement {
             elseblock.lastLoop = lastLoop;
 
             variables.incrementScope();
-            elseblock.analyze(settings, definition, variables);
+            elseblock.analyze(settings, variables);
             variables.decrementScope();
 
             methodEscape = ifblock.methodEscape && elseblock.methodEscape;
@@ -84,17 +84,17 @@ public final class SIfElse extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         writeDebugInfo(adapter);
         final Label end = new Label();
         final Label fals = elseblock != null ? new Label() : end;
 
         condition.fals = fals;
-        condition.write(settings, definition, adapter);
+        condition.write(settings, adapter);
 
         ifblock.continu = continu;
         ifblock.brake = brake;
-        ifblock.write(settings, definition, adapter);
+        ifblock.write(settings, adapter);
 
         if (elseblock != null) {
             if (!ifblock.allEscape) {
@@ -105,7 +105,7 @@ public final class SIfElse extends AStatement {
 
             elseblock.continu = continu;
             elseblock.brake = brake;
-            elseblock.write(settings, definition, adapter);
+            elseblock.write(settings, adapter);
         }
 
         adapter.mark(end);

@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Opcodes;
 import org.elasticsearch.painless.MethodWriter;
@@ -42,7 +41,7 @@ public final class SSource extends AStatement {
     }
 
     @Override
-    public void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    public void analyze(final CompilerSettings settings, final Variables variables) {
         variables.incrementScope();
 
         final AStatement last = statements.get(statements.size() - 1);
@@ -53,7 +52,7 @@ public final class SSource extends AStatement {
             }
 
             statement.lastSource = statement == last;
-            statement.analyze(settings, definition, variables);
+            statement.analyze(settings, variables);
 
             methodEscape = statement.methodEscape;
             allEscape = statement.allEscape;
@@ -63,9 +62,9 @@ public final class SSource extends AStatement {
     }
 
     @Override
-    public void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    public void write(final CompilerSettings settings, final MethodWriter adapter) {
         for (final AStatement statement : statements) {
-            statement.write(settings, definition, adapter);
+            statement.write(settings, adapter);
         }
 
         if (!methodEscape) {

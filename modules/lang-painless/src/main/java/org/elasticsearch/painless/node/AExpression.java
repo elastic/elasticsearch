@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.AnalyzerCaster;
@@ -101,27 +100,27 @@ public abstract class AExpression extends ANode {
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
+    abstract void analyze(final CompilerSettings settings, final Variables variables);
 
     /**
      * Writes ASM based on the data collected during the analysis phase.
      */
-    abstract void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter);
+    abstract void write(final CompilerSettings settings, final MethodWriter adapter);
 
     /**
      * Inserts {@link ECast} nodes into the tree for implicit casts.  Also replaces
      * nodes with the constant variable set to a non-null value with {@link EConstant}.
      * @return The new child node for the parent node calling this method.
      */
-    AExpression cast(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        final Cast cast = AnalyzerCaster.getLegalCast(definition, location, actual, expected, explicit);
+    AExpression cast(final CompilerSettings settings, final Variables variables) {
+        final Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit);
 
         if (cast == null) {
             if (constant == null || this instanceof EConstant) {
                 return this;
             } else {
                 final EConstant econstant = new EConstant(line, location, constant);
-                econstant.analyze(settings, definition, variables);
+                econstant.analyze(settings, variables);
 
                 if (!expected.equals(econstant.actual)) {
                     throw new IllegalStateException(error("Illegal tree structure."));
@@ -142,7 +141,7 @@ public abstract class AExpression extends ANode {
                     constant = AnalyzerCaster.constCast(location, constant, cast);
 
                     final EConstant econstant = new EConstant(line, location, constant);
-                    econstant.analyze(settings, definition, variables);
+                    econstant.analyze(settings, variables);
 
                     if (!expected.equals(econstant.actual)) {
                         throw new IllegalStateException(error("Illegal tree structure."));
@@ -156,7 +155,7 @@ public abstract class AExpression extends ANode {
                     return ecast;
                 } else {
                     final EConstant econstant = new EConstant(line, location, constant);
-                    econstant.analyze(settings, definition, variables);
+                    econstant.analyze(settings, variables);
 
                     if (!actual.equals(econstant.actual)) {
                         throw new IllegalStateException(error("Illegal tree structure."));

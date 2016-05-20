@@ -40,7 +40,7 @@ public final class EExplicit extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Variables variables) {
         try {
             actual = Definition.getType(this.type);
         } catch (final IllegalArgumentException exception) {
@@ -49,19 +49,19 @@ public final class EExplicit extends AExpression {
 
         child.expected = actual;
         child.explicit = true;
-        child.analyze(settings, definition, variables);
-        child = child.cast(settings, definition, variables);
+        child.analyze(settings, variables);
+        child = child.cast(settings, variables);
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         throw new IllegalArgumentException(error("Illegal tree structure."));
     }
 
-    AExpression cast(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    AExpression cast(final CompilerSettings settings, final Variables variables) {
         child.expected = expected;
         child.explicit = explicit;
 
-        return child.cast(settings, definition, variables);
+        return child.cast(settings, variables);
     }
 }

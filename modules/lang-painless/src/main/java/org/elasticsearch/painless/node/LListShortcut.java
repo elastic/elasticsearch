@@ -42,7 +42,7 @@ final class LListShortcut extends ALink {
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Variables variables) {
         getter = before.struct.methods.get(new Definition.MethodKey("get", 1));
         setter = before.struct.methods.get(new Definition.MethodKey("set", 2));
 
@@ -62,8 +62,8 @@ final class LListShortcut extends ALink {
 
         if ((load || store) && (!load || getter != null) && (!store || setter != null)) {
             index.expected = Definition.intType;
-            index.analyze(settings, definition, variables);
-            index = index.cast(settings, definition, variables);
+            index.analyze(settings, variables);
+            index = index.cast(settings, variables);
 
             after = setter != null ? setter.arguments.get(1) : getter.rtn;
         } else {
@@ -74,12 +74,12 @@ final class LListShortcut extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        index.write(settings, definition, adapter);
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
+        index.write(settings, adapter);
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void load(final CompilerSettings settings, final MethodWriter adapter) {
         if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
             adapter.invokeInterface(getter.owner.type, getter.method);
         } else {
@@ -92,7 +92,7 @@ final class LListShortcut extends ALink {
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void store(final CompilerSettings settings, final MethodWriter adapter) {
         if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {
             adapter.invokeInterface(setter.owner.type, setter.method);
         } else {

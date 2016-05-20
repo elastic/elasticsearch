@@ -36,12 +36,12 @@ public final class EBoolean extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Variables variables) {
         actual = Definition.booleanType;
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         throw new IllegalArgumentException(error("Illegal tree structure."));
     }
 }

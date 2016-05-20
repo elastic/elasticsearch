@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
@@ -46,13 +45,13 @@ final class ECast extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Variables variables) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        child.write(settings, definition, adapter);
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
+        child.write(settings, adapter);
         adapter.writeCast(cast);
         adapter.writeBranch(tru, fals);
     }

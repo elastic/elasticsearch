@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
@@ -87,22 +86,22 @@ public abstract class ALink extends ANode {
      * def or a shortcut is used. Otherwise, returns itself.  This will be
      * updated into the {@link EChain} node's list of links.
      */
-    abstract ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
+    abstract ALink analyze(final CompilerSettings settings, final Variables variables);
 
     /**
      * Write values before a load/store occurs such as an array index.
      */
-    abstract void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter);
+    abstract void write(final CompilerSettings settings, final MethodWriter adapter);
 
     /**
      * Write a load for the specific link type.
      */
-    abstract void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter);
+    abstract void load(final CompilerSettings settings, final MethodWriter adapter);
 
     /**
      * Write a store for the specific link type.
      */
-    abstract void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter);
+    abstract void store(final CompilerSettings settings, final MethodWriter adapter);
 
     /**
      * Used to copy link data from one to another during analysis in the case of replacement.

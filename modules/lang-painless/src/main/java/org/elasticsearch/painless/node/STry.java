@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
@@ -44,13 +43,13 @@ public final class STry extends AStatement {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Variables variables) {
         block.lastSource = lastSource;
         block.inLoop = inLoop;
         block.lastLoop = lastLoop;
 
         variables.incrementScope();
-        block.analyze(settings, definition, variables);
+        block.analyze(settings, variables);
         variables.decrementScope();
 
         methodEscape = block.methodEscape;
@@ -67,7 +66,7 @@ public final class STry extends AStatement {
             trap.lastLoop = lastLoop;
 
             variables.incrementScope();
-            trap.analyze(settings, definition, variables);
+            trap.analyze(settings, variables);
             variables.decrementScope();
 
             methodEscape &= trap.methodEscape;
@@ -83,7 +82,7 @@ public final class STry extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         writeDebugInfo(adapter);
         final Label begin = new Label();
         final Label end = new Label();
@@ -93,7 +92,7 @@ public final class STry extends AStatement {
 
         block.continu = continu;
         block.brake = brake;
-        block.write(settings, definition, adapter);
+        block.write(settings, adapter);
 
         if (!block.allEscape) {
             adapter.goTo(exception);
@@ -105,7 +104,7 @@ public final class STry extends AStatement {
             trap.begin = begin;
             trap.end = end;
             trap.exception = traps.size() > 1 ? exception : null;
-            trap.write(settings, definition, adapter);
+            trap.write(settings, adapter);
         }
 
         if (!block.allEscape || traps.size() > 1) {

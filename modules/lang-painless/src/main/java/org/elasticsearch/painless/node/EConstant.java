@@ -38,7 +38,7 @@ final class EConstant extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Variables variables) {
         if (constant instanceof String) {
             actual = Definition.stringType;
         } else if (constant instanceof Double) {
@@ -63,7 +63,7 @@ final class EConstant extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         final Sort sort = actual.sort;
 
         switch (sort) {

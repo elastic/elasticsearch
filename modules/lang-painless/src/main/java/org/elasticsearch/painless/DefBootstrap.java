@@ -94,11 +94,11 @@ public final class DefBootstrap {
         private static MethodHandle lookup(int flavor, Class<?> clazz, String name, MethodType type) {
             switch(flavor) {
                 case METHOD_CALL:
-                    return Def.lookupMethod(clazz, name, type, Definition.INSTANCE);
+                    return Def.lookupMethod(clazz, name, type);
                 case LOAD:
-                    return Def.lookupGetter(clazz, name, Definition.INSTANCE);
+                    return Def.lookupGetter(clazz, name);
                 case STORE:
-                    return Def.lookupSetter(clazz, name, Definition.INSTANCE);
+                    return Def.lookupSetter(clazz, name);
                 case ARRAY_LOAD:
                     return Def.lookupArrayLoad(clazz);
                 case ARRAY_STORE:

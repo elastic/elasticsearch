@@ -45,13 +45,13 @@ final class LDefCall extends ALink implements IDefLink {
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Variables variables) {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             final AExpression expression = arguments.get(argument);
 
-            expression.analyze(settings, definition, variables);
+            expression.analyze(settings, variables);
             expression.expected = expression.actual;
-            arguments.set(argument, expression.cast(settings, definition, variables));
+            arguments.set(argument, expression.cast(settings, variables));
         }
 
         statement = true;
@@ -61,12 +61,12 @@ final class LDefCall extends ALink implements IDefLink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void load(final CompilerSettings settings, final MethodWriter adapter) {
         final StringBuilder signature = new StringBuilder();
 
         signature.append('(');
@@ -77,7 +77,7 @@ final class LDefCall extends ALink implements IDefLink {
         // it can avoid some unnecessary boxing etc.
         for (final AExpression argument : arguments) {
             signature.append(argument.actual.type.getDescriptor());
-            argument.write(settings, definition, adapter);
+            argument.write(settings, adapter);
         }
 
         signature.append(')');
@@ -88,7 +88,7 @@ final class LDefCall extends ALink implements IDefLink {
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void store(final CompilerSettings settings, final MethodWriter adapter) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

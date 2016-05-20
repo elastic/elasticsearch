@@ -38,15 +38,14 @@ import static org.elasticsearch.painless.WriterConstants.MAP_TYPE;
  */
 final class Writer {
 
-    static byte[] write(final CompilerSettings settings, final Definition definition,
+    static byte[] write(final CompilerSettings settings,
                                String name, final String source, final Variables variables, final SSource root) {
-        final Writer writer = new Writer(settings, definition, name, source, variables, root);
+        final Writer writer = new Writer(settings, name, source, variables, root);
 
         return writer.getBytes();
     }
 
     private final CompilerSettings settings;
-    private final Definition definition;
     private final String scriptName;
     private final String source;
     private final Variables variables;
@@ -55,10 +54,9 @@ final class Writer {
     private final ClassWriter writer;
     private final MethodWriter adapter;
 
-    private Writer(final CompilerSettings settings, final Definition definition,
+    private Writer(final CompilerSettings settings,
                      String name, final String source, final Variables variables, final SSource root) {
         this.settings = settings;
-        this.definition = definition;
         this.scriptName = name;
         this.source = source;
         this.variables = variables;
@@ -177,7 +175,7 @@ final class Writer {
             adapter.visitVarInsn(Opcodes.ISTORE, loop.slot);
         }
 
-        root.write(settings, definition, adapter);
+        root.write(settings, adapter);
         adapter.endMethod();
     }
 

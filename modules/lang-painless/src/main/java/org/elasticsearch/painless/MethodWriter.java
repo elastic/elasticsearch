@@ -200,9 +200,7 @@ public final class MethodWriter extends GeneratorAdapter {
         }
     }
 
-    public void writeBinaryInstruction(final Definition definition,
-                                              final String location,
-                                              final Type type, final Operation operation) {
+    public void writeBinaryInstruction(final String location, final Type type, final Operation operation) {
         final Sort sort = type.sort;
         
         if ((sort == Sort.FLOAT || sort == Sort.DOUBLE) &&

@@ -42,7 +42,7 @@ public final class LBrace extends ALink {
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
@@ -51,35 +51,35 @@ public final class LBrace extends ALink {
 
         if (sort == Sort.ARRAY) {
             index.expected = Definition.intType;
-            index.analyze(settings, definition, variables);
-            index = index.cast(settings, definition, variables);
+            index.analyze(settings, variables);
+            index = index.cast(settings, variables);
 
             after = Definition.getType(before.struct, before.dimensions - 1);
 
             return this;
         } else if (sort == Sort.DEF) {
-            return new LDefArray(line, location, index).copy(this).analyze(settings, definition, variables);
+            return new LDefArray(line, location, index).copy(this).analyze(settings, variables);
         } else if (Map.class.isAssignableFrom(before.clazz)) {
-            return new LMapShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
+            return new LMapShortcut(line, location, index).copy(this).analyze(settings, variables);
         } else if (List.class.isAssignableFrom(before.clazz)) {
-            return new LListShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
+            return new LListShortcut(line, location, index).copy(this).analyze(settings, variables);
         }
 
         throw new IllegalArgumentException(error("Illegal array access on type [" + before.name + "]."));
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        index.write(settings, definition, adapter);
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
+        index.write(settings, adapter);
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void load(final CompilerSettings settings, final MethodWriter adapter) {
         adapter.arrayLoad(after.type);
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void store(final CompilerSettings settings, final MethodWriter adapter) {
         adapter.arrayStore(after.type);
     }
 

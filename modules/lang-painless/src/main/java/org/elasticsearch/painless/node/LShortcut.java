@@ -44,7 +44,7 @@ final class LShortcut extends ALink {
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Variables variables) {
         final Struct struct = before.struct;
 
         getter = struct.methods.get(new Definition.MethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
@@ -74,12 +74,12 @@ final class LShortcut extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void load(final CompilerSettings settings, final MethodWriter adapter) {
         if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
             adapter.invokeInterface(getter.owner.type, getter.method);
         } else {
@@ -92,7 +92,7 @@ final class LShortcut extends ALink {
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void store(final CompilerSettings settings, final MethodWriter adapter) {
         if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {
             adapter.invokeInterface(setter.owner.type, setter.method);
         } else {

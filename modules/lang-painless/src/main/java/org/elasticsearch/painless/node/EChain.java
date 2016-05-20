@@ -59,20 +59,20 @@ public final class EChain extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        analyzeLinks(settings, definition, variables);
+    void analyze(final CompilerSettings settings, final Variables variables) {
+        analyzeLinks(settings, variables);
         analyzeIncrDecr();
 
         if (operation != null) {
-            analyzeCompound(settings, definition, variables);
+            analyzeCompound(settings, variables);
         } else if (expression != null) {
-            analyzeWrite(settings, definition, variables);
+            analyzeWrite(settings, variables);
         } else {
             analyzeRead();
         }
     }
 
-    private void analyzeLinks(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeLinks(final CompilerSettings settings, final Variables variables) {
         ALink previous = null;
         int index = 0;
 
@@ -92,7 +92,7 @@ public final class EChain extends AExpression {
                 current.store = expression != null || pre || post;
             }
 
-            final ALink analyzed = current.analyze(settings, definition, variables);
+            final ALink analyzed = current.analyze(settings, variables);
 
             if (analyzed == null) {
                 links.remove(index);
@@ -153,33 +153,33 @@ public final class EChain extends AExpression {
         }
     }
 
-    private void analyzeCompound(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeCompound(final CompilerSettings settings, final Variables variables) {
         final ALink last = links.get(links.size() - 1);
 
-        expression.analyze(settings, definition, variables);
+        expression.analyze(settings, variables);
 
         if (operation == Operation.MUL) {
-            promote = AnalyzerCaster.promoteNumeric(definition, last.after, expression.actual, true, true);
+            promote = AnalyzerCaster.promoteNumeric(last.after, expression.actual, true, true);
         } else if (operation == Operation.DIV) {
-            promote = AnalyzerCaster.promoteNumeric(definition, last.after, expression.actual, true, true);
+            promote = AnalyzerCaster.promoteNumeric(last.after, expression.actual, true, true);
         } else if (operation == Operation.REM) {
-            promote = AnalyzerCaster.promoteNumeric(definition, last.after, expression.actual, true, true);
+            promote = AnalyzerCaster.promoteNumeric(last.after, expression.actual, true, true);
         } else if (operation == Operation.ADD) {
-            promote = AnalyzerCaster.promoteAdd(definition, last.after, expression.actual);
+            promote = AnalyzerCaster.promoteAdd(last.after, expression.actual);
         } else if (operation == Operation.SUB) {
-            promote = AnalyzerCaster.promoteNumeric(definition, last.after, expression.actual, true, true);
+            promote = AnalyzerCaster.promoteNumeric(last.after, expression.actual, true, true);
         } else if (operation == Operation.LSH) {
-            promote = AnalyzerCaster.promoteNumeric(definition, last.after, false, true);
+            promote = AnalyzerCaster.promoteNumeric(last.after, false, true);
         } else if (operation == Operation.RSH) {
-            promote = AnalyzerCaster.promoteNumeric(definition, last.after, false, true);
+            promote = AnalyzerCaster.promoteNumeric(last.after, false, true);
         } else if (operation == Operation.USH) {
-            promote = AnalyzerCaster.promoteNumeric(definition, last.after, false, true);
+            promote = AnalyzerCaster.promoteNumeric(last.after, false, true);
         } else if (operation == Operation.BWAND) {
-            promote = AnalyzerCaster.promoteXor(definition, last.after, expression.actual);
+            promote = AnalyzerCaster.promoteXor(last.after, expression.actual);
         } else if (operation == Operation.XOR) {
-            promote = AnalyzerCaster.promoteXor(definition, last.after, expression.actual);
+            promote = AnalyzerCaster.promoteXor(last.after, expression.actual);
         } else if (operation == Operation.BWOR) {
-            promote = AnalyzerCaster.promoteXor(definition, last.after, expression.actual);
+            promote = AnalyzerCaster.promoteXor(last.after, expression.actual);
         } else {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
@@ -205,30 +205,30 @@ public final class EChain extends AExpression {
             expression.expected = promote;
         }
 
-        expression = expression.cast(settings, definition, variables);
+        expression = expression.cast(settings, variables);
 
-        there = AnalyzerCaster.getLegalCast(definition, location, last.after, promote, false);
-        back = AnalyzerCaster.getLegalCast(definition, location, promote, last.after, true);
+        there = AnalyzerCaster.getLegalCast(location, last.after, promote, false);
+        back = AnalyzerCaster.getLegalCast(location, promote, last.after, true);
 
         this.statement = true;
         this.actual = read ? last.after : Definition.voidType;
     }
 
-    private void analyzeWrite(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeWrite(final CompilerSettings settings, final Variables variables) {
         final ALink last = links.get(links.size() - 1);
 
         // If the store node is a DEF node, we remove the cast to DEF from the expression
         // and promote the real type to it:
         if (last instanceof IDefLink) {
-            expression.analyze(settings, definition, variables);
+            expression.analyze(settings, variables);
             last.after = expression.expected = expression.actual;
         } else {
             // otherwise we adapt the type of the expression to the store type
             expression.expected = last.after;
-            expression.analyze(settings, definition, variables);
+            expression.analyze(settings, variables);
         }
 
-        expression = expression.cast(settings, definition, variables);
+        expression = expression.cast(settings, variables);
 
         this.statement = true;
         this.actual = read ? last.after : Definition.voidType;
@@ -248,7 +248,7 @@ public final class EChain extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings,final MethodWriter adapter) {
         if (cat) {
             adapter.writeNewStrings();
         }
@@ -256,15 +256,15 @@ public final class EChain extends AExpression {
         final ALink last = links.get(links.size() - 1);
 
         for (final ALink link : links) {
-            link.write(settings, definition, adapter);
+            link.write(settings, adapter);
 
             if (link == last && link.store) {
                 if (cat) {
                     adapter.writeDup(link.size, 1);
-                    link.load(settings, definition, adapter);
+                    link.load(settings, adapter);
                     adapter.writeAppendStrings(link.after);
 
-                    expression.write(settings, definition, adapter);
+                    expression.write(settings, adapter);
 
                     if (!(expression instanceof EBinary) ||
                         ((EBinary)expression).operation != Operation.ADD || expression.actual.sort != Sort.STRING) {
@@ -278,18 +278,18 @@ public final class EChain extends AExpression {
                         adapter.writeDup(link.after.sort.size, link.size);
                     }
 
-                    link.store(settings, definition, adapter);
+                    link.store(settings, adapter);
                 } else if (operation != null) {
                     adapter.writeDup(link.size, 0);
-                    link.load(settings, definition, adapter);
+                    link.load(settings, adapter);
 
                     if (link.load && post) {
                         adapter.writeDup(link.after.sort.size, link.size);
                     }
 
                     adapter.writeCast(there);
-                    expression.write(settings, definition, adapter);
-                    adapter.writeBinaryInstruction(definition, location, promote, operation);
+                    expression.write(settings, adapter);
+                    adapter.writeBinaryInstruction(location, promote, operation);
 
                     adapter.writeCast(back);
 
@@ -297,18 +297,18 @@ public final class EChain extends AExpression {
                         adapter.writeDup(link.after.sort.size, link.size);
                     }
 
-                    link.store(settings, definition, adapter);
+                    link.store(settings, adapter);
                 } else {
-                    expression.write(settings, definition, adapter);
+                    expression.write(settings, adapter);
 
                     if (link.load) {
                         adapter.writeDup(link.after.sort.size, link.size);
                     }
 
-                    link.store(settings, definition, adapter);
+                    link.store(settings, adapter);
                 }
             } else {
-                link.load(settings, definition, adapter);
+                link.load(settings, adapter);
             }
         }
 

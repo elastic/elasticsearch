@@ -39,9 +39,9 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Variables variables) {
         expression.read = lastSource;
-        expression.analyze(settings, definition, variables);
+        expression.analyze(settings, variables);
 
         if (!lastSource && !expression.statement) {
             throw new IllegalArgumentException(error("Not a statement."));
@@ -50,7 +50,7 @@ public final class SExpression extends AStatement {
         final boolean rtn = lastSource && expression.actual.sort != Sort.VOID;
 
         expression.expected = rtn ? Definition.objectType : expression.actual;
-        expression = expression.cast(settings, definition, variables);
+        expression = expression.cast(settings, variables);
 
         methodEscape = rtn;
         loopEscape = rtn;
@@ -59,9 +59,9 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         writeDebugInfo(adapter);
-        expression.write(settings, definition, adapter);
+        expression.write(settings, adapter);
 
         if (methodEscape) {
             adapter.returnValue();

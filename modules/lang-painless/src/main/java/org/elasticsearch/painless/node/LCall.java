@@ -46,7 +46,7 @@ public final class LCall extends ALink {
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         } else if (before.sort == Definition.Sort.ARRAY) {
@@ -64,8 +64,8 @@ public final class LCall extends ALink {
                 final AExpression expression = arguments.get(argument);
 
                 expression.expected = method.arguments.get(argument);
-                expression.analyze(settings, definition, variables);
-                arguments.set(argument, expression.cast(settings, definition, variables));
+                expression.analyze(settings, variables);
+                arguments.set(argument, expression.cast(settings, variables));
             }
 
             statement = true;
@@ -76,7 +76,7 @@ public final class LCall extends ALink {
             final ALink link = new LDefCall(line, location, name, arguments);
             link.copy(this);
 
-            return link.analyze(settings, definition, variables);
+            return link.analyze(settings, variables);
         }
 
         throw new IllegalArgumentException(error("Unknown call [" + name + "] with [" + arguments.size() + 
@@ -84,14 +84,14 @@ public final class LCall extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(final CompilerSettings settings, final MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void load(final CompilerSettings settings, final MethodWriter adapter) {
         for (final AExpression argument : arguments) {
-            argument.write(settings, definition, adapter);
+            argument.write(settings, adapter);
         }
 
         if (java.lang.reflect.Modifier.isStatic(method.reflect.getModifiers())) {
@@ -108,7 +108,7 @@ public final class LCall extends ALink {
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void store(final CompilerSettings settings, final MethodWriter adapter) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

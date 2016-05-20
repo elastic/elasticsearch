@@ -493,7 +493,7 @@ public final class EComp extends AExpression {
                     if (right.isNull) {
                         adapter.ifNull(jump);
                     } else if (operation == Operation.EQ) {
-                        adapter.invokeStatic(definition.getType("Utility").type, CHECKEQUALS);
+                        adapter.invokeStatic(Definition.utilityType.type, CHECKEQUALS);
 
                         if (branch) {
                             adapter.ifZCmp(MethodWriter.NE, jump);
@@ -507,7 +507,7 @@ public final class EComp extends AExpression {
                     if (right.isNull) {
                         adapter.ifNonNull(jump);
                     } else if (operation == Operation.NE) {
-                        adapter.invokeStatic(definition.getType("Utility").type, CHECKEQUALS);
+                        adapter.invokeStatic(Definition.utilityType.type, CHECKEQUALS);
                         adapter.ifZCmp(MethodWriter.EQ, jump);
                     } else {
                         adapter.ifCmp(rtype, MethodWriter.NE, jump);

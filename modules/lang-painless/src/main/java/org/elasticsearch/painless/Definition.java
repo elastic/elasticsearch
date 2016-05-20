@@ -69,6 +69,7 @@ public final class Definition {
     public static final Type defobjType = INSTANCE.getType("Def");
     public static final Type stringType = INSTANCE.getType("String");
     public static final Type exceptionType = INSTANCE.getType("Exception");
+    public static final Type utilityType = INSTANCE.getType("Utility");
 
     public enum Sort {
         VOID(       void.class      , 0 , true  , false , false , false ),

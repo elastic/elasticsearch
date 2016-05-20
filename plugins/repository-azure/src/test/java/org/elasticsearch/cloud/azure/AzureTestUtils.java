@@ -23,36 +23,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.plugin.repository.azure.AzureRepositoryPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
 
-import java.util.Collection;
-
-/**
- * Base class for Azure tests that require credentials.
- * <p>
- * You must specify {@code -Dtests.thirdparty=true -Dtests.config=/path/to/config}
- * in order to run these tests.
- */
-@ThirdParty
-public abstract class AbstractAzureWithThirdPartyTestCase extends AbstractAzureTestCase {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(readSettingsFromFile())
-//                .put("path.home", createTempDir())
-                .build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(AzureRepositoryPlugin.class);
-    }
-
-    protected Settings readSettingsFromFile() {
+public class AzureTestUtils {
+    /**
+     * Read settings from file when running integration tests with ThirdParty annotation.
+     * elasticsearch.yml file path has to be set with -Dtests.config=/path/to/elasticsearch.yml.
+     * @return Settings from elasticsearch.yml integration test file (for 3rd party tests)
+     */
+    public static Settings readSettingsFromFile() {
         Settings.Builder settings = Settings.builder();
 
         // if explicit, just load it and don't load from env
@@ -60,10 +38,11 @@ public abstract class AbstractAzureWithThirdPartyTestCase extends AbstractAzureT
             if (Strings.hasText(System.getProperty("tests.config"))) {
                 settings.loadFromPath(PathUtils.get((System.getProperty("tests.config"))));
             } else {
-                throw new IllegalStateException("to run integration tests, you need to set -Dtests.thirdparty=true and -Dtests.config=/path/to/elasticsearch.yml");
+                throw new IllegalStateException("to run integration tests, you need to set -Dtests.thirdparty=true and " +
+                    "-Dtests.config=/path/to/elasticsearch.yml");
             }
         } catch (SettingsException exception) {
-          throw new IllegalStateException("your test configuration file is incorrect: " + System.getProperty("tests.config"), exception);
+            throw new IllegalStateException("your test configuration file is incorrect: " + System.getProperty("tests.config"), exception);
         }
         return settings.build();
     }

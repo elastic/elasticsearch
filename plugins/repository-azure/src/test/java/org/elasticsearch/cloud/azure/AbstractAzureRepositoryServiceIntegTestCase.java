@@ -38,7 +38,7 @@ import org.junit.Before;
 import java.net.URISyntaxException;
 import java.util.Collection;
 
-public abstract class AbstractAzureRepositoryServiceTestCase extends AbstractAzureTestCase {
+public abstract class AbstractAzureRepositoryServiceIntegTestCase extends AbstractAzureIntegTestCase {
 
     public static class TestPlugin extends Plugin {
         @Override
@@ -56,7 +56,7 @@ public abstract class AbstractAzureRepositoryServiceTestCase extends AbstractAzu
 
     protected String basePath;
 
-    public AbstractAzureRepositoryServiceTestCase(String basePath) {
+    public AbstractAzureRepositoryServiceIntegTestCase(String basePath) {
         this.basePath = basePath;
     }
 
@@ -70,7 +70,7 @@ public abstract class AbstractAzureRepositoryServiceTestCase extends AbstractAzu
         }
         for (String repository : repositories) {
             try {
-                client().admin().cluster().prepareDeleteRepository(repository).execute().actionGet();
+                client().admin().cluster().prepareDeleteRepository(repository).get();
             } catch (RepositoryMissingException ex) {
                 // ignore
             }

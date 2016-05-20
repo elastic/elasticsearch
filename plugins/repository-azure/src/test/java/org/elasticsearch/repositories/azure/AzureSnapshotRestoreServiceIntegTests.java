@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResp
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cloud.azure.AbstractAzureRepositoryServiceTestCase;
+import org.elasticsearch.cloud.azure.AbstractAzureRepositoryServiceIntegTestCase;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -39,8 +39,8 @@ import static org.hamcrest.Matchers.greaterThan;
         numDataNodes = 1,
         numClientNodes = 0,
         transportClientRatio = 0.0)
-public class AzureSnapshotRestoreServiceTests extends AbstractAzureRepositoryServiceTestCase {
-    public AzureSnapshotRestoreServiceTests() {
+public class AzureSnapshotRestoreServiceIntegTests extends AbstractAzureRepositoryServiceIntegTestCase {
+    public AzureSnapshotRestoreServiceIntegTests() {
         super("/snapshot-test/repo-" + randomInt());
     }
 
@@ -69,11 +69,14 @@ public class AzureSnapshotRestoreServiceTests extends AbstractAzureRepositorySer
         assertThat(client.prepareSearch("test-idx-3").setSize(0).get().getHits().totalHits(), equalTo(100L));
 
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-3").get();
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-3").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
-        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots().get(0).state(),
+            equalTo(SnapshotState.SUCCESS));
 
         logger.info("--> delete some data");
         for (int i = 0; i < 50; i++) {
@@ -94,7 +97,8 @@ public class AzureSnapshotRestoreServiceTests extends AbstractAzureRepositorySer
         client.admin().indices().prepareClose("test-idx-1", "test-idx-2").get();
 
         logger.info("--> restore all indices from the snapshot");
-        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         ensureGreen();
@@ -106,7 +110,8 @@ public class AzureSnapshotRestoreServiceTests extends AbstractAzureRepositorySer
         logger.info("--> delete indices");
         cluster().wipeIndices("test-idx-1", "test-idx-2");
         logger.info("--> restore one index after deletion");
-        restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-2").execute().actionGet();
+        restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true)
+            .setIndices("test-idx-*", "-test-idx-2").get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         ensureGreen();
         assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(100L));

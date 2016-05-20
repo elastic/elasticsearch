@@ -182,18 +182,32 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blob_container = client.getContainerReference(container);
         if (blob_container.exists()) {
+            // We list the blobs using a flat blob listing mode
             for (ListBlobItem blobItem : blob_container.listBlobs(path, true)) {
-                String blobName = blobNameFromUri(container, blobItem.getUri());
+                String blobName = blobNameFromUri(blobItem.getUri());
                 logger.trace("removing blob [{}] full URI was [{}]", blobName, blobItem.getUri());
                 deleteBlob(account, mode, container, blobName);
             }
         }
     }
 
-    public static String blobNameFromUri(String container, URI uri) {
+    /**
+     * Extract the blob name from a URI like https://myservice.azure.net/container/path/to/myfile
+     * It should remove the container part (first part of the path) and gives path/to/myfile
+     * @param uri URI to parse
+     * @return The blob name relative to the container
+     */
+    public static String blobNameFromUri(URI uri) {
         String path = uri.getPath();
+
         // We remove the container name from the path
-        return path.replaceFirst("/" + container + "/", "");
+        // The 3 magic number cames from the fact we have // in the first part of the URI (protocol)
+        // Then a / after the server address
+        // And we finally split after the container/
+        String[] splits = path.split("/", 3);
+
+        // We return the remaining end of the string
+        return splits[2];
     }
 
     @Override

@@ -23,11 +23,8 @@ import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cloud.azure.blobstore.AzureBlobStore;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.test.ESBlobStoreTestCase;
@@ -35,6 +32,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+
+import static org.elasticsearch.cloud.azure.AzureTestUtils.readSettingsFromFile;
 
 /**
  * You must specify {@code -Dtests.thirdparty=true -Dtests.config=/path/to/elasticsearch.yml}
@@ -56,21 +55,4 @@ public class AzureBlobStoreTests extends ESBlobStoreTestCase {
             throw new IOException(e);
         }
     }
-
-    protected Settings readSettingsFromFile() {
-        Settings.Builder settings = Settings.builder();
-
-        // if explicit, just load it and don't load from env
-        try {
-            if (Strings.hasText(System.getProperty("tests.config"))) {
-                settings.loadFromPath(PathUtils.get((System.getProperty("tests.config"))));
-            } else {
-                throw new IllegalStateException("to run integration tests, you need to set -Dtests.thirdparty=true and -Dtests.config=/path/to/elasticsearch.yml");
-            }
-        } catch (SettingsException exception) {
-            throw new IllegalStateException("your test configuration file is incorrect: " + System.getProperty("tests.config"), exception);
-        }
-        return settings.build();
-    }
-
 }

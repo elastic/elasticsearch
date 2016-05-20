@@ -178,7 +178,7 @@ integTest {
                  'bin/x-pack/users', 'useradd', 'monitoring_agent', '-p', 'changeme', '-r', 'remote_monitoring_agent'
 
     // Required to detect that the monitoring agent service has started
-    systemProperty 'es.logger.level', 'DEBUG'
+    setting 'logger.level', 'DEBUG'
 
     waitCondition = { node, ant ->
       // HTTPS check is tricky to do, so we wait for the log file to indicate that the node is started

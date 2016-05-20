@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Struct;
@@ -38,7 +37,7 @@ public final class LCall extends ALink {
 
     Method method = null;
 
-    public LCall(final int line, final String location, final String name, final List<AExpression> arguments) {
+    public LCall(int line, String location, String name, List<AExpression> arguments) {
         super(line, location, -1);
 
         this.name = name;
@@ -46,7 +45,7 @@ public final class LCall extends ALink {
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Variables variables) {
+    ALink analyze(Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         } else if (before.sort == Definition.Sort.ARRAY) {
@@ -64,8 +63,8 @@ public final class LCall extends ALink {
                 final AExpression expression = arguments.get(argument);
 
                 expression.expected = method.arguments.get(argument);
-                expression.analyze(settings, variables);
-                arguments.set(argument, expression.cast(settings, variables));
+                expression.analyze(variables);
+                arguments.set(argument, expression.cast(variables));
             }
 
             statement = true;
@@ -76,7 +75,7 @@ public final class LCall extends ALink {
             final ALink link = new LDefCall(line, location, name, arguments);
             link.copy(this);
 
-            return link.analyze(settings, variables);
+            return link.analyze(variables);
         }
 
         throw new IllegalArgumentException(error("Unknown call [" + name + "] with [" + arguments.size() + 
@@ -84,14 +83,14 @@ public final class LCall extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final MethodWriter adapter) {
+    void load(MethodWriter adapter) {
         for (final AExpression argument : arguments) {
-            argument.write(settings, adapter);
+            argument.write(adapter);
         }
 
         if (java.lang.reflect.Modifier.isStatic(method.reflect.getModifiers())) {
@@ -108,7 +107,7 @@ public final class LCall extends ALink {
     }
 
     @Override
-    void store(final CompilerSettings settings, final MethodWriter adapter) {
+    void store(MethodWriter adapter) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Variables;
@@ -35,17 +34,17 @@ final class LDefArray extends ALink implements IDefLink {
 
     AExpression index;
 
-    LDefArray(final int line, final String location, final AExpression index) {
+    LDefArray(int line, String location, AExpression index) {
         super(line, location, 2);
 
         this.index = index;
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Variables variables) {
-        index.analyze(settings, variables);
+    ALink analyze(Variables variables) {
+        index.analyze(variables);
         index.expected = index.actual;
-        index = index.cast(settings, variables);
+        index = index.cast(variables);
 
         after = Definition.DEF_TYPE;
 
@@ -53,18 +52,18 @@ final class LDefArray extends ALink implements IDefLink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
-        index.write(settings, adapter);
+    void write(MethodWriter adapter) {
+        index.write(adapter);
     }
 
     @Override
-    void load(final CompilerSettings settings, final MethodWriter adapter) {
+    void load(MethodWriter adapter) {
         final String desc = Type.getMethodDescriptor(after.type, Definition.DEF_TYPE.type, index.actual.type);
         adapter.invokeDynamic("arrayLoad", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_LOAD);
     }
 
     @Override
-    void store(final CompilerSettings settings, final MethodWriter adapter) {
+    void store(MethodWriter adapter) {
         final String desc = Type.getMethodDescriptor(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type,
             index.actual.type, after.type);
         adapter.invokeDynamic("arrayStore", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_STORE);

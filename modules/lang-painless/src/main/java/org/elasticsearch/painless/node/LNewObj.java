@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Constructor;
 import org.elasticsearch.painless.Definition.Struct;
@@ -39,7 +38,7 @@ public final class LNewObj extends ALink {
 
     Constructor constructor;
 
-    public LNewObj(final int line, final String location, final String type, final List<AExpression> arguments) {
+    public LNewObj(int line, String location, String type, List<AExpression> arguments) {
         super(line, location, -1);
 
         this.type = type;
@@ -47,7 +46,7 @@ public final class LNewObj extends ALink {
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Variables variables) {
+    ALink analyze(Variables variables) {
         if (before != null) {
             throw new IllegalStateException(error("Illegal tree structure"));
         } else if (store) {
@@ -78,8 +77,8 @@ public final class LNewObj extends ALink {
                 final AExpression expression = arguments.get(argument);
 
                 expression.expected = types[argument];
-                expression.analyze(settings, variables);
-                arguments.set(argument, expression.cast(settings, variables));
+                expression.analyze(variables);
+                arguments.set(argument, expression.cast(variables));
             }
 
             statement = true;
@@ -92,27 +91,27 @@ public final class LNewObj extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final MethodWriter adapter) {
+    void load(MethodWriter adapter) {
         adapter.newInstance(after.type);
 
         if (load) {
             adapter.dup();
         }
 
-        for (final AExpression argument : arguments) {
-            argument.write(settings, adapter);
+        for (AExpression argument : arguments) {
+            argument.write(adapter);
         }
 
         adapter.invokeConstructor(constructor.owner.type, constructor.method);
     }
 
     @Override
-    void store(final CompilerSettings settings, final MethodWriter adapter) {
+    void store(MethodWriter adapter) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
@@ -32,30 +31,32 @@ public final class SDo extends AStatement {
 
     final AStatement block;
     AExpression condition;
+    final int maxLoopCounter;
 
-    public SDo(final int line, final String location, final AStatement block, final AExpression condition) {
+    public SDo(int line, String location, AStatement block, AExpression condition, int maxLoopCounter) {
         super(line, location);
 
         this.condition = condition;
         this.block = block;
+        this.maxLoopCounter = maxLoopCounter;
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Variables variables) {
+    void analyze(Variables variables) {
         variables.incrementScope();
 
         block.beginLoop = true;
         block.inLoop = true;
 
-        block.analyze(settings, variables);
+        block.analyze(variables);
 
         if (block.loopEscape && !block.anyContinue) {
             throw new IllegalArgumentException(error("Extraneous do while loop."));
         }
 
         condition.expected = Definition.BOOLEAN_TYPE;
-        condition.analyze(settings, variables);
-        condition = condition.cast(settings, variables);
+        condition.analyze(variables);
+        condition = condition.cast(variables);
 
         if (condition.constant != null) {
             final boolean continuous = (boolean)condition.constant;
@@ -72,7 +73,7 @@ public final class SDo extends AStatement {
 
         statementCount = 1;
 
-        if (settings.getMaxLoopCounter() > 0) {
+        if (maxLoopCounter > 0) {
             loopCounterSlot = variables.getVariable(location, "#loop").slot;
         }
 
@@ -80,7 +81,7 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         writeDebugInfo(adapter);
         final Label start = new Label();
         final Label begin = new Label();
@@ -90,12 +91,12 @@ public final class SDo extends AStatement {
 
         block.continu = begin;
         block.brake = end;
-        block.write(settings, adapter);
+        block.write(adapter);
 
         adapter.mark(begin);
 
         condition.fals = end;
-        condition.write(settings, adapter);
+        condition.write(adapter);
 
         adapter.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount));
 

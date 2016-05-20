@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Variables;
@@ -35,7 +34,7 @@ public final class LNewArray extends ALink {
     final String type;
     final List<AExpression> arguments;
 
-    public LNewArray(final int line, final String location, final String type, final List<AExpression> arguments) {
+    public LNewArray(int line, String location, String type, List<AExpression> arguments) {
         super(line, location, -1);
 
         this.type = type;
@@ -43,7 +42,7 @@ public final class LNewArray extends ALink {
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Variables variables) {
+    ALink analyze(Variables variables) {
         if (before != null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         } else if (store) {
@@ -64,8 +63,8 @@ public final class LNewArray extends ALink {
             final AExpression expression = arguments.get(argument);
 
             expression.expected = Definition.INT_TYPE;
-            expression.analyze(settings, variables);
-            arguments.set(argument, expression.cast(settings, variables));
+            expression.analyze(variables);
+            arguments.set(argument, expression.cast(variables));
         }
 
         after = Definition.getType(type.struct, arguments.size());
@@ -74,14 +73,14 @@ public final class LNewArray extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final MethodWriter adapter) {
+    void load(MethodWriter adapter) {
         for (final AExpression argument : arguments) {
-            argument.write(settings, adapter);
+            argument.write(adapter);
         }
 
         if (arguments.size() > 1) {
@@ -92,7 +91,7 @@ public final class LNewArray extends ALink {
     }
 
     @Override
-    void store(final CompilerSettings settings, final MethodWriter adapter) {
+    void store(MethodWriter adapter) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

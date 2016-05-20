@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.AnalyzerCaster;
@@ -36,8 +35,7 @@ public final class EConditional extends AExpression {
     AExpression left;
     AExpression right;
 
-    public EConditional(final int line, final String location,
-                        final AExpression condition, final AExpression left, final AExpression right) {
+    public EConditional(int line, String location, AExpression condition, AExpression left, AExpression right) {
         super(line, location);
 
         this.condition = condition;
@@ -46,10 +44,10 @@ public final class EConditional extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Variables variables) {
+    void analyze(Variables variables) {
         condition.expected = Definition.BOOLEAN_TYPE;
-        condition.analyze(settings, variables);
-        condition = condition.cast(settings, variables);
+        condition.analyze(variables);
+        condition = condition.cast(variables);
 
         if (condition.constant != null) {
             throw new IllegalArgumentException(error("Extraneous conditional statement."));
@@ -61,8 +59,8 @@ public final class EConditional extends AExpression {
         right.explicit = explicit;
         actual = expected;
 
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+        left.analyze(variables);
+        right.analyze(variables);
 
         if (expected == null) {
             final Type promote = AnalyzerCaster.promoteConditional(left.actual, right.actual, left.constant, right.constant);
@@ -72,12 +70,12 @@ public final class EConditional extends AExpression {
             actual = promote;
         }
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         final Label localfals = new Label();
         final Label end = new Label();
 
@@ -85,11 +83,11 @@ public final class EConditional extends AExpression {
         left.tru = right.tru = tru;
         left.fals = right.fals = fals;
 
-        condition.write(settings, adapter);
-        left.write(settings, adapter);
+        condition.write(adapter);
+        left.write(adapter);
         adapter.goTo(end);
         adapter.mark(localfals);
-        right.write(settings, adapter);
+        right.write(adapter);
         adapter.mark(end);
     }
 }

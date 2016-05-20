@@ -175,7 +175,7 @@ final class Writer {
             adapter.visitVarInsn(Opcodes.ISTORE, loop.slot);
         }
 
-        root.write(settings, adapter);
+        root.write(adapter);
         adapter.endMethod();
     }
 

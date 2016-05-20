@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
@@ -47,8 +46,8 @@ public final class EChain extends AExpression {
     Cast there = null;
     Cast back = null;
 
-    public EChain(final int line, final String location, final List<ALink> links,
-                  final boolean pre, final boolean post, final Operation operation, final AExpression expression) {
+    public EChain(int line, String location, List<ALink> links,
+                  boolean pre, boolean post, Operation operation, AExpression expression) {
         super(line, location);
 
         this.links = links;
@@ -59,20 +58,20 @@ public final class EChain extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Variables variables) {
-        analyzeLinks(settings, variables);
+    void analyze(Variables variables) {
+        analyzeLinks(variables);
         analyzeIncrDecr();
 
         if (operation != null) {
-            analyzeCompound(settings, variables);
+            analyzeCompound(variables);
         } else if (expression != null) {
-            analyzeWrite(settings, variables);
+            analyzeWrite(variables);
         } else {
             analyzeRead();
         }
     }
 
-    private void analyzeLinks(final CompilerSettings settings, final Variables variables) {
+    private void analyzeLinks(Variables variables) {
         ALink previous = null;
         int index = 0;
 
@@ -92,7 +91,7 @@ public final class EChain extends AExpression {
                 current.store = expression != null || pre || post;
             }
 
-            final ALink analyzed = current.analyze(settings, variables);
+            final ALink analyzed = current.analyze(variables);
 
             if (analyzed == null) {
                 links.remove(index);
@@ -153,10 +152,10 @@ public final class EChain extends AExpression {
         }
     }
 
-    private void analyzeCompound(final CompilerSettings settings, final Variables variables) {
+    private void analyzeCompound(Variables variables) {
         final ALink last = links.get(links.size() - 1);
 
-        expression.analyze(settings, variables);
+        expression.analyze(variables);
 
         if (operation == Operation.MUL) {
             promote = AnalyzerCaster.promoteNumeric(last.after, expression.actual, true, true);
@@ -205,7 +204,7 @@ public final class EChain extends AExpression {
             expression.expected = promote;
         }
 
-        expression = expression.cast(settings, variables);
+        expression = expression.cast(variables);
 
         there = AnalyzerCaster.getLegalCast(location, last.after, promote, false);
         back = AnalyzerCaster.getLegalCast(location, promote, last.after, true);
@@ -214,21 +213,21 @@ public final class EChain extends AExpression {
         this.actual = read ? last.after : Definition.VOID_TYPE;
     }
 
-    private void analyzeWrite(final CompilerSettings settings, final Variables variables) {
+    private void analyzeWrite(Variables variables) {
         final ALink last = links.get(links.size() - 1);
 
         // If the store node is a DEF node, we remove the cast to DEF from the expression
         // and promote the real type to it:
         if (last instanceof IDefLink) {
-            expression.analyze(settings, variables);
+            expression.analyze(variables);
             last.after = expression.expected = expression.actual;
         } else {
             // otherwise we adapt the type of the expression to the store type
             expression.expected = last.after;
-            expression.analyze(settings, variables);
+            expression.analyze(variables);
         }
 
-        expression = expression.cast(settings, variables);
+        expression = expression.cast(variables);
 
         this.statement = true;
         this.actual = read ? last.after : Definition.VOID_TYPE;
@@ -248,7 +247,7 @@ public final class EChain extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings,final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         if (cat) {
             adapter.writeNewStrings();
         }
@@ -256,15 +255,15 @@ public final class EChain extends AExpression {
         final ALink last = links.get(links.size() - 1);
 
         for (final ALink link : links) {
-            link.write(settings, adapter);
+            link.write(adapter);
 
             if (link == last && link.store) {
                 if (cat) {
                     adapter.writeDup(link.size, 1);
-                    link.load(settings, adapter);
+                    link.load(adapter);
                     adapter.writeAppendStrings(link.after);
 
-                    expression.write(settings, adapter);
+                    expression.write(adapter);
 
                     if (!(expression instanceof EBinary) ||
                         ((EBinary)expression).operation != Operation.ADD || expression.actual.sort != Sort.STRING) {
@@ -278,17 +277,17 @@ public final class EChain extends AExpression {
                         adapter.writeDup(link.after.sort.size, link.size);
                     }
 
-                    link.store(settings, adapter);
+                    link.store(adapter);
                 } else if (operation != null) {
                     adapter.writeDup(link.size, 0);
-                    link.load(settings, adapter);
+                    link.load(adapter);
 
                     if (link.load && post) {
                         adapter.writeDup(link.after.sort.size, link.size);
                     }
 
                     adapter.writeCast(there);
-                    expression.write(settings, adapter);
+                    expression.write(adapter);
                     adapter.writeBinaryInstruction(location, promote, operation);
 
                     adapter.writeCast(back);
@@ -297,18 +296,18 @@ public final class EChain extends AExpression {
                         adapter.writeDup(link.after.sort.size, link.size);
                     }
 
-                    link.store(settings, adapter);
+                    link.store(adapter);
                 } else {
-                    expression.write(settings, adapter);
+                    expression.write(adapter);
 
                     if (link.load) {
                         adapter.writeDup(link.after.sort.size, link.size);
                     }
 
-                    link.store(settings, adapter);
+                    link.store(adapter);
                 }
             } else {
-                link.load(settings, adapter);
+                link.load(adapter);
             }
         }
 

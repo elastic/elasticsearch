@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Variables;
@@ -37,7 +36,7 @@ final class LDefCall extends ALink implements IDefLink {
     final String name;
     final List<AExpression> arguments;
 
-    LDefCall(final int line, final String location, final String name, final List<AExpression> arguments) {
+    LDefCall(int line, String location, String name, List<AExpression> arguments) {
         super(line, location, -1);
 
         this.name = name;
@@ -45,13 +44,13 @@ final class LDefCall extends ALink implements IDefLink {
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Variables variables) {
+    ALink analyze(Variables variables) {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             final AExpression expression = arguments.get(argument);
 
-            expression.analyze(settings, variables);
+            expression.analyze(variables);
             expression.expected = expression.actual;
-            arguments.set(argument, expression.cast(settings, variables));
+            arguments.set(argument, expression.cast(variables));
         }
 
         statement = true;
@@ -61,12 +60,12 @@ final class LDefCall extends ALink implements IDefLink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final MethodWriter adapter) {
+    void load(MethodWriter adapter) {
         final StringBuilder signature = new StringBuilder();
 
         signature.append('(');
@@ -77,7 +76,7 @@ final class LDefCall extends ALink implements IDefLink {
         // it can avoid some unnecessary boxing etc.
         for (final AExpression argument : arguments) {
             signature.append(argument.actual.type.getDescriptor());
-            argument.write(settings, adapter);
+            argument.write(adapter);
         }
 
         signature.append(')');
@@ -88,7 +87,7 @@ final class LDefCall extends ALink implements IDefLink {
     }
 
     @Override
-    void store(final CompilerSettings settings, final MethodWriter adapter) {
+    void store(MethodWriter adapter) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

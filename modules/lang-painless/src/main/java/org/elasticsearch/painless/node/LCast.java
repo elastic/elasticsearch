@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.AnalyzerCaster;
@@ -35,14 +34,14 @@ public final class LCast extends ALink {
 
     Cast cast = null;
 
-    public LCast(final int line, final String location, final String type) {
+    public LCast(int line, String location, String type) {
         super(line, location, -1);
 
         this.type = type;
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Variables variables) {
+    ALink analyze(Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         } else if (store) {
@@ -61,17 +60,17 @@ public final class LCast extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         adapter.writeCast(cast);
     }
 
     @Override
-    void load(final CompilerSettings settings, final MethodWriter adapter) {
+    void load(MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void store(final CompilerSettings settings, final MethodWriter adapter) {
+    void store(MethodWriter adapter) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

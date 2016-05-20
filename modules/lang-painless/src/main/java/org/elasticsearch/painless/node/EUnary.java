@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
@@ -40,7 +39,7 @@ public final class EUnary extends AExpression {
     Operation operation;
     AExpression child;
 
-    public EUnary(final int line, final String location, final Operation operation, final AExpression child) {
+    public EUnary(int line, String location, Operation operation, AExpression child) {
         super(line, location);
 
         this.operation = operation;
@@ -48,24 +47,24 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Variables variables) {
+    void analyze(Variables variables) {
         if (operation == Operation.NOT) {
-            analyzeNot(settings, variables);
+            analyzeNot(variables);
         } else if (operation == Operation.BWNOT) {
-            analyzeBWNot(settings, variables);
+            analyzeBWNot(variables);
         } else if (operation == Operation.ADD) {
-            analyzerAdd(settings, variables);
+            analyzerAdd(variables);
         } else if (operation == Operation.SUB) {
-            analyzerSub(settings, variables);
+            analyzerSub(variables);
         } else {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
     }
 
-    void analyzeNot(final CompilerSettings settings, final Variables variables) {
+    void analyzeNot(Variables variables) {
         child.expected = Definition.BOOLEAN_TYPE;
-        child.analyze(settings, variables);
-        child = child.cast(settings, variables);
+        child.analyze(variables);
+        child = child.cast(variables);
 
         if (child.constant != null) {
             constant = !(boolean)child.constant;
@@ -74,8 +73,8 @@ public final class EUnary extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    void analyzeBWNot(final CompilerSettings settings, final Variables variables) {
-        child.analyze(settings, variables);
+    void analyzeBWNot(Variables variables) {
+        child.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(child.actual, false, true);
 
@@ -84,7 +83,7 @@ public final class EUnary extends AExpression {
         }
 
         child.expected = promote;
-        child = child.cast(settings, variables);
+        child = child.cast(variables);
 
         if (child.constant != null) {
             final Sort sort = promote.sort;
@@ -101,8 +100,8 @@ public final class EUnary extends AExpression {
         actual = promote;
     }
 
-    void analyzerAdd(final CompilerSettings settings, final Variables variables) {
-        child.analyze(settings, variables);
+    void analyzerAdd(Variables variables) {
+        child.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(child.actual, true, true);
 
@@ -111,7 +110,7 @@ public final class EUnary extends AExpression {
         }
 
         child.expected = promote;
-        child = child.cast(settings, variables);
+        child = child.cast(variables);
 
         if (child.constant != null) {
             final Sort sort = promote.sort;
@@ -132,8 +131,8 @@ public final class EUnary extends AExpression {
         actual = promote;
     }
 
-    void analyzerSub(final CompilerSettings settings, final Variables variables) {
-        child.analyze(settings, variables);
+    void analyzerSub(Variables variables) {
+        child.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(child.actual, true, true);
 
@@ -142,7 +141,7 @@ public final class EUnary extends AExpression {
         }
 
         child.expected = promote;
-        child = child.cast(settings, variables);
+        child = child.cast(variables);
 
         if (child.constant != null) {
             final Sort sort = promote.sort;
@@ -164,14 +163,14 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         if (operation == Operation.NOT) {
             if (tru == null && fals == null) {
                 final Label localfals = new Label();
                 final Label end = new Label();
 
                 child.fals = localfals;
-                child.write(settings, adapter);
+                child.write(adapter);
 
                 adapter.push(false);
                 adapter.goTo(end);
@@ -181,13 +180,13 @@ public final class EUnary extends AExpression {
             } else {
                 child.tru = fals;
                 child.fals = tru;
-                child.write(settings, adapter);
+                child.write(adapter);
             }
         } else {
             final org.objectweb.asm.Type type = actual.type;
             final Sort sort = actual.sort;
 
-            child.write(settings, adapter);
+            child.write(adapter);
 
             if (operation == Operation.BWNOT) {
                 if (sort == Sort.DEF) {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.Variables.Variable;
@@ -37,7 +36,7 @@ public final class SDeclaration extends AStatement {
 
     Variable variable;
 
-    public SDeclaration(final int line, final String location, final String type, final String name, final AExpression expression) {
+    public SDeclaration(int line, String location, String type, String name, AExpression expression) {
         super(line, location);
 
         this.type = type;
@@ -46,18 +45,18 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Variables variables) {
+    void analyze(Variables variables) {
         variable = variables.addVariable(location, type, name, false, false);
 
         if (expression != null) {
             expression.expected = variable.type;
-            expression.analyze(settings, variables);
-            expression = expression.cast(settings, variables);
+            expression.analyze(variables);
+            expression = expression.cast(variables);
         }
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         writeDebugInfo(adapter);
         final org.objectweb.asm.Type type = variable.type.type;
         final Sort sort = variable.type.sort;
@@ -65,7 +64,7 @@ public final class SDeclaration extends AStatement {
         final boolean initialize = expression == null;
 
         if (!initialize) {
-            expression.write(settings, adapter);
+            expression.write(adapter);
         }
 
         switch (sort) {

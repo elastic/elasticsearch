@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
@@ -39,7 +38,7 @@ public final class EBinary extends AExpression {
 
     boolean cat = false;
 
-    public EBinary(final int line, final String location, final Operation operation, final AExpression left, final AExpression right) {
+    public EBinary(int line, String location, Operation operation, AExpression left, AExpression right) {
         super(line, location);
 
         this.operation = operation;
@@ -48,37 +47,37 @@ public final class EBinary extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Variables variables) {
+    void analyze(Variables variables) {
         if (operation == Operation.MUL) {
-            analyzeMul(settings, variables);
+            analyzeMul(variables);
         } else if (operation == Operation.DIV) {
-            analyzeDiv(settings, variables);
+            analyzeDiv(variables);
         } else if (operation == Operation.REM) {
-            analyzeRem(settings, variables);
+            analyzeRem(variables);
         } else if (operation == Operation.ADD) {
-            analyzeAdd(settings, variables);
+            analyzeAdd(variables);
         } else if (operation == Operation.SUB) {
-            analyzeSub(settings, variables);
+            analyzeSub(variables);
         } else if (operation == Operation.LSH) {
-            analyzeLSH(settings, variables);
+            analyzeLSH(variables);
         } else if (operation == Operation.RSH) {
-            analyzeRSH(settings, variables);
+            analyzeRSH(variables);
         } else if (operation == Operation.USH) {
-            analyzeUSH(settings, variables);
+            analyzeUSH(variables);
         } else if (operation == Operation.BWAND) {
-            analyzeBWAnd(settings, variables);
+            analyzeBWAnd(variables);
         } else if (operation == Operation.XOR) {
-            analyzeXor(settings, variables);
+            analyzeXor(variables);
         } else if (operation == Operation.BWOR) {
-            analyzeBWOr(settings, variables);
+            analyzeBWOr(variables);
         } else {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
     }
 
-    private void analyzeMul(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeMul(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true, true);
 
@@ -90,8 +89,8 @@ public final class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -112,9 +111,9 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeDiv(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeDiv(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true, true);
 
@@ -126,8 +125,8 @@ public final class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -148,9 +147,9 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeRem(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeRem(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true, true);
 
@@ -162,8 +161,8 @@ public final class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -184,9 +183,9 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeAdd(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeAdd(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteAdd(left.actual, right.actual);
 
@@ -214,8 +213,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             if (sort == Sort.INT) {
@@ -236,9 +235,9 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeSub(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeSub(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true, true);
 
@@ -250,8 +249,8 @@ public final class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -272,9 +271,9 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeLSH(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeLSH(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(left.actual, false, true);
 
@@ -287,8 +286,8 @@ public final class EBinary extends AExpression {
         right.expected = Definition.INT_TYPE;
         right.explicit = true;
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -305,9 +304,9 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeRSH(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeRSH(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(left.actual, false, true);
 
@@ -320,8 +319,8 @@ public final class EBinary extends AExpression {
         right.expected = Definition.INT_TYPE;
         right.explicit = true;
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -338,9 +337,9 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeUSH(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeUSH(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(left.actual, false, true);
 
@@ -353,8 +352,8 @@ public final class EBinary extends AExpression {
         right.expected = Definition.INT_TYPE;
         right.explicit = true;
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -371,9 +370,9 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeBWAnd(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeBWAnd(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false, true);
 
@@ -385,8 +384,8 @@ public final class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -403,9 +402,9 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeXor(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeXor(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteXor(left.actual, right.actual);
 
@@ -417,8 +416,8 @@ public final class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -437,9 +436,9 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeBWOr(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeBWOr(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false, true);
 
@@ -451,8 +450,8 @@ public final class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -470,19 +469,19 @@ public final class EBinary extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         if (actual.sort == Sort.STRING && operation == Operation.ADD) {
             if (!cat) {
                 adapter.writeNewStrings();
             }
 
-            left.write(settings, adapter);
+            left.write(adapter);
 
             if (!(left instanceof EBinary) || ((EBinary)left).operation != Operation.ADD || left.actual.sort != Sort.STRING) {
                 adapter.writeAppendStrings(left.actual);
             }
 
-            right.write(settings, adapter);
+            right.write(adapter);
 
             if (!(right instanceof EBinary) || ((EBinary)right).operation != Operation.ADD || right.actual.sort != Sort.STRING) {
                 adapter.writeAppendStrings(right.actual);
@@ -492,8 +491,8 @@ public final class EBinary extends AExpression {
                 adapter.writeToStrings();
             }
         } else {
-            left.write(settings, adapter);
-            right.write(settings, adapter);
+            left.write(adapter);
+            right.write(adapter);
 
             adapter.writeBinaryInstruction(location, actual, operation);
         }

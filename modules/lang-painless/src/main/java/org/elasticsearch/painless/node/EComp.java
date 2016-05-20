@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
@@ -45,7 +44,7 @@ public final class EComp extends AExpression {
     AExpression left;
     AExpression right;
 
-    public EComp(final int line, final String location, final Operation operation, final AExpression left, final AExpression right) {
+    public EComp(int line, String location, Operation operation, AExpression left, AExpression right) {
         super(line, location);
 
         this.operation = operation;
@@ -54,31 +53,31 @@ public final class EComp extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Variables variables) {
+    void analyze(Variables variables) {
         if (operation == Operation.EQ) {
-            analyzeEq(settings, variables);
+            analyzeEq(variables);
         } else if (operation == Operation.EQR) {
-            analyzeEqR(settings, variables);
+            analyzeEqR(variables);
         } else if (operation == Operation.NE) {
-            analyzeNE(settings, variables);
+            analyzeNE(variables);
         } else if (operation == Operation.NER) {
-            analyzeNER(settings, variables);
+            analyzeNER(variables);
         } else if (operation == Operation.GTE) {
-            analyzeGTE(settings, variables);
+            analyzeGTE(variables);
         } else if (operation == Operation.GT) {
-            analyzeGT(settings, variables);
+            analyzeGT(variables);
         } else if (operation == Operation.LTE) {
-            analyzeLTE(settings, variables);
+            analyzeLTE(variables);
         } else if (operation == Operation.LT) {
-            analyzeLT(settings, variables);
+            analyzeLT(variables);
         } else {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
     }
 
-    private void analyzeEq(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeEq(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
@@ -90,8 +89,8 @@ public final class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.isNull && right.isNull) {
             throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
@@ -122,9 +121,9 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeEqR(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeEqR(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteReference(left.actual, right.actual);
 
@@ -136,8 +135,8 @@ public final class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.isNull && right.isNull) {
             throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
@@ -164,9 +163,9 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeNE(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeNE(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
@@ -178,8 +177,8 @@ public final class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.isNull && right.isNull) {
             throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
@@ -210,9 +209,9 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeNER(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeNER(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteReference(left.actual, right.actual);
 
@@ -224,8 +223,8 @@ public final class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.isNull && right.isNull) {
             throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
@@ -252,9 +251,9 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeGTE(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeGTE(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true, true);
 
@@ -266,8 +265,8 @@ public final class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -288,9 +287,9 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeGT(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeGT(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true, true);
 
@@ -302,8 +301,8 @@ public final class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -324,9 +323,9 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeLTE(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeLTE(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true, true);
 
@@ -338,8 +337,8 @@ public final class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -360,9 +359,9 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeLT(final CompilerSettings settings, final Variables variables) {
-        left.analyze(settings, variables);
-        right.analyze(settings, variables);
+    private void analyzeLT(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true, true);
 
@@ -374,8 +373,8 @@ public final class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, variables);
-        right = right.cast(settings, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -397,15 +396,15 @@ public final class EComp extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         final boolean branch = tru != null || fals != null;
         final org.objectweb.asm.Type rtype = right.actual.type;
         final Sort rsort = right.actual.sort;
 
-        left.write(settings, adapter);
+        left.write(adapter);
 
         if (!right.isNull) {
-            right.write(settings, adapter);
+            right.write(adapter);
         }
 
         final Label jump = tru != null ? tru : fals != null ? fals : new Label();

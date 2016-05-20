@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
@@ -31,14 +30,14 @@ import org.elasticsearch.painless.MethodWriter;
  */
 final class EConstant extends AExpression {
 
-    EConstant(final int line, final String location, final Object constant) {
+    EConstant(int line, String location, Object constant) {
         super(line, location);
 
         this.constant = constant;
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Variables variables) {
+    void analyze(Variables variables) {
         if (constant instanceof String) {
             actual = Definition.STRING_TYPE;
         } else if (constant instanceof Double) {
@@ -63,7 +62,7 @@ final class EConstant extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         final Sort sort = actual.sort;
 
         switch (sort) {

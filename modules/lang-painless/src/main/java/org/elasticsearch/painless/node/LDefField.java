@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Variables;
@@ -35,7 +34,7 @@ final class LDefField extends ALink implements IDefLink {
 
     final String value;
 
-    LDefField(final int line, final String location, final String value) {
+    LDefField(int line, String location, String value) {
         super(line, location, 1);
 
         this.value = value;
@@ -43,25 +42,25 @@ final class LDefField extends ALink implements IDefLink {
 
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Variables variables) {
+    ALink analyze(Variables variables) {
         after = Definition.DEF_TYPE;
 
         return this;
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final MethodWriter adapter) {
+    void load(MethodWriter adapter) {
         final String desc = Type.getMethodDescriptor(after.type, Definition.DEF_TYPE.type);
         adapter.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.LOAD);
     }
 
     @Override
-    void store(final CompilerSettings settings, final MethodWriter adapter) {
+    void store(MethodWriter adapter) {
         final String desc = Type.getMethodDescriptor(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, after.type);
         adapter.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.STORE);
     }

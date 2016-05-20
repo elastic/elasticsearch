@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
@@ -35,14 +34,14 @@ public final class LBrace extends ALink {
 
     AExpression index;
 
-    public LBrace(final int line, final String location, final AExpression index) {
+    public LBrace(int line, String location, AExpression index) {
         super(line, location, 2);
 
         this.index = index;
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Variables variables) {
+    ALink analyze(Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
@@ -51,35 +50,35 @@ public final class LBrace extends ALink {
 
         if (sort == Sort.ARRAY) {
             index.expected = Definition.INT_TYPE;
-            index.analyze(settings, variables);
-            index = index.cast(settings, variables);
+            index.analyze(variables);
+            index = index.cast(variables);
 
             after = Definition.getType(before.struct, before.dimensions - 1);
 
             return this;
         } else if (sort == Sort.DEF) {
-            return new LDefArray(line, location, index).copy(this).analyze(settings, variables);
+            return new LDefArray(line, location, index).copy(this).analyze(variables);
         } else if (Map.class.isAssignableFrom(before.clazz)) {
-            return new LMapShortcut(line, location, index).copy(this).analyze(settings, variables);
+            return new LMapShortcut(line, location, index).copy(this).analyze(variables);
         } else if (List.class.isAssignableFrom(before.clazz)) {
-            return new LListShortcut(line, location, index).copy(this).analyze(settings, variables);
+            return new LListShortcut(line, location, index).copy(this).analyze(variables);
         }
 
         throw new IllegalArgumentException(error("Illegal array access on type [" + before.name + "]."));
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
-        index.write(settings, adapter);
+    void write(MethodWriter adapter) {
+        index.write(adapter);
     }
 
     @Override
-    void load(final CompilerSettings settings, final MethodWriter adapter) {
+    void load(MethodWriter adapter) {
         adapter.arrayLoad(after.type);
     }
 
     @Override
-    void store(final CompilerSettings settings, final MethodWriter adapter) {
+    void store(MethodWriter adapter) {
         adapter.arrayStore(after.type);
     }
 

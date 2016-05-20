@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
@@ -33,7 +32,7 @@ public final class ENumeric extends AExpression {
     final String value;
     int radix;
 
-    public ENumeric(final int line, final String location, final String value, final int radix) {
+    public ENumeric(int line, String location, String value, int radix) {
         super(line, location);
 
         this.value = value;
@@ -41,7 +40,7 @@ public final class ENumeric extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Variables variables) {
+    void analyze(Variables variables) {
         if (value.endsWith("d") || value.endsWith("D")) {
             if (radix != 10) {
                 throw new IllegalStateException(error("Invalid tree structure."));
@@ -96,7 +95,7 @@ public final class ENumeric extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         throw new IllegalArgumentException(error("Illegal tree structure."));
     }
 }

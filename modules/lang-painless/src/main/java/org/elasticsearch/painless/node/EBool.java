@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Variables;
@@ -35,7 +34,7 @@ public final class EBool extends AExpression {
     AExpression left;
     AExpression right;
 
-    public EBool(final int line, final String location, final Operation operation, final AExpression left, final AExpression right) {
+    public EBool(int line, String location, Operation operation, AExpression left, AExpression right) {
         super(line, location);
 
         this.operation = operation;
@@ -44,14 +43,14 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Variables variables) {
+    void analyze(Variables variables) {
         left.expected = Definition.BOOLEAN_TYPE;
-        left.analyze(settings, variables);
-        left = left.cast(settings, variables);
+        left.analyze(variables);
+        left = left.cast(variables);
 
         right.expected = Definition.BOOLEAN_TYPE;
-        right.analyze(settings, variables);
-        right = right.cast(settings, variables);
+        right.analyze(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             if (operation == Operation.AND) {
@@ -67,7 +66,7 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         if (tru != null || fals != null) {
             if (operation == Operation.AND) {
                 final Label localfals = fals == null ? new Label() : fals;
@@ -76,8 +75,8 @@ public final class EBool extends AExpression {
                 right.tru = tru;
                 right.fals = fals;
 
-                left.write(settings, adapter);
-                right.write(settings, adapter);
+                left.write(adapter);
+                right.write(adapter);
 
                 if (fals == null) {
                     adapter.mark(localfals);
@@ -89,8 +88,8 @@ public final class EBool extends AExpression {
                 right.tru = tru;
                 right.fals = fals;
 
-                left.write(settings, adapter);
-                right.write(settings, adapter);
+                left.write(adapter);
+                right.write(adapter);
 
                 if (tru == null) {
                     adapter.mark(localtru);
@@ -106,8 +105,8 @@ public final class EBool extends AExpression {
                 left.fals = localfals;
                 right.fals = localfals;
 
-                left.write(settings, adapter);
-                right.write(settings, adapter);
+                left.write(adapter);
+                right.write(adapter);
 
                 adapter.push(true);
                 adapter.goTo(end);
@@ -122,8 +121,8 @@ public final class EBool extends AExpression {
                 left.tru = localtru;
                 right.fals = localfals;
 
-                left.write(settings, adapter);
-                right.write(settings, adapter);
+                left.write(adapter);
+                right.write(adapter);
 
                 adapter.mark(localtru);
                 adapter.push(true);

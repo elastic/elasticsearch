@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Variables;
@@ -36,14 +35,14 @@ public final class LVariable extends ALink {
 
     int slot;
 
-    public LVariable(final int line, final String location, final String name) {
+    public LVariable(int line, String location, String name) {
         super(line, location, 0);
 
         this.name = name;
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Variables variables) {
+    ALink analyze(Variables variables) {
         if (before != null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
@@ -74,17 +73,17 @@ public final class LVariable extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final MethodWriter adapter) {
+    void load(MethodWriter adapter) {
         adapter.visitVarInsn(after.type.getOpcode(Opcodes.ILOAD), slot);
     }
 
     @Override
-    void store(final CompilerSettings settings, final MethodWriter adapter) {
+    void store(MethodWriter adapter) {
         adapter.visitVarInsn(after.type.getOpcode(Opcodes.ISTORE), slot);
     }
 }

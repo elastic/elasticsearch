@@ -29,7 +29,7 @@ final class Analyzer {
     static Variables analyze(final CompilerSettings settings,
                                     final Reserved shortcut, final SSource root) {
         final Variables variables = new Variables(settings, shortcut);
-        root.analyze(settings, variables);
+        root.analyze(variables);
 
         return variables;
     }

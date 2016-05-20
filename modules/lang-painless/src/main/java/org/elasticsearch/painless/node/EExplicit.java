@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
@@ -32,7 +31,7 @@ public final class EExplicit extends AExpression {
     final String type;
     AExpression child;
 
-    public EExplicit(final int line, final String location, final String type, final AExpression child) {
+    public EExplicit(int line, String location, String type, AExpression child) {
         super(line, location);
 
         this.type = type;
@@ -40,7 +39,7 @@ public final class EExplicit extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Variables variables) {
+    void analyze(Variables variables) {
         try {
             actual = Definition.getType(this.type);
         } catch (final IllegalArgumentException exception) {
@@ -49,19 +48,19 @@ public final class EExplicit extends AExpression {
 
         child.expected = actual;
         child.explicit = true;
-        child.analyze(settings, variables);
-        child = child.cast(settings, variables);
+        child.analyze(variables);
+        child = child.cast(variables);
     }
 
     @Override
-    void write(final CompilerSettings settings, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         throw new IllegalArgumentException(error("Illegal tree structure."));
     }
 
-    AExpression cast(final CompilerSettings settings, final Variables variables) {
+    AExpression cast(Variables variables) {
         child.expected = expected;
         child.explicit = explicit;
 
-        return child.cast(settings, variables);
+        return child.cast(variables);
     }
 }

@@ -151,12 +151,15 @@ public class ReplicationOperation<
 
             @Override
             public void onFailure(Throwable primaryException) {
-                RestStatus restStatus = ExceptionsHelper.status(primaryException);
-                shardReplicaFailures.add(new ReplicationResponse.ShardInfo.Failure(primaryRouting.shardId(), primaryRouting.currentNodeId(),
-                        primaryException, restStatus, false));
-                String message = String.format(Locale.ROOT, "failed to perform %s on primary %s", opType, primaryRouting);
-                logger.warn("[{}] {}", primaryException, primaryRouting.shardId(), message);
-                decPendingAndFinishIfNeeded();
+                try {
+                    RestStatus restStatus = ExceptionsHelper.status(primaryException);
+                    shardReplicaFailures.add(new ReplicationResponse.ShardInfo.Failure(primaryRouting.shardId(), primaryRouting.currentNodeId(),
+                            primaryException, restStatus, false));
+                    String message = String.format(Locale.ROOT, "failed to perform %s on primary %s", opType, primaryRouting);
+                    logger.warn("[{}] {}", primaryException, primaryRouting.shardId(), message);
+                } finally {
+                    decPendingAndFinishIfNeeded();
+                }
             }
         });
     }

@@ -602,7 +602,8 @@ public final class Settings implements ToXContent {
 
         private final Map<String, String> map = new LinkedHashMap<>();
 
-        private Builder() {
+        // visible for testing
+        Builder() {
 
         }
 
@@ -964,7 +965,7 @@ public final class Settings implements ToXContent {
             PropertyPlaceholder.PlaceholderResolver placeholderResolver = new PropertyPlaceholder.PlaceholderResolver() {
                     @Override
                     public String resolvePlaceholder(String placeholderName) {
-                        final String value = System.getenv(placeholderName);
+                        final String value = getenv(placeholderName);
                         if (value != null) {
                             return value;
                         }
@@ -998,6 +999,11 @@ public final class Settings implements ToXContent {
                 }
             }
             return this;
+        }
+
+        // visible for testing
+        String getenv(String placeholderName) {
+            return System.getenv(placeholderName);
         }
 
         /**

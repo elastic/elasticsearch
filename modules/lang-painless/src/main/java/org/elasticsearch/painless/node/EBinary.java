@@ -80,7 +80,7 @@ public final class EBinary extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply multiply [*] to types " +
@@ -116,7 +116,7 @@ public final class EBinary extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply divide [/] to types " +
@@ -152,7 +152,7 @@ public final class EBinary extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply remainder [%] to types " +
@@ -240,7 +240,7 @@ public final class EBinary extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply subtract [-] to types " +
@@ -276,7 +276,7 @@ public final class EBinary extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, false, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, false);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply left shift [<<] to types " +
@@ -309,7 +309,7 @@ public final class EBinary extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, false, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, false);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply right shift [>>] to types " +
@@ -342,7 +342,7 @@ public final class EBinary extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, false, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, false);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply unsigned shift [>>>] to types " +
@@ -375,7 +375,7 @@ public final class EBinary extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, false, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, false);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply and [&] to types " +
@@ -441,7 +441,7 @@ public final class EBinary extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, false, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, false);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply or [|] to types " +

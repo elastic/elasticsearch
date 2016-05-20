@@ -126,7 +126,7 @@ public final class EComp extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = AnalyzerCaster.promoteReference(definition, left.actual, right.actual);
+        final Type promote = AnalyzerCaster.promoteEquality(definition, left.actual, right.actual);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply reference equals [===] to types " +
@@ -214,7 +214,7 @@ public final class EComp extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = AnalyzerCaster.promoteReference(definition, left.actual, right.actual);
+        final Type promote = AnalyzerCaster.promoteEquality(definition, left.actual, right.actual);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply reference not equals [!==] to types " +
@@ -256,7 +256,7 @@ public final class EComp extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply greater than or equals [>=] to types " +
@@ -292,7 +292,7 @@ public final class EComp extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply greater than [>] to types " +
@@ -328,7 +328,7 @@ public final class EComp extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply less than or equals [<=] to types " +
@@ -364,7 +364,7 @@ public final class EComp extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply less than [>=] to types " +

@@ -159,21 +159,21 @@ public final class EChain extends AExpression {
         expression.analyze(settings, definition, variables);
 
         if (operation == Operation.MUL) {
-            promote = AnalyzerCaster.promoteNumeric(definition, last.after, expression.actual, true, true);
+            promote = AnalyzerCaster.promoteNumeric(definition, last.after, expression.actual, true);
         } else if (operation == Operation.DIV) {
-            promote = AnalyzerCaster.promoteNumeric(definition, last.after, expression.actual, true, true);
+            promote = AnalyzerCaster.promoteNumeric(definition, last.after, expression.actual, true);
         } else if (operation == Operation.REM) {
-            promote = AnalyzerCaster.promoteNumeric(definition, last.after, expression.actual, true, true);
+            promote = AnalyzerCaster.promoteNumeric(definition, last.after, expression.actual, true);
         } else if (operation == Operation.ADD) {
             promote = AnalyzerCaster.promoteAdd(definition, last.after, expression.actual);
         } else if (operation == Operation.SUB) {
-            promote = AnalyzerCaster.promoteNumeric(definition, last.after, expression.actual, true, true);
+            promote = AnalyzerCaster.promoteNumeric(definition, last.after, expression.actual, true);
         } else if (operation == Operation.LSH) {
-            promote = AnalyzerCaster.promoteNumeric(definition, last.after, false, true);
+            promote = AnalyzerCaster.promoteNumeric(definition, last.after, false);
         } else if (operation == Operation.RSH) {
-            promote = AnalyzerCaster.promoteNumeric(definition, last.after, false, true);
+            promote = AnalyzerCaster.promoteNumeric(definition, last.after, false);
         } else if (operation == Operation.USH) {
-            promote = AnalyzerCaster.promoteNumeric(definition, last.after, false, true);
+            promote = AnalyzerCaster.promoteNumeric(definition, last.after, false);
         } else if (operation == Operation.BWAND) {
             promote = AnalyzerCaster.promoteXor(definition, last.after, expression.actual);
         } else if (operation == Operation.XOR) {

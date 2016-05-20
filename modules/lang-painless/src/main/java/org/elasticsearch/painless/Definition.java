@@ -524,7 +524,7 @@ public final class Definition {
         Type floatobjType = getType("Float");
         Type doubleobjType = getType("Double");
         Type stringType = getType("String");
-        
+
         addTransform(booleanType, objectType, "Boolean", "valueOf", true, false);
         addTransform(booleanType, defType, "Boolean", "valueOf", true, false);
         addTransform(booleanType, booleanobjType, "Boolean", "valueOf", true, false);
@@ -539,12 +539,6 @@ public final class Definition {
         addTransform(byteType, defType, "Byte", "valueOf", true, false);
         addTransform(byteType, numberType, "Byte", "valueOf", true, false);
         addTransform(byteType, byteobjType, "Byte", "valueOf", true, false);
-        addTransform(byteType, shortobjType, "Utility", "byteToShort", true, false);
-        addTransform(byteType, charobjType, "Utility", "byteToCharacter", true, true);
-        addTransform(byteType, intobjType, "Utility", "byteToInteger", true, false);
-        addTransform(byteType, longobjType, "Utility", "byteToLong", true, false);
-        addTransform(byteType, floatobjType, "Utility", "byteToFloat", true, false);
-        addTransform(byteType, doubleobjType, "Utility", "byteToDouble", true, false);
 
         addTransform(shortType, byteType, true);
         addTransform(shortType, charType, true);
@@ -555,13 +549,7 @@ public final class Definition {
         addTransform(shortType, objectType, "Short", "valueOf", true, false);
         addTransform(shortType, defType, "Short", "valueOf", true, false);
         addTransform(shortType, numberType, "Short", "valueOf", true, false);
-        addTransform(shortType, byteobjType, "Utility", "shortToByte", true, true);
         addTransform(shortType, shortobjType, "Short", "valueOf", true, false);
-        addTransform(shortType, charobjType, "Utility", "shortToCharacter", true, true);
-        addTransform(shortType, intobjType, "Utility", "shortToInteger", true, false);
-        addTransform(shortType, longobjType, "Utility", "shortToLong", true, false);
-        addTransform(shortType, floatobjType, "Utility", "shortToFloat", true, false);
-        addTransform(shortType, doubleobjType, "Utility", "shortToDouble", true, false);
 
         addTransform(charType, byteType, true);
         addTransform(charType, shortType, true);
@@ -572,13 +560,7 @@ public final class Definition {
         addTransform(charType, objectType, "Character", "valueOf", true, false);
         addTransform(charType, defType, "Character", "valueOf", true, false);
         addTransform(charType, numberType, "Utility", "charToInteger", true, false);
-        addTransform(charType, byteobjType, "Utility", "charToByte", true, true);
-        addTransform(charType, shortobjType, "Utility", "charToShort", true, true);
         addTransform(charType, charobjType, "Character", "valueOf", true, false);
-        addTransform(charType, intobjType, "Utility", "charToInteger", true, false);
-        addTransform(charType, longobjType, "Utility", "charToLong", true, false);
-        addTransform(charType, floatobjType, "Utility", "charToFloat", true, false);
-        addTransform(charType, doubleobjType, "Utility", "charToDouble", true, false);
         addTransform(charType, stringType, "Utility", "charToString", true, true);
 
         addTransform(intType, byteType, true);
@@ -590,13 +572,7 @@ public final class Definition {
         addTransform(intType, objectType, "Integer", "valueOf", true, false);
         addTransform(intType, defType, "Integer", "valueOf", true, false);
         addTransform(intType, numberType, "Integer", "valueOf", true, false);
-        addTransform(intType, byteobjType, "Utility", "intToByte", true, true);
-        addTransform(intType, shortobjType, "Utility", "intToShort", true, true);
-        addTransform(intType, charobjType, "Utility", "intToCharacter", true, true);
         addTransform(intType, intobjType, "Integer", "valueOf", true, false);
-        addTransform(intType, longobjType, "Utility", "intToLong", true, false);
-        addTransform(intType, floatobjType, "Utility", "intToFloat", true, false);
-        addTransform(intType, doubleobjType, "Utility", "intToDouble", true, false);
 
         addTransform(longType, byteType, true);
         addTransform(longType, shortType, true);
@@ -607,13 +583,7 @@ public final class Definition {
         addTransform(longType, objectType, "Long", "valueOf", true, false);
         addTransform(longType, defType, "Long", "valueOf", true, false);
         addTransform(longType, numberType, "Long", "valueOf", true, false);
-        addTransform(longType, byteobjType, "Utility", "longToByte", true, true);
-        addTransform(longType, shortobjType, "Utility", "longToShort", true, true);
-        addTransform(longType, charobjType, "Utility", "longToCharacter", true, true);
-        addTransform(longType, intobjType, "Utility", "longToInteger", true, true);
         addTransform(longType, longobjType, "Long", "valueOf", true, false);
-        addTransform(longType, floatobjType, "Utility", "longToFloat", true, false);
-        addTransform(longType, doubleobjType, "Utility", "longToDouble", true, false);
 
         addTransform(floatType, byteType, true);
         addTransform(floatType, shortType, true);
@@ -624,13 +594,7 @@ public final class Definition {
         addTransform(floatType, objectType, "Float", "valueOf", true, false);
         addTransform(floatType, defType, "Float", "valueOf", true, false);
         addTransform(floatType, numberType, "Float", "valueOf", true, false);
-        addTransform(floatType, byteobjType, "Utility", "floatToByte", true, true);
-        addTransform(floatType, shortobjType, "Utility", "floatToShort", true, true);
-        addTransform(floatType, charobjType, "Utility", "floatToCharacter", true, true);
-        addTransform(floatType, intobjType, "Utility", "floatToInteger", true, true);
-        addTransform(floatType, longobjType, "Utility", "floatToLong", true, true);
         addTransform(floatType, floatobjType, "Float", "valueOf", true, false);
-        addTransform(floatType, doubleobjType, "Utility", "floatToDouble", true, false);
 
         addTransform(doubleType, byteType, true);
         addTransform(doubleType, shortType, true);
@@ -641,22 +605,7 @@ public final class Definition {
         addTransform(doubleType, objectType, "Double", "valueOf", true, false);
         addTransform(doubleType, defType, "Double", "valueOf", true, false);
         addTransform(doubleType, numberType, "Double", "valueOf", true, false);
-        addTransform(doubleType, byteobjType, "Utility", "doubleToByte", true, true);
-        addTransform(doubleType, shortobjType, "Utility", "doubleToShort", true, true);
-        addTransform(doubleType, charobjType, "Utility", "doubleToCharacter", true, true);
-        addTransform(doubleType, intobjType, "Utility", "doubleToInteger", true, true);
-        addTransform(doubleType, longobjType, "Utility", "doubleToLong", true, true);
-        addTransform(doubleType, floatobjType, "Utility", "doubleToFloat", true, true);
         addTransform(doubleType, doubleobjType, "Double", "valueOf", true, false);
-
-        addTransform(objectType, booleanType, "Boolean", "booleanValue", false, true);
-        addTransform(objectType, byteType, "Number", "byteValue", false, true);
-        addTransform(objectType, shortType, "Number", "shortValue", false, true);
-        addTransform(objectType, charType, "Character", "charValue", false, true);
-        addTransform(objectType, intType, "Number", "intValue", false, true);
-        addTransform(objectType, longType, "Number", "longValue", false, true);
-        addTransform(objectType, floatType, "Number", "floatValue", false, true);
-        addTransform(objectType, doubleType, "Number", "doubleValue", false, true);
 
         addTransform(defType, booleanType, "Boolean", "booleanValue", false, false);
         addTransform(defType, byteType, "Def", "DefTobyteImplicit", true, false);
@@ -666,13 +615,6 @@ public final class Definition {
         addTransform(defType, longType, "Def", "DefTolongImplicit", true, false);
         addTransform(defType, floatType, "Def", "DefTofloatImplicit", true, false);
         addTransform(defType, doubleType, "Def", "DefTodoubleImplicit", true, false);
-        addTransform(defType, byteobjType, "Def", "DefToByteImplicit", true, false);
-        addTransform(defType, shortobjType, "Def", "DefToShortImplicit", true, false);
-        addTransform(defType, charobjType, "Def", "DefToCharacterImplicit", true, false);
-        addTransform(defType, intobjType, "Def", "DefToIntegerImplicit", true, false);
-        addTransform(defType, longobjType, "Def", "DefToLongImplicit", true, false);
-        addTransform(defType, floatobjType, "Def", "DefToFloatImplicit", true, false);
-        addTransform(defType, doubleobjType, "Def", "DefToDoubleImplicit", true, false);
         addTransform(defType, byteType, "Def", "DefTobyteExplicit", true, true);
         addTransform(defType, shortType, "Def", "DefToshortExplicit", true, true);
         addTransform(defType, charType, "Def", "DefTocharExplicit", true, true);
@@ -680,130 +622,6 @@ public final class Definition {
         addTransform(defType, longType, "Def", "DefTolongExplicit", true, true);
         addTransform(defType, floatType, "Def", "DefTofloatExplicit", true, true);
         addTransform(defType, doubleType, "Def", "DefTodoubleExplicit", true, true);
-        addTransform(defType, byteobjType, "Def", "DefToByteExplicit", true, true);
-        addTransform(defType, shortobjType, "Def", "DefToShortExplicit", true, true);
-        addTransform(defType, charobjType, "Def", "DefToCharacterExplicit", true, true);
-        addTransform(defType, intobjType, "Def", "DefToIntegerExplicit", true, true);
-        addTransform(defType, longobjType, "Def", "DefToLongExplicit", true, true);
-        addTransform(defType, floatobjType, "Def", "DefToFloatExplicit", true, true);
-        addTransform(defType, doubleobjType, "Def", "DefToDoubleExplicit", true, true);
-
-        addTransform(numberType, byteType, "Number", "byteValue", false, true);
-        addTransform(numberType, shortType, "Number", "shortValue", false, true);
-        addTransform(numberType, charType, "Utility", "NumberTochar", true, true);
-        addTransform(numberType, intType, "Number", "intValue", false, true);
-        addTransform(numberType, longType, "Number", "longValue", false, true);
-        addTransform(numberType, floatType, "Number", "floatValue", false, true);
-        addTransform(numberType, doubleType, "Number", "doubleValue", false, true);
-        addTransform(numberType, booleanobjType, "Utility", "NumberToBoolean", true, true);
-        addTransform(numberType, byteobjType, "Utility", "NumberToByte", true, true);
-        addTransform(numberType, shortobjType, "Utility", "NumberToShort", true, true);
-        addTransform(numberType, charobjType, "Utility", "NumberToCharacter", true, true);
-        addTransform(numberType, intobjType, "Utility", "NumberToInteger", true, true);
-        addTransform(numberType, longobjType, "Utility", "NumberToLong", true, true);
-        addTransform(numberType, floatobjType, "Utility", "NumberToFloat", true, true);
-        addTransform(numberType, doubleobjType, "Utility", "NumberToDouble", true, true);
-
-        addTransform(booleanobjType, booleanType, "Boolean", "booleanValue", false, false);
-
-        addTransform(byteobjType, byteType, "Byte", "byteValue", false, false);
-        addTransform(byteobjType, shortType, "Byte", "shortValue", false, false);
-        addTransform(byteobjType, charType, "Utility", "ByteTochar", true, false);
-        addTransform(byteobjType, intType, "Byte", "intValue", false, false);
-        addTransform(byteobjType, longType, "Byte", "longValue", false, false);
-        addTransform(byteobjType, floatType, "Byte", "floatValue", false, false);
-        addTransform(byteobjType, doubleType, "Byte", "doubleValue", false, false);
-        addTransform(byteobjType, shortobjType, "Utility", "NumberToShort", true, false);
-        addTransform(byteobjType, charobjType, "Utility", "NumberToCharacter", true, false);
-        addTransform(byteobjType, intobjType, "Utility", "NumberToInteger", true, false);
-        addTransform(byteobjType, longobjType, "Utility", "NumberToLong", true, false);
-        addTransform(byteobjType, floatobjType, "Utility", "NumberToFloat", true, false);
-        addTransform(byteobjType, doubleobjType, "Utility", "NumberToDouble", true, false);
-
-        addTransform(shortobjType, byteType, "Short", "byteValue", false, true);
-        addTransform(shortobjType, shortType, "Short", "shortValue", false, true);
-        addTransform(shortobjType, charType, "Utility", "ShortTochar", true, false);
-        addTransform(shortobjType, intType, "Short", "intValue", false, false);
-        addTransform(shortobjType, longType, "Short", "longValue", false, false);
-        addTransform(shortobjType, floatType, "Short", "floatValue", false, false);
-        addTransform(shortobjType, doubleType, "Short", "doubleValue", false, false);
-        addTransform(shortobjType, byteobjType, "Utility", "NumberToByte", true, true);
-        addTransform(shortobjType, charobjType, "Utility", "NumberToCharacter", true, true);
-        addTransform(shortobjType, intobjType, "Utility", "NumberToInteger", true, false);
-        addTransform(shortobjType, longobjType, "Utility", "NumberToLong", true, false);
-        addTransform(shortobjType, floatobjType, "Utility", "NumberToFloat", true, false);
-        addTransform(shortobjType, doubleobjType, "Utility", "NumberToDouble", true, false);
-
-        addTransform(charobjType, byteType, "Utility", "CharacterTobyte", true, true);
-        addTransform(charobjType, shortType, "Utility", "CharacterToshort", true, false);
-        addTransform(charobjType, charType, "Character", "charValue", false, true);
-        addTransform(charobjType, intType, "Utility", "CharacterToint", true, false);
-        addTransform(charobjType, longType, "Utility", "CharacterTolong", true, false);
-        addTransform(charobjType, floatType, "Utility", "CharacterTofloat", true, false);
-        addTransform(charobjType, doubleType, "Utility", "CharacterTodouble", true, false);
-        addTransform(charobjType, byteobjType, "Utility", "CharacterToByte", true, true);
-        addTransform(charobjType, shortobjType, "Utility", "CharacterToShort", true, true);
-        addTransform(charobjType, intobjType, "Utility", "CharacterToInteger", true, false);
-        addTransform(charobjType, longobjType, "Utility", "CharacterToLong", true, false);
-        addTransform(charobjType, floatobjType, "Utility", "CharacterToFloat", true, false);
-        addTransform(charobjType, doubleobjType, "Utility", "CharacterToDouble", true, false);
-        addTransform(charobjType, stringType, "Utility", "CharacterToString", true, true);
-
-        addTransform(intobjType, byteType, "Integer", "byteValue", false, true);
-        addTransform(intobjType, shortType, "Integer", "shortValue", false, true);
-        addTransform(intobjType, charType, "Utility", "IntegerTochar", true, true);
-        addTransform(intobjType, intType, "Integer", "intValue", false, false);
-        addTransform(intobjType, longType, "Integer", "longValue", false, false);
-        addTransform(intobjType, floatType, "Integer", "floatValue", false, false);
-        addTransform(intobjType, doubleType, "Integer", "doubleValue", false, false);
-        addTransform(intobjType, byteobjType, "Utility", "NumberToByte", true, true);
-        addTransform(intobjType, shortobjType, "Utility", "NumberToShort", true, true);
-        addTransform(intobjType, charobjType, "Utility", "NumberToCharacter", true, true);
-        addTransform(intobjType, longobjType, "Utility", "NumberToLong", true, false);
-        addTransform(intobjType, floatobjType, "Utility", "NumberToFloat", true, false);
-        addTransform(intobjType, doubleobjType, "Utility", "NumberToDouble", true, false);
-
-        addTransform(longobjType, byteType, "Long", "byteValue", false, true);
-        addTransform(longobjType, shortType, "Long", "shortValue", false, true);
-        addTransform(longobjType, charType, "Utility", "LongTochar", true, true);
-        addTransform(longobjType, intType, "Long", "intValue", false, true);
-        addTransform(longobjType, longType, "Long", "longValue", false, false);
-        addTransform(longobjType, floatType, "Long", "floatValue", false, false);
-        addTransform(longobjType, doubleType, "Long", "doubleValue", false, false);
-        addTransform(longobjType, byteobjType, "Utility", "NumberToByte", true, true);
-        addTransform(longobjType, shortobjType, "Utility", "NumberToShort", true, true);
-        addTransform(longobjType, charobjType, "Utility", "NumberToCharacter", true, true);
-        addTransform(longobjType, intobjType, "Utility", "NumberToInteger", true, true);
-        addTransform(longobjType, floatobjType, "Utility", "NumberToFloat", true, false);
-        addTransform(longobjType, doubleobjType, "Utility", "NumberToDouble", true, false);
-
-        addTransform(floatobjType, byteType, "Float", "byteValue", false, true);
-        addTransform(floatobjType, shortType, "Float", "shortValue", false, true);
-        addTransform(floatobjType, charType, "Utility", "FloatTochar", true, true);
-        addTransform(floatobjType, intType, "Float", "intValue", false, true);
-        addTransform(floatobjType, longType, "Float", "longValue", false, true);
-        addTransform(floatobjType, floatType, "Float", "floatValue", false, false);
-        addTransform(floatobjType, doubleType, "Float", "doubleValue", false, false);
-        addTransform(floatobjType, byteobjType, "Utility", "NumberToByte", true, true);
-        addTransform(floatobjType, shortobjType, "Utility", "NumberToShort", true, true);
-        addTransform(floatobjType, charobjType, "Utility", "NumberToCharacter", true, true);
-        addTransform(floatobjType, intobjType, "Utility", "NumberToInteger", true, true);
-        addTransform(floatobjType, longobjType, "Utility", "NumberToLong", true, true);
-        addTransform(floatobjType, doubleobjType, "Utility", "NumberToDouble", true, false);
-
-        addTransform(doubleobjType, byteType, "Double", "byteValue", false, true);
-        addTransform(doubleobjType, shortType, "Double", "shortValue", false, true);
-        addTransform(doubleobjType, charType, "Utility", "DoubleTochar", true, true);
-        addTransform(doubleobjType, intType, "Double", "intValue", false, true);
-        addTransform(doubleobjType, longType, "Double", "longValue", false, true);
-        addTransform(doubleobjType, floatType, "Double", "floatValue", false, true);
-        addTransform(doubleobjType, doubleType, "Double", "doubleValue", false, false);
-        addTransform(doubleobjType, byteobjType, "Utility", "NumberToByte", true, true);
-        addTransform(doubleobjType, shortobjType, "Utility", "NumberToShort", true, true);
-        addTransform(doubleobjType, charobjType, "Utility", "NumberToCharacter", true, true);
-        addTransform(doubleobjType, intobjType, "Utility", "NumberToInteger", true, true);
-        addTransform(doubleobjType, longobjType, "Utility", "NumberToLong", true, true);
-        addTransform(doubleobjType, floatobjType, "Utility", "NumberToFloat", true, true);
 
         addTransform(stringType, charType, "Utility", "StringTochar", true, true);
         addTransform(stringType, charobjType, "Utility", "StringToCharacter", true, true);
@@ -823,7 +641,7 @@ public final class Definition {
         structsMap.put(name, struct);
         simpleTypesMap.put(name, getType(name));
     }
-    
+
     private final void addConstructorInternal(final String struct, final String name, final Type[] args) {
         final Struct owner = structsMap.get(struct);
 
@@ -874,8 +692,8 @@ public final class Definition {
 
         owner.constructors.put(methodKey, constructor);
     }
-    
-    /** 
+
+    /**
      * Adds a new signature to the definition.
      * <p>
      * Signatures have the following forms:
@@ -930,7 +748,7 @@ public final class Definition {
         }
     }
 
-    private final void addMethodInternal(final String struct, final String name, final String alias, 
+    private final void addMethodInternal(final String struct, final String name, final String alias,
                                          final Type rtn, final Type[] args) {
         final Struct owner = structsMap.get(struct);
 
@@ -968,7 +786,7 @@ public final class Definition {
         try {
             reflect = owner.clazz.getMethod(alias == null ? name : alias, classes);
         } catch (final NoSuchMethodException exception) {
-            throw new IllegalArgumentException("Method [" + (alias == null ? name : alias) + 
+            throw new IllegalArgumentException("Method [" + (alias == null ? name : alias) +
                 "] not found for class [" + owner.clazz.getName() + "]" +
                 " with arguments " + Arrays.toString(classes) + ".");
         }
@@ -1001,7 +819,7 @@ public final class Definition {
             owner.methods.put(methodKey, method);
         }
     }
-    
+
     private final void addFieldInternal(final String struct, final String name, final String alias,
                                         final Type type) {
         final Struct owner = structsMap.get(struct);
@@ -1029,7 +847,7 @@ public final class Definition {
             throw new IllegalArgumentException("Field [" + (alias == null ? name : alias) + "]" +
                 " not found for class [" + owner.clazz.getName() + "].");
         }
-        
+
         final int modifiers = reflect.getModifiers();
         boolean isStatic = java.lang.reflect.Modifier.isStatic(modifiers);
 

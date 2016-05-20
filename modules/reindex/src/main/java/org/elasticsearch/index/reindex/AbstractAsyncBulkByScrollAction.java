@@ -519,8 +519,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             public void onFailure(Throwable e) {
                 if (ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class) != null) {
                     if (retries.hasNext()) {
-                        logger.trace("retrying rejected search", e);
-                        threadPool.schedule(retries.next(), ThreadPool.Names.SAME, this);
+                        TimeValue delay = retries.next();
+                        logger.trace("retrying rejected search after [{}]", e, delay);
+                        threadPool.schedule(delay, ThreadPool.Names.SAME, this);
                         task.countSearchRetry();
                     } else {
                         logger.warn("giving up on search because we retried {} times without success", e, retries);

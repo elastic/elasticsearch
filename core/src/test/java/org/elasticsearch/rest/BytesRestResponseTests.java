@@ -161,12 +161,8 @@ public class BytesRestResponseTests extends ESTestCase {
         final BytesRestResponse response = new BytesRestResponse(channel, e);
         assertNotNull(response.content());
         final String content = response.content().toUtf8();
-        assertThat(
-            content,
-            containsString("\"type\":\"illegal_argument_exception\""));
-        assertThat(
-            content,
-            containsString("\"reason\":\"partial escape sequence at end of string: %a\""));
+        assertThat(content, containsString("\"type\":\"illegal_argument_exception\""));
+        assertThat(content, containsString("\"reason\":\"partial escape sequence at end of string: %a\""));
         assertThat(content, containsString("\"status\":" + 400));
     }
 
@@ -176,12 +172,8 @@ public class BytesRestResponseTests extends ESTestCase {
         final BytesRestResponse response = new BytesRestResponse(channel, new ElasticsearchException("simulated"));
         assertNotNull(response.content());
         final String content = response.content().toUtf8();
-        assertThat(
-            content,
-            containsString("\"type\":\"exception\""));
-        assertThat(
-            content,
-            containsString("\"reason\":\"simulated\""));
+        assertThat(content, containsString("\"type\":\"exception\""));
+        assertThat(content, containsString("\"reason\":\"simulated\""));
         assertThat(content, containsString("\"status\":" + 500));
     }
 

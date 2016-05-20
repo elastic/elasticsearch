@@ -118,6 +118,8 @@ This similarity has the following options:
 [horizontal]
 `independence_measure`:: Possible values `standardized`, `saturated`, `chisquared`.
 
+Type name: `DFI`
+
 [float]
 [[ib]]
 ==== IB similarity.

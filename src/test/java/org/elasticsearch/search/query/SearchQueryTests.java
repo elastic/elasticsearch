@@ -2640,4 +2640,39 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                     equalTo(true));
         }
     }
+
+    @Test // see #18315
+    public void testFunctionScoreWithinMustNotQuery() throws Exception {
+        // Bug only presents when the number of documents exceeds the number of shards,
+        //  so I'm using a single shard to limit the scope of the issue
+        prepareCreate("fnscore-test-index", 1, ImmutableSettings.builder()
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", 1)
+        ).get();
+        ensureYellow("fnscore-test-index");
+
+        // Index two documents (doc count must exceed number of shards)
+        // NOTE: Bug does not present consistently when indexing documents separately,
+        //  so I'm using a bulk request very intentionally
+        client().prepareBulk()
+                .add(client().prepareIndex("fnscore-test-index", "event", "1").setSource("{\"field\":\"value-1\"}"))
+                .add(client().prepareIndex("fnscore-test-index", "event", "2").setSource("{\"field\":\"value-2\"}"))
+                .add(client().prepareIndex("fnscore-test-index", "event", "3").setSource("{\"field\":\"value-3\"}"))
+                .add(client().prepareIndex("fnscore-test-index", "event", "4").setSource("{\"field\":\"value-4\"}"))
+                .add(client().prepareIndex("fnscore-test-index", "event", "5").setSource("{\"field\":\"value-5\"}"))
+                .setRefresh(true)
+                .get();
+
+        // The function script should never hit any documents, so the inverse
+        //  should always return all documents
+        SearchResponse resp = client().prepareSearch("fnscore-test-index")
+                .setQuery(QueryBuilders.boolQuery()
+                        .mustNot(QueryBuilders.functionScoreQuery()
+                                .add(scriptFunction("-1", "expression"))
+                                .scoreMode("sum")
+                                .boostMode("replace")
+                                .setMinScore(0)))
+                .get();
+        assertHitCount(resp, 5L);
+    }
 }

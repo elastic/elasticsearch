@@ -100,7 +100,8 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable)
             .metaData(MetaData.builder(clusterState.metaData())
                 .put(IndexMetaData.builder(clusterState.metaData().index("idx")).settings(
-                    Settings.builder().put(clusterState.metaData().index("idx").getSettings()).put("index.allocation.max_retries", retries+1).build()
+                    Settings.builder().put(clusterState.metaData().index("idx").getSettings()).put("index.allocation.max_retries",
+                        retries+1).build()
                 ).build(), true).build()).build();
         RoutingAllocation.Result result = strategy.reroute(clusterState, "settings changed");
         assertTrue(result.changed());
@@ -134,7 +135,5 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), 1);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getMessage(), "ZOOOMG");
-
-
     }
 }

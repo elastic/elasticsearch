@@ -259,10 +259,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * Processes bulk responses, accounting for failures.
      */
     void onBulkResponse(BulkResponse response) {
-        if (task.isCancelled()) {
-            finishHim(null);
-            return;
-        }
         try {
             List<Failure> failures = new ArrayList<Failure>();
             Set<String> destinationIndicesThisBatch = new HashSet<>();
@@ -291,6 +287,12 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 // Track the indexes we've seen so we can refresh them if requested
                 destinationIndicesThisBatch.add(item.getIndex());
             }
+
+            if (task.isCancelled()) {
+                finishHim(null);
+                return;
+            }
+
             addDestinationIndices(destinationIndicesThisBatch);
 
             if (false == failures.isEmpty()) {
@@ -303,6 +305,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 startNormalTermination(emptyList(), emptyList(), false);
                 return;
             }
+
             startNextScroll(response.getItems().length);
         } catch (Throwable t) {
             finishHim(t);

@@ -1567,9 +1567,8 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         {
             routing = shard.routingEntry();
             test.removeShard(0, "b/c simon says so");
-            final IndexShard newShard = test.createShard(routing);
             routing = ShardRoutingHelper.reinit(routing);
-            newShard.updateRoutingEntry(routing, false);
+            final IndexShard newShard = test.createShard(routing);
             newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
             assertTrue(newShard.recoverFromStore());
             routing = ShardRoutingHelper.moveToStarted(routing);

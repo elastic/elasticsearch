@@ -28,6 +28,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -303,7 +305,7 @@ public class CreateIndexIT extends ESIntegTestCase {
             .put("index.merge.source.name", "source")).get();
         ensureGreen();
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
-        // relocate all shards to one node such that we can merge it.
+        // let it be allocated anywhere and bump replicas
         client().admin().indices().prepareUpdateSettings("target")
             .setSettings(Settings.builder()
                 .putNull("index.routing.allocation.include._name")
@@ -312,8 +314,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
     }
 
-    @Ignore(value = "this goes in an infinite allocaiton loop") //nocommit
-    public void testCreateShrinkedIndexFails() {
+    public void testCreateShrinkedIndexFails() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", randomIntBetween(2, 7))).get();
         for (int i = 0; i < 20; i++) {
@@ -330,7 +331,24 @@ public class CreateIndexIT extends ESIntegTestCase {
             .put("number_of_shards", 1)
             .put("number_of_replicas", 0)
             .put("index.routing.allocation.include._name", nodeName)
+            .put("index.allocation.max_retries", 1) // no retry
             .put("index.merge.source.name", "source")).get();
+        // wait until it fails
+        assertBusy(() -> {
+            ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
+            RoutingTable routingTables = clusterStateResponse.getState().routingTable();
+            assertTrue(routingTables.index("target").shard(0).getShards().get(0).unassigned());
+            assertEquals(UnassignedInfo.Reason.ALLOCATION_FAILED,
+                routingTables.index("target").shard(0).getShards().get(0).unassignedInfo().getReason());
+            assertEquals(1,
+                routingTables.index("target").shard(0).getShards().get(0).unassignedInfo().getNumFailedAllocations());
+        });
+        client().admin().indices().prepareUpdateSettings("source") // now relocate them all to the right node
+            .setSettings(Settings.builder()
+                .put("index.routing.allocation.include._name", nodeName)
+            .putNull("index.routing.allocation.exclude._name")).get();
+        ensureGreen("source");
+        client().admin().cluster().prepareReroute().setRetryFailed(true).get(); // kick off a retry and wait until it's done!
         ensureGreen();
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
     }

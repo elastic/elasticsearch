@@ -60,6 +60,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.SuspendableRefContainer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -1387,10 +1388,10 @@ public class IndexShard extends AbstractIndexShardComponent {
             IndexMetaData indexMetaData = indexSettings().getIndexMetaData();
             Index mergeSourceIndex = indexMetaData.getMergeSourceIndex();
             if (mergeSourceIndex != null && shardRouting.allocatedPostIndexCreate(indexMetaData) == false && shardRouting.primary()) {
-                List<IndexShard> startedShards = new ArrayList<>();
-                IndexService sourceIndexService = indicesService.indexService(mergeSourceIndex);
-                IndexMetaData metaData = sourceIndexService.getMetaData();
-                int numShards = metaData != null ? metaData.getNumberOfShards() : -1;
+                final List<IndexShard> startedShards = new ArrayList<>();
+                IndexMetaData sourceIndexMetaData = indicesService.getIndexMetaData(mergeSourceIndex);
+                final IndexService sourceIndexService = indicesService.indexService(mergeSourceIndex);
+                final int numShards = sourceIndexMetaData != null ? sourceIndexMetaData.getNumberOfShards() : -1;
                 if (sourceIndexService != null) {
                     for (IndexShard shard : sourceIndexService) {
                         if (shard.state() == IndexShardState.STARTED) {
@@ -1407,14 +1408,19 @@ public class IndexShard extends AbstractIndexShardComponent {
                             }
                         } catch (Throwable t) {
                             recoveryListener.onRecoveryFailure(recoveryState,
-                                new RecoveryFailedException(shardId, sourceNode, localNode, t), true);
+                                new RecoveryFailedException(shardId, localNode, localNode, t), true);
                         }
-
                     });
                 } else {
-                    failShard("not all shards from index " + metaData.getIndex() + " are started yet, expected "
-                        + numShards + " found " + startedShards.size() + " can't recover shard " + shardId(), null);
-
+                    final Throwable t;
+                    if (sourceIndexMetaData == null) {
+                        t = new IndexNotFoundException(mergeSourceIndex);
+                    } else {
+                        t = new IllegalStateException("not all shards from index " + mergeSourceIndex
+                            + " are started yet, expected " + numShards + " found " + startedShards.size() + " can't recover shard "
+                            + shardId());
+                    }
+                    recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(shardId, localNode, localNode, t), true);
                 }
             } else {
                 markAsRecovering("from store", recoveryState); // mark the shard as recovering on the cluster state thread

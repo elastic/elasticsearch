@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Sort;
@@ -39,14 +38,14 @@ public final class LField extends ALink {
 
     Field field;
 
-    public LField(final int line, final String location, final String value) {
+    public LField(int line, String location, String value) {
         super(line, location, 1);
 
         this.value = value;
     }
 
     @Override
-    ALink analyze(CompilerSettings settings, Definition definition, Variables variables) {
+    ALink analyze(Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
@@ -54,9 +53,9 @@ public final class LField extends ALink {
         final Sort sort = before.sort;
 
         if (sort == Sort.ARRAY) {
-            return new LArrayLength(line, location, value).copy(this).analyze(settings, definition, variables);
+            return new LArrayLength(line, location, value).copy(this).analyze(variables);
         } else if (sort == Sort.DEF) {
-            return new LDefField(line, location, value).copy(this).analyze(settings, definition, variables);
+            return new LDefField(line, location, value).copy(this).analyze(variables);
         }
 
         final Struct struct = before.struct;
@@ -80,17 +79,17 @@ public final class LField extends ALink {
                         Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
             if (shortcut) {
-                return new LShortcut(line, location, value).copy(this).analyze(settings, definition, variables);
+                return new LShortcut(line, location, value).copy(this).analyze(variables);
             } else {
                 final EConstant index = new EConstant(line, location, value);
-                index.analyze(settings, definition, variables);
+                index.analyze(variables);
 
                 if (Map.class.isAssignableFrom(before.clazz)) {
-                    return new LMapShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
+                    return new LMapShortcut(line, location, index).copy(this).analyze(variables);
                 }
                 
                 if (List.class.isAssignableFrom(before.clazz)) {
-                    return new LListShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
+                    return new LListShortcut(line, location, index).copy(this).analyze(variables);
                 }
             }
         }
@@ -99,29 +98,21 @@ public final class LField extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void load(MethodWriter adapter) {
         if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
             adapter.getStatic(field.owner.type, field.reflect.getName(), field.type.type);
-
-            if (!field.generic.clazz.equals(field.type.clazz)) {
-                adapter.checkCast(field.generic.type);
-            }
         } else {
             adapter.getField(field.owner.type, field.reflect.getName(), field.type.type);
-
-            if (!field.generic.clazz.equals(field.type.clazz)) {
-                adapter.checkCast(field.generic.type);
-            }
         }
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void store(MethodWriter adapter) {
         if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
             adapter.putStatic(field.owner.type, field.reflect.getName(), field.type.type);
         } else {

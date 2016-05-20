@@ -108,7 +108,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                                 currentNode, nodeWithHighestMatch);
                         it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
                                 "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node [" + nodeWithHighestMatch + "]",
-                                null, allocation.getCurrentNanoTime(), System.currentTimeMillis()));
+                                null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis()));
                         changed = true;
                     }
                 }

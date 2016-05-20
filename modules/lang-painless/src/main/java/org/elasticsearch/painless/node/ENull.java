@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Opcodes;
@@ -30,12 +29,12 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class ENull extends AExpression {
 
-    public ENull(final int line, final String location) {
+    public ENull(int line, String location) {
         super(line, location);
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Variables variables) {
         isNull = true;
 
         if (expected != null) {
@@ -45,12 +44,12 @@ public final class ENull extends AExpression {
 
             actual = expected;
         } else {
-            actual = definition.objectType;
+            actual = Definition.OBJECT_TYPE;
         }
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         adapter.visitInsn(Opcodes.ACONST_NULL);
     }
 }

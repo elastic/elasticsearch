@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
@@ -79,6 +80,7 @@ public class ClusterModule extends AbstractModule {
         new Setting<>("cluster.routing.allocation.type", BALANCED_ALLOCATOR, Function.identity(), Property.NodeScope);
     public static final List<Class<? extends AllocationDecider>> DEFAULT_ALLOCATION_DECIDERS =
         Collections.unmodifiableList(Arrays.asList(
+            MaxRetryAllocationDecider.class,
             SameShardAllocationDecider.class,
             FilterAllocationDecider.class,
             ReplicaAfterPrimaryActiveAllocationDecider.class,

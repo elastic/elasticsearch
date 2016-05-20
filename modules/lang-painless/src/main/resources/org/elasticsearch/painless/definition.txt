@@ -69,7 +69,6 @@ class Void -> java.lang.Void extends Object {
 }
 
 class Boolean -> java.lang.Boolean extends Object {
-  Boolean <init>(boolean)
   Boolean TRUE
   Boolean FALSE
   int compare(boolean,boolean)
@@ -80,7 +79,6 @@ class Boolean -> java.lang.Boolean extends Object {
 } 
 
 class Byte -> java.lang.Byte extends Number,Object {
-  Byte <init>(byte)
   byte MIN_VALUE
   byte MAX_VALUE
   int compare(byte,byte)
@@ -90,7 +88,6 @@ class Byte -> java.lang.Byte extends Number,Object {
 }
 
 class Short -> java.lang.Short extends Number,Object {
-  Short <init>(short)
   short MIN_VALUE
   short MAX_VALUE
   int compare(short,short)
@@ -100,7 +97,6 @@ class Short -> java.lang.Short extends Number,Object {
 }
 
 class Character -> java.lang.Character extends Object {
-  Character <init>(char)
   char MIN_VALUE
   char MAX_VALUE
   int charCount(int)
@@ -127,7 +123,6 @@ class Character -> java.lang.Character extends Object {
 }
 
 class Integer -> java.lang.Integer extends Number,Object {
-  Integer <init>(int)
   int MIN_VALUE
   int MAX_VALUE
   int compare(int,int)
@@ -141,7 +136,6 @@ class Integer -> java.lang.Integer extends Number,Object {
 }
 
 class Long -> java.lang.Long extends Number,Object {
-  Long <init>(long)
   long MIN_VALUE
   long MAX_VALUE
   int compare(long,long)
@@ -155,7 +149,6 @@ class Long -> java.lang.Long extends Number,Object {
 }
 
 class Float -> java.lang.Float extends Number,Object {
-  Float <init>(float)
   float MIN_VALUE
   float MAX_VALUE
   int compare(float,float)
@@ -168,7 +161,6 @@ class Float -> java.lang.Float extends Number,Object {
 }
 
 class Double -> java.lang.Double extends Number,Object {
-  Double <init>(double)
   double MIN_VALUE
   double MAX_VALUE
   int compare(double,double)
@@ -363,152 +355,6 @@ class GeoPoints -> org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints e
   double geohashDistance(String)
   double geohashDistanceInKm(String)
   double geohashDistanceInMiles(String)
-}
-
-# internal conversion methods
-class Utility -> org.elasticsearch.painless.Utility {
-  boolean NumberToboolean(Number)
-  char NumberTochar(Number)
-  Boolean NumberToBoolean(Number)
-  Byte NumberToByte(Number)
-  Short NumberToShort(Number)
-  Character NumberToCharacter(Number)
-  Integer NumberToInteger(Number)
-  Long NumberToLong(Number)
-  Float NumberToFloat(Number)
-  Double NumberToDouble(Number)
-  byte booleanTobyte(boolean)
-  short booleanToshort(boolean)
-  char booleanTochar(boolean)
-  int booleanToint(boolean)
-  long booleanTolong(boolean)
-  float booleanTofloat(boolean)
-  double booleanTodouble(boolean)
-  Integer booleanToInteger(boolean)
-  byte BooleanTobyte(Boolean)
-  short BooleanToshort(Boolean)
-  char BooleanTochar(Boolean)
-  int BooleanToint(Boolean)
-  long BooleanTolong(Boolean)
-  float BooleanTofloat(Boolean)
-  double BooleanTodouble(Boolean)
-  Byte BooleanToByte(Boolean)
-  Short BooleanToShort(Boolean)
-  Character BooleanToCharacter(Boolean)
-  Integer BooleanToInteger(Boolean)
-  Long BooleanToLong(Boolean)
-  Float BooleanToFloat(Boolean)
-  Double BooleanToDouble(Boolean)
-  boolean byteToboolean(byte)
-  Short byteToShort(byte)
-  Character byteToCharacter(byte)
-  Integer byteToInteger(byte)
-  Long byteToLong(byte)
-  Float byteToFloat(byte)
-  Double byteToDouble(byte)
-  boolean ByteToboolean(Byte)
-  char ByteTochar(Byte)
-  boolean shortToboolean(short)
-  Byte shortToByte(short)
-  Character shortToCharacter(short)
-  Integer shortToInteger(short)
-  Long shortToLong(short)
-  Float shortToFloat(short)
-  Double shortToDouble(short)
-  boolean ShortToboolean(Short)
-  char ShortTochar(Short)
-  boolean charToboolean(char)
-  Byte charToByte(char)
-  Short charToShort(char)
-  Integer charToInteger(char)
-  Long charToLong(char)
-  Float charToFloat(char)
-  Double charToDouble(char)
-  String charToString(char)
-  boolean CharacterToboolean(Character)
-  byte CharacterTobyte(Character)
-  short CharacterToshort(Character)
-  int CharacterToint(Character)
-  long CharacterTolong(Character)
-  float CharacterTofloat(Character)
-  double CharacterTodouble(Character)
-  Boolean CharacterToBoolean(Character)
-  Byte CharacterToByte(Character)
-  Short CharacterToShort(Character)
-  Integer CharacterToInteger(Character)
-  Long CharacterToLong(Character)
-  Float CharacterToFloat(Character)
-  Double CharacterToDouble(Character)
-  String CharacterToString(Character)
-  boolean intToboolean(int)
-  Byte intToByte(int)
-  Short intToShort(int)
-  Character intToCharacter(int)
-  Long intToLong(int)
-  Float intToFloat(int)
-  Double intToDouble(int)
-  boolean IntegerToboolean(Integer)
-  char IntegerTochar(Integer)
-  boolean longToboolean(long)
-  Byte longToByte(long)
-  Short longToShort(long)
-  Character longToCharacter(long)
-  Integer longToInteger(long)
-  Float longToFloat(long)
-  Double longToDouble(long)
-  boolean LongToboolean(Long)
-  char LongTochar(Long)
-  boolean floatToboolean(float)
-  Byte floatToByte(float)
-  Short floatToShort(float)
-  Character floatToCharacter(float)
-  Integer floatToInteger(float)
-  Long floatToLong(float)
-  Double floatToDouble(float)
-  boolean FloatToboolean(Float)
-  char FloatTochar(Float)
-  boolean doubleToboolean(double)
-  Byte doubleToByte(double)
-  Short doubleToShort(double)
-  Character doubleToCharacter(double)
-  Integer doubleToInteger(double)
-  Long doubleToLong(double)
-  Float doubleToFloat(double)
-  boolean DoubleToboolean(Double)
-  char DoubleTochar(Double)
-  char StringTochar(String)
-  Character StringToCharacter(String)
-}
-
-class Def -> org.elasticsearch.painless.Def {
-  byte DefTobyteImplicit(def)
-  short DefToshortImplicit(def)
-  char DefTocharImplicit(def)
-  int DefTointImplicit(def)
-  long DefTolongImplicit(def)
-  float DefTofloatImplicit(def)
-  double DefTodoubleImplicit(def)
-  Byte DefToByteImplicit(def)
-  Short DefToShortImplicit(def)
-  Character DefToCharacterImplicit(def)
-  Integer DefToIntegerImplicit(def)
-  Long DefToLongImplicit(def)
-  Float DefToFloatImplicit(def)
-  Double DefToDoubleImplicit(def)
-  byte DefTobyteExplicit(def)
-  short DefToshortExplicit(def)
-  char DefTocharExplicit(def)
-  int DefTointExplicit(def)
-  long DefTolongExplicit(def)
-  float DefTofloatExplicit(def)
-  double DefTodoubleExplicit(def)
-  Byte DefToByteExplicit(def)
-  Short DefToShortExplicit(def)
-  Character DefToCharacterExplicit(def)
-  Integer DefToIntegerExplicit(def)
-  Long DefToLongExplicit(def)
-  Float DefToFloatExplicit(def)
-  Double DefToDoubleExplicit(def)
 }
 
 # for testing.

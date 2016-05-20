@@ -61,7 +61,7 @@ and the time when it attempted to update the document. This is fine because
 that update will have picked up the online mapping update.
 
 Back to the API format, you can limit `_update_by_query` to a single type. This
-will only update `tweet`s from the `twitter` index:
+will only update `tweet` documents from the `twitter` index:
 
 [source,js]
 --------------------------------------------------
@@ -119,7 +119,7 @@ Just as in <<docs-update,Update API>> you can set `ctx.op = "noop"` if
 your script decides that it doesn't have to make any changes. That will cause
 `_update_by_query` to omit that document from its updates. Setting `ctx.op` to
 anything else is an error. If you want to delete by a query you can use the
-{plugins}/plugins-delete-by-query.html[Delete by Query plugin] instead. Setting any
+<<docs-delete-by-query,Delete By Query API>> instead. Setting any
 other field in `ctx` is an error.
 
 Note that we stopped specifying `conflicts=proceed`. In this case we want a

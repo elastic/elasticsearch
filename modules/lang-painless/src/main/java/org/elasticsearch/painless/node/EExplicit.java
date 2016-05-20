@@ -60,6 +60,7 @@ public final class EExplicit extends AExpression {
     AExpression cast(Variables variables) {
         child.expected = expected;
         child.explicit = explicit;
+        child.internal = internal;
 
         return child.cast(variables);
     }

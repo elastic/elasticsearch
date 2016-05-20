@@ -39,6 +39,7 @@ public final class SReturn extends AStatement {
     @Override
     void analyze(Variables variables) {
         expression.expected = Definition.OBJECT_TYPE;
+        expression.internal = true;
         expression.analyze(variables);
         expression = expression.cast(variables);
 

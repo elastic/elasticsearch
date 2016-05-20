@@ -77,6 +77,7 @@ public final class LNewObj extends ALink {
                 final AExpression expression = arguments.get(argument);
 
                 expression.expected = types[argument];
+                expression.internal = true;
                 expression.analyze(variables);
                 arguments.set(argument, expression.cast(variables));
             }

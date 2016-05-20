@@ -158,21 +158,21 @@ public final class EChain extends AExpression {
         expression.analyze(variables);
 
         if (operation == Operation.MUL) {
-            promote = AnalyzerCaster.promoteNumeric(last.after, expression.actual, true, true);
+            promote = AnalyzerCaster.promoteNumeric(last.after, expression.actual, true);
         } else if (operation == Operation.DIV) {
-            promote = AnalyzerCaster.promoteNumeric(last.after, expression.actual, true, true);
+            promote = AnalyzerCaster.promoteNumeric(last.after, expression.actual, true);
         } else if (operation == Operation.REM) {
-            promote = AnalyzerCaster.promoteNumeric(last.after, expression.actual, true, true);
+            promote = AnalyzerCaster.promoteNumeric(last.after, expression.actual, true);
         } else if (operation == Operation.ADD) {
             promote = AnalyzerCaster.promoteAdd(last.after, expression.actual);
         } else if (operation == Operation.SUB) {
-            promote = AnalyzerCaster.promoteNumeric(last.after, expression.actual, true, true);
+            promote = AnalyzerCaster.promoteNumeric(last.after, expression.actual, true);
         } else if (operation == Operation.LSH) {
-            promote = AnalyzerCaster.promoteNumeric(last.after, false, true);
+            promote = AnalyzerCaster.promoteNumeric(last.after, false);
         } else if (operation == Operation.RSH) {
-            promote = AnalyzerCaster.promoteNumeric(last.after, false, true);
+            promote = AnalyzerCaster.promoteNumeric(last.after, false);
         } else if (operation == Operation.USH) {
-            promote = AnalyzerCaster.promoteNumeric(last.after, false, true);
+            promote = AnalyzerCaster.promoteNumeric(last.after, false);
         } else if (operation == Operation.BWAND) {
             promote = AnalyzerCaster.promoteXor(last.after, expression.actual);
         } else if (operation == Operation.XOR) {
@@ -206,8 +206,8 @@ public final class EChain extends AExpression {
 
         expression = expression.cast(variables);
 
-        there = AnalyzerCaster.getLegalCast(location, last.after, promote, false);
-        back = AnalyzerCaster.getLegalCast(location, promote, last.after, true);
+        there = AnalyzerCaster.getLegalCast(location, last.after, promote, false, false);
+        back = AnalyzerCaster.getLegalCast(location, promote, last.after, true, false);
 
         this.statement = true;
         this.actual = read ? last.after : Definition.VOID_TYPE;

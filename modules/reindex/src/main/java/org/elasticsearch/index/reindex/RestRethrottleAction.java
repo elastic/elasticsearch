@@ -39,6 +39,7 @@ public class RestRethrottleAction extends BaseRestHandler {
         super(settings, client);
         this.action = action;
         controller.registerHandler(POST, "/_update_by_query/{taskId}/_rethrottle", this);
+        controller.registerHandler(POST, "/_delete_by_query/{taskId}/_rethrottle", this);
         controller.registerHandler(POST, "/_reindex/{taskId}/_rethrottle", this);
     }
 

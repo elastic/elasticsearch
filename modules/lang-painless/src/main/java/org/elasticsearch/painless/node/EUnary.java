@@ -30,6 +30,7 @@ import org.elasticsearch.painless.MethodWriter;
 
 import static org.elasticsearch.painless.WriterConstants.DEF_NEG_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_NOT_CALL;
+import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
 
 /**
  * Represents a unary math expression.
@@ -76,7 +77,7 @@ public final class EUnary extends AExpression {
     void analyzeBWNot(Variables variables) {
         child.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(child.actual, false, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(child.actual, false);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply not [~] to type [" + child.actual.name + "]."));
@@ -103,7 +104,7 @@ public final class EUnary extends AExpression {
     void analyzerAdd(Variables variables) {
         child.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(child.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(child.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply positive [+] to type [" + child.actual.name + "]."));
@@ -134,7 +135,7 @@ public final class EUnary extends AExpression {
     void analyzerSub(Variables variables) {
         child.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(child.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(child.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply negative [-] to type [" + child.actual.name + "]."));
@@ -190,7 +191,7 @@ public final class EUnary extends AExpression {
 
             if (operation == Operation.BWNOT) {
                 if (sort == Sort.DEF) {
-                    adapter.invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_NOT_CALL);
+                    adapter.invokeStatic(DEF_UTIL_TYPE, DEF_NOT_CALL);
                 } else {
                     if (sort == Sort.INT) {
                         adapter.push(-1);
@@ -204,7 +205,7 @@ public final class EUnary extends AExpression {
                 }
             } else if (operation == Operation.SUB) {
                 if (sort == Sort.DEF) {
-                    adapter.invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_NEG_CALL);
+                    adapter.invokeStatic(DEF_UTIL_TYPE, DEF_NEG_CALL);
                 } else {
                     adapter.math(MethodWriter.NEG, type);
                 }

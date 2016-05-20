@@ -61,6 +61,7 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -396,6 +397,15 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static String randomPositiveTimeValue() {
         return randomTimeValue(1, 1000);
+    }
+
+    /**
+     * generate a random DateTimeZone from the ones available in joda library
+     */
+    public static DateTimeZone randomDateTimeZone() {
+        List<String> ids = new ArrayList<>(DateTimeZone.getAvailableIDs());
+        Collections.sort(ids);
+        return DateTimeZone.forID(randomFrom(ids));
     }
 
     /**

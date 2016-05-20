@@ -54,7 +54,7 @@ public final class LCast extends ALink {
             throw new IllegalArgumentException(error("Not a type [" + type + "]."));
         }
 
-        cast = AnalyzerCaster.getLegalCast(location, before, after, true);
+        cast = AnalyzerCaster.getLegalCast(location, before, after, true, false);
 
         return cast != null ? this : null;
     }

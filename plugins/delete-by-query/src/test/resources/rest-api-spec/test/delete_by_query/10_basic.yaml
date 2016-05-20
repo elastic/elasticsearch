@@ -25,6 +25,10 @@ setup:
 
 ---
 "Basic delete_by_query":
+  - skip:
+      version: all
+      reason: "Test muted because of a REST test namespace conflict, see https://github.com/elastic/elasticsearch/issues/18469"
+
   - do:
       delete_by_query:
         index:  test_1

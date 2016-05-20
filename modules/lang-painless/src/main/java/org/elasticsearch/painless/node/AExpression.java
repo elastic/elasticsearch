@@ -66,6 +66,12 @@ public abstract class AExpression extends ANode {
     protected boolean explicit = false;
 
     /**
+     * Set to true if a cast is allowed to boxed/unboxed.  This is used
+     * for method arguments because casting may be required.
+     */
+    protected boolean internal = false;
+
+    /**
      * Set to the value of the constant this expression node represents if
      * and only if the node represents a constant.  If this is not null
      * this node will be replaced by an {@link EConstant} during casting
@@ -112,7 +118,7 @@ public abstract class AExpression extends ANode {
      * @return The new child node for the parent node calling this method.
      */
     AExpression cast(Variables variables) {
-        final Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit);
+        final Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit, internal);
 
         if (cast == null) {
             if (constant == null || this instanceof EConstant) {

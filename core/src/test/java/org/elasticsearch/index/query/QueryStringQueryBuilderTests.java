@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
@@ -27,7 +26,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -148,7 +146,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryStringQueryBuilder.locale(randomLocale(random()));
         }
         if (randomBoolean()) {
-            queryStringQueryBuilder.timeZone(randomTimeZone());
+            queryStringQueryBuilder.timeZone(randomDateTimeZone().getID());
         }
         return queryStringQueryBuilder;
     }

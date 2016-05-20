@@ -87,6 +87,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -374,7 +375,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,
                     ClusterName.CLUSTER_NAME_SETTING,
                     Client.CLIENT_TYPE_SETTING_S,
-                    InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING,
                     ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
                     EsExecutors.PROCESSORS_SETTING,
                     ThreadContext.DEFAULT_HEADERS_SETTING,
@@ -397,6 +397,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     JvmGcMonitorService.ENABLED_SETTING,
                     JvmGcMonitorService.REFRESH_INTERVAL_SETTING,
                     JvmGcMonitorService.GC_SETTING,
+                    JvmGcMonitorService.GC_OVERHEAD_WARN_SETTING,
+                    JvmGcMonitorService.GC_OVERHEAD_INFO_SETTING,
+                    JvmGcMonitorService.GC_OVERHEAD_DEBUG_SETTING,
                     PageCacheRecycler.LIMIT_HEAP_SETTING,
                     PageCacheRecycler.WEIGHT_BYTES_SETTING,
                     PageCacheRecycler.WEIGHT_INT_SETTING,
@@ -417,6 +420,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ResourceWatcherService.ENABLED,
                     ResourceWatcherService.RELOAD_INTERVAL_HIGH,
                     ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
-                    ResourceWatcherService.RELOAD_INTERVAL_LOW
+                    ResourceWatcherService.RELOAD_INTERVAL_LOW,
+                    SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING
             )));
 }

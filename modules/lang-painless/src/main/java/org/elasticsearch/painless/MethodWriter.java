@@ -21,7 +21,6 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Definition.Transform;
 import org.elasticsearch.painless.Definition.Type;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
@@ -34,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 
+import static org.elasticsearch.painless.WriterConstants.CHAR_TO_STRING;
 import static org.elasticsearch.painless.WriterConstants.DEF_ADD_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_AND_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_DIV_CALL;
@@ -43,6 +43,22 @@ import static org.elasticsearch.painless.WriterConstants.DEF_OR_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_REM_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_RSH_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_SUB_CALL;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_BOOLEAN;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_BYTE_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_BYTE_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_CHAR_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_CHAR_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_DOUBLE_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_DOUBLE_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_FLOAT_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_FLOAT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_INT_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_INT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_LONG_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_LONG_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
 import static org.elasticsearch.painless.WriterConstants.DEF_USH_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_XOR_CALL;
 import static org.elasticsearch.painless.WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
@@ -59,7 +75,9 @@ import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_APPEND_ST
 import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_CONSTRUCTOR;
 import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_TOSTRING;
 import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_TYPE;
+import static org.elasticsearch.painless.WriterConstants.STRING_TO_CHAR;
 import static org.elasticsearch.painless.WriterConstants.STRING_TYPE;
+import static org.elasticsearch.painless.WriterConstants.UTILITY_TYPE;
 
 /**
  * Extension of {@link GeneratorAdapter} with some utility methods.
@@ -96,45 +114,72 @@ public final class MethodWriter extends GeneratorAdapter {
             visitVarInsn(Opcodes.ILOAD, slot);
             push(0);
             ifICmp(GeneratorAdapter.GT, end);
-            throwException(PAINLESS_ERROR_TYPE,
-                "The maximum number of statements that can be executed in a loop has been reached.");
+            throwException(PAINLESS_ERROR_TYPE, "The maximum number of statements that can be executed in a loop has been reached.");
             mark(end);
         }
     }
 
     public void writeCast(final Cast cast) {
-        if (cast instanceof Transform) {
-            final Transform transform = (Transform)cast;
-
-            if (transform.upcast != null) {
-                checkCast(transform.upcast.type);
-            }
-
-            if (java.lang.reflect.Modifier.isStatic(transform.method.reflect.getModifiers())) {
-                invokeStatic(transform.method.owner.type, transform.method.method);
-            } else if (java.lang.reflect.Modifier.isInterface(transform.method.owner.clazz.getModifiers())) {
-                invokeInterface(transform.method.owner.type, transform.method.method);
-            } else {
-                invokeVirtual(transform.method.owner.type, transform.method.method);
-            }
-
-            if (transform.downcast != null) {
-                checkCast(transform.downcast.type);
-            }
-        } else if (cast != null) {
+        if (cast != null) {
             final Type from = cast.from;
             final Type to = cast.to;
 
-            if (from.equals(to)) {
-                return;
-            }
-
-            if (from.sort.numeric && from.sort.primitive && to.sort.numeric && to.sort.primitive) {
-                cast(from.type, to.type);
-            } else {
-                if (!to.clazz.isAssignableFrom(from.clazz)) {
-                    checkCast(to.type);
+            if (from.sort == Sort.CHAR && to.sort == Sort.STRING) {
+                invokeStatic(UTILITY_TYPE, CHAR_TO_STRING);
+            } else if (from.sort == Sort.STRING && to.sort == Sort.CHAR) {
+                invokeStatic(UTILITY_TYPE, STRING_TO_CHAR);
+            } else if (cast.unboxFrom) {
+                if (from.sort == Sort.DEF) {
+                    if (cast.explicit) {
+                        if      (to.sort == Sort.BOOL)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
+                        else if (to.sort == Sort.BYTE)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_EXPLICIT);
+                        else if (to.sort == Sort.SHORT)  invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_EXPLICIT);
+                        else if (to.sort == Sort.CHAR)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_EXPLICIT);
+                        else if (to.sort == Sort.INT)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_EXPLICIT);
+                        else if (to.sort == Sort.LONG)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_EXPLICIT);
+                        else if (to.sort == Sort.FLOAT)  invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_EXPLICIT);
+                        else if (to.sort == Sort.DOUBLE) invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_EXPLICIT);
+                        else throw new IllegalStateException("Illegal tree structure.");
+                    } else {
+                        if      (to.sort == Sort.BOOL)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
+                        else if (to.sort == Sort.BYTE)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_IMPLICIT);
+                        else if (to.sort == Sort.SHORT)  invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_IMPLICIT);
+                        else if (to.sort == Sort.CHAR)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_IMPLICIT);
+                        else if (to.sort == Sort.INT)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_IMPLICIT);
+                        else if (to.sort == Sort.LONG)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_IMPLICIT);
+                        else if (to.sort == Sort.FLOAT)  invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_IMPLICIT);
+                        else if (to.sort == Sort.DOUBLE) invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_IMPLICIT);
+                        else throw new IllegalStateException("Illegal tree structure.");
+                    }
+                } else {
+                    unbox(from.type);
+                    writeCast(from, to);
                 }
+            } else if (cast.unboxTo) {
+                writeCast(from, to);
+                unbox(to.type);
+            } else if (cast.boxFrom) {
+                box(from.type);
+                writeCast(from, to);
+            } else if (cast.boxTo) {
+                writeCast(from, to);
+                box(to.type);
+            } else {
+                writeCast(from, to);
+            }
+        }
+    }
+
+    private void writeCast(final Type from, final Type to) {
+        if (from.equals(to)) {
+            return;
+        }
+
+        if (from.sort.numeric && from.sort.primitive && to.sort.numeric && to.sort.primitive) {
+            cast(from.type, to.type);
+        } else {
+            if (!to.clazz.isAssignableFrom(from.clazz)) {
+                checkCast(to.type);
             }
         }
     }
@@ -146,7 +191,7 @@ public final class MethodWriter extends GeneratorAdapter {
             visitJumpInsn(Opcodes.IFEQ, fals);
         }
     }
-    
+
     public void writeNewStrings() {
         if (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE != null) {
             // Java 9+: we just push our argument collector onto deque
@@ -202,27 +247,27 @@ public final class MethodWriter extends GeneratorAdapter {
 
     public void writeBinaryInstruction(final String location, final Type type, final Operation operation) {
         final Sort sort = type.sort;
-        
+
         if ((sort == Sort.FLOAT || sort == Sort.DOUBLE) &&
                 (operation == Operation.LSH || operation == Operation.USH ||
                 operation == Operation.RSH || operation == Operation.BWAND ||
                 operation == Operation.XOR || operation == Operation.BWOR)) {
             throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
         }
-        
+
         if (sort == Sort.DEF) {
             switch (operation) {
-                case MUL:   invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_MUL_CALL); break;
-                case DIV:   invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_DIV_CALL); break;
-                case REM:   invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_REM_CALL); break;
-                case ADD:   invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_ADD_CALL); break;
-                case SUB:   invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_SUB_CALL); break;
-                case LSH:   invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_LSH_CALL); break;
-                case USH:   invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_RSH_CALL); break;
-                case RSH:   invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_USH_CALL); break;
-                case BWAND: invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_AND_CALL); break;
-                case XOR:   invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_XOR_CALL); break;
-                case BWOR:  invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_OR_CALL);  break;
+                case MUL:   invokeStatic(DEF_UTIL_TYPE, DEF_MUL_CALL); break;
+                case DIV:   invokeStatic(DEF_UTIL_TYPE, DEF_DIV_CALL); break;
+                case REM:   invokeStatic(DEF_UTIL_TYPE, DEF_REM_CALL); break;
+                case ADD:   invokeStatic(DEF_UTIL_TYPE, DEF_ADD_CALL); break;
+                case SUB:   invokeStatic(DEF_UTIL_TYPE, DEF_SUB_CALL); break;
+                case LSH:   invokeStatic(DEF_UTIL_TYPE, DEF_LSH_CALL); break;
+                case USH:   invokeStatic(DEF_UTIL_TYPE, DEF_RSH_CALL); break;
+                case RSH:   invokeStatic(DEF_UTIL_TYPE, DEF_USH_CALL); break;
+                case BWAND: invokeStatic(DEF_UTIL_TYPE, DEF_AND_CALL); break;
+                case XOR:   invokeStatic(DEF_UTIL_TYPE, DEF_XOR_CALL); break;
+                case BWOR:  invokeStatic(DEF_UTIL_TYPE, DEF_OR_CALL);  break;
                 default:
                     throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
             }

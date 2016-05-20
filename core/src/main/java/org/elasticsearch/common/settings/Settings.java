@@ -58,9 +58,11 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
@@ -942,66 +944,27 @@ public final class Settings implements ToXContent {
             return this;
         }
 
-        /**
-         * Puts all the properties with keys starting with the provided <tt>prefix</tt>.
-         *
-         * @param prefix     The prefix to filter property key by
-         * @param properties The properties to put
-         * @return The builder
-         */
-        public Builder putProperties(String prefix, Dictionary<Object, Object> properties) {
-            for (Object property : Collections.list(properties.keys())) {
-                String key = Objects.toString(property);
-                String value = Objects.toString(properties.get(property));
-                if (key.startsWith(prefix)) {
-                    map.put(key.substring(prefix.length()), value);
+        public Builder putProperties(Map<String, String> esSettings, Predicate<String> keyPredicate, Function<String, String> keyFunction) {
+            for (final Map.Entry<String, String> esSetting : esSettings.entrySet()) {
+                final String key = esSetting.getKey();
+                if (keyPredicate.test(key)) {
+                    map.put(keyFunction.apply(key), esSetting.getValue());
                 }
             }
             return this;
         }
 
         /**
-         * Puts all the properties with keys starting with the provided <tt>prefix</tt>.
-         *
-         * @param prefix     The prefix to filter property key by
-         * @param properties The properties to put
-         * @return The builder
-         */
-        public Builder putProperties(String prefix, Dictionary<Object, Object> properties, String ignorePrefix) {
-            for (Object property : Collections.list(properties.keys())) {
-                String key = Objects.toString(property);
-                String value = Objects.toString(properties.get(property));
-                if (key.startsWith(prefix)) {
-                    if (!key.startsWith(ignorePrefix)) {
-                        map.put(key.substring(prefix.length()), value);
-                    }
-                }
-            }
-            return this;
-        }
-
-        /**
-         * Runs across all the settings set on this builder and replaces <tt>${...}</tt> elements in the
-         * each setting value according to the following logic:
-         * <p>
-         * First, tries to resolve it against a System property ({@link System#getProperty(String)}), next,
-         * tries and resolve it against an environment variable ({@link System#getenv(String)}), and last, tries
-         * and replace it with another setting already set on this builder.
+         * Runs across all the settings set on this builder and
+         * replaces <tt>${...}</tt> elements in each setting with
+         * another setting already set on this builder.
          */
         public Builder replacePropertyPlaceholders() {
             PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
             PropertyPlaceholder.PlaceholderResolver placeholderResolver = new PropertyPlaceholder.PlaceholderResolver() {
                     @Override
                     public String resolvePlaceholder(String placeholderName) {
-                        if (placeholderName.startsWith("env.")) {
-                            // explicit env var prefix
-                            return System.getenv(placeholderName.substring("env.".length()));
-                        }
-                        String value = System.getProperty(placeholderName);
-                        if (value != null) {
-                            return value;
-                        }
-                        value = System.getenv(placeholderName);
+                        final String value = System.getenv(placeholderName);
                         if (value != null) {
                             return value;
                         }
@@ -1010,8 +973,7 @@ public final class Settings implements ToXContent {
 
                     @Override
                     public boolean shouldIgnoreMissing(String placeholderName) {
-                        // if its an explicit env var, we are ok with not having a value for it and treat it as optional
-                        if (placeholderName.startsWith("env.") || placeholderName.startsWith("prompt.")) {
+                        if (placeholderName.startsWith("prompt.")) {
                             return true;
                         }
                         return false;

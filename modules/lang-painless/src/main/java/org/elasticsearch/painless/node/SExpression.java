@@ -49,6 +49,7 @@ public final class SExpression extends AStatement {
         final boolean rtn = lastSource && expression.actual.sort != Sort.VOID;
 
         expression.expected = rtn ? Definition.OBJECT_TYPE : expression.actual;
+        expression.internal = rtn;
         expression = expression.cast(variables);
 
         methodEscape = rtn;

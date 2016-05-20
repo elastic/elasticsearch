@@ -34,6 +34,8 @@ import static org.elasticsearch.painless.WriterConstants.DEF_GTE_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_GT_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_LTE_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_LT_CALL;
+import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
+import static org.elasticsearch.painless.WriterConstants.UTILITY_TYPE;
 
 /**
  * Represents a comparison expression.
@@ -125,7 +127,7 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteReference(left.actual, right.actual);
+        final Type promote = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply reference equals [===] to types " +
@@ -213,7 +215,7 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteReference(left.actual, right.actual);
+        final Type promote = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply reference not equals [!==] to types " +
@@ -255,7 +257,7 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply greater than or equals [>=] to types " +
@@ -291,7 +293,7 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply greater than [>] to types " +
@@ -327,7 +329,7 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply less than or equals [<=] to types " +
@@ -363,7 +365,7 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply less than [>=] to types " +
@@ -454,33 +456,36 @@ public final class EComp extends AExpression {
                 if (eq) {
                     if (right.isNull) {
                         adapter.ifNull(jump);
-                    } else if (!left.isNull && operation == Operation.EQ) {
-                        adapter.invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_EQ_CALL);
+                    } else if (!left.isNull && (operation == Operation.EQ || operation == Operation.NE)) {
+                        adapter.invokeStatic(DEF_UTIL_TYPE, DEF_EQ_CALL);
+                        writejump = false;
                     } else {
                         adapter.ifCmp(rtype, MethodWriter.EQ, jump);
                     }
                 } else if (ne) {
                     if (right.isNull) {
                         adapter.ifNonNull(jump);
-                    } else if (!left.isNull && operation == Operation.NE) {
-                        adapter.invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_EQ_CALL);
+                    } else if (!left.isNull && (operation == Operation.EQ || operation == Operation.NE)) {
+                        adapter.invokeStatic(DEF_UTIL_TYPE, DEF_EQ_CALL);
                         adapter.ifZCmp(MethodWriter.EQ, jump);
                     } else {
                         adapter.ifCmp(rtype, MethodWriter.NE, jump);
                     }
                 } else if (lt) {
-                    adapter.invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_LT_CALL);
+                    adapter.invokeStatic(DEF_UTIL_TYPE, DEF_LT_CALL);
+                    writejump = false;
                 } else if (lte) {
-                    adapter.invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_LTE_CALL);
+                    adapter.invokeStatic(DEF_UTIL_TYPE, DEF_LTE_CALL);
+                    writejump = false;
                 } else if (gt) {
-                    adapter.invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_GT_CALL);
+                    adapter.invokeStatic(DEF_UTIL_TYPE, DEF_GT_CALL);
+                    writejump = false;
                 } else if (gte) {
-                    adapter.invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_GTE_CALL);
+                    adapter.invokeStatic(DEF_UTIL_TYPE, DEF_GTE_CALL);
+                    writejump = false;
                 } else {
                     throw new IllegalStateException(error("Illegal tree structure."));
                 }
-
-                writejump = left.isNull || ne || operation == Operation.EQR;
 
                 if (branch && !writejump) {
                     adapter.ifZCmp(MethodWriter.NE, jump);
@@ -491,8 +496,8 @@ public final class EComp extends AExpression {
                 if (eq) {
                     if (right.isNull) {
                         adapter.ifNull(jump);
-                    } else if (operation == Operation.EQ) {
-                        adapter.invokeStatic(Definition.UTILITY_TYPE.type, CHECKEQUALS);
+                    } else if (operation == Operation.EQ || operation == Operation.NE) {
+                        adapter.invokeStatic(UTILITY_TYPE, CHECKEQUALS);
 
                         if (branch) {
                             adapter.ifZCmp(MethodWriter.NE, jump);
@@ -505,8 +510,8 @@ public final class EComp extends AExpression {
                 } else if (ne) {
                     if (right.isNull) {
                         adapter.ifNonNull(jump);
-                    } else if (operation == Operation.NE) {
-                        adapter.invokeStatic(Definition.UTILITY_TYPE.type, CHECKEQUALS);
+                    } else if (operation == Operation.EQ || operation == Operation.NE) {
+                        adapter.invokeStatic(UTILITY_TYPE, CHECKEQUALS);
                         adapter.ifZCmp(MethodWriter.EQ, jump);
                     } else {
                         adapter.ifCmp(rtype, MethodWriter.NE, jump);

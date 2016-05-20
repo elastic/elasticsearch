@@ -115,7 +115,7 @@ final class Writer {
             // if we truncated, make it obvious
             if (limit != source.length()) {
                 fileName.append(" ...");
-            }            
+            }
             fileName.append(" @ <inline script>");
         } else {
             // its a named script, just use the name

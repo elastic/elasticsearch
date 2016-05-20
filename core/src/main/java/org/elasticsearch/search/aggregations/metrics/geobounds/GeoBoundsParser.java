@@ -37,9 +37,9 @@ public class GeoBoundsParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected GeoBoundsAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        GeoBoundsAggregatorBuilder factory = new GeoBoundsAggregatorBuilder(aggregationName);
+    protected GeoBoundsAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                        ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        GeoBoundsAggregationBuilder factory = new GeoBoundsAggregationBuilder(aggregationName);
         Boolean wrapLongitude = (Boolean) otherOptions.get(GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
         if (wrapLongitude != null) {
             factory.wrapLongitude(wrapLongitude);

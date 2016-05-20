@@ -59,7 +59,6 @@ public class TransportClientIT extends ESIntegTestCase {
                 .put("http.enabled", false)
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put("cluster.name", "foobar")
-                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true) // make sure we get what we set :)
                 .build());
         node.start();
         try {

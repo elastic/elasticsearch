@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TestQueryParsingException;
+import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -153,6 +154,44 @@ public class BytesRestResponseTests extends ESTestCase {
         assertEquals(expected.trim(), text.trim());
         String stackTrace = ExceptionsHelper.stackTrace(ex);
         assertTrue(stackTrace.contains("Caused by: [foo] TestQueryParsingException[foobar]"));
+    }
+
+    @Test
+    public void testResponseWhenPathContainsEncodingError() throws IOException {
+        final String path = "%a";
+        final RestRequest request = new FakeRestRequest() {
+            @Override
+            public String rawPath() {
+                return path;
+            }
+        };
+        IllegalArgumentException e = null;
+        try {
+            RestUtils.decodeComponent(request.rawPath());
+            fail("decoding path should have failed");
+        } catch (IllegalArgumentException caught) {
+            e = caught;
+        }
+        final RestChannel channel = new DetailedExceptionRestChannel(request);
+        // if we try to decode the path, this will throw an IllegalArgumentException again
+        final BytesRestResponse response = new BytesRestResponse(channel, e);
+        assertNotNull(response.content());
+        final String content = response.content().toUtf8();
+        assertThat(content, containsString("\"type\":\"illegal_argument_exception\""));
+        assertThat(content, containsString("\"reason\":\"partial escape sequence at end of string: %a\""));
+        assertThat(content, containsString("\"status\":" + 400));
+    }
+
+    @Test
+    public void testResponseWhenInternalServerError() throws IOException {
+        final RestRequest request = new FakeRestRequest();
+        final RestChannel channel = new DetailedExceptionRestChannel(request);
+        final BytesRestResponse response = new BytesRestResponse(channel, new ElasticsearchException("simulated"));
+        assertNotNull(response.content());
+        final String content = response.content().toUtf8();
+        assertThat(content, containsString("\"type\":\"exception\""));
+        assertThat(content, containsString("\"reason\":\"simulated\""));
+        assertThat(content, containsString("\"status\":" + 500));
     }
 
     public static class WithHeadersException extends ElasticsearchException {

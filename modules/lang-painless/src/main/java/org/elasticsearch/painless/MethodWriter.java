@@ -214,17 +214,17 @@ public final class MethodWriter extends GeneratorAdapter {
         
         if (sort == Sort.DEF) {
             switch (operation) {
-                case MUL:   invokeStatic(definition.getType("Def").type, DEF_MUL_CALL); break;
-                case DIV:   invokeStatic(definition.getType("Def").type, DEF_DIV_CALL); break;
-                case REM:   invokeStatic(definition.getType("Def").type, DEF_REM_CALL); break;
-                case ADD:   invokeStatic(definition.getType("Def").type, DEF_ADD_CALL); break;
-                case SUB:   invokeStatic(definition.getType("Def").type, DEF_SUB_CALL); break;
-                case LSH:   invokeStatic(definition.getType("Def").type, DEF_LSH_CALL); break;
-                case USH:   invokeStatic(definition.getType("Def").type, DEF_RSH_CALL); break;
-                case RSH:   invokeStatic(definition.getType("Def").type, DEF_USH_CALL); break;
-                case BWAND: invokeStatic(definition.getType("Def").type, DEF_AND_CALL); break;
-                case XOR:   invokeStatic(definition.getType("Def").type, DEF_XOR_CALL); break;
-                case BWOR:  invokeStatic(definition.getType("Def").type, DEF_OR_CALL);  break;
+                case MUL:   invokeStatic(Definition.defobjType.type, DEF_MUL_CALL); break;
+                case DIV:   invokeStatic(Definition.defobjType.type, DEF_DIV_CALL); break;
+                case REM:   invokeStatic(Definition.defobjType.type, DEF_REM_CALL); break;
+                case ADD:   invokeStatic(Definition.defobjType.type, DEF_ADD_CALL); break;
+                case SUB:   invokeStatic(Definition.defobjType.type, DEF_SUB_CALL); break;
+                case LSH:   invokeStatic(Definition.defobjType.type, DEF_LSH_CALL); break;
+                case USH:   invokeStatic(Definition.defobjType.type, DEF_RSH_CALL); break;
+                case RSH:   invokeStatic(Definition.defobjType.type, DEF_USH_CALL); break;
+                case BWAND: invokeStatic(Definition.defobjType.type, DEF_AND_CALL); break;
+                case XOR:   invokeStatic(Definition.defobjType.type, DEF_XOR_CALL); break;
+                case BWOR:  invokeStatic(Definition.defobjType.type, DEF_OR_CALL);  break;
                 default:
                     throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
             }

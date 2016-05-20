@@ -191,7 +191,7 @@ public final class EUnary extends AExpression {
 
             if (operation == Operation.BWNOT) {
                 if (sort == Sort.DEF) {
-                    adapter.invokeStatic(definition.getType("Def").type, DEF_NOT_CALL);
+                    adapter.invokeStatic(Definition.defobjType.type, DEF_NOT_CALL);
                 } else {
                     if (sort == Sort.INT) {
                         adapter.push(-1);
@@ -205,7 +205,7 @@ public final class EUnary extends AExpression {
                 }
             } else if (operation == Operation.SUB) {
                 if (sort == Sort.DEF) {
-                    adapter.invokeStatic(definition.getType("Def").type, DEF_NEG_CALL);
+                    adapter.invokeStatic(Definition.defobjType.type, DEF_NEG_CALL);
                 } else {
                     adapter.math(MethodWriter.NEG, type);
                 }

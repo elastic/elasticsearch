@@ -29,6 +29,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.jboss.netty.handler.codec.http.HttpResponse;
 import org.jboss.netty.handler.codec.http.HttpResponseStatus;
 
@@ -53,6 +54,7 @@ public class NettyHttpRequestSizeLimitIT extends ESIntegTestCase {
             .build();
     }
 
+    @TestLogging("_root:DEBUG,org.elasticsearch.common.breaker:TRACE,org.elasticsearch.test:TRACE,org.elasticsearch.transport:TRACE")
     public void testLimitsInFlightRequests() throws Exception {
         ensureGreen();
 

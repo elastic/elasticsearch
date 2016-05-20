@@ -670,7 +670,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testFlagOrdinalOrder() {
         Flag[] flags = new Flag[]{Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
-                Flag.QueryCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.PercolatorCache, Flag.Completion, Flag.Segments,
+                Flag.QueryCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Completion, Flag.Segments,
                 Flag.Translog, Flag.Suggest, Flag.RequestCache, Flag.Recovery};
 
         assertThat(flags.length, equalTo(Flag.values().length));
@@ -913,9 +913,6 @@ public class IndexStatsIT extends ESIntegTestCase {
             case Warmer:
                 builder.setWarmer(set);
                 break;
-            case PercolatorCache:
-                builder.setPercolate(set);
-                break;
             case Completion:
                 builder.setCompletion(set);
                 break;
@@ -963,8 +960,6 @@ public class IndexStatsIT extends ESIntegTestCase {
                 return response.getStore() != null;
             case Warmer:
                 return response.getWarmer() != null;
-            case PercolatorCache:
-                return response.getPercolatorCache() != null;
             case Completion:
                 return response.getCompletion() != null;
             case Segments:

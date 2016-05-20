@@ -91,7 +91,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                RoutingAllocation.Result routingResult = allocationService.reroute(currentState, request.commands, request.explain());
+                RoutingAllocation.Result routingResult = allocationService.reroute(currentState, request.commands, request.explain(), true);
                 ClusterState newState = ClusterState.builder(currentState).routingResult(routingResult).build();
                 clusterStateToSend = newState;
                 explanations = routingResult.explanations();

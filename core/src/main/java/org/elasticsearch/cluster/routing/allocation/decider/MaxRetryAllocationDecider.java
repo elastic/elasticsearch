@@ -32,6 +32,10 @@ import org.elasticsearch.common.settings.Settings;
  * An allocation decider that prevents shards from being allocated on any node if the shards allocation has been retried N times without
  * success. This means if a shard has been INITIALIZING N times in a row without being moved to STARTED the shard will be ignored until
  * the setting for <tt>index.allocation.max_retry</tt> is raised. The default value is <tt>5</tt>.
+ * Note: This allocation decider also allows allocation of repeatedly failing shards when the <tt>/_cluster/reroute?retry_failed=true</tt>
+ * API is manually invoked. This allows single retries without raising the limits.
+ *
+ * @see RoutingAllocation#isRetryFailed()
  */
 public class MaxRetryAllocationDecider extends AllocationDecider {
 
@@ -53,13 +57,22 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-        if (unassignedInfo != null && unassignedInfo.getNumFailedAllocations() > 0) {
+        if (unassignedInfo != null && unassignedInfo.getNumFailedAllocations() > 0
+            || allocation.isRetryFailed() // if we are called via the _reroute API we ignore the failure counter and try to allocate
+            // this improves the usability since people don't need to raise the limits to issue retries since a simple _reroute call is
+            // enough to manually retry.
+            ) {
             final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
             final int maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(indexMetaData.getSettings());
+            if (allocation.isRetryFailed()) { //manual allocation - retry
+                return allocation.decision(Decision.YES, NAME, "shard has already failed allocating ["
+                    + unassignedInfo.getNumFailedAllocations() + "] times vs. [" + maxRetry + "] retries allowed "
+                    + unassignedInfo.toString() + " - retrying once on manual allocation");
+            }
             if (unassignedInfo.getNumFailedAllocations() >= maxRetry) {
                 return allocation.decision(Decision.NO, NAME, "shard has already failed allocating ["
-                    + unassignedInfo.getNumFailedAllocations() + "] times vs. [" + maxRetry + "] retries allowed"
-                    + unassignedInfo.toString() + " raise [" + SETTING_ALLOCATION_MAX_RETRY.getKey() + "] to retry");
+                    + unassignedInfo.getNumFailedAllocations() + "] times vs. [" + maxRetry + "] retries allowed "
+                    + unassignedInfo.toString() + " - manually call [/_cluster/reroute?retry_failed=true] to retry");
             }
         }
         return allocation.decision(Decision.YES, NAME, "shard has no previous failures");

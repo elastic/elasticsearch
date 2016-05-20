@@ -259,16 +259,13 @@ public class AllocationService extends AbstractComponent {
                 .collect(Collectors.joining(", "));
     }
 
-    public RoutingAllocation.Result reroute(ClusterState clusterState, AllocationCommands commands) {
-        return reroute(clusterState, commands, false);
-    }
-
-    public RoutingAllocation.Result reroute(ClusterState clusterState, AllocationCommands commands, boolean explain) {
+    public RoutingAllocation.Result reroute(ClusterState clusterState, AllocationCommands commands, boolean explain, boolean retryFailed) {
         RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
         // we don't shuffle the unassigned shards here, to try and get as close as possible to
         // a consistent result of the effect the commands have on the routing
         // this allows systems to dry run the commands, see the resulting cluster state, and act on it
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState, clusterInfoService.getClusterInfo(), currentNanoTime());
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState,
+            clusterInfoService.getClusterInfo(), currentNanoTime(), retryFailed);
         // don't short circuit deciders, we want a full explanation
         allocation.debugDecision(true);
         // we ignore disable allocation, because commands are explicit
@@ -307,7 +304,8 @@ public class AllocationService extends AbstractComponent {
         RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState, clusterInfoService.getClusterInfo(), currentNanoTime());
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState,
+            clusterInfoService.getClusterInfo(), currentNanoTime(), false);
         allocation.debugDecision(debug);
         if (!reroute(allocation)) {
             return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());

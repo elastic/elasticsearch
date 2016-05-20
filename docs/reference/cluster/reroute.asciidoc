@@ -103,3 +103,15 @@ are available:
     To ensure that these implications are well-understood,
     this command requires the special field `accept_data_loss` to be
     explicitly set to `true` for it to work.
+
+=== Retry failed shards
+
+In the case when the allocation of a shard failed multiple times without a
+successful allocation, the cluster tries to prevent infinite allocation loops.
+To manually retry shards that have failed too often the `_reroute` API can be
+called with `?retry_failed=true` to execute a single retry allocation round for
+those shards.
+In order to identify shards that exceeded the maximum number of retries, run the `_reroute` API
+with `?explain=true` and check for the `max_retry` allocation decider.
+The maximum number of retries can be configured per index by setting `index.allocation.max_retries`
+to a value greater than `0`. The default is `5`

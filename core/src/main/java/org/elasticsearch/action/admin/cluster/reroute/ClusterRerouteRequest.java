@@ -41,6 +41,7 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
     AllocationCommands commands = new AllocationCommands();
     boolean dryRun;
     boolean explain;
+    boolean retryFailed;
 
     public ClusterRerouteRequest() {
     }
@@ -82,11 +83,28 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
     }
 
     /**
+     * Sets the retry failed flag (defaults to <tt>false</tt>). If true, the
+     * request will retry allocating shards that are currently can't be allocated due to too many allocation failures.
+     */
+    public ClusterRerouteRequest setRetryFailed(boolean retryFailed) {
+        this.retryFailed = retryFailed;
+        return this;
+    }
+
+    /**
      * Returns the current explain flag
      */
     public boolean explain() {
         return this.explain;
     }
+
+    /**
+     * Returns the current retry failed flag
+     */
+    public boolean isRetryFailed() {
+        return this.retryFailed;
+    }
+
 
     /**
      * Set the allocation commands to execute.

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
@@ -37,10 +38,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
-/**
- *
- */
-public class TransportShardRefreshAction extends TransportReplicationAction<BasicReplicationRequest, BasicReplicationRequest, ReplicationResponse> {
+public class TransportShardRefreshAction
+        extends TransportReplicationAction<BasicReplicationRequest, Void, BasicReplicationRequest, ReplicationResponse> {
 
     public static final String NAME = RefreshAction.NAME + "[s]";
 
@@ -48,8 +47,8 @@ public class TransportShardRefreshAction extends TransportReplicationAction<Basi
     public TransportShardRefreshAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, NAME, transportService, clusterService, indicesService, threadPool, shardStateAction,
-            actionFilters, indexNameExpressionResolver, BasicReplicationRequest::new, BasicReplicationRequest::new, ThreadPool.Names.REFRESH);
+        super(settings, NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
+                indexNameExpressionResolver, BasicReplicationRequest::new, BasicReplicationRequest::new, ThreadPool.Names.REFRESH);
     }
 
     @Override
@@ -58,13 +57,17 @@ public class TransportShardRefreshAction extends TransportReplicationAction<Basi
     }
 
     @Override
-    protected BasicReplicationRequest shardOperationOnPrimary(BasicReplicationRequest shardRequest,
-            ActionListener<ReplicationResponse> listener) {
+    protected Tuple<BasicReplicationRequest, Void> shardOperationOnPrimary(BasicReplicationRequest shardRequest) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId().getIndex()).getShard(shardRequest.shardId().id());
         indexShard.refresh("api");
-        listener.onResponse(new ReplicationResponse());
         logger.trace("{} refresh request executed on primary", indexShard.shardId());
-        return shardRequest;
+        return new Tuple<>(shardRequest, null);
+    }
+
+    @Override
+    protected void asyncShardOperationOnPrimary(Void stash, BasicReplicationRequest shardRequest,
+            ActionListener<ReplicationResponse> listener) {
+        listener.onResponse(new ReplicationResponse());
     }
 
     @Override

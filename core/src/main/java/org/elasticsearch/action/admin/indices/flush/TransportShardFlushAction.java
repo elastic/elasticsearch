@@ -39,7 +39,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  *
  */
-public class TransportShardFlushAction extends TransportReplicationAction<ShardFlushRequest, ShardFlushRequest, ReplicationResponse> {
+public class TransportShardFlushAction extends TransportReplicationAction<ShardFlushRequest, Void, ShardFlushRequest, ReplicationResponse> {
 
     public static final String NAME = FlushAction.NAME + "[s]";
 
@@ -57,12 +57,16 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     }
 
     @Override
-    protected ShardFlushRequest shardOperationOnPrimary(ShardFlushRequest shardRequest, ActionListener<ReplicationResponse> listener) {
+    protected Tuple<ShardFlushRequest, Void> shardOperationOnPrimary(ShardFlushRequest shardRequest) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId().getIndex()).getShard(shardRequest.shardId().id());
         indexShard.flush(shardRequest.getRequest());
         logger.trace("{} flush request executed on primary", indexShard.shardId());
+        return new Tuple<>(shardRequest, null);
+    }
+
+    @Override
+    protected void asyncShardOperationOnPrimary(Void stash, ShardFlushRequest shardRequest, ActionListener<ReplicationResponse> listener) {
         listener.onResponse(new ReplicationResponse());
-        return shardRequest;
     }
 
     @Override

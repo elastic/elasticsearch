@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
@@ -231,11 +232,11 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardRouting primaryShard = state.get().routingTable().shardRoutingTable(shardId).primaryShard();
         final TestPrimary primary = new TestPrimary(primaryShard, primaryTerm) {
             @Override
-            public Request perform(Request request, ActionListener<Response> listener) throws Exception {
-                Request replicaRequest = super.perform(request, listener);
+            public Tuple<Request, String> perform(Request request) throws Exception {
+                Tuple<Request, String> result = super.perform(request);
                 state.set(changedState);
                 logger.debug("--> state after primary operation:\n{}", state.get().prettyPrint());
-                return replicaRequest;
+                return result;
             }
         };
 
@@ -363,13 +364,15 @@ public class ReplicationOperationTests extends ESTestCase {
     static class Response extends ReplicationResponse {
     }
 
-    static class TestPrimary implements ReplicationOperation.Primary<Request, Request, Response> {
+    static class TestPrimary implements ReplicationOperation.Primary<Request, String, Request, Response> {
         final ShardRouting routing;
         final long term;
+        final String stash;
 
         TestPrimary(ShardRouting routing, long term) {
             this.routing = routing;
             this.term = term;
+            stash = randomAsciiOfLength(5);
         }
 
         @Override
@@ -383,13 +386,18 @@ public class ReplicationOperationTests extends ESTestCase {
         }
 
         @Override
-        public Request perform(Request request, ActionListener<Response> listener) throws Exception {
+        public Tuple<Request, String> perform(Request request) throws Exception {
             if (request.processedOnPrimary.compareAndSet(false, true) == false) {
                 fail("processed [" + request + "] twice");
             }
             request.primaryTerm(term);
+            return new Tuple<>(request, stash);
+        }
+
+        @Override
+        public void performAsync(String stash, Request request, ActionListener<Response> listener) throws Exception {
+            assertEquals(this.stash, stash);
             listener.onResponse(new Response());
-            return request;
         }
     }
 
@@ -435,15 +443,15 @@ public class ReplicationOperationTests extends ESTestCase {
         }
     }
 
-    class TestReplicationOperation extends ReplicationOperation<Request, Request, Response> {
-        public TestReplicationOperation(Request request, Primary<Request, Request, Response> primary, ActionListener<Response> listener,
-                                        Replicas<Request> replicas, Supplier<ClusterState> clusterStateSupplier) {
+    class TestReplicationOperation extends ReplicationOperation<Request, String, Request, Response> {
+        public TestReplicationOperation(Request request, Primary<Request, String, Request, Response> primary,
+                ActionListener<Response> listener, Replicas<Request> replicas, Supplier<ClusterState> clusterStateSupplier) {
             this(request, primary, listener, true, false, replicas, clusterStateSupplier, ReplicationOperationTests.this.logger, "test");
         }
 
-        public TestReplicationOperation(Request request, Primary<Request, Request, Response> primary, ActionListener<Response> listener,
-                                        boolean executeOnReplicas, boolean checkWriteConsistency, Replicas<Request> replicas,
-                                        Supplier<ClusterState> clusterStateSupplier, ESLogger logger, String opType) {
+        public TestReplicationOperation(Request request, Primary<Request, String, Request, Response> primary,
+                ActionListener<Response> listener, boolean executeOnReplicas, boolean checkWriteConsistency, Replicas<Request> replicas,
+                Supplier<ClusterState> clusterStateSupplier, ESLogger logger, String opType) {
             super(request, primary, listener, executeOnReplicas, checkWriteConsistency, replicas, clusterStateSupplier, logger, opType);
         }
     }

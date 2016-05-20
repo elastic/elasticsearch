@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
@@ -80,9 +81,12 @@ import java.util.function.Supplier;
  * primary node to validate request before primary operation followed by sampling state again for resolving
  * nodes with replica copies to perform replication.
  */
-public abstract class TransportReplicationAction<Request extends ReplicationRequest<Request>,
-    ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
-    Response extends ReplicationResponse> extends TransportAction<Request, Response> {
+public abstract class TransportReplicationAction<
+            Request extends ReplicationRequest<Request>,
+            AsyncStash,
+            ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
+            Response extends ReplicationResponse
+        > extends TransportAction<Request, Response> {
 
     final protected TransportService transportService;
     final protected ClusterService clusterService;
@@ -147,13 +151,22 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     }
 
     /**
-     * Primary operation on node with primary copy
+     * Synchronous portion of primary operation on node with primary copy
      *
      * @param shardRequest the request to the primary shard
-     * @param listener called when the operation is complete with the result of the operation, assuming all the replicas succeed
-     * @return the request to the replicas.
+     * @return Tuple of the request to send to the replicas and the information needed by the {
+     *         {@link #asyncShardOperationOnPrimary(Object, ReplicationRequest, ActionListener)} to do its job
      */
-    protected abstract ReplicaRequest shardOperationOnPrimary(Request shardRequest, ActionListener<Response> listener) throws Exception;
+    protected abstract Tuple<ReplicaRequest, AsyncStash> shardOperationOnPrimary(Request shardRequest) throws Exception;
+
+    /**
+     * Asynchronous portion of primary operation on node with primary copy
+     *
+     * @param stash information saved from the synchronous phase of the operation for use in the async phase of the operation
+     * @param shardRequest the request to the primary shard
+     * @param listener implementers call this success or failure when the asynchronous operations are complete.
+     */
+    protected abstract void asyncShardOperationOnPrimary(AsyncStash stash, Request shardRequest, ActionListener<Response> listener);
 
     /**
      * Replica operation on nodes with replica copies. While this does take a listener it should not return until it has completed any
@@ -279,9 +292,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             }
         }
 
-        protected ReplicationOperation<Request, ReplicaRequest, Response>
-        createReplicatedOperation(Request request, ActionListener<Response> listener,
-                                  PrimaryShardReference primaryShardReference, boolean executeOnReplicas) {
+        protected ReplicationOperation<Request, AsyncStash, ReplicaRequest, Response> createReplicatedOperation(Request request,
+                ActionListener<Response> listener, PrimaryShardReference primaryShardReference, boolean executeOnReplicas) {
             return new ReplicationOperation<>(request, primaryShardReference, listener,
                 executeOnReplicas, checkWriteConsistency(), replicasProxy, clusterService::state, logger, actionName
             );
@@ -736,7 +748,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         return IndexMetaData.isIndexUsingShadowReplicas(settings) == false;
     }
 
-    class PrimaryShardReference implements ReplicationOperation.Primary<Request, ReplicaRequest, Response>, Releasable {
+    class PrimaryShardReference implements ReplicationOperation.Primary<Request, AsyncStash, ReplicaRequest, Response>, Releasable {
 
         private final IndexShard indexShard;
         private final Releasable operationLock;
@@ -765,10 +777,15 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
 
         @Override
-        public ReplicaRequest perform(Request request, ActionListener<Response> listener) throws Exception {
-            ReplicaRequest replicaRequest = shardOperationOnPrimary(request, listener);
-            replicaRequest.primaryTerm(indexShard.getPrimaryTerm());
-            return replicaRequest;
+        public Tuple<ReplicaRequest, AsyncStash> perform(Request request) throws Exception {
+            Tuple<ReplicaRequest, AsyncStash> result = shardOperationOnPrimary(request);
+            result.v1().primaryTerm(indexShard.getPrimaryTerm());
+            return result;
+        }
+
+        @Override
+        public void performAsync(AsyncStash stash, Request request, ActionListener<Response> listener) throws Exception {
+            asyncShardOperationOnPrimary(stash, request, listener);
         }
 
         @Override

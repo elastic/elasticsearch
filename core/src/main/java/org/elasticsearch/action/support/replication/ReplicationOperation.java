@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -45,8 +46,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class ReplicationOperation<Request extends ReplicationRequest<Request>, ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
-    Response extends ReplicationResponse> {
+public class ReplicationOperation<
+            Request extends ReplicationRequest<Request>,
+            AsyncStash,
+            ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
+            Response extends ReplicationResponse
+        > {
     final private ESLogger logger;
     final private Request request;
     final private Supplier<ClusterState> clusterStateSupplier;
@@ -66,7 +71,7 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
     final private AtomicInteger successfulShards = new AtomicInteger();
     final private boolean executeOnReplicas;
     final private boolean checkWriteConsistency;
-    final private Primary<Request, ReplicaRequest, Response> primary;
+    final private Primary<Request, AsyncStash, ReplicaRequest, Response> primary;
     final private Replicas<ReplicaRequest> replicasProxy;
     final private AtomicBoolean finished = new AtomicBoolean();
     final protected ActionListener<Response> finalResponseListener;
@@ -75,7 +80,7 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
 
     private final List<ReplicationResponse.ShardInfo.Failure> shardReplicaFailures = Collections.synchronizedList(new ArrayList<>());
 
-    ReplicationOperation(Request request, Primary<Request, ReplicaRequest, Response> primary,
+    ReplicationOperation(Request request, Primary<Request, AsyncStash, ReplicaRequest, Response> primary,
                          ActionListener<Response> listener,
                          boolean executeOnReplicas, boolean checkWriteConsistency,
                          Replicas<ReplicaRequest> replicas,
@@ -102,8 +107,10 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
         }
 
         totalShards.incrementAndGet();
-        pendingShards.addAndGet(2); // increase by 2 - one for the primary shard and one for the coordination of replicas
-        ReplicaRequest replicaRequest = performOnPrimary(primaryRouting, request);
+        pendingShards.incrementAndGet();
+        Tuple<ReplicaRequest, AsyncStash> primaryResult = primary.perform(request);
+        ReplicaRequest replicaRequest = primaryResult.v1();
+        AsyncStash asyncStash = primaryResult.v2();
         assert replicaRequest.primaryTerm() > 0 : "replicaRequest doesn't have a primary term";
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] op [{}] completed on primary for request [{}]", primaryId, opType, request);
@@ -130,17 +137,15 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
                 performOnReplica(shard.buildTargetRelocatingShard(), replicaRequest);
             }
         }
-        // Decrement for the replica coordination
-        decPendingAndFinishIfNeeded();
-    }
-
-    private ReplicaRequest performOnPrimary(final ShardRouting primaryRouting, Request request) throws Exception {
-        return primary.perform(request, new ActionListener<Response>() {
+        /*
+         * Wait until after we've started the replica requests before we start any asyn actions on the primary so we don't have a race
+         * between the replica returning and the primary starting.
+         */
+        primary.performAsync(asyncStash, request, new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
                 finalResponse = response;
                 successfulShards.incrementAndGet();
-                // Decrement for the primary
                 decPendingAndFinishIfNeeded();
             }
 
@@ -311,8 +316,12 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
     }
 
 
-    interface Primary<Request extends ReplicationRequest<Request>, ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
-        Response extends ReplicationResponse> {
+    interface Primary<
+                Request extends ReplicationRequest<Request>,
+                AsyncStash,
+                ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
+                Response extends ReplicationResponse
+            > {
 
         /** routing entry for this primary */
         ShardRouting routingEntry();
@@ -326,10 +335,15 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
          * also complete after. Deal with it.
          *
          * @param request the request to perform
-         * @param listener for the request to be completed.
          * @return the request to send to the repicas
          */
-        ReplicaRequest perform(Request request, ActionListener<Response> listener) throws Exception;
+        Tuple<ReplicaRequest, AsyncStash> perform(Request request) throws Exception;
+
+        /**
+         * Start and listen for the completion of any asynchronous actions taken on the primary as part of this request. If there are no
+         * such actions then this will call the listener directly.
+         */
+        void performAsync(AsyncStash stash, Request request, ActionListener<Response> listener) throws Exception;
     }
 
     interface Replicas<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> {

@@ -21,9 +21,11 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.replication.TransportReplicatedMutationAction.WriteResult;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -42,7 +44,7 @@ import java.util.function.Supplier;
 public abstract class TransportReplicatedMutationAction<
             Request extends ReplicatedMutationRequest<Request>,
             Response extends ReplicatedMutationResponse
-        > extends TransportReplicationAction<Request, Request, Response> {
+        > extends TransportReplicationAction<Request, WriteResult<Response>, Request, Response> {
 
     protected TransportReplicatedMutationAction(Settings settings, String actionName, TransportService transportService,
             ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
@@ -69,7 +71,7 @@ public abstract class TransportReplicatedMutationAction<
     protected abstract Translog.Location onReplicaShard(Request request, IndexShard indexShard);
 
     @Override
-    protected Request shardOperationOnPrimary(Request request, ActionListener<Response> listener) throws Exception {
+    protected Tuple<Request, WriteResult<Response>> shardOperationOnPrimary(Request request) throws Exception {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().id());
         WriteResult<Response> result = onPrimaryShard(indexService, indexShard, request);
@@ -78,6 +80,13 @@ public abstract class TransportReplicatedMutationAction<
             // Only setForcedRefresh if it is true because this can touch every item in a bulk request
             result.response.setForcedRefresh(true);
         }
+        return new Tuple<>(request, result);
+    }
+
+    @Override
+    protected void asyncShardOperationOnPrimary(WriteResult<Response> result, Request request, ActionListener<Response> listener) {
+        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        IndexShard indexShard = indexService.getShard(request.shardId().id());
         if (request.shouldBlockUntilRefresh() && false == request.isRefresh()) {
             indexShard.addRefreshListener(result.location, forcedRefresh -> {
                 if (forcedRefresh) {
@@ -89,7 +98,6 @@ public abstract class TransportReplicatedMutationAction<
         } else {
             listener.onResponse(result.response);
         }
-        return request;
     }
 
     @Override

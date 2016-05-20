@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
@@ -476,18 +477,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         };
         Action.PrimaryShardReference primary = action.new PrimaryShardReference(shard, releasable);
         final Request request = new Request();
-        Request replicaRequest = primary.perform(request, new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                // Ok, nothing to do
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                // Currently can't even be called.
-                throw new RuntimeException(e);
-            }
-        });
+        Request replicaRequest = primary.perform(request).v1();
 
         assertThat(replicaRequest.primaryTerm(), equalTo(primaryTerm));
 
@@ -759,7 +749,7 @@ public class TransportReplicationActionTests extends ESTestCase {
     static class Response extends ReplicationResponse {
     }
 
-    class Action extends TransportReplicationAction<Request, Request, Response> {
+    class Action extends TransportReplicationAction<Request, Void, Request, Response> {
 
         Action(Settings settings, String actionName, TransportService transportService,
                ClusterService clusterService,
@@ -776,11 +766,15 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected Request shardOperationOnPrimary(Request shardRequest, ActionListener<Response> listener) throws Exception {
+        protected Tuple<Request, Void> shardOperationOnPrimary(Request shardRequest) throws Exception {
             boolean executedBefore = shardRequest.processedOnPrimary.getAndSet(true);
             assert executedBefore == false : "request has already been executed on the primary";
+            return new Tuple<>(shardRequest, null);
+        }
+
+        @Override
+        protected void asyncShardOperationOnPrimary(Void stash, Request shardRequest, ActionListener<Response> listener) {
             listener.onResponse(new Response());
-            return shardRequest;
         }
 
         @Override
@@ -835,7 +829,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
     }
 
-    class NoopReplicationOperation extends ReplicationOperation<Request, Request, Response> {
+    class NoopReplicationOperation extends ReplicationOperation<Request, Void, Request, Response> {
 
         public NoopReplicationOperation(Request request, ActionListener<Response> listener) {
             super(request, null, listener, true, true, null, null, TransportReplicationActionTests.this.logger, "noop");

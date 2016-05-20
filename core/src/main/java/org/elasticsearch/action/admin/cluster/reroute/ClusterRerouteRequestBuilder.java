@@ -62,7 +62,7 @@ public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<Clu
 
     /**
      * Sets the retry failed flag (defaults to <tt>false</tt>). If true, the
-     * request will retry allocating shards that are currently can't be allocated due to too many allocation failures.
+     * request will retry allocating shards that can't currently be allocated due to too many allocation failures.
      */
     public ClusterRerouteRequestBuilder setRetryFailed(boolean retryFailed) {
         request.setRetryFailed(retryFailed);

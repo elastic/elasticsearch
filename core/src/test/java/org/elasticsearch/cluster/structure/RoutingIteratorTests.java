@@ -308,6 +308,24 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         assertThat(shardsIterator.size(), equalTo(1));
         assertThat(shardsIterator.nextOrNull().currentNodeId(),equalTo("node2"));
 
+        shardsIterator = clusterState.routingTable().index("test").shard(0)
+            .onlyNodeSelectorActiveInitializingShardsIt(new String[] {"disk:eph*","disk:ebs"},clusterState.nodes());
+        assertThat(shardsIterator.size(), equalTo(2));
+        assertThat(shardsIterator.nextOrNull().currentNodeId(),equalTo("node2"));
+        assertThat(shardsIterator.nextOrNull().currentNodeId(),equalTo("node1"));
+
+        shardsIterator = clusterState.routingTable().index("test").shard(0)
+            .onlyNodeSelectorActiveInitializingShardsIt(new String[] {"disk:*", "invalid_name"},clusterState.nodes());
+        assertThat(shardsIterator.size(), equalTo(2));
+        assertThat(shardsIterator.nextOrNull().currentNodeId(),equalTo("node2"));
+        assertThat(shardsIterator.nextOrNull().currentNodeId(),equalTo("node1"));
+
+        shardsIterator = clusterState.routingTable().index("test").shard(0)
+            .onlyNodeSelectorActiveInitializingShardsIt(new String[] {"disk:*", "disk:*"},clusterState.nodes());
+        assertThat(shardsIterator.size(), equalTo(2));
+        assertThat(shardsIterator.nextOrNull().currentNodeId(),equalTo("node2"));
+        assertThat(shardsIterator.nextOrNull().currentNodeId(),equalTo("node1"));
+
         try {
             shardsIterator = clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("welma", clusterState.nodes());
             fail("shouldve raised illegalArgumentException");

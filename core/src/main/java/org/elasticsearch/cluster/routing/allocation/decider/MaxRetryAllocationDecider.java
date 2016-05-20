@@ -57,19 +57,17 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-        if (unassignedInfo != null && unassignedInfo.getNumFailedAllocations() > 0
-            || allocation.isRetryFailed() // if we are called via the _reroute API we ignore the failure counter and try to allocate
-            // this improves the usability since people don't need to raise the limits to issue retries since a simple _reroute call is
-            // enough to manually retry.
-            ) {
+        if (unassignedInfo != null && unassignedInfo.getNumFailedAllocations() > 0) {
             final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
             final int maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(indexMetaData.getSettings());
-            if (allocation.isRetryFailed()) { //manual allocation - retry
+            if (allocation.isRetryFailed()) { // manual allocation - retry
+                // if we are called via the _reroute API we ignore the failure counter and try to allocate
+                // this improves the usability since people don't need to raise the limits to issue retries since a simple _reroute call is
+                // enough to manually retry.
                 return allocation.decision(Decision.YES, NAME, "shard has already failed allocating ["
                     + unassignedInfo.getNumFailedAllocations() + "] times vs. [" + maxRetry + "] retries allowed "
                     + unassignedInfo.toString() + " - retrying once on manual allocation");
-            }
-            if (unassignedInfo.getNumFailedAllocations() >= maxRetry) {
+            } else if (unassignedInfo.getNumFailedAllocations() >= maxRetry) {
                 return allocation.decision(Decision.NO, NAME, "shard has already failed allocating ["
                     + unassignedInfo.getNumFailedAllocations() + "] times vs. [" + maxRetry + "] retries allowed "
                     + unassignedInfo.toString() + " - manually call [/_cluster/reroute?retry_failed=true] to retry");

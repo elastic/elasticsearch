@@ -119,7 +119,7 @@ public class EqualsTests extends ScriptTestCase {
         assertEquals(0, exec("def a = (char)'a'; def b = (char)'b'; if (a == b) return 1; else return 0;"));
         assertEquals(1, exec("def a = (char)'a'; def b = (char)'a'; if (a == b) return 1; else return 0;"));
         assertEquals(1, exec("def a = 1; def b = 1; if (a === b) return 1; else return 0;"));
-        assertEquals(0, exec("def a = (char)'a'; def b = (char)'a'; if (a === b) return 1; else return 0;"));
+        assertEquals(1, exec("def a = (char)'a'; def b = (char)'a'; if (a === b) return 1; else return 0;"));
         assertEquals(1, exec("def a = (char)'a'; Object b = a; if (a === b) return 1; else return 0;"));
         assertEquals(1, exec("def a = 1; Number b = a; Number c = a; if (c === b) return 1; else return 0;"));
         assertEquals(0, exec("def a = 1; Object b = new HashMap(); if (a === (Object)b) return 1; else return 0;"));
@@ -129,7 +129,7 @@ public class EqualsTests extends ScriptTestCase {
         assertEquals(1, exec("def a = (char)'a'; def b = (char)'b'; if (a != b) return 1; else return 0;"));
         assertEquals(0, exec("def a = (char)'a'; def b = (char)'a'; if (a != b) return 1; else return 0;"));
         assertEquals(0, exec("def a = 1; def b = 1; if (a !== b) return 1; else return 0;"));
-        assertEquals(1, exec("def a = (char)'a'; def b = (char)'a'; if (a !== b) return 1; else return 0;"));
+        assertEquals(0, exec("def a = (char)'a'; def b = (char)'a'; if (a !== b) return 1; else return 0;"));
         assertEquals(0, exec("def a = (char)'a'; Object b = a; if (a !== b) return 1; else return 0;"));
         assertEquals(0, exec("def a = 1; Number b = a; Number c = a; if (c !== b) return 1; else return 0;"));
         assertEquals(1, exec("def a = 1; Object b = new HashMap(); if (a !== (Object)b) return 1; else return 0;"));

@@ -200,9 +200,15 @@ public final class MethodWriter extends GeneratorAdapter {
         }
     }
 
+    /**
+     * ASM does boxing in an evil way to be compatible with Java prior to verison 5.
+     * Supporting versions prior to 5 is not a requirement of this project, so the modern
+     * boxing methods are used instead.
+     */
     @Override
     public void box(final org.objectweb.asm.Type type) {
         switch (type.getSort()) {
+            case org.objectweb.asm.Type.VOID:    visitInsn(Opcodes.ACONST_NULL);                     break;
             case org.objectweb.asm.Type.BOOLEAN: invokeStatic(BOOLEAN_OBJECT  , BOOLEAN_VALUE_OF);   break;
             case org.objectweb.asm.Type.BYTE:    invokeStatic(BYTE_OBJECT     , BYTE_VALUE_OF);      break;
             case org.objectweb.asm.Type.SHORT:   invokeStatic(SHORT_OBJECT    , SHORT_VALUE_OF);     break;
@@ -211,8 +217,6 @@ public final class MethodWriter extends GeneratorAdapter {
             case org.objectweb.asm.Type.LONG:    invokeStatic(LONG_OBJECT     , LONG_VALUE_OF);      break;
             case org.objectweb.asm.Type.FLOAT:   invokeStatic(FLOAT_OBJECT    , FLOAT_VALUE_OF);     break;
             case org.objectweb.asm.Type.DOUBLE:  invokeStatic(DOUBLE_OBJECT   , DOUBLE_VALUE_OF);    break;
-            default:
-                throw new IllegalArgumentException("Illegal tree structure.");
         }
     }
 

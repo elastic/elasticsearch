@@ -126,7 +126,7 @@ throwStatement
     ;
 
 expressionStatement
-    : expression
+    : assignment
     ;
 
 forInitializer
@@ -155,6 +155,81 @@ delimiter
     | EOF
     ;
 
+assignment
+    : lhs ( ASSIGN | AADD | ASUB | AMUL |
+            ADIV   | AREM | AAND | AXOR |
+            AOR    | ALSH | ARSH | AUSH ) ( conditional | assignment )
+    ;
+
+lhs
+    : ID
+    | field
+    | array
+    ;
+
+conditional
+    : booleanOr
+    | booleanOr COND booleanOr COLON booleanOr
+    ;
+
+booleanOr
+    : booleanAnd
+    | booleanAnd OR booleanOr
+    ;
+
+booleanAnd
+    : bitOr
+    | bitOr AND booleanAnd
+    ;
+
+bitOr
+    : bitXor
+    | bitXor BWOR bitOr
+    ;
+
+bitXor
+    : bitAnd
+    | bitAnd BWXOR bitXor
+    ;
+
+bitAnd
+    : equality
+    | equality BWAND bitAnd
+    ;
+
+equality
+    : comparison
+    | comparison ( EQ | EQR | NE | NER ) equality
+    ;
+
+comparison
+    : shift
+    | shift ( LT | LTE | GT | GTE ) comparison
+    ;
+
+shift
+    : additive
+    | additive ( LSH | RSH | USH ) shift
+    ;
+
+additive
+    : multiplicative
+    | multiplicative ( ADD | SUB ) additive
+    ;
+
+multiplicative
+    : unary
+    | unary ( MUL | DIV | REM ) multiplicative
+    ;
+
+unary
+    :
+    ;
+
+preIncrement
+
+preDecerement
+
 expression
     :               LP expression RP                                    # precedence
     |               ( OCTAL | HEX | INTEGER | DECIMAL )                 # numeric
@@ -177,9 +252,6 @@ expression
     |               expression BOOLAND expression                       # bool
     |               expression BOOLOR expression                        # bool
     | <assoc=right> expression COND expression COLON expression         # conditional
-    | <assoc=right> chain ( ASSIGN | AADD | ASUB | AMUL | ADIV
-                                      | AREM | AAND | AXOR | AOR
-                                      | ALSH | ARSH | AUSH ) expression # assignment
     ;
 
 chain

@@ -50,8 +50,8 @@ public abstract class ScriptTestCase extends ESTestCase {
     /** Compiles and returns the result of {@code script} with access to {@code vars} */
     public Object exec(String script, Map<String, Object> vars) {
         Map<String,String> compilerSettings = new HashMap<>();
-        compilerSettings.put(CompilerSettings.PICKY, "true" /* TODO: Boolean.toString(random().nextBoolean()) */);
-        return exec(script, vars, Collections.emptyMap());
+        compilerSettings.put(CompilerSettings.PICKY, "true");
+        return exec(script, vars, compilerSettings);
     }
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} and compile-time parameters */

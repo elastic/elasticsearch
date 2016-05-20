@@ -131,6 +131,23 @@ POST _reindex
 // CONSOLE
 // TEST[setup:twitter]
 
+You can increase the default batch size by setting the `size` parameter (which defaults to `1000`) to the `source`. Note that it is different than the `size` parameter available at the root, which limits the number of documents (see below).
+
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "source": {
+    "index": "twitter",
+    "size": 2000
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
 You can limit the documents by adding a type to the `source` or by adding a
 query. This will only copy ++tweet++&apos;s made by `kimchy` into `new_twitter`:
 

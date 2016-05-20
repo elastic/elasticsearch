@@ -19,21 +19,16 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.LegacyNumericRangeQuery;
-import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -145,17 +140,17 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"fuzzy\" : {\n" + 
-                "    \"user\" : {\n" + 
-                "      \"value\" : \"ki\",\n" + 
-                "      \"fuzziness\" : \"2\",\n" + 
-                "      \"prefix_length\" : 0,\n" + 
-                "      \"max_expansions\" : 100,\n" + 
-                "      \"transpositions\" : false,\n" + 
-                "      \"boost\" : 42.0\n" + 
-                "    }\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"fuzzy\" : {\n" +
+                "    \"user\" : {\n" +
+                "      \"value\" : \"ki\",\n" +
+                "      \"fuzziness\" : \"2\",\n" +
+                "      \"prefix_length\" : 0,\n" +
+                "      \"max_expansions\" : 100,\n" +
+                "      \"transpositions\" : false,\n" +
+                "      \"boost\" : 42.0\n" +
+                "    }\n" +
+                "  }\n" +
                 "}";
         FuzzyQueryBuilder parsed = (FuzzyQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

@@ -21,12 +21,12 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -85,15 +85,15 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"regexp\" : {\n" + 
-                "    \"name.first\" : {\n" + 
-                "      \"value\" : \"s.*y\",\n" + 
-                "      \"flags_value\" : 7,\n" + 
-                "      \"max_determinized_states\" : 20000,\n" + 
-                "      \"boost\" : 1.0\n" + 
-                "    }\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"regexp\" : {\n" +
+                "    \"name.first\" : {\n" +
+                "      \"value\" : \"s.*y\",\n" +
+                "      \"flags_value\" : 7,\n" +
+                "      \"max_determinized_states\" : 20000,\n" +
+                "      \"boost\" : 1.0\n" +
+                "    }\n" +
+                "  }\n" +
                 "}";
 
         RegexpQueryBuilder parsed = (RegexpQueryBuilder) parseQuery(json);

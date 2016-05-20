@@ -7,31 +7,17 @@ package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.conn.BasicHttpClientConnectionManager;
-//import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.plugins.Plugin;
-//import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.URL;
-import java.util.Collection;
-import java.util.Collections;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+
 
 public class GraphWithShieldIT extends ESRestTestCase {
 

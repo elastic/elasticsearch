@@ -201,9 +201,9 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
      * Return a script object with the given vars from the compiled script object
      */
     @SuppressWarnings("unchecked")
-    private Script createScript(Object compiledScript, Map<String, Object> vars) throws InstantiationException, IllegalAccessException {
+    private Script createScript(Object compiledScript, Map<String, Object> vars) throws ReflectiveOperationException {
         Class<?> scriptClass = (Class<?>) compiledScript;
-        Script scriptObject = (Script) scriptClass.newInstance();
+        Script scriptObject = (Script) scriptClass.getConstructor().newInstance();
         Binding binding = new Binding();
         binding.getVariables().putAll(vars);
         scriptObject.setBinding(binding);
@@ -218,7 +218,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 allVars.putAll(vars);
             }
             return new GroovyScript(compiledScript, createScript(compiledScript.compiled(), allVars), this.logger);
-        } catch (Exception e) {
+        } catch (ReflectiveOperationException e) {
             throw new ScriptException("failed to build executable " + compiledScript, e);
         }
     }
@@ -238,7 +238,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 Script scriptObject;
                 try {
                     scriptObject = createScript(compiledScript.compiled(), allVars);
-                } catch (InstantiationException | IllegalAccessException e) {
+                } catch (ReflectiveOperationException e) {
                     throw new ScriptException("failed to build search " + compiledScript, e);
                 }
                 return new GroovyScript(compiledScript, scriptObject, leafLookup, logger);

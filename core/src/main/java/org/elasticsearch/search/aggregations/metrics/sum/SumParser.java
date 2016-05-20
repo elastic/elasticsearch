@@ -44,8 +44,8 @@ public class SumParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected SumAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new SumAggregatorBuilder(aggregationName);
+    protected SumAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                  ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        return new SumAggregationBuilder(aggregationName);
     }
 }

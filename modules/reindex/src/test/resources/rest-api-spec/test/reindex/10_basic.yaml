@@ -24,6 +24,7 @@
   - match: {throttled_millis: 0}
   - gte: { took: 0 }
   - is_false: task
+  - is_false: deleted
 
 ---
 "Response format for updated":
@@ -57,6 +58,7 @@
   - match: {throttled_millis: 0}
   - gte: { took: 0 }
   - is_false: task
+  - is_false: deleted
 
 ---
 "wait_for_completion=false":
@@ -88,6 +90,7 @@
   - is_false: took
   - is_false: throttled_millis
   - is_false: created
+  - is_false: deleted
 
   - do:
       tasks.list:

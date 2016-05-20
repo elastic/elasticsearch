@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # check in case a user was using this mechanism
 if [ "x$ES_CLASSPATH" != "x" ]; then

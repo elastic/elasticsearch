@@ -41,7 +41,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
@@ -600,7 +600,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * Add an aggregation to perform as part of the search.
      */
-    public SearchSourceBuilder aggregation(AggregatorBuilder<?> aggregation) {
+    public SearchSourceBuilder aggregation(AggregationBuilder<?> aggregation) {
             if (aggregations == null) {
             aggregations = AggregatorFactories.builder();
             }
@@ -1033,6 +1033,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     suggestBuilder = SuggestBuilder.fromXContent(context, suggesters);
                 } else if (context.getParseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
                     sorts = new ArrayList<>(SortBuilder.fromXContent(context));
+                } else if (context.getParseFieldMatcher().match(currentFieldName, RESCORE_FIELD)) {
+                    rescoreBuilders = new ArrayList<>();
+                    rescoreBuilders.add(RescoreBuilder.parseFromXContent(context));
                 } else if (context.getParseFieldMatcher().match(currentFieldName, EXT_FIELD)) {
                     XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
                     ext = xContentBuilder.bytes();

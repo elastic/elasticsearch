@@ -257,7 +257,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
     protected SignificanceHeuristic parseFromBuilder(ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry,
             SearchContext searchContext, SignificanceHeuristic significanceHeuristic) throws IOException {
-        SignificantTermsAggregatorBuilder stBuilder = significantTerms("testagg");
+        SignificantTermsAggregationBuilder stBuilder = significantTerms("testagg");
         stBuilder.significanceHeuristic(significanceHeuristic).field("text").minDocCount(200);
         XContentBuilder stXContentBuilder = XContentFactory.jsonBuilder();
         stBuilder.internalXContent(stXContentBuilder, null);
@@ -271,7 +271,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
         QueryParseContext parseContext = new QueryParseContext(registry, stParser, ParseFieldMatcher.STRICT);
         stParser.nextToken();
-        SignificantTermsAggregatorBuilder aggregatorFactory = (SignificantTermsAggregatorBuilder) new SignificantTermsParser(
+        SignificantTermsAggregationBuilder aggregatorFactory = (SignificantTermsAggregationBuilder) new SignificantTermsParser(
                 significanceHeuristicParserRegistry, registry).parse("testagg", parseContext);
         stParser.nextToken();
         assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200L));

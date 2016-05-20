@@ -1,9 +1,5 @@
 ---
 "Discovery stats":
-  - skip:
-      version:     "5.0.0 - "
-      reason:      Tracked in issue 18433 
-
   - do:
       cluster.state: {}
 

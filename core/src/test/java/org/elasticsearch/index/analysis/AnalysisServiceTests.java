@@ -41,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class AnalysisServiceTests extends ESTestCase {
@@ -182,5 +183,20 @@ public class AnalysisServiceTests extends ESTestCase {
             PreBuiltAnalyzers preBuiltAnalyzers = RandomPicks.randomFrom(random(), PreBuiltAnalyzers.values());
             assertSame(analysisService.analyzer(preBuiltAnalyzers.name()), otherAnalysisSergice.analyzer(preBuiltAnalyzers.name()));
         }
+    }
+
+    public void testNoTypeOrTokenizerErrorMessage() throws IOException {
+        Version version = VersionUtils.randomVersion(random());
+        Settings settings = Settings
+            .builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .putArray("index.analysis.analyzer.test_analyzer.filter", new String[] {"lowercase", "stop", "shingle"})
+            .putArray("index.analysis.analyzer.test_analyzer.char_filter", new String[] {"html_strip"})
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new AnalysisRegistry(null, new Environment(settings)).build(idxSettings));
+        assertThat(e.getMessage(), equalTo("analyzer [test_analyzer] must specify either an analyzer type, or a tokenizer"));
     }
 }

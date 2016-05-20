@@ -60,7 +60,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     public UnmappedSignificantTerms(String name, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         //We pass zero for index/subset sizes because for the purpose of significant term analysis
         // we assume an unmapped index's size is irrelevant to the proceedings.
-        super(0, 0, name, DocValueFormat.RAW, requiredSize, minDocCount, SignificantTermsAggregatorBuilder.DEFAULT_SIGNIFICANCE_HEURISTIC,
+        super(0, 0, name, DocValueFormat.RAW, requiredSize, minDocCount, SignificantTermsAggregationBuilder.DEFAULT_SIGNIFICANCE_HEURISTIC,
                 BUCKETS, pipelineAggregators, metaData);
     }
 

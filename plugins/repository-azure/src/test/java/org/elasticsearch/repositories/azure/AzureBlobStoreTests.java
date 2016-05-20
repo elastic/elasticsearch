@@ -25,9 +25,9 @@ import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.repositories.ESBlobStoreTestCase;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
-import org.elasticsearch.test.ESBlobStoreTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;

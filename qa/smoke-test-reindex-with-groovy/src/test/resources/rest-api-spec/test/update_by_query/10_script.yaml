@@ -102,7 +102,7 @@
   - match: {batches: 1}
 
 ---
-"Setting bogus ctx is an error":
+"Setting bogus context is an error":
   - do:
       index:
         index:  twitter
@@ -113,7 +113,7 @@
       indices.refresh: {}
 
   - do:
-      catch: /Invalid fields added to ctx \[junk\]/
+      catch: /Invalid fields added to context \[junk\]/
       update_by_query:
         index: twitter
         body:

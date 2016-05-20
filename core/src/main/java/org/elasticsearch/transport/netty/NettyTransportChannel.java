@@ -37,6 +37,7 @@ import org.elasticsearch.transport.support.TransportStatus;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.ChannelFutureListener;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -114,7 +115,10 @@ public class NettyTransportChannel implements TransportChannel {
             ReleaseChannelFutureListener listener = new ReleaseChannelFutureListener(bytes);
             future.addListener(listener);
             addedReleaseListener = true;
-            transportServiceAdapter.onResponseSent(requestId, action, response, options);
+            final TransportResponseOptions finalOptions = options;
+            ChannelFutureListener onResponseSentListener =
+                f -> transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions);
+            future.addListener(onResponseSentListener);
         } finally {
             if (!addedReleaseListener && bStream != null) {
                 Releasables.close(bStream.bytes());
@@ -137,8 +141,10 @@ public class NettyTransportChannel implements TransportChannel {
         BytesReference bytes = stream.bytes();
         ChannelBuffer buffer = bytes.toChannelBuffer();
         NettyHeader.writeHeader(buffer, requestId, status, version);
-        channel.write(buffer);
-        transportServiceAdapter.onResponseSent(requestId, action, error);
+        ChannelFuture future = channel.write(buffer);
+        ChannelFutureListener onResponseSentListener =
+            f -> transportServiceAdapter.onResponseSent(requestId, action, error);
+        future.addListener(onResponseSentListener);
     }
 
     private void close() {

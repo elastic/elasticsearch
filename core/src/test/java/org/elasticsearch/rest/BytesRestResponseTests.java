@@ -158,20 +158,31 @@ public class BytesRestResponseTests extends ESTestCase {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> RestUtils.decodeComponent(request.rawPath()));
         final RestChannel channel = new DetailedExceptionRestChannel(request);
         // if we try to decode the path, this will throw an IllegalArgumentException again
-        final RestStatus status = randomBoolean() ? RestStatus.BAD_REQUEST : RestStatus.INTERNAL_SERVER_ERROR;
-        final BytesRestResponse response = new BytesRestResponse(channel, new ElasticsearchException(e) {
-            // we fake the status so that we can randomly test both
-            // the 4xx and 5xx code paths
-            @Override
-            public RestStatus status() {
-                return status;
-            }
-        });
+        final BytesRestResponse response = new BytesRestResponse(channel, e);
         assertNotNull(response.content());
+        final String content = response.content().toUtf8();
         assertThat(
-            response.content().toUtf8(),
-            containsString("\"reason\":\"java.lang.IllegalArgumentException: partial escape sequence at end of string: %a\""));
-        assertThat(response.content().toUtf8(), containsString("\"status\":" + status.getStatus()));
+            content,
+            containsString("\"type\":\"illegal_argument_exception\""));
+        assertThat(
+            content,
+            containsString("\"reason\":\"partial escape sequence at end of string: %a\""));
+        assertThat(content, containsString("\"status\":" + 400));
+    }
+
+    public void testResponseWhenInternalServerError() throws IOException {
+        final RestRequest request = new FakeRestRequest();
+        final RestChannel channel = new DetailedExceptionRestChannel(request);
+        final BytesRestResponse response = new BytesRestResponse(channel, new ElasticsearchException("simulated"));
+        assertNotNull(response.content());
+        final String content = response.content().toUtf8();
+        assertThat(
+            content,
+            containsString("\"type\":\"exception\""));
+        assertThat(
+            content,
+            containsString("\"reason\":\"simulated\""));
+        assertThat(content, containsString("\"status\":" + 500));
     }
 
     public static class WithHeadersException extends ElasticsearchException {

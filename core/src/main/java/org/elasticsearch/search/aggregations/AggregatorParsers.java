@@ -104,7 +104,7 @@ public class AggregatorParsers {
                         + token + "], expected a [" + XContentParser.Token.START_OBJECT + "].");
             }
 
-            AggregatorBuilder<?> aggFactory = null;
+            AggregationBuilder<?> aggFactory = null;
             PipelineAggregatorBuilder<?> pipelineAggregatorFactory = null;
             AggregatorFactories.Builder subFactories = null;
 

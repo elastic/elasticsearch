@@ -267,7 +267,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
      */
     public MatchQueryBuilder prefixLength(int prefixLength) {
         if (prefixLength < 0 ) {
-            throw new IllegalArgumentException("No negative prefix length allowed.");
+            throw new IllegalArgumentException("[" + NAME + "] requires prefix length to be non-negative.");
         }
         this.prefixLength = prefixLength;
         return this;
@@ -284,8 +284,8 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
      * When using fuzzy or prefix type query, the number of term expansions to use.
      */
     public MatchQueryBuilder maxExpansions(int maxExpansions) {
-        if (maxExpansions < 0 ) {
-            throw new IllegalArgumentException("No negative maxExpansions allowed.");
+        if (maxExpansions <= 0 ) {
+            throw new IllegalArgumentException("[" + NAME + "] requires maxExpansions to be positive.");
         }
         this.maxExpansions = maxExpansions;
         return this;

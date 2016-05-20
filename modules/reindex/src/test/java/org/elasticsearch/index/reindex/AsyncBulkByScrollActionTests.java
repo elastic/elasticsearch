@@ -665,7 +665,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     private class DummyAbstractAsyncBulkByScrollAction
-            extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest, BulkIndexByScrollResponse> {
+            extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest> {
         public DummyAbstractAsyncBulkByScrollAction() {
             super(testTask, logger, new ParentTaskAssigningClient(client, localNode, testTask), threadPool, testRequest, firstSearchRequest,
                     listener);

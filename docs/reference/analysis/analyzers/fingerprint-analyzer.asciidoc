@@ -36,6 +36,27 @@ POST _analyze
 ---------------------------
 // CONSOLE
 
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "and consistent godel is said sentence this yes",
+      "start_offset": 0,
+      "end_offset": 52,
+      "type": "fingerprint",
+      "position": 0
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
 The above sentence would produce the following single term:
 
 [source,text]
@@ -58,16 +79,11 @@ The `fingerprint` analyzer accepts the following parameters:
     The maximum token size to emit.  Defaults to `255`. Tokens larger than
     this size will be discarded.
 
-`preserve_original`::
-
-    If `true`, emits two tokens: one with ASCII-folding of terms that contain
-    extended characters (if any) and one with the original characters.
-    Defaults to `false`.
-
 `stopwords`::
 
     A pre-defined stop words list like `_english_` or an array  containing a
     list of stop words.  Defaults to `_none_`.
+
 `stopwords_path`::
 
     The path to a file containing stop words.
@@ -80,8 +96,7 @@ about stop word configuration.
 === Example configuration
 
 In this example, we configure the `fingerprint` analyzer to use the
-pre-defined list of English stop words, and to emit a second token in
-the presence of non-ASCII characters:
+pre-defined list of English stop words:
 
 [source,js]
 ----------------------------
@@ -92,8 +107,7 @@ PUT my_index
       "analyzer": {
         "my_fingerprint_analyzer": {
           "type": "fingerprint",
-          "stopwords": "_english_",
-          "preserve_original": true
+          "stopwords": "_english_"
         }
       }
     }
@@ -110,9 +124,30 @@ POST my_index/_analyze
 ----------------------------
 // CONSOLE
 
-The above example produces the following two terms:
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "consistent godel said sentence yes",
+      "start_offset": 0,
+      "end_offset": 52,
+      "type": "fingerprint",
+      "position": 0
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above example produces the following term:
 
 [source,text]
 ---------------------------
-[ consistent godel said sentence yes, consistent gödel said sentence yes ]
+[ consistent godel said sentence yes ]
 ---------------------------

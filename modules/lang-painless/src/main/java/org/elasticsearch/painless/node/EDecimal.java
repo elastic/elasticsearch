@@ -42,14 +42,14 @@ public final class EDecimal extends AExpression {
         if (value.endsWith("f") || value.endsWith("F")) {
             try {
                 constant = Float.parseFloat(value.substring(0, value.length() - 1));
-                actual = definition.getType("float");
+                actual = Definition.floatType;
             } catch (final NumberFormatException exception) {
                 throw new IllegalArgumentException(error("Invalid float constant [" + value + "]."));
             }
         } else {
             try {
                 constant = Double.parseDouble(value);
-                actual = definition.getType("double");
+                actual = Definition.doubleType;
             } catch (final NumberFormatException exception) {
                 throw new IllegalArgumentException(error("Invalid double constant [" + value + "]."));
             }

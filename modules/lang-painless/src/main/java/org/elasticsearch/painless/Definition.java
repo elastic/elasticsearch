@@ -37,12 +37,38 @@ import java.util.Objects;
  * methods and fields during at both compile-time and runtime.
  */
 public final class Definition {
+    
+    private static final String DEFINITION_FILE = "definition.txt";
 
     /**
      * The default language API to be used with Painless.  The second construction is used
      * to finalize all the variables, so there is no mistake of modification afterwards.
      */
-    static Definition INSTANCE = new Definition(new Definition());
+    public static final Definition INSTANCE = new Definition(new Definition());
+    
+    /** Some native types as constants: */
+    public static final Type booleanType = INSTANCE.getType("boolean");
+    public static final Type objectType = INSTANCE.getType("Object");
+    public static final Type defType = INSTANCE.getType("def");
+    public static final Type booleanobjType = INSTANCE.getType("Boolean");
+    public static final Type byteType = INSTANCE.getType("byte");
+    public static final Type shortType = INSTANCE.getType("short");
+    public static final Type intType = INSTANCE.getType("int");
+    public static final Type charType = INSTANCE.getType("char");
+    public static final Type longType = INSTANCE.getType("long");
+    public static final Type floatType = INSTANCE.getType("float");
+    public static final Type doubleType = INSTANCE.getType("double");
+    public static final Type numberType = INSTANCE.getType("Number");
+    public static final Type byteobjType = INSTANCE.getType("Byte");
+    public static final Type shortobjType = INSTANCE.getType("Short");
+    public static final Type charobjType = INSTANCE.getType("Character");
+    public static final Type intobjType = INSTANCE.getType("Integer");
+    public static final Type longobjType = INSTANCE.getType("Long");
+    public static final Type floatobjType = INSTANCE.getType("Float");
+    public static final Type doubleobjType = INSTANCE.getType("Double");
+    public static final Type stringType = INSTANCE.getType("String");
+    public static final Type exceptionType = INSTANCE.getType("Exception");
+    public static final Type voidType = INSTANCE.getType("void");
 
     public enum Sort {
         VOID(       void.class      , 0 , true  , false , false , false ),
@@ -411,7 +437,7 @@ public final class Definition {
         final Map<String,List<String>> hierarchy = new HashMap<>();
         int currentLine = -1;
         try {
-            try (InputStream stream = Definition.class.getResourceAsStream("definition.txt");
+            try (InputStream stream = Definition.class.getResourceAsStream(DEFINITION_FILE);
                     LineNumberReader reader = new LineNumberReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
                 String line = null;
                 while ((line = reader.readLine()) != null) {
@@ -477,7 +503,7 @@ public final class Definition {
     private void addElements() {
         int currentLine = -1;
         try {
-            try (InputStream stream = Definition.class.getResourceAsStream("definition.txt");
+            try (InputStream stream = Definition.class.getResourceAsStream(DEFINITION_FILE);
                  LineNumberReader reader = new LineNumberReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
                 String line = null;
                 String currentClass = null;

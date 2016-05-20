@@ -284,7 +284,7 @@ public final class EBinary extends AExpression {
         }
 
         left.expected = promote;
-        right.expected = definition.getType("int");
+        right.expected = Definition.intType;
         right.explicit = true;
 
         left = left.cast(settings, definition, variables);
@@ -317,7 +317,7 @@ public final class EBinary extends AExpression {
         }
 
         left.expected = promote;
-        right.expected = definition.getType("int");
+        right.expected = Definition.intType;
         right.explicit = true;
 
         left = left.cast(settings, definition, variables);
@@ -350,7 +350,7 @@ public final class EBinary extends AExpression {
         }
 
         left.expected = promote;
-        right.expected = definition.getType("int");
+        right.expected = Definition.intType;
         right.explicit = true;
 
         left = left.cast(settings, definition, variables);

@@ -40,23 +40,23 @@ final class EConstant extends AExpression {
     @Override
     void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (constant instanceof String) {
-            actual = definition.getType("String");
+            actual = Definition.stringType;
         } else if (constant instanceof Double) {
-            actual = definition.getType("double");
+            actual = Definition.doubleType;
         } else if (constant instanceof Float) {
-            actual = definition.getType("float");
+            actual = Definition.floatType;
         } else if (constant instanceof Long) {
-            actual = definition.getType("long");
+            actual = Definition.longType;
         } else if (constant instanceof Integer) {
-            actual = definition.getType("int");
+            actual = Definition.intType;
         } else if (constant instanceof Character) {
-            actual = definition.getType("char");
+            actual = Definition.charType;
         } else if (constant instanceof Short) {
-            actual = definition.getType("short");
+            actual = Definition.shortType;
         } else if (constant instanceof Byte) {
-            actual = definition.getType("byte");
+            actual = Definition.byteType;
         } else if (constant instanceof Boolean) {
-            actual = definition.getType("boolean");
+            actual = Definition.booleanType;
         } else {
             throw new IllegalStateException(error("Illegal tree structure."));
         }

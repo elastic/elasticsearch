@@ -45,7 +45,7 @@ public final class ENull extends AExpression {
 
             actual = expected;
         } else {
-            actual = definition.getType("Object");
+            actual = Definition.objectType;
         }
     }
 

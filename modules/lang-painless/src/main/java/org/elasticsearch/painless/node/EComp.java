@@ -119,7 +119,7 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = definition.getType("boolean");
+        actual = Definition.booleanType;
     }
 
     private void analyzeEqR(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -161,7 +161,7 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = definition.getType("boolean");
+        actual = Definition.booleanType;
     }
 
     private void analyzeNE(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -207,7 +207,7 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = definition.getType("boolean");
+        actual = Definition.booleanType;
     }
 
     private void analyzeNER(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -249,7 +249,7 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = definition.getType("boolean");
+        actual = Definition.booleanType;
     }
 
     private void analyzeGTE(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -285,7 +285,7 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = definition.getType("boolean");
+        actual = Definition.booleanType;
     }
 
     private void analyzeGT(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -321,7 +321,7 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = definition.getType("boolean");
+        actual = Definition.booleanType;
     }
 
     private void analyzeLTE(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -357,7 +357,7 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = definition.getType("boolean");
+        actual = Definition.booleanType;
     }
 
     private void analyzeLT(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -393,7 +393,7 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = definition.getType("boolean");
+        actual = Definition.booleanType;
     }
 
     @Override

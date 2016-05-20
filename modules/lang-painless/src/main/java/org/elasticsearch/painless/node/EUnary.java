@@ -63,7 +63,7 @@ public final class EUnary extends AExpression {
     }
 
     void analyzeNot(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        child.expected = definition.getType("boolean");
+        child.expected = Definition.booleanType;
         child.analyze(settings, definition, variables);
         child = child.cast(settings, definition, variables);
 
@@ -71,7 +71,7 @@ public final class EUnary extends AExpression {
             constant = !(boolean)child.constant;
         }
 
-        actual = definition.getType("boolean");
+        actual = Definition.booleanType;
     }
 
     void analyzeBWNot(final CompilerSettings settings, final Definition definition, final Variables variables) {

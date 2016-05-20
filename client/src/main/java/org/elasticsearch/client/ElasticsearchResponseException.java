@@ -19,41 +19,37 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.HttpHost;
-import org.apache.http.RequestLine;
-import org.apache.http.StatusLine;
-import org.apache.http.util.EntityUtils;
-
 import java.io.IOException;
 
 /**
- * Exception thrown when an elasticsearch node responds to a request with a status code that indicates an error
+ * Exception thrown when an elasticsearch node responds to a request with a status code that indicates an error.
+ * Note that the response body gets passed in as a string and read eagerly, which means that the ElasticsearchResponse object
+ * is expected to be closed and available only to read metadata like status line, request line, response headers.
  */
 public class ElasticsearchResponseException extends IOException {
 
     private ElasticsearchResponse elasticsearchResponse;
     private final String responseBody;
 
-    public ElasticsearchResponseException(ElasticsearchResponse elasticsearchResponse) throws IOException {
-        super(buildMessage(elasticsearchResponse.getRequestLine(), elasticsearchResponse.getHost(), elasticsearchResponse.getStatusLine()));
+    public ElasticsearchResponseException(ElasticsearchResponse elasticsearchResponse, String responseBody) throws IOException {
+        super(buildMessage(elasticsearchResponse,responseBody));
         this.elasticsearchResponse = elasticsearchResponse;
-        try {
-            if (elasticsearchResponse.getEntity() == null) {
-                this.responseBody = null;
-            } else {
-                this.responseBody = EntityUtils.toString(elasticsearchResponse.getEntity());
-            }
-        } finally {
-            elasticsearchResponse.close();
-        }
+        this.responseBody = responseBody;
     }
 
-    private static String buildMessage(RequestLine requestLine, HttpHost host, StatusLine statusLine) {
-        return requestLine.getMethod() + " " + host + requestLine.getUri() + ": " + statusLine.toString();
+    private static String buildMessage(ElasticsearchResponse response, String responseBody) {
+        String message = response.getRequestLine().getMethod() + " " + response.getHost() + response.getRequestLine().getUri()
+                + ": " + response.getStatusLine().toString();
+        if (responseBody != null) {
+            message += "\n" + responseBody;
+        }
+        return message;
     }
 
     /**
-     * Returns the {@link ElasticsearchResponse} that caused this exception to be thrown
+     * Returns the {@link ElasticsearchResponse} that caused this exception to be thrown.
+     * Expected to be used only to read metadata like status line, request line, response headers. The response body should
+     * be retrieved using {@link #getResponseBody()}
      */
     public ElasticsearchResponse getElasticsearchResponse() {
         return elasticsearchResponse;

@@ -37,6 +37,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.http.util.EntityUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -127,7 +128,18 @@ public final class RestClient implements Closeable {
                 return elasticsearchResponse;
             } else {
                 RequestLogger.log(logger, "request failed", request, connection.getHost(), response);
-                ElasticsearchResponseException elasticsearchResponseException = new ElasticsearchResponseException(elasticsearchResponse);
+                String responseBody;
+                try {
+                    if (elasticsearchResponse.getEntity() == null) {
+                        responseBody = null;
+                    } else {
+                        responseBody = EntityUtils.toString(elasticsearchResponse.getEntity());
+                    }
+                } finally {
+                    elasticsearchResponse.close();
+                }
+                ElasticsearchResponseException elasticsearchResponseException = new ElasticsearchResponseException(
+                        elasticsearchResponse, responseBody);
                 lastSeenException = addSuppressedException(lastSeenException, elasticsearchResponseException);
                 //clients don't retry on 500 because elasticsearch still misuses it instead of 400 in some places
                 if (statusCode == 502 || statusCode == 503 || statusCode == 504) {

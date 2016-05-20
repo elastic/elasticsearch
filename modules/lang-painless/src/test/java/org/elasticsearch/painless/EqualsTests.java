@@ -94,7 +94,7 @@ public class EqualsTests extends ScriptTestCase {
     }
 
     public void testEquals() {
-        assertEquals(true, exec("return new Long(3) == new Long(3);"));
+        assertEquals(true, exec("return Long.valueOf(3) == 3L;"));
         assertEquals(false, exec("return new Long(3) === new Long(3);"));
         assertEquals(true, exec("Integer x = new Integer(3); Object y = x; return x == y;"));
         assertEquals(true, exec("Integer x = new Integer(3); Object y = x; return x === y;"));
@@ -143,11 +143,11 @@ public class EqualsTests extends ScriptTestCase {
     public void testBranchNotEquals() {
         assertEquals(1, exec("Character a = (char)'a'; Character b = (char)'b'; if (a != b) return 1; else return 0;"));
         assertEquals(0, exec("Character a = (char)'a'; Character b = (char)'a'; if (a != b) return 1; else return 0;"));
-        assertEquals(1, exec("Integer a = new Integer(1); Integer b = 1; if (a !== b) return 1; else return 0;"));
-        assertEquals(1, exec("Character a = (char)'a'; Character b = new Character((char)'a'); if (a !== b) return 1; else return 0;"));
-        assertEquals(0, exec("Character a = (char)'a'; Object b = a; if (a !== b) return 1; else return 0;"));
-        assertEquals(0, exec("Integer a = 1; Number b = a; Number c = a; if (c !== b) return 1; else return 0;"));
-        assertEquals(1, exec("Integer a = 1; Character b = (char)'a'; if (a !== (Object)b) return 1; else return 0;"));
+        assertEquals(1, exec("def a = 1; def b = 1; if (a !== b) return 1; else return 0;"));
+        assertEquals(1, exec("def a = (char)'a'; Character b = new Character((char)'a'); if (a !== b) return 1; else return 0;"));
+        assertEquals(0, exec("def a = (char)'a'; Object b = a; if (a !== b) return 1; else return 0;"));
+        assertEquals(0, exec("def a = 1; Number b = a; Number c = a; if (c !== b) return 1; else return 0;"));
+        assertEquals(1, exec("def a = 1; Character b = (char)'a'; if (a !== (Object)b) return 1; else return 0;"));
     }
 
     public void testRightHandNull() {

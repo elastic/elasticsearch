@@ -64,6 +64,7 @@ public final class LCall extends ALink {
                 final AExpression expression = arguments.get(argument);
 
                 expression.expected = method.arguments.get(argument);
+                expression.internal = true;
                 expression.analyze(settings, definition, variables);
                 arguments.set(argument, expression.cast(settings, definition, variables));
             }
@@ -79,7 +80,7 @@ public final class LCall extends ALink {
             return link.analyze(settings, definition, variables);
         }
 
-        throw new IllegalArgumentException(error("Unknown call [" + name + "] with [" + arguments.size() + 
+        throw new IllegalArgumentException(error("Unknown call [" + name + "] with [" + arguments.size() +
                                                  "] arguments on type [" + struct.name + "]."));
     }
 

@@ -308,50 +308,32 @@ public final class Definition {
         public final Type from;
         public final Type to;
         public final boolean explicit;
+        public final boolean unboxFrom;
+        public final boolean unboxTo;
+        public final boolean boxFrom;
+        public final boolean boxTo;
 
         public Cast(final Type from, final Type to, final boolean explicit) {
             this.from = from;
             this.to = to;
             this.explicit = explicit;
+            this.unboxFrom = false;
+            this.unboxTo = false;
+            this.boxFrom = false;
+            this.boxTo = false;
         }
 
-        @Override
-        public boolean equals(final Object object) {
-            if (this == object) {
-                return true;
-            }
-
-            if (object == null || getClass() != object.getClass()) {
-                return false;
-            }
-
-            final Cast cast = (Cast)object;
-
-            return from.equals(cast.from) && to.equals(cast.to) && explicit == cast.explicit;
+        public Cast(final Type from, final Type to, final boolean explicit,
+                    final boolean unboxFrom, final boolean unboxTo, final boolean boxFrom, final boolean boxTo) {
+            this.from = from;
+            this.to = to;
+            this.explicit = explicit;
+            this.unboxFrom = unboxFrom;
+            this.unboxTo = unboxTo;
+            this.boxFrom = boxFrom;
+            this.boxTo = boxTo;
         }
 
-        @Override
-        public int hashCode() {
-            int result = from.hashCode();
-            result = 31 * result + to.hashCode();
-            result = 31 * result + (explicit ? 1 : 0);
-
-            return result;
-        }
-    }
-
-    public static final class Transform extends Cast {
-        public final Method method;
-        public final Type upcast;
-        public final Type downcast;
-
-        public Transform(final Cast cast, Method method, final Type upcast, final Type downcast) {
-            super(cast.from, cast.to, cast.explicit);
-
-            this.method = method;
-            this.upcast = upcast;
-            this.downcast = downcast;
-        }
     }
 
     public static final class RuntimeClass {
@@ -367,7 +349,6 @@ public final class Definition {
         }
     }
 
-    final Map<Cast, Cast> transformsMap;
     final Map<Class<?>, RuntimeClass> runtimeMap;
     private final Map<String, Struct> structsMap;
     private final Map<String, Type> simpleTypesMap;
@@ -375,7 +356,6 @@ public final class Definition {
     private Definition() {
         structsMap = new HashMap<>();
         simpleTypesMap = new HashMap<>();
-        transformsMap = new HashMap<>();
         runtimeMap = new HashMap<>();
 
         // parse the classes and return hierarchy (map of class name -> superclasses/interfaces)
@@ -386,7 +366,6 @@ public final class Definition {
         for (Map.Entry<String,List<String>> clazz : hierarchy.entrySet()) {
             copyStruct(clazz.getKey(), clazz.getValue());
         }
-        addTransforms();
         // precompute runtime classes
         for (Struct struct : structsMap.values()) {
           addRuntimeClass(struct);
@@ -401,7 +380,6 @@ public final class Definition {
         }
 
         this.structsMap = Collections.unmodifiableMap(structs);
-        this.transformsMap = Collections.unmodifiableMap(definition.transformsMap);
         this.runtimeMap = Collections.unmodifiableMap(definition.runtimeMap);
         this.simpleTypesMap = Collections.unmodifiableMap(definition.simpleTypesMap);
     }
@@ -501,130 +479,6 @@ public final class Definition {
         } catch (Exception e) {
             throw new RuntimeException("syntax error in definition line: " + currentLine, e);
         }
-    }
-
-    private void addTransforms() {
-        Type booleanType = getType("boolean");
-        Type objectType = getType("Object");
-        Type defType = getType("def");
-        Type booleanobjType = getType("Boolean");
-        Type byteType = getType("byte");
-        Type shortType = getType("short");
-        Type intType = getType("int");
-        Type charType = getType("char");
-        Type longType = getType("long");
-        Type floatType = getType("float");
-        Type doubleType = getType("double");
-        Type numberType = getType("Number");
-        Type byteobjType = getType("Byte");
-        Type shortobjType = getType("Short");
-        Type charobjType = getType("Character");
-        Type intobjType = getType("Integer");
-        Type longobjType = getType("Long");
-        Type floatobjType = getType("Float");
-        Type doubleobjType = getType("Double");
-        Type stringType = getType("String");
-
-        addTransform(booleanType, objectType, "Boolean", "valueOf", true, false);
-        addTransform(booleanType, defType, "Boolean", "valueOf", true, false);
-        addTransform(booleanType, booleanobjType, "Boolean", "valueOf", true, false);
-
-        addTransform(byteType, shortType, false);
-        addTransform(byteType, charType, true);
-        addTransform(byteType, intType, false);
-        addTransform(byteType, longType, false);
-        addTransform(byteType, floatType, false);
-        addTransform(byteType, doubleType, false);
-        addTransform(byteType, objectType, "Byte", "valueOf", true, false);
-        addTransform(byteType, defType, "Byte", "valueOf", true, false);
-        addTransform(byteType, numberType, "Byte", "valueOf", true, false);
-        addTransform(byteType, byteobjType, "Byte", "valueOf", true, false);
-
-        addTransform(shortType, byteType, true);
-        addTransform(shortType, charType, true);
-        addTransform(shortType, intType, false);
-        addTransform(shortType, longType, false);
-        addTransform(shortType, floatType, false);
-        addTransform(shortType, doubleType, false);
-        addTransform(shortType, objectType, "Short", "valueOf", true, false);
-        addTransform(shortType, defType, "Short", "valueOf", true, false);
-        addTransform(shortType, numberType, "Short", "valueOf", true, false);
-        addTransform(shortType, shortobjType, "Short", "valueOf", true, false);
-
-        addTransform(charType, byteType, true);
-        addTransform(charType, shortType, true);
-        addTransform(charType, intType, false);
-        addTransform(charType, longType, false);
-        addTransform(charType, floatType, false);
-        addTransform(charType, doubleType, false);
-        addTransform(charType, objectType, "Character", "valueOf", true, false);
-        addTransform(charType, defType, "Character", "valueOf", true, false);
-        addTransform(charType, numberType, "Utility", "charToInteger", true, false);
-        addTransform(charType, charobjType, "Character", "valueOf", true, false);
-        addTransform(charType, stringType, "Utility", "charToString", true, true);
-
-        addTransform(intType, byteType, true);
-        addTransform(intType, shortType, true);
-        addTransform(intType, charType, true);
-        addTransform(intType, longType, false);
-        addTransform(intType, floatType, false);
-        addTransform(intType, doubleType, false);
-        addTransform(intType, objectType, "Integer", "valueOf", true, false);
-        addTransform(intType, defType, "Integer", "valueOf", true, false);
-        addTransform(intType, numberType, "Integer", "valueOf", true, false);
-        addTransform(intType, intobjType, "Integer", "valueOf", true, false);
-
-        addTransform(longType, byteType, true);
-        addTransform(longType, shortType, true);
-        addTransform(longType, charType, true);
-        addTransform(longType, intType, false);
-        addTransform(longType, floatType, false);
-        addTransform(longType, doubleType, false);
-        addTransform(longType, objectType, "Long", "valueOf", true, false);
-        addTransform(longType, defType, "Long", "valueOf", true, false);
-        addTransform(longType, numberType, "Long", "valueOf", true, false);
-        addTransform(longType, longobjType, "Long", "valueOf", true, false);
-
-        addTransform(floatType, byteType, true);
-        addTransform(floatType, shortType, true);
-        addTransform(floatType, charType, true);
-        addTransform(floatType, intType, true);
-        addTransform(floatType, longType, false);
-        addTransform(floatType, doubleType, false);
-        addTransform(floatType, objectType, "Float", "valueOf", true, false);
-        addTransform(floatType, defType, "Float", "valueOf", true, false);
-        addTransform(floatType, numberType, "Float", "valueOf", true, false);
-        addTransform(floatType, floatobjType, "Float", "valueOf", true, false);
-
-        addTransform(doubleType, byteType, true);
-        addTransform(doubleType, shortType, true);
-        addTransform(doubleType, charType, true);
-        addTransform(doubleType, intType, true);
-        addTransform(doubleType, longType, true);
-        addTransform(doubleType, floatType, false);
-        addTransform(doubleType, objectType, "Double", "valueOf", true, false);
-        addTransform(doubleType, defType, "Double", "valueOf", true, false);
-        addTransform(doubleType, numberType, "Double", "valueOf", true, false);
-        addTransform(doubleType, doubleobjType, "Double", "valueOf", true, false);
-
-        addTransform(defType, booleanType, "Boolean", "booleanValue", false, false);
-        addTransform(defType, byteType, "Def", "DefTobyteImplicit", true, false);
-        addTransform(defType, shortType, "Def", "DefToshortImplicit", true, false);
-        addTransform(defType, charType, "Def", "DefTocharImplicit", true, false);
-        addTransform(defType, intType, "Def", "DefTointImplicit", true, false);
-        addTransform(defType, longType, "Def", "DefTolongImplicit", true, false);
-        addTransform(defType, floatType, "Def", "DefTofloatImplicit", true, false);
-        addTransform(defType, doubleType, "Def", "DefTodoubleImplicit", true, false);
-        addTransform(defType, byteType, "Def", "DefTobyteExplicit", true, true);
-        addTransform(defType, shortType, "Def", "DefToshortExplicit", true, true);
-        addTransform(defType, charType, "Def", "DefTocharExplicit", true, true);
-        addTransform(defType, intType, "Def", "DefTointExplicit", true, true);
-        addTransform(defType, longType, "Def", "DefTolongExplicit", true, true);
-        addTransform(defType, floatType, "Def", "DefTofloatExplicit", true, true);
-        addTransform(defType, doubleType, "Def", "DefTodoubleExplicit", true, true);
-
-        addTransform(stringType, charType, "Utility", "StringTochar", true, true);
-        addTransform(stringType, charobjType, "Utility", "StringToCharacter", true, true);
     }
 
     private final void addStruct(final String name, final Class<?> clazz) {
@@ -958,137 +812,6 @@ public final class Definition {
                 }
             }
         }
-    }
-
-    private final void addTransform(final Type from, final Type to, final boolean explicit) {
-        if (from.equals(to)) {
-            throw new IllegalArgumentException("Transform cannot" +
-                " have cast type from [" + from.name + "] be the same as cast type to [" + to.name + "].");
-        }
-
-        if (!from.sort.primitive || !to.sort.primitive) {
-            throw new IllegalArgumentException("Only transforms between two primitives may be a simple cast, but" +
-                "found [" + from.name + "] and [" + to.name + "].");
-        }
-
-        final Cast cast = new Cast(from, to, explicit);
-
-        if (transformsMap.containsKey(cast)) {
-            throw new IllegalArgumentException("Transform with " +
-                " cast type from [" + from.name + "] to cast type to [" + to.name + "] already defined.");
-        }
-
-        transformsMap.put(cast, cast);
-    }
-
-    private final void addTransform(final Type from, final Type to, final String struct,
-                                   final String name, final boolean statik, final boolean explicit) {
-        final Struct owner = structsMap.get(struct);
-
-        if (owner == null) {
-            throw new IllegalArgumentException("Owner struct [" + struct + "] not defined for" +
-                " transform with cast type from [" + from.name + "] and cast type to [" + to.name + "].");
-        }
-
-        if (from.equals(to)) {
-            throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "] cannot" +
-                " have cast type from [" + from.name + "] be the same as cast type to [" + to.name + "].");
-        }
-
-        final Cast cast = new Cast(from, to, explicit);
-
-        if (transformsMap.containsKey(cast)) {
-            throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
-                " and cast type from [" + from.name + "] to cast type to [" + to.name + "] already defined.");
-        }
-
-        final Cast transform;
-
-        final Method method;
-        Type upcast = null;
-        Type downcast = null;
-
-        // transforms are implicitly arity of 0, unless a static method where its 1 (receiver passed)
-        final MethodKey methodKey = new MethodKey(name, statik ? 1 : 0);
-
-        if (statik) {
-            method = owner.staticMethods.get(methodKey);
-
-            if (method == null) {
-                throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
-                    " and cast type from [" + from.name + "] to cast type to [" + to.name +
-                    "] using a function [" + name + "] that is not defined.");
-            }
-
-            if (method.arguments.size() != 1) {
-                throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
-                    " and cast type from [" + from.name + "] to cast type to [" + to.name +
-                    "] using function [" + name + "] does not have a single type argument.");
-            }
-
-            Type argument = method.arguments.get(0);
-
-            if (!argument.clazz.isAssignableFrom(from.clazz)) {
-                if (from.clazz.isAssignableFrom(argument.clazz)) {
-                    upcast = argument;
-                } else {
-                    throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
-                        " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
-                        " function [" + name + "] cannot cast from type to the function input argument type.");
-                }
-            }
-
-            final Type rtn = method.rtn;
-
-            if (!to.clazz.isAssignableFrom(rtn.clazz)) {
-                if (rtn.clazz.isAssignableFrom(to.clazz)) {
-                    downcast = to;
-                } else {
-                    throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
-                        " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
-                        " function [" + name + "] cannot cast to type to the function return argument type.");
-                }
-            }
-        } else {
-            method = owner.methods.get(methodKey);
-
-            if (method == null) {
-                throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
-                    " and cast type from [" + from.name + "] to cast type to [" + to.name +
-                    "] using a method [" + name + "] that is not defined.");
-            }
-
-            if (!method.arguments.isEmpty()) {
-                throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
-                    " and cast type from [" + from.name + "] to cast type to [" + to.name +
-                    "] using method [" + name + "] does not have a single type argument.");
-            }
-
-            if (!owner.clazz.isAssignableFrom(from.clazz)) {
-                if (from.clazz.isAssignableFrom(owner.clazz)) {
-                    upcast = getType(owner.name);
-                } else {
-                    throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
-                        " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
-                        " method [" + name + "] cannot cast from type to the method input argument type.");
-                }
-            }
-
-            final Type rtn = method.rtn;
-
-            if (!to.clazz.isAssignableFrom(rtn.clazz)) {
-                if (rtn.clazz.isAssignableFrom(to.clazz)) {
-                    downcast = to;
-                } else {
-                    throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
-                        " and cast type from [" + from.name + "] to cast type to [" + to.name + "]" +
-                        " using method [" + name + "] cannot cast to type to the method return argument type.");
-                }
-            }
-        }
-
-        transform = new Transform(cast, method, upcast, downcast);
-        transformsMap.put(cast, transform);
     }
 
     /**

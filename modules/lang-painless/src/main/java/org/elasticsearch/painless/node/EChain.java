@@ -207,8 +207,8 @@ public final class EChain extends AExpression {
 
         expression = expression.cast(settings, definition, variables);
 
-        there = AnalyzerCaster.getLegalCast(definition, location, last.after, promote, false);
-        back = AnalyzerCaster.getLegalCast(definition, location, promote, last.after, true);
+        there = AnalyzerCaster.getLegalCast(definition, location, last.after, promote, false, false);
+        back = AnalyzerCaster.getLegalCast(definition, location, promote, last.after, true, false);
 
         this.statement = true;
         this.actual = read ? last.after : definition.getType("void");
@@ -289,7 +289,7 @@ public final class EChain extends AExpression {
 
                     adapter.writeCast(there);
                     expression.write(settings, definition, adapter);
-                    adapter.writeBinaryInstruction(definition, location, promote, operation);
+                    adapter.writeBinaryInstruction(location, promote, operation);
 
                     adapter.writeCast(back);
 

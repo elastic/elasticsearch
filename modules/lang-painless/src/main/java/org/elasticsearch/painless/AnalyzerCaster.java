@@ -20,12 +20,8 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Definition.Transform;
 import org.elasticsearch.painless.Definition.Type;
-
-import java.lang.reflect.InvocationTargetException;
 
 /**
  * Used during the analysis phase to collect legal type casts and promotions
@@ -33,85 +29,668 @@ import java.lang.reflect.InvocationTargetException;
  */
 public final class AnalyzerCaster {
 
-    public static Cast getLegalCast(final Definition definition,
-                                    final String location, final Type actual, final Type expected, final boolean explicit) {
-        final Cast cast = new Cast(actual, expected, explicit);
-
+    public static Cast getLegalCast(final Definition definition, final String location, final Type actual,
+                                    final Type expected, final boolean explicit, final boolean internal) {
         if (actual.equals(expected)) {
             return null;
         }
 
-        Cast transform = definition.transformsMap.get(cast);
+        switch (actual.sort) {
+            case BOOL:
+                switch (expected.sort) {
+                    case DEF:
+                        return new Cast(actual, definition.getType("def"), explicit, false, false, true, false);
+                    case OBJECT:
+                    case BOOL_OBJ:
+                        if (internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+                }
 
-        if (transform == null && explicit) {
-            transform = definition.transformsMap.get(new Cast(actual, expected, false));
-        }
+                break;
+            case BYTE:
+                switch (expected.sort) {
+                    case SHORT:
+                    case INT:
+                    case LONG:
+                    case FLOAT:
+                    case DOUBLE:
+                        return new Cast(actual, expected, explicit);
+                    case CHAR:
+                        if (explicit)
+                            return new Cast(actual, expected, true);
 
-        if (transform != null) {
-            return transform;
+                        break;
+                    case DEF:
+                        return new Cast(actual, definition.getType("def"), explicit, false, false, true, false);
+                    case OBJECT:
+                    case NUMBER:
+                    case BYTE_OBJ:
+                        if (internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
+                    case SHORT_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("short"), explicit, false, false, false, true);
+
+                        break;
+                    case INT_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("int"), explicit, false, false, false, true);
+
+                        break;
+                    case LONG_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("long"), explicit, false, false, false, true);
+
+                        break;
+                    case FLOAT_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("float"), explicit, false, false, false, true);
+
+                        break;
+                    case DOUBLE_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("double"), explicit, false, false, false, true);
+
+                        break;
+                    case CHAR_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("char"), explicit, false, false, false, true);
+
+                        break;
+                }
+
+                break;
+            case SHORT:
+                switch (expected.sort) {
+                    case INT:
+                    case LONG:
+                    case FLOAT:
+                    case DOUBLE:
+                        return new Cast(actual, expected, explicit);
+                    case BYTE:
+                    case CHAR:
+                        if (explicit)
+                            return new Cast(actual, expected, true);
+
+                        break;
+                    case DEF:
+                        return new Cast(actual, definition.getType("def"), explicit, false, false, true, false);
+                    case OBJECT:
+                    case NUMBER:
+                    case SHORT_OBJ:
+                        if (internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
+                    case INT_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("int"), explicit, false, false, false, true);
+
+                        break;
+                    case LONG_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("long"), explicit, false, false, false, true);
+
+                        break;
+                    case FLOAT_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("float"), explicit, false, false, false, true);
+
+                        break;
+                    case DOUBLE_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("double"), explicit, false, false, false, true);
+
+                        break;
+                    case BYTE_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("byte"), true, false, false, false, true);
+
+                        break;
+                    case CHAR_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("char"), true, false, false, false, true);
+
+                        break;
+                }
+
+                break;
+            case CHAR:
+                switch (expected.sort) {
+                    case INT:
+                    case LONG:
+                    case FLOAT:
+                    case DOUBLE:
+                        return new Cast(actual, expected, explicit);
+                    case BYTE:
+                    case SHORT:
+                        if (explicit)
+                            return new Cast(actual, expected, true);
+
+                        break;
+                    case DEF:
+                        return new Cast(actual, definition.getType("def"), explicit, false, false, true, false);
+                    case OBJECT:
+                    case NUMBER:
+                    case CHAR_OBJ:
+                        if (internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
+                    case STRING:
+                        return new Cast(actual, definition.getType("String"), explicit, false, false, false, false);
+                    case INT_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("int"), explicit, false, false, false, true);
+
+                        break;
+                    case LONG_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("long"), explicit, false, false, false, true);
+
+                        break;
+                    case FLOAT_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("float"), explicit, false, false, false, true);
+
+                        break;
+                    case DOUBLE_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("double"), explicit, false, false, false, true);
+
+                        break;
+                    case BYTE_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("byte"), true, false, false, false, true);
+
+                        break;
+                    case SHORT_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("short"), true, false, false, false, true);
+
+                        break;
+                }
+
+                break;
+            case INT:
+                switch (expected.sort) {
+                    case LONG:
+                    case FLOAT:
+                    case DOUBLE:
+                        return new Cast(actual, expected, explicit);
+                    case BYTE:
+                    case SHORT:
+                    case CHAR:
+                        if (explicit)
+                            return new Cast(actual, expected, true);
+
+                        break;
+                    case DEF:
+                        return new Cast(actual, definition.getType("def"), explicit, false, false, true, false);
+                    case OBJECT:
+                    case NUMBER:
+                    case INT_OBJ:
+                        if (internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
+                    case LONG_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("long"), explicit, false, false, false, true);
+
+                        break;
+                    case FLOAT_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("float"), explicit, false, false, false, true);
+
+                        break;
+                    case DOUBLE_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("double"), explicit, false, false, false, true);
+
+                        break;
+                    case BYTE_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("byte"), true, false, false, false, true);
+
+                        break;
+                    case SHORT_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("short"), true, false, false, false, true);
+
+                        break;
+                    case CHAR_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("char"), true, false, false, false, true);
+
+                        break;
+                }
+
+                break;
+            case LONG:
+                switch (expected.sort) {
+                    case FLOAT:
+                    case DOUBLE:
+                        return new Cast(actual, expected, explicit);
+                    case BYTE:
+                    case SHORT:
+                    case CHAR:
+                    case INT:
+                        if (explicit)
+                            return new Cast(actual, expected, true);
+
+                        break;
+                    case DEF:
+                        return new Cast(actual, definition.getType("def"), explicit, false, false, true, false);
+                    case OBJECT:
+                    case NUMBER:
+                    case LONG_OBJ:
+                        if (internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
+                    case FLOAT_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("float"), explicit, false, false, false, true);
+
+                        break;
+                    case DOUBLE_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("double"), explicit, false, false, false, true);
+
+                        break;
+                    case BYTE_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("byte"), true, false, false, false, true);
+
+                        break;
+                    case SHORT_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("short"), true, false, false, false, true);
+
+                        break;
+                    case CHAR_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("char"), true, false, false, false, true);
+
+                        break;
+                    case INT_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("int"), true, false, false, false, true);
+
+                        break;
+                }
+
+                break;
+            case FLOAT:
+                switch (expected.sort) {
+                    case DOUBLE:
+                        return new Cast(actual, expected, explicit);
+                    case BYTE:
+                    case SHORT:
+                    case CHAR:
+                    case INT:
+                    case FLOAT:
+                        if (explicit)
+                            return new Cast(actual, expected, true);
+
+                        break;
+                    case DEF:
+                        return new Cast(actual, definition.getType("def"), explicit, false, false, true, false);
+                    case OBJECT:
+                    case NUMBER:
+                    case FLOAT_OBJ:
+                        if (internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
+                    case DOUBLE_OBJ:
+                        if (internal)
+                            return new Cast(actual, definition.getType("double"), explicit, false, false, false, true);
+
+                        break;
+                    case BYTE_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("byte"), true, false, false, false, true);
+
+                        break;
+                    case SHORT_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("short"), true, false, false, false, true);
+
+                        break;
+                    case CHAR_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("char"), true, false, false, false, true);
+
+                        break;
+                    case INT_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("int"), true, false, false, false, true);
+
+                        break;
+                    case LONG_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("long"), true, false, false, false, true);
+
+                        break;
+                }
+
+                break;
+            case DOUBLE:
+                switch (expected.sort) {
+                    case BYTE:
+                    case SHORT:
+                    case CHAR:
+                    case INT:
+                    case FLOAT:
+                        if (explicit)
+                            return new Cast(actual, expected, true);
+
+                        break;
+                    case DEF:
+                        return new Cast(actual, definition.getType("def"), explicit, false, false, true, false);
+                    case OBJECT:
+                    case NUMBER:
+                    case DOUBLE_OBJ:
+                        if (internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
+                    case BYTE_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("byte"), true, false, false, false, true);
+
+                        break;
+                    case SHORT_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("short"), true, false, false, false, true);
+
+                        break;
+                    case CHAR_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("char"), true, false, false, false, true);
+
+                        break;
+                    case INT_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("int"), true, false, false, false, true);
+
+                        break;
+                    case LONG_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("long"), true, false, false, false, true);
+
+                        break;
+                    case FLOAT_OBJ:
+                        if (explicit && internal)
+                            return new Cast(actual, definition.getType("float"), true, false, false, false, true);
+
+                        break;
+                }
+
+                break;
+            case OBJECT:
+            case NUMBER:
+                switch (expected.sort) {
+                    case BYTE:
+                        if (internal && explicit)
+                            return new Cast(actual, definition.getType("Byte"), true, false, true, false, false);
+
+                        break;
+                    case SHORT:
+                        if (internal && explicit)
+                            return new Cast(actual, definition.getType("Short"), true, false, true, false, false);
+
+                        break;
+                    case CHAR:
+                        if (internal && explicit)
+                            return new Cast(actual, definition.getType("Character"), true, false, true, false, false);
+
+                        break;
+                    case INT:
+                        if (internal && explicit)
+                            return new Cast(actual, definition.getType("Integer"), true, false, true, false, false);
+
+                        break;
+                    case LONG:
+                        if (internal && explicit)
+                            return new Cast(actual, definition.getType("Long"), true, false, true, false, false);
+
+                        break;
+                    case FLOAT:
+                        if (internal && explicit)
+                            return new Cast(actual, definition.getType("Float"), true, false, true, false, false);
+
+                        break;
+                    case DOUBLE:
+                        if (internal && explicit)
+                            return new Cast(actual, definition.getType("Double"), true, false, true, false, false);
+
+                        break;
+                }
+
+                break;
+            case BOOL_OBJ:
+                switch (expected.sort) {
+                    case BOOL:
+                        if (internal)
+                            return new Cast(actual, expected, explicit, true, false, false, false);
+
+                        break;
+                }
+
+                break;
+            case BYTE_OBJ:
+                switch (expected.sort) {
+                    case BYTE:
+                    case SHORT:
+                    case INT:
+                    case LONG:
+                    case FLOAT:
+                    case DOUBLE:
+                        if (internal)
+                            return new Cast(actual, expected, explicit, true, false, false, false);
+
+                        break;
+                    case CHAR:
+                        if (internal && explicit)
+                            return new Cast(actual, expected, true, true, false, false, false);
+
+                        break;
+                }
+
+                break;
+            case SHORT_OBJ:
+                switch (expected.sort) {
+                    case SHORT:
+                    case INT:
+                    case LONG:
+                    case FLOAT:
+                    case DOUBLE:
+                        if (internal)
+                            return new Cast(actual, expected, explicit, true, false, false, false);
+
+                        break;
+                    case BYTE:
+                    case CHAR:
+                        if (internal && explicit)
+                            return new Cast(actual, expected, true, true, false, false, false);
+
+                        break;
+                }
+
+                break;
+            case CHAR_OBJ:
+                switch (expected.sort) {
+                    case CHAR:
+                    case INT:
+                    case LONG:
+                    case FLOAT:
+                    case DOUBLE:
+                        if (internal)
+                            return new Cast(actual, expected, explicit, true, false, false, false);
+
+                        break;
+                    case BYTE:
+                    case SHORT:
+                        if (internal && explicit)
+                            return new Cast(actual, expected, true, true, false, false, false);
+
+                        break;
+                }
+
+                break;
+            case INT_OBJ:
+                switch (expected.sort) {
+                    case INT:
+                    case LONG:
+                    case FLOAT:
+                    case DOUBLE:
+                        if (internal)
+                            return new Cast(actual, expected, explicit, true, false, false, false);
+
+                        break;
+                    case BYTE:
+                    case SHORT:
+                    case CHAR:
+                        if (internal && explicit)
+                            return new Cast(actual, expected, true, true, false, false, false);
+
+                        break;
+                }
+
+                break;
+            case LONG_OBJ:
+                switch (expected.sort) {
+                    case LONG:
+                    case FLOAT:
+                    case DOUBLE:
+                        if (internal)
+                            return new Cast(actual, expected, explicit, true, false, false, false);
+
+                        break;
+                    case BYTE:
+                    case SHORT:
+                    case CHAR:
+                    case INT:
+                        if (internal && explicit)
+                            return new Cast(actual, expected, true, true, false, false, false);
+
+                        break;
+                }
+
+                break;
+            case FLOAT_OBJ:
+                switch (expected.sort) {
+                    case FLOAT:
+                    case DOUBLE:
+                        if (internal)
+                            return new Cast(actual, expected, explicit, true, false, false, false);
+
+                        break;
+                    case BYTE:
+                    case SHORT:
+                    case CHAR:
+                    case INT:
+                    case LONG:
+                        if (internal && explicit)
+                            return new Cast(actual, expected, true, true, false, false, false);
+
+                        break;
+                }
+
+                break;
+            case DOUBLE_OBJ:
+                switch (expected.sort) {
+                    case FLOAT:
+                    case DOUBLE:
+                        if (internal)
+                            return new Cast(actual, expected, explicit, true, false, false, false);
+
+                        break;
+                    case BYTE:
+                    case SHORT:
+                    case CHAR:
+                    case INT:
+                    case LONG:
+                        if (internal && explicit)
+                            return new Cast(actual, expected, true, true, false, false, false);
+
+                        break;
+                }
+
+                break;
+            case DEF:
+                switch (expected.sort) {
+                    case BOOL:
+                    case BYTE:
+                    case SHORT:
+                    case CHAR:
+                    case INT:
+                    case LONG:
+                    case FLOAT:
+                    case DOUBLE:
+                            return new Cast(actual, expected, true, true, false, false, false);
+                }
+
+                break;
+            case STRING:
+                switch (expected.sort) {
+                    case CHAR:
+                        if (explicit)
+                            return new Cast(actual, expected, true, false, false, false, false);
+
+                        break;
+                }
+
+                break;
         }
 
         if (expected.clazz.isAssignableFrom(actual.clazz) ||
             ((explicit || expected.sort == Sort.DEF) && actual.clazz.isAssignableFrom(expected.clazz))) {
-            return cast;
+            return new Cast(actual, expected, explicit);
         } else {
             throw new ClassCastException("Error" + location + ": Cannot cast from [" + actual.name + "] to [" + expected.name + "].");
         }
     }
 
     public static Object constCast(final String location, final Object constant, final Cast cast) {
-        if (cast instanceof Transform) {
-            final Transform transform = (Transform)cast;
-            return invokeTransform(location, transform, constant);
+        final Sort fsort = cast.from.sort;
+        final Sort tsort = cast.to.sort;
+
+        if (fsort == tsort) {
+            return constant;
+        } else if (fsort == Sort.STRING && tsort == Sort.CHAR) {
+            return Utility.StringTochar((String)constant);
+        } else if (fsort == Sort.CHAR && tsort == Sort.STRING) {
+            return Utility.charToString((char)constant);
+        } else if (fsort.numeric && tsort.numeric) {
+            final Number number;
+
+            if (fsort == Sort.CHAR) {
+                number = (int)(char)constant;
+            } else {
+                number = (Number)constant;
+            }
+
+            switch (tsort) {
+                case BYTE:   return number.byteValue();
+                case SHORT:  return number.shortValue();
+                case CHAR:   return (char)number.intValue();
+                case INT:    return number.intValue();
+                case LONG:   return number.longValue();
+                case FLOAT:  return number.floatValue();
+                case DOUBLE: return number.doubleValue();
+                default:
+                    throw new IllegalStateException("Error" + location + ": Cannot cast from " +
+                        "[" + cast.from.clazz.getCanonicalName() + "] to [" + cast.to.clazz.getCanonicalName() + "].");
+            }
         } else {
-            final Sort fsort = cast.from.sort;
-            final Sort tsort = cast.to.sort;
-
-            if (fsort == tsort) {
-                return constant;
-            } else if (fsort.numeric && tsort.numeric) {
-                Number number;
-
-                if (fsort == Sort.CHAR) {
-                    number = (int)(char)constant;
-                } else {
-                    number = (Number)constant;
-                }
-
-                switch (tsort) {
-                    case BYTE:   return number.byteValue();
-                    case SHORT:  return number.shortValue();
-                    case CHAR:   return (char)number.intValue();
-                    case INT:    return number.intValue();
-                    case LONG:   return number.longValue();
-                    case FLOAT:  return number.floatValue();
-                    case DOUBLE: return number.doubleValue();
-                    default:
-                        throw new IllegalStateException("Error" + location + ": Cannot cast from " +
-                            "[" + cast.from.clazz.getCanonicalName() + "] to [" + cast.to.clazz.getCanonicalName() + "].");
-                }
-            } else {
-                throw new IllegalStateException("Error" + location + ": Cannot cast from " +
-                    "[" + cast.from.clazz.getCanonicalName() + "] to [" + cast.to.clazz.getCanonicalName() + "].");
-            }
-        }
-    }
-
-    private static Object invokeTransform(final String location, final Transform transform, final Object object) {
-        final Method method = transform.method;
-        final java.lang.reflect.Method jmethod = method.reflect;
-        final int modifiers = jmethod.getModifiers();
-
-        try {
-            if (java.lang.reflect.Modifier.isStatic(modifiers)) {
-                return jmethod.invoke(null, object);
-            } else {
-                return jmethod.invoke(object);
-            }
-        } catch (final IllegalAccessException | IllegalArgumentException |
-            InvocationTargetException | NullPointerException | ExceptionInInitializerError exception) {
-            throw new ClassCastException(
-                "Error" + location + ": Cannot cast from [" + transform.from.name + "] to [" + transform.to.name + "].");
+            throw new IllegalStateException("Error" + location + ": Cannot cast from " +
+                "[" + cast.from.clazz.getCanonicalName() + "] to [" + cast.to.clazz.getCanonicalName() + "].");
         }
     }
 

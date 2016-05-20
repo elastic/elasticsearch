@@ -49,6 +49,7 @@ final class LDefCall extends ALink implements IDefLink {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             final AExpression expression = arguments.get(argument);
 
+            expression.internal = true;
             expression.analyze(settings, definition, variables);
             expression.expected = expression.actual;
             arguments.set(argument, expression.cast(settings, definition, variables));

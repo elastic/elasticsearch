@@ -469,18 +469,6 @@ public class Utility {
         return value.charAt(0);
     }
 
-    public static Character StringToCharacter(final String value) {
-        if (value == null) {
-            return null;
-        }
-
-        if (value.length() != 1) {
-            throw new ClassCastException("Cannot cast [String] with length greater than one to [Character].");
-        }
-
-        return value.charAt(0);
-    }
-
     public static boolean checkEquals(final Object left, final Object right) {
         if (left != null) {
             return left.equals(right);

@@ -40,6 +40,7 @@ public final class SReturn extends AStatement {
     @Override
     void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         expression.expected = definition.getType("Object");
+        expression.internal = true;
         expression.analyze(settings, definition, variables);
         expression = expression.cast(settings, definition, variables);
 

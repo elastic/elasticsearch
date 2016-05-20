@@ -38,7 +38,7 @@ public final class WriterConstants {
 
     public final static String BASE_CLASS_NAME = Executable.class.getName();
     public final static Type BASE_CLASS_TYPE   = Type.getType(Executable.class);
-    
+
     public final static String CLASS_NAME      = BASE_CLASS_NAME + "$Script";
     public final static Type CLASS_TYPE        = Type.getObjectType(CLASS_NAME.replace('.', '/'));
 
@@ -55,6 +55,10 @@ public final class WriterConstants {
     public final static Type MAP_TYPE  = Type.getType(Map.class);
     public final static Method MAP_GET = getAsmMethod(Object.class, "get", Object.class);
 
+    public final static Type UTILITY_TYPE = Type.getType(Utility.class);
+    public final static Method STRING_TO_CHAR = getAsmMethod(char.class, "StringTochar", String.class);
+    public final static Method CHAR_TO_STRING = getAsmMethod(String.class, "charToString", char.class);
+
     /** dynamic callsite bootstrap signature */
     public final static MethodType DEF_BOOTSTRAP_TYPE =
         MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, int.class);
@@ -62,19 +66,36 @@ public final class WriterConstants {
         new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(DefBootstrap.class),
             "bootstrap", DEF_BOOTSTRAP_TYPE.toMethodDescriptorString());
 
-    public final static Method DEF_NOT_CALL = getAsmMethod(Object.class, "not", Object.class);
-    public final static Method DEF_NEG_CALL = getAsmMethod(Object.class, "neg", Object.class);
-    public final static Method DEF_MUL_CALL = getAsmMethod(Object.class, "mul", Object.class, Object.class);
-    public final static Method DEF_DIV_CALL = getAsmMethod(Object.class, "div", Object.class, Object.class);
-    public final static Method DEF_REM_CALL = getAsmMethod(Object.class, "rem", Object.class, Object.class);
-    public final static Method DEF_ADD_CALL = getAsmMethod(Object.class, "add", Object.class, Object.class);
-    public final static Method DEF_SUB_CALL = getAsmMethod(Object.class, "sub", Object.class, Object.class);
-    public final static Method DEF_LSH_CALL = getAsmMethod(Object.class, "lsh", Object.class, int.class);
-    public final static Method DEF_RSH_CALL = getAsmMethod(Object.class, "rsh", Object.class, int.class);
-    public final static Method DEF_USH_CALL = getAsmMethod(Object.class, "ush", Object.class, int.class);
-    public final static Method DEF_AND_CALL = getAsmMethod(Object.class, "and", Object.class, Object.class);
-    public final static Method DEF_XOR_CALL = getAsmMethod(Object.class, "xor", Object.class, Object.class);
-    public final static Method DEF_OR_CALL  = getAsmMethod(Object.class, "or" , Object.class, Object.class);
+
+    public final static Type DEF_TYPE = Type.getType(Def.class);
+    public final static Method DEF_TO_BOOLEAN         = getAsmMethod(boolean.class, "DefToboolean"       , Object.class);
+    public final static Method DEF_TO_BYTE_IMPLICIT   = getAsmMethod(byte.class   , "DefTobyteImplicit"  , Object.class);
+    public final static Method DEF_TO_SHORT_IMPLICIT  = getAsmMethod(short.class  , "DefToshortImplicit" , Object.class);
+    public final static Method DEF_TO_CHAR_IMPLICIT   = getAsmMethod(char.class   , "DefTocharImplicit"  , Object.class);
+    public final static Method DEF_TO_INT_IMPLICIT    = getAsmMethod(int.class    , "DefTointImplicit"   , Object.class);
+    public final static Method DEF_TO_LONG_IMPLICIT   = getAsmMethod(long.class   , "DefTolongImplicit"  , Object.class);
+    public final static Method DEF_TO_FLOAT_IMPLICIT  = getAsmMethod(float.class  , "DefTofloatImplicit" , Object.class);
+    public final static Method DEF_TO_DOUBLE_IMPLICIT = getAsmMethod(double.class , "DefTodoubleImplicit", Object.class);
+    public final static Method DEF_TO_BYTE_EXPLICIT   = getAsmMethod(byte.class   , "DefTobyteExplicit"  , Object.class);
+    public final static Method DEF_TO_SHORT_EXPLICIT  = getAsmMethod(short.class  , "DefToshortExplicit" , Object.class);
+    public final static Method DEF_TO_CHAR_EXPLICIT   = getAsmMethod(char.class   , "DefTocharExplicit"  , Object.class);
+    public final static Method DEF_TO_INT_EXPLICIT    = getAsmMethod(int.class    , "DefTointExplicit"   , Object.class);
+    public final static Method DEF_TO_LONG_EXPLICIT   = getAsmMethod(long.class   , "DefTolongExplicit"  , Object.class);
+    public final static Method DEF_TO_FLOAT_EXPLICIT  = getAsmMethod(float.class  , "DefTofloatExplicit" , Object.class);
+    public final static Method DEF_TO_DOUBLE_EXPLICIT = getAsmMethod(double.class , "DefTodoubleExplicit", Object.class);
+    public final static Method DEF_NOT_CALL = getAsmMethod(Object.class , "not", Object.class);
+    public final static Method DEF_NEG_CALL = getAsmMethod(Object.class , "neg", Object.class);
+    public final static Method DEF_MUL_CALL = getAsmMethod(Object.class , "mul", Object.class, Object.class);
+    public final static Method DEF_DIV_CALL = getAsmMethod(Object.class , "div", Object.class, Object.class);
+    public final static Method DEF_REM_CALL = getAsmMethod(Object.class , "rem", Object.class, Object.class);
+    public final static Method DEF_ADD_CALL = getAsmMethod(Object.class , "add", Object.class, Object.class);
+    public final static Method DEF_SUB_CALL = getAsmMethod(Object.class , "sub", Object.class, Object.class);
+    public final static Method DEF_LSH_CALL = getAsmMethod(Object.class , "lsh", Object.class, int.class);
+    public final static Method DEF_RSH_CALL = getAsmMethod(Object.class , "rsh", Object.class, int.class);
+    public final static Method DEF_USH_CALL = getAsmMethod(Object.class , "ush", Object.class, int.class);
+    public final static Method DEF_AND_CALL = getAsmMethod(Object.class , "and", Object.class, Object.class);
+    public final static Method DEF_XOR_CALL = getAsmMethod(Object.class , "xor", Object.class, Object.class);
+    public final static Method DEF_OR_CALL  = getAsmMethod(Object.class , "or" , Object.class, Object.class);
     public final static Method DEF_EQ_CALL  = getAsmMethod(boolean.class, "eq" , Object.class, Object.class);
     public final static Method DEF_LT_CALL  = getAsmMethod(boolean.class, "lt" , Object.class, Object.class);
     public final static Method DEF_LTE_CALL = getAsmMethod(boolean.class, "lte", Object.class, Object.class);
@@ -98,9 +119,9 @@ public final class WriterConstants {
         }
         INDY_STRING_CONCAT_BOOTSTRAP_HANDLE = bs;
     }
-    
+
     public final static int MAX_INDY_STRING_CONCAT_ARGS = 200;
-    
+
     public final static Type STRING_TYPE = Type.getType(String.class);
     public final static Type STRINGBUILDER_TYPE = Type.getType(StringBuilder.class);
 

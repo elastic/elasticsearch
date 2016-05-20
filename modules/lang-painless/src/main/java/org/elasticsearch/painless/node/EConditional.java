@@ -57,8 +57,10 @@ public final class EConditional extends AExpression {
 
         left.expected = expected;
         left.explicit = explicit;
+        left.internal = internal;
         right.expected = expected;
         right.explicit = explicit;
+        right.internal = internal;
         actual = expected;
 
         left.analyze(settings, definition, variables);

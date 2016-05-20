@@ -495,7 +495,7 @@ public final class EBinary extends AExpression {
             left.write(settings, definition, adapter);
             right.write(settings, definition, adapter);
 
-            adapter.writeBinaryInstruction(definition, location, actual, operation);
+            adapter.writeBinaryInstruction(location, actual, operation);
         }
 
         adapter.writeBranch(tru, fals);

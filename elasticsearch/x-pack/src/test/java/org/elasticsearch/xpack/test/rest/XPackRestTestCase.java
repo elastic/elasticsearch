@@ -5,15 +5,12 @@
  */
 package org.elasticsearch.xpack.test.rest;
 
+
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpDelete;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.conn.BasicHttpClientConnectionManager;
+import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.ElasticsearchResponseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
@@ -24,7 +21,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.plugin.TestUtils;
+import org.elasticsearch.shield.authc.esnative.ReservedRealm;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authz.store.ReservedRolesStore;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
@@ -33,8 +32,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.URI;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
@@ -59,31 +56,17 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
 
     @Before
     public void startWatcher() throws Exception {
-        try (CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
-            URL url = getClusterUrls()[0];
-            HttpPut request = new HttpPut(new URI("http",
-                                                  null,
-                                                  url.getHost(),
-                                                  url.getPort(),
-                                                  "/_xpack/watcher/_start", null, null));
-            request.addHeader("Authorization", BASIC_AUTH_VALUE);
-            try (CloseableHttpResponse response = client.execute(request)) {
-            }
+        try (ElasticsearchResponse response = getRestClient()
+                .performRequest("PUT", "/_xpack/watcher/_start", Collections.emptyMap(), null)) {
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
     }
 
     @After
     public void stopWatcher() throws Exception {
-        try(CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
-            URL url = getClusterUrls()[0];
-            HttpPut request = new HttpPut(new URI("http",
-                                                  null,
-                                                  url.getHost(),
-                                                  url.getPort(),
-                                                  "/_xpack/watcher/_stop", null, null));
-            request.addHeader("Authorization", BASIC_AUTH_VALUE);
-            try (CloseableHttpResponse response = client.execute(request)) {
-            }
+        try (ElasticsearchResponse response = getRestClient()
+                .performRequest("PUT", "/_xpack/watcher/_stop", Collections.emptyMap(), null)) {
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
     }
 
@@ -102,45 +85,40 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
 
     @After
     public void clearShieldUsersAndRoles() throws Exception {
-        //TODO change this to use RestClient, also look for usages of HttpClient directly
         // we cannot delete the .security index from a rest test since we aren't the internal user, lets wipe the data
         // TODO remove this once the built-in SUPERUSER role is added that can delete the index and we use the built in admin user here
-        try (CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
-            final URL url = getClusterUrls()[0];
-            HttpGet getUsersRequest = new HttpGet(new URI("http", null, url.getHost(), url.getPort(), "/_xpack/security/user", null, null));
-            getUsersRequest.addHeader("Authorization", BASIC_AUTH_VALUE);
-            try (CloseableHttpResponse closeableHttpResponse = client.execute(getUsersRequest)) {
-                assertThat(closeableHttpResponse.getStatusLine().getStatusCode(), is(200));
-                String response = Streams.copyToString(
-                        new InputStreamReader(closeableHttpResponse.getEntity().getContent(), StandardCharsets.UTF_8));
-                Map<String, Object> responseMap = XContentFactory.xContent(response).createParser(response).map();
+        String response;
+        try (ElasticsearchResponse elasticsearchResponse = getRestClient()
+                .performRequest("GET", "/_xpack/security/user", Collections.emptyMap(), null)) {
+            assertThat(elasticsearchResponse.getStatusLine().getStatusCode(), is(200));
+            response = Streams.copyToString(new InputStreamReader(elasticsearchResponse.getEntity().getContent(), StandardCharsets.UTF_8));
+        }
 
-                // in the structure of this API, the users are the keyset
-                for (String user : responseMap.keySet()) {
-                    HttpDelete delete = new HttpDelete(new URI("http", null, url.getHost(), url.getPort(),
-                            "/_xpack/security/user/" + user, null, null));
-                    delete.addHeader("Authorization", BASIC_AUTH_VALUE);
-                    try (CloseableHttpResponse deleteResponse = client.execute(delete)) {
-                    }
+        Map<String, Object> responseMap = XContentFactory.xContent(response).createParser(response).map();
+        // in the structure of this API, the users are the keyset
+        for (String user : responseMap.keySet()) {
+            if (ReservedRealm.isReserved(user) == false) {
+                try (ElasticsearchResponse elasticsearchResponse = getRestClient()
+                        .performRequest("DELETE", "/_xpack/security/user/" + user, Collections.emptyMap(), null)) {
+                    assertThat(EntityUtils.toString(elasticsearchResponse.getEntity()), elasticsearchResponse.getStatusLine().getStatusCode(), is(200));
+                } catch(ElasticsearchResponseException e) {
+                    logger.error(e.getResponseBody());
                 }
             }
+        }
 
-            HttpGet getRolesRequest = new HttpGet(new URI("http", null, url.getHost(), url.getPort(), "/_xpack/security/role",
-                    null, null));
-            getRolesRequest.addHeader("Authorization", BASIC_AUTH_VALUE);
-            try (CloseableHttpResponse closeableHttpResponse = client.execute(getRolesRequest)) {
-                assertThat(closeableHttpResponse.getStatusLine().getStatusCode(), is(200));
-                String response = Streams.copyToString(
-                        new InputStreamReader(closeableHttpResponse.getEntity().getContent(), StandardCharsets.UTF_8));
-                Map<String, Object> responseMap = XContentFactory.xContent(response).createParser(response).map();
-
-                // in the structure of this API, the users are the keyset
-                for (String role : responseMap.keySet()) {
-                    HttpDelete delete = new HttpDelete(new URI("http", null, url.getHost(), url.getPort(),
-                            "/_xpack/security/role/" + role, null, null));
-                    delete.addHeader("Authorization", BASIC_AUTH_VALUE);
-                    try (CloseableHttpResponse deleteResponse = client.execute(delete)) {
-                    }
+        try (ElasticsearchResponse elasticsearchResponse = getRestClient()
+                .performRequest("GET", "/_xpack/security/role", Collections.emptyMap(), null)) {
+            assertThat(elasticsearchResponse.getStatusLine().getStatusCode(), is(200));
+            response = Streams.copyToString(new InputStreamReader(elasticsearchResponse.getEntity().getContent(), StandardCharsets.UTF_8));
+        }
+        responseMap = XContentFactory.xContent(response).createParser(response).map();
+        // in the structure of this API, the roles are the keyset
+        for (String role : responseMap.keySet()) {
+            if (ReservedRolesStore.isReserved(role) == false) {
+                try (ElasticsearchResponse elasticsearchResponse = getRestClient()
+                        .performRequest("DELETE", "/_xpack/security/role/" + role, Collections.emptyMap(), null)) {
+                    assertThat(elasticsearchResponse.getStatusLine().getStatusCode(), is(200));
                 }
             }
         }

@@ -1,6 +1,6 @@
 {
   "delete_by_query": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/master/plugins-delete-by-query.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/2.3/plugins-delete-by-query.html",
     "methods": ["DELETE"],
     "url": {
       "path": "/{index}/_query",

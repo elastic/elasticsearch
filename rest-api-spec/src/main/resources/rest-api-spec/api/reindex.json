@@ -1,6 +1,6 @@
 {
   "reindex": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/master/plugins-reindex.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/2.3/docs-reindex.html",
     "methods": ["POST"],
     "url": {
       "path": "/_reindex",

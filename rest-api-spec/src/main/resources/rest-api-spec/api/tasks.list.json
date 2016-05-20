@@ -1,6 +1,6 @@
 {
   "tasks.list": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/tasks-list.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/2.3/tasks.html",
     "methods": ["GET"],
     "url": {
       "path": "/_tasks",

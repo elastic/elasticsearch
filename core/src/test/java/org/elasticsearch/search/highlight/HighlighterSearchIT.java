@@ -21,9 +21,12 @@ package org.elasticsearch.search.highlight;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -2692,9 +2695,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertHighlight(response, 0, "field1", 0, 1, highlightedMatcher);
     }
 
-    public void testGeoFieldHighlighting() throws IOException {
+    public void testGeoFieldHighlightingWithDifferentHighlighters() throws IOException {
         // check that we do not get an exception for geo_point fields in case someone tries to highlight
-        // it accidential with a wildcard
+        // it accidentially with a wildcard
         // see https://github.com/elastic/elasticsearch/issues/17537
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
@@ -2702,6 +2705,12 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .startObject("properties")
             .startObject("geo_point")
             .field("type", "geo_point")
+            .field("geohash", true)
+            .endObject()
+            .startObject("text")
+            .field("type", "string")
+            .field("term_vector", "with_positions_offsets_payloads")
+            .field("index_options", "offsets")
             .endObject()
             .endObject()
             .endObject();
@@ -2711,13 +2720,20 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         ensureYellow();
 
         client().prepareIndex("test", "type", "1")
-            .setSource(jsonBuilder().startObject().field("geo_point", "60.12,100.34").endObject())
+            .setSource(jsonBuilder().startObject().field("text", "Arbitrary text field which will should not cause a failure").endObject())
             .get();
         refresh();
-        SearchResponse search = client().prepareSearch().setQuery(
-            QueryBuilders.geoBoundingBoxQuery("geo_point").topLeft(61.10078883158897, -170.15625)
-                .bottomRight(-64.92354174306496, 118.47656249999999)).addHighlightedField("*").get();
+
+        String highlighterType = randomFrom("plain", "fvh", "postings");
+        QueryBuilder query = QueryBuilders.boolQuery().should(QueryBuilders.geoBoundingBoxQuery("geo_point")
+            .bottomLeft(-64.92354174306496, -170.15625)
+            .topRight(61.10078883158897, 118.47656249999999))
+            .should(QueryBuilders.termQuery("text", "failure"));
+        SearchResponse search = client().prepareSearch().setSource(
+            new SearchSourceBuilder().query(query)
+                .highlight(new HighlightBuilder().field("*").highlighterType(highlighterType)).buildAsBytes()).get();
         assertNoFailures(search);
         assertThat(search.getHits().totalHits(), equalTo(1L));
+        assertThat(search.getHits().getAt(0).highlightFields().get("text").fragments().length, equalTo(1));
     }
 }

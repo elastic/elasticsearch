@@ -35,7 +35,7 @@ public class NoSemiColonTests extends ScriptTestCase {
         assertEquals(2.0, exec("double a = 2; return a"));
         assertEquals(false, exec("boolean a = false; return a"));
         assertEquals("string", exec("String a = \"string\"; return a"));
-        assertEquals(HashMap.class, exec("Map<String, Object> a = new HashMap<String, Object>(); return a").getClass());
+        assertEquals(HashMap.class, exec("Map a = new HashMap(); return a").getClass());
 
         assertEquals(byte[].class, exec("byte[] a = new byte[1]; return a").getClass());
         assertEquals(short[].class, exec("short[] a = new short[1]; return a").getClass());
@@ -46,7 +46,7 @@ public class NoSemiColonTests extends ScriptTestCase {
         assertEquals(double[].class, exec("double[] a = new double[1]; return a").getClass());
         assertEquals(boolean[].class, exec("boolean[] a = new boolean[1]; return a").getClass());
         assertEquals(String[].class, exec("String[] a = new String[1]; return a").getClass());
-        assertEquals(Map[].class, exec("Map<String,Object>[] a = new Map<String,Object>[1]; return a").getClass());
+        assertEquals(Map[].class, exec("Map[] a = new Map[1]; return a").getClass());
 
         assertEquals(byte[][].class, exec("byte[][] a = new byte[1][2]; return a").getClass());
         assertEquals(short[][][].class, exec("short[][][] a = new short[1][2][3]; return a").getClass());
@@ -57,7 +57,7 @@ public class NoSemiColonTests extends ScriptTestCase {
         assertEquals(double[][][][].class, exec("double[][][][] a = new double[1][2][3][4]; return a").getClass());
         assertEquals(boolean[][][][][].class, exec("boolean[][][][][] a = new boolean[1][2][3][4][5]; return a").getClass());
         assertEquals(String[][].class, exec("String[][] a = new String[1][2]; return a").getClass());
-        assertEquals(Map[][][].class, exec("Map<String,Object>[][][] a = new Map<String,Object>[1][2][3]; return a").getClass());
+        assertEquals(Map[][][].class, exec("Map[][][] a = new Map[1][2][3]; return a").getClass());
     }
     
     public void testExpression() {
@@ -73,6 +73,6 @@ public class NoSemiColonTests extends ScriptTestCase {
         assertEquals(5, exec("int x = 5; return x"));
         assertEquals(4, exec("int[] x = new int[2]; x[1] = 4; return x[1]"));
         assertEquals(5, ((short[])exec("short[] s = new short[3]; s[1] = 5; return s"))[1]);
-        assertEquals(10, ((Map)exec("Map<String,Object> s = new HashMap< String,Object>(); s.put(\"x\", 10); return s")).get("x"));
+        assertEquals(10, ((Map)exec("Map s = new HashMap(); s.put(\"x\", 10); return s")).get("x"));
     }
 }

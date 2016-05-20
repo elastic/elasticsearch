@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
@@ -34,8 +33,7 @@ public final class SIfElse extends AStatement {
     final AStatement ifblock;
     final AStatement elseblock;
 
-    public SIfElse(final int line, final String location,
-                   final AExpression condition, final AStatement ifblock, final AStatement elseblock) {
+    public SIfElse(int line, String location, AExpression condition, AStatement ifblock, AStatement elseblock) {
         super(line, location);
 
         this.condition = condition;
@@ -44,10 +42,10 @@ public final class SIfElse extends AStatement {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        condition.expected = definition.booleanType;
-        condition.analyze(settings, definition, variables);
-        condition = condition.cast(settings, definition, variables);
+    void analyze(Variables variables) {
+        condition.expected = Definition.BOOLEAN_TYPE;
+        condition.analyze(variables);
+        condition = condition.cast(variables);
 
         if (condition.constant != null) {
             throw new IllegalArgumentException(error("Extraneous if statement."));
@@ -58,7 +56,7 @@ public final class SIfElse extends AStatement {
         ifblock.lastLoop = lastLoop;
 
         variables.incrementScope();
-        ifblock.analyze(settings, definition, variables);
+        ifblock.analyze(variables);
         variables.decrementScope();
 
         anyContinue = ifblock.anyContinue;
@@ -71,7 +69,7 @@ public final class SIfElse extends AStatement {
             elseblock.lastLoop = lastLoop;
 
             variables.incrementScope();
-            elseblock.analyze(settings, definition, variables);
+            elseblock.analyze(variables);
             variables.decrementScope();
 
             methodEscape = ifblock.methodEscape && elseblock.methodEscape;
@@ -84,17 +82,17 @@ public final class SIfElse extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         writeDebugInfo(adapter);
         final Label end = new Label();
         final Label fals = elseblock != null ? new Label() : end;
 
         condition.fals = fals;
-        condition.write(settings, definition, adapter);
+        condition.write(adapter);
 
         ifblock.continu = continu;
         ifblock.brake = brake;
-        ifblock.write(settings, definition, adapter);
+        ifblock.write(adapter);
 
         if (elseblock != null) {
             if (!ifblock.allEscape) {
@@ -105,7 +103,7 @@ public final class SIfElse extends AStatement {
 
             elseblock.continu = continu;
             elseblock.brake = brake;
-            elseblock.write(settings, definition, adapter);
+            elseblock.write(adapter);
         }
 
         adapter.mark(end);

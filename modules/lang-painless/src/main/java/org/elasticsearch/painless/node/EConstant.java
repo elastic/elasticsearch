@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
@@ -31,39 +30,39 @@ import org.elasticsearch.painless.MethodWriter;
  */
 final class EConstant extends AExpression {
 
-    EConstant(final int line, final String location, final Object constant) {
+    EConstant(int line, String location, Object constant) {
         super(line, location);
 
         this.constant = constant;
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Variables variables) {
         if (constant instanceof String) {
-            actual = definition.stringType;
+            actual = Definition.STRING_TYPE;
         } else if (constant instanceof Double) {
-            actual = definition.doubleType;
+            actual = Definition.DOUBLE_TYPE;
         } else if (constant instanceof Float) {
-            actual = definition.floatType;
+            actual = Definition.FLOAT_TYPE;
         } else if (constant instanceof Long) {
-            actual = definition.longType;
+            actual = Definition.LONG_TYPE;
         } else if (constant instanceof Integer) {
-            actual = definition.intType;
+            actual = Definition.INT_TYPE;
         } else if (constant instanceof Character) {
-            actual = definition.charType;
+            actual = Definition.CHAR_TYPE;
         } else if (constant instanceof Short) {
-            actual = definition.shortType;
+            actual = Definition.SHORT_TYPE;
         } else if (constant instanceof Byte) {
-            actual = definition.byteType;
+            actual = Definition.BYTE_TYPE;
         } else if (constant instanceof Boolean) {
-            actual = definition.booleanType;
+            actual = Definition.BOOLEAN_TYPE;
         } else {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         final Sort sort = actual.sort;
 
         switch (sort) {

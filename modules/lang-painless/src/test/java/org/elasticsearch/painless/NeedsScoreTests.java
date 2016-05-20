@@ -60,6 +60,7 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
         ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "painless", compiled),
                             lookup, Collections.<String, Object>emptyMap());
         assertTrue(ss.needsScores());
+        service.close();
     }
 
 }

@@ -19,17 +19,8 @@
 
 package org.elasticsearch.painless;
 
-import java.util.Collections;
-import java.util.Map;
-
-/** Tests integer overflow with numeric overflow enabled */
-public class IntegerOverflowEnabledTests extends ScriptTestCase {
-
-    /** wire overflow to true for all tests */
-    @Override
-    public Object exec(String script, Map<String, Object> vars) {
-        return exec(script, vars, Collections.singletonMap(CompilerSettings.NUMERIC_OVERFLOW, "true"));
-    }
+/** Tests integer overflow cases */
+public class IntegerOverflowTests extends ScriptTestCase {
 
     public void testAssignmentAdditionOverflow() {
         // byte

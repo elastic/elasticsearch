@@ -39,7 +39,7 @@ public final class SThrow extends AStatement {
 
     @Override
     void analyze(final CompilerSettings settings, final Variables variables) {
-        expression.expected = Definition.exceptionType;
+        expression.expected = Definition.EXCEPTION_TYPE;
         expression.analyze(settings, variables);
         expression = expression.cast(settings, variables);
 

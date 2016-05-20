@@ -37,7 +37,7 @@ public final class EBoolean extends AExpression {
 
     @Override
     void analyze(final CompilerSettings settings, final Variables variables) {
-        actual = Definition.booleanType;
+        actual = Definition.BOOLEAN_TYPE;
     }
 
     @Override

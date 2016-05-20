@@ -119,7 +119,7 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = Definition.booleanType;
+        actual = Definition.BOOLEAN_TYPE;
     }
 
     private void analyzeEqR(final CompilerSettings settings, final Variables variables) {
@@ -161,7 +161,7 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = Definition.booleanType;
+        actual = Definition.BOOLEAN_TYPE;
     }
 
     private void analyzeNE(final CompilerSettings settings, final Variables variables) {
@@ -207,7 +207,7 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = Definition.booleanType;
+        actual = Definition.BOOLEAN_TYPE;
     }
 
     private void analyzeNER(final CompilerSettings settings, final Variables variables) {
@@ -249,7 +249,7 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = Definition.booleanType;
+        actual = Definition.BOOLEAN_TYPE;
     }
 
     private void analyzeGTE(final CompilerSettings settings, final Variables variables) {
@@ -285,7 +285,7 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = Definition.booleanType;
+        actual = Definition.BOOLEAN_TYPE;
     }
 
     private void analyzeGT(final CompilerSettings settings, final Variables variables) {
@@ -321,7 +321,7 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = Definition.booleanType;
+        actual = Definition.BOOLEAN_TYPE;
     }
 
     private void analyzeLTE(final CompilerSettings settings, final Variables variables) {
@@ -357,7 +357,7 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = Definition.booleanType;
+        actual = Definition.BOOLEAN_TYPE;
     }
 
     private void analyzeLT(final CompilerSettings settings, final Variables variables) {
@@ -393,7 +393,7 @@ public final class EComp extends AExpression {
             }
         }
 
-        actual = Definition.booleanType;
+        actual = Definition.BOOLEAN_TYPE;
     }
 
     @Override
@@ -456,7 +456,7 @@ public final class EComp extends AExpression {
                     if (right.isNull) {
                         adapter.ifNull(jump);
                     } else if (!left.isNull && operation == Operation.EQ) {
-                        adapter.invokeStatic(Definition.defobjType.type, DEF_EQ_CALL);
+                        adapter.invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_EQ_CALL);
                     } else {
                         adapter.ifCmp(rtype, MethodWriter.EQ, jump);
                     }
@@ -464,19 +464,19 @@ public final class EComp extends AExpression {
                     if (right.isNull) {
                         adapter.ifNonNull(jump);
                     } else if (!left.isNull && operation == Operation.NE) {
-                        adapter.invokeStatic(Definition.defobjType.type, DEF_EQ_CALL);
+                        adapter.invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_EQ_CALL);
                         adapter.ifZCmp(MethodWriter.EQ, jump);
                     } else {
                         adapter.ifCmp(rtype, MethodWriter.NE, jump);
                     }
                 } else if (lt) {
-                    adapter.invokeStatic(Definition.defobjType.type, DEF_LT_CALL);
+                    adapter.invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_LT_CALL);
                 } else if (lte) {
-                    adapter.invokeStatic(Definition.defobjType.type, DEF_LTE_CALL);
+                    adapter.invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_LTE_CALL);
                 } else if (gt) {
-                    adapter.invokeStatic(Definition.defobjType.type, DEF_GT_CALL);
+                    adapter.invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_GT_CALL);
                 } else if (gte) {
-                    adapter.invokeStatic(Definition.defobjType.type, DEF_GTE_CALL);
+                    adapter.invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_GTE_CALL);
                 } else {
                     throw new IllegalStateException(error("Illegal tree structure."));
                 }
@@ -493,7 +493,7 @@ public final class EComp extends AExpression {
                     if (right.isNull) {
                         adapter.ifNull(jump);
                     } else if (operation == Operation.EQ) {
-                        adapter.invokeStatic(Definition.utilityType.type, CHECKEQUALS);
+                        adapter.invokeStatic(Definition.UTILITY_TYPE.type, CHECKEQUALS);
 
                         if (branch) {
                             adapter.ifZCmp(MethodWriter.NE, jump);
@@ -507,7 +507,7 @@ public final class EComp extends AExpression {
                     if (right.isNull) {
                         adapter.ifNonNull(jump);
                     } else if (operation == Operation.NE) {
-                        adapter.invokeStatic(Definition.utilityType.type, CHECKEQUALS);
+                        adapter.invokeStatic(Definition.UTILITY_TYPE.type, CHECKEQUALS);
                         adapter.ifZCmp(MethodWriter.EQ, jump);
                     } else {
                         adapter.ifCmp(rtype, MethodWriter.NE, jump);

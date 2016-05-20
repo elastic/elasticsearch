@@ -46,7 +46,7 @@ public final class LArrayLength extends ALink {
                 throw new IllegalArgumentException(error("Cannot write to read-only array field [length]."));
             }
 
-            after = Definition.intType;
+            after = Definition.INT_TYPE;
         } else {
             throw new IllegalArgumentException(error("Illegal field access [" + value + "]."));
         }

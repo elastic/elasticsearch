@@ -63,7 +63,7 @@ public final class EUnary extends AExpression {
     }
 
     void analyzeNot(final CompilerSettings settings, final Variables variables) {
-        child.expected = Definition.booleanType;
+        child.expected = Definition.BOOLEAN_TYPE;
         child.analyze(settings, variables);
         child = child.cast(settings, variables);
 
@@ -71,7 +71,7 @@ public final class EUnary extends AExpression {
             constant = !(boolean)child.constant;
         }
 
-        actual = Definition.booleanType;
+        actual = Definition.BOOLEAN_TYPE;
     }
 
     void analyzeBWNot(final CompilerSettings settings, final Variables variables) {
@@ -191,7 +191,7 @@ public final class EUnary extends AExpression {
 
             if (operation == Operation.BWNOT) {
                 if (sort == Sort.DEF) {
-                    adapter.invokeStatic(Definition.defobjType.type, DEF_NOT_CALL);
+                    adapter.invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_NOT_CALL);
                 } else {
                     if (sort == Sort.INT) {
                         adapter.push(-1);
@@ -205,7 +205,7 @@ public final class EUnary extends AExpression {
                 }
             } else if (operation == Operation.SUB) {
                 if (sort == Sort.DEF) {
-                    adapter.invokeStatic(Definition.defobjType.type, DEF_NEG_CALL);
+                    adapter.invokeStatic(Definition.DEF_UTIL_TYPE.type, DEF_NEG_CALL);
                 } else {
                     adapter.math(MethodWriter.NEG, type);
                 }

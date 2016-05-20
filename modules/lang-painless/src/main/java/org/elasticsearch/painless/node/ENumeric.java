@@ -49,7 +49,7 @@ public final class ENumeric extends AExpression {
 
             try {
                 constant = Double.parseDouble(value.substring(0, value.length() - 1));
-                actual = Definition.doubleType;
+                actual = Definition.DOUBLE_TYPE;
             } catch (final NumberFormatException exception) {
                 throw new IllegalArgumentException(error("Invalid double constant [" + value + "]."));
             }
@@ -60,14 +60,14 @@ public final class ENumeric extends AExpression {
 
             try {
                 constant = Float.parseFloat(value.substring(0, value.length() - 1));
-                actual = Definition.floatType;
+                actual = Definition.FLOAT_TYPE;
             } catch (final NumberFormatException exception) {
                 throw new IllegalArgumentException(error("Invalid float constant [" + value + "]."));
             }
         } else if (value.endsWith("l") || value.endsWith("L")) {
             try {
                 constant = Long.parseLong(value.substring(0, value.length() - 1), radix);
-                actual = Definition.longType;
+                actual = Definition.LONG_TYPE;
             } catch (final NumberFormatException exception) {
                 throw new IllegalArgumentException(error("Invalid long constant [" + value + "]."));
             }
@@ -78,16 +78,16 @@ public final class ENumeric extends AExpression {
 
                 if (sort == Sort.BYTE && integer >= Byte.MIN_VALUE && integer <= Byte.MAX_VALUE) {
                     constant = (byte)integer;
-                    actual = Definition.byteType;
+                    actual = Definition.BYTE_TYPE;
                 } else if (sort == Sort.CHAR && integer >= Character.MIN_VALUE && integer <= Character.MAX_VALUE) {
                     constant = (char)integer;
-                    actual = Definition.charType;
+                    actual = Definition.CHAR_TYPE;
                 } else if (sort == Sort.SHORT && integer >= Short.MIN_VALUE && integer <= Short.MAX_VALUE) {
                     constant = (short)integer;
-                    actual = Definition.shortType;
+                    actual = Definition.SHORT_TYPE;
                 } else {
                     constant = integer;
-                    actual = Definition.intType;
+                    actual = Definition.INT_TYPE;
                 }
             } catch (final NumberFormatException exception) {
                 throw new IllegalArgumentException(error("Invalid int constant [" + value + "]."));

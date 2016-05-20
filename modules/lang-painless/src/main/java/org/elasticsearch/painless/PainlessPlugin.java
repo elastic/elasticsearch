@@ -32,7 +32,7 @@ public final class PainlessPlugin extends Plugin {
 
     // force to pare our definition at startup (not on the user's first script)
     static {
-        Definition.voidType.hashCode();
+        Definition.VOID_TYPE.hashCode();
     }
 
     @Override

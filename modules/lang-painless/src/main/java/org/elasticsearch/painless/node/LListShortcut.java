@@ -61,7 +61,7 @@ final class LListShortcut extends ALink {
         }
 
         if ((load || store) && (!load || getter != null) && (!store || setter != null)) {
-            index.expected = Definition.intType;
+            index.expected = Definition.INT_TYPE;
             index.analyze(settings, variables);
             index = index.cast(settings, variables);
 

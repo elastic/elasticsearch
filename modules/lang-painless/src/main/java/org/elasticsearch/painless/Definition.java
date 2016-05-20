@@ -43,29 +43,29 @@ public final class Definition {
     private static final Definition INSTANCE = new Definition();
     
     /** Some native types as constants: */
-    public static final Type voidType = getType("void");
-    public static final Type booleanType = getType("boolean");
-    public static final Type booleanobjType = getType("Boolean");
-    public static final Type byteType = getType("byte");
-    public static final Type byteobjType = getType("Byte");
-    public static final Type shortType = getType("short");
-    public static final Type shortobjType = getType("Short");
-    public static final Type intType = getType("int");
-    public static final Type intobjType = getType("Integer");
-    public static final Type longType = getType("long");
-    public static final Type longobjType = getType("Long");
-    public static final Type floatType = getType("float");
-    public static final Type floatobjType = getType("Float");
-    public static final Type doubleType = getType("double");
-    public static final Type doubleobjType = getType("Double");
-    public static final Type charType = getType("char");
-    public static final Type charobjType = getType("Character");
-    public static final Type objectType = getType("Object");
-    public static final Type defType = getType("def");
-    public static final Type defobjType = getType("Def");
-    public static final Type stringType = getType("String");
-    public static final Type exceptionType = getType("Exception");
-    public static final Type utilityType = getType("Utility");
+    public static final Type VOID_TYPE = getType("void");
+    public static final Type BOOLEAN_TYPE = getType("boolean");
+    public static final Type BOOLEAN_OBJ_TYPE = getType("Boolean");
+    public static final Type BYTE_TYPE = getType("byte");
+    public static final Type BYTE_OBJ_TYPE = getType("Byte");
+    public static final Type SHORT_TYPE = getType("short");
+    public static final Type SHORT_OBJ_TYPE = getType("Short");
+    public static final Type INT_TYPE = getType("int");
+    public static final Type INT_OBJ_TYPE = getType("Integer");
+    public static final Type LONG_TYPE = getType("long");
+    public static final Type LONG_OBJ_TYPE = getType("Long");
+    public static final Type FLOAT_TYPE = getType("float");
+    public static final Type FLOAT_OBJ_TYPE = getType("Float");
+    public static final Type DOUBLE_TYPE = getType("double");
+    public static final Type DOUBLE_OBJ_TYPE = getType("Double");
+    public static final Type CHAR_TYPE = getType("char");
+    public static final Type CHAR_OBJ_TYPE = getType("Character");
+    public static final Type OBJECT_TYPE = getType("Object");
+    public static final Type DEF_TYPE = getType("def");
+    public static final Type DEF_UTIL_TYPE = getType("Def");
+    public static final Type STRING_TYPE = getType("String");
+    public static final Type EXCEPTION_TYPE = getType("Exception");
+    public static final Type UTILITY_TYPE = getType("Utility");
 
     public enum Sort {
         VOID(       void.class      , 0 , true  , false , false , false ),

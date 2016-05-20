@@ -47,7 +47,7 @@ public final class EConditional extends AExpression {
 
     @Override
     void analyze(final CompilerSettings settings, final Variables variables) {
-        condition.expected = Definition.booleanType;
+        condition.expected = Definition.BOOLEAN_TYPE;
         condition.analyze(settings, variables);
         condition = condition.cast(settings, variables);
 

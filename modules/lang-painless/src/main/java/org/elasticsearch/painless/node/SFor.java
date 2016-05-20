@@ -70,7 +70,7 @@ public final class SFor extends AStatement {
 
         if (condition != null) {
 
-            condition.expected = Definition.booleanType;
+            condition.expected = Definition.BOOLEAN_TYPE;
             condition.analyze(settings, variables);
             condition = condition.cast(settings, variables);
 

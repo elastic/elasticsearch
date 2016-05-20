@@ -63,7 +63,7 @@ public final class LNewArray extends ALink {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             final AExpression expression = arguments.get(argument);
 
-            expression.expected = Definition.intType;
+            expression.expected = Definition.INT_TYPE;
             expression.analyze(settings, variables);
             arguments.set(argument, expression.cast(settings, variables));
         }

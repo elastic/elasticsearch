@@ -55,7 +55,7 @@ final class LDefCall extends ALink implements IDefLink {
         }
 
         statement = true;
-        after = Definition.defType;
+        after = Definition.DEF_TYPE;
 
         return this;
     }
@@ -71,7 +71,7 @@ final class LDefCall extends ALink implements IDefLink {
 
         signature.append('(');
         // first parameter is the receiver, we never know its type: always Object
-        signature.append(Definition.defType.type.getDescriptor());
+        signature.append(Definition.DEF_TYPE.type.getDescriptor());
 
         // TODO: remove our explicit conversions and feed more type information for return value,
         // it can avoid some unnecessary boxing etc.

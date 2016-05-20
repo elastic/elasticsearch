@@ -40,23 +40,23 @@ final class EConstant extends AExpression {
     @Override
     void analyze(final CompilerSettings settings, final Variables variables) {
         if (constant instanceof String) {
-            actual = Definition.stringType;
+            actual = Definition.STRING_TYPE;
         } else if (constant instanceof Double) {
-            actual = Definition.doubleType;
+            actual = Definition.DOUBLE_TYPE;
         } else if (constant instanceof Float) {
-            actual = Definition.floatType;
+            actual = Definition.FLOAT_TYPE;
         } else if (constant instanceof Long) {
-            actual = Definition.longType;
+            actual = Definition.LONG_TYPE;
         } else if (constant instanceof Integer) {
-            actual = Definition.intType;
+            actual = Definition.INT_TYPE;
         } else if (constant instanceof Character) {
-            actual = Definition.charType;
+            actual = Definition.CHAR_TYPE;
         } else if (constant instanceof Short) {
-            actual = Definition.shortType;
+            actual = Definition.SHORT_TYPE;
         } else if (constant instanceof Byte) {
-            actual = Definition.byteType;
+            actual = Definition.BYTE_TYPE;
         } else if (constant instanceof Boolean) {
-            actual = Definition.booleanType;
+            actual = Definition.BOOLEAN_TYPE;
         } else {
             throw new IllegalStateException(error("Illegal tree structure."));
         }

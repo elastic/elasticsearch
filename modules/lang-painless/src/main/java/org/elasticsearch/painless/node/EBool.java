@@ -45,11 +45,11 @@ public final class EBool extends AExpression {
 
     @Override
     void analyze(final CompilerSettings settings, final Variables variables) {
-        left.expected = Definition.booleanType;
+        left.expected = Definition.BOOLEAN_TYPE;
         left.analyze(settings, variables);
         left = left.cast(settings, variables);
 
-        right.expected = Definition.booleanType;
+        right.expected = Definition.BOOLEAN_TYPE;
         right.analyze(settings, variables);
         right = right.cast(settings, variables);
 
@@ -63,7 +63,7 @@ public final class EBool extends AExpression {
             }
         }
 
-        actual = Definition.booleanType;
+        actual = Definition.BOOLEAN_TYPE;
     }
 
     @Override

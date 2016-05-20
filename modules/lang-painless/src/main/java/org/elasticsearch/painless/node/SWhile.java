@@ -44,7 +44,7 @@ public final class SWhile extends AStatement {
     void analyze(final CompilerSettings settings, final Variables variables) {
         variables.incrementScope();
 
-        condition.expected = Definition.booleanType;
+        condition.expected = Definition.BOOLEAN_TYPE;
         condition.analyze(settings, variables);
         condition = condition.cast(settings, variables);
 

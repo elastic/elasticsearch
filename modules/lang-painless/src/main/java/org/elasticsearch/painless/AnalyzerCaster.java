@@ -118,18 +118,18 @@ public final class AnalyzerCaster {
         final Sort sort = from.sort;
 
         if (sort == Sort.DEF) {
-            return Definition.defType;
+            return Definition.DEF_TYPE;
         } else if ((sort == Sort.DOUBLE || sort == Sort.DOUBLE_OBJ) && decimal) {
-            return primitive ? Definition.doubleType : Definition.doubleobjType;
+            return primitive ? Definition.DOUBLE_TYPE : Definition.DOUBLE_OBJ_TYPE;
         } else if ((sort == Sort.FLOAT || sort == Sort.FLOAT_OBJ) && decimal) {
-            return primitive ? Definition.floatType : Definition.floatobjType;
+            return primitive ? Definition.FLOAT_TYPE : Definition.FLOAT_OBJ_TYPE;
         } else if (sort == Sort.LONG || sort == Sort.LONG_OBJ) {
-            return primitive ? Definition.longType : Definition.longobjType;
+            return primitive ? Definition.LONG_TYPE : Definition.LONG_OBJ_TYPE;
         } else if (sort == Sort.INT   || sort == Sort.INT_OBJ   ||
                    sort == Sort.CHAR  || sort == Sort.CHAR_OBJ  ||
                    sort == Sort.SHORT || sort == Sort.SHORT_OBJ ||
                    sort == Sort.BYTE  || sort == Sort.BYTE_OBJ) {
-            return primitive ? Definition.intType : Definition.intobjType;
+            return primitive ? Definition.INT_TYPE : Definition.INT_OBJ_TYPE;
         }
 
         return null;
@@ -140,21 +140,21 @@ public final class AnalyzerCaster {
         final Sort sort1 = from1.sort;
 
         if (sort0 == Sort.DEF || sort1 == Sort.DEF) {
-            return Definition.defType;
+            return Definition.DEF_TYPE;
         }
 
         if (decimal) {
             if (sort0 == Sort.DOUBLE || sort0 == Sort.DOUBLE_OBJ ||
                 sort1 == Sort.DOUBLE || sort1 == Sort.DOUBLE_OBJ) {
-                return primitive ? Definition.doubleType : Definition.doubleobjType;
+                return primitive ? Definition.DOUBLE_TYPE : Definition.DOUBLE_OBJ_TYPE;
             } else if (sort0 == Sort.FLOAT || sort0 == Sort.FLOAT_OBJ || sort1 == Sort.FLOAT || sort1 == Sort.FLOAT_OBJ) {
-                return primitive ? Definition.floatType : Definition.floatobjType;
+                return primitive ? Definition.FLOAT_TYPE : Definition.FLOAT_OBJ_TYPE;
             }
         }
 
         if (sort0 == Sort.LONG || sort0 == Sort.LONG_OBJ ||
             sort1 == Sort.LONG || sort1 == Sort.LONG_OBJ) {
-            return primitive ? Definition.longType : Definition.longobjType;
+            return primitive ? Definition.LONG_TYPE : Definition.LONG_OBJ_TYPE;
         } else if (sort0 == Sort.INT   || sort0 == Sort.INT_OBJ   ||
                    sort1 == Sort.INT   || sort1 == Sort.INT_OBJ   ||
                    sort0 == Sort.CHAR  || sort0 == Sort.CHAR_OBJ  ||
@@ -163,7 +163,7 @@ public final class AnalyzerCaster {
                    sort1 == Sort.SHORT || sort1 == Sort.SHORT_OBJ ||
                    sort0 == Sort.BYTE  || sort0 == Sort.BYTE_OBJ  ||
                    sort1 == Sort.BYTE  || sort1 == Sort.BYTE_OBJ) {
-            return primitive ? Definition.intType : Definition.intobjType;
+            return primitive ? Definition.INT_TYPE : Definition.INT_OBJ_TYPE;
         }
 
         return null;
@@ -174,7 +174,7 @@ public final class AnalyzerCaster {
         final Sort sort1 = from1.sort;
 
         if (sort0 == Sort.STRING || sort1 == Sort.STRING) {
-            return Definition.stringType;
+            return Definition.STRING_TYPE;
         }
 
         return promoteNumeric(from0, from1, true, true);
@@ -185,7 +185,7 @@ public final class AnalyzerCaster {
         final Sort sort1 = from1.sort;
 
         if (sort0.bool || sort1.bool) {
-            return Definition.booleanType;
+            return Definition.BOOLEAN_TYPE;
         }
 
         return promoteNumeric(from0, from1, false, true);
@@ -196,20 +196,20 @@ public final class AnalyzerCaster {
         final Sort sort1 = from1.sort;
 
         if (sort0 == Sort.DEF || sort1 == Sort.DEF) {
-            return Definition.defType;
+            return Definition.DEF_TYPE;
         }
 
         final boolean primitive = sort0.primitive && sort1.primitive;
 
         if (sort0.bool && sort1.bool) {
-            return primitive ? Definition.booleanType : Definition.booleanobjType;
+            return primitive ? Definition.BOOLEAN_TYPE : Definition.BOOLEAN_OBJ_TYPE;
         }
 
         if (sort0.numeric && sort1.numeric) {
             return promoteNumeric(from0, from1, true, primitive);
         }
 
-        return Definition.objectType;
+        return Definition.OBJECT_TYPE;
     }
 
     public static Type promoteReference(final Type from0, final Type from1) {
@@ -217,12 +217,12 @@ public final class AnalyzerCaster {
         final Sort sort1 = from1.sort;
 
         if (sort0 == Sort.DEF || sort1 == Sort.DEF) {
-            return Definition.defType;
+            return Definition.DEF_TYPE;
         }
 
         if (sort0.primitive && sort1.primitive) {
             if (sort0.bool && sort1.bool) {
-                return Definition.booleanType;
+                return Definition.BOOLEAN_TYPE;
             }
 
             if (sort0.numeric && sort1.numeric) {
@@ -230,7 +230,7 @@ public final class AnalyzerCaster {
             }
         }
 
-        return Definition.objectType;
+        return Definition.OBJECT_TYPE;
     }
 
     public static Type promoteConditional(final Type from0, final Type from1, final Object const0, final Object const1) {
@@ -242,48 +242,48 @@ public final class AnalyzerCaster {
         final Sort sort1 = from1.sort;
 
         if (sort0 == Sort.DEF || sort1 == Sort.DEF) {
-            return Definition.defType;
+            return Definition.DEF_TYPE;
         }
 
         final boolean primitive = sort0.primitive && sort1.primitive;
 
         if (sort0.bool && sort1.bool) {
-            return primitive ? Definition.booleanType : Definition.booleanobjType;
+            return primitive ? Definition.BOOLEAN_TYPE : Definition.BOOLEAN_OBJ_TYPE;
         }
 
         if (sort0.numeric && sort1.numeric) {
             if (sort0 == Sort.DOUBLE || sort0 == Sort.DOUBLE_OBJ || sort1 == Sort.DOUBLE || sort1 == Sort.DOUBLE_OBJ) {
-                return primitive ? Definition.doubleType : Definition.doubleobjType;
+                return primitive ? Definition.DOUBLE_TYPE : Definition.DOUBLE_OBJ_TYPE;
             } else if (sort0 == Sort.FLOAT || sort0 == Sort.FLOAT_OBJ || sort1 == Sort.FLOAT || sort1 == Sort.FLOAT_OBJ) {
-                return primitive ? Definition.floatType : Definition.floatobjType;
+                return primitive ? Definition.FLOAT_TYPE : Definition.FLOAT_OBJ_TYPE;
             } else if (sort0 == Sort.LONG || sort0 == Sort.LONG_OBJ || sort1 == Sort.LONG || sort1 == Sort.LONG_OBJ) {
-                return sort0.primitive && sort1.primitive ? Definition.longType : Definition.longobjType;
+                return sort0.primitive && sort1.primitive ? Definition.LONG_TYPE : Definition.LONG_OBJ_TYPE;
             } else {
                 if (sort0 == Sort.BYTE || sort0 == Sort.BYTE_OBJ) {
                     if (sort1 == Sort.BYTE || sort1 == Sort.BYTE_OBJ) {
-                        return primitive ? Definition.byteType : Definition.byteobjType;
+                        return primitive ? Definition.BYTE_TYPE : Definition.BYTE_OBJ_TYPE;
                     } else if (sort1 == Sort.SHORT || sort1 == Sort.SHORT_OBJ) {
                         if (const1 != null) {
                             final short constant = (short)const1;
 
                             if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return primitive ? Definition.byteType : Definition.byteobjType;
+                                return primitive ? Definition.BYTE_TYPE : Definition.BYTE_OBJ_TYPE;
                             }
                         }
 
-                        return primitive ? Definition.shortType : Definition.shortobjType;
+                        return primitive ? Definition.SHORT_TYPE : Definition.SHORT_OBJ_TYPE;
                     } else if (sort1 == Sort.CHAR || sort1 == Sort.CHAR_OBJ) {
-                        return primitive ? Definition.intType : Definition.intobjType;
+                        return primitive ? Definition.INT_TYPE : Definition.INT_OBJ_TYPE;
                     } else if (sort1 == Sort.INT || sort1 == Sort.INT_OBJ) {
                         if (const1 != null) {
                             final int constant = (int)const1;
 
                             if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return primitive ? Definition.byteType : Definition.byteobjType;
+                                return primitive ? Definition.BYTE_TYPE : Definition.BYTE_OBJ_TYPE;
                             }
                         }
 
-                        return primitive ? Definition.intType : Definition.intobjType;
+                        return primitive ? Definition.INT_TYPE : Definition.INT_OBJ_TYPE;
                     }
                 } else if (sort0 == Sort.SHORT || sort0 == Sort.SHORT_OBJ) {
                     if (sort1 == Sort.BYTE || sort1 == Sort.BYTE_OBJ) {
@@ -291,43 +291,43 @@ public final class AnalyzerCaster {
                             final short constant = (short)const0;
 
                             if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return primitive ? Definition.byteType : Definition.byteobjType;
+                                return primitive ? Definition.BYTE_TYPE : Definition.BYTE_OBJ_TYPE;
                             }
                         }
 
-                        return primitive ? Definition.shortType : Definition.shortobjType;
+                        return primitive ? Definition.SHORT_TYPE : Definition.SHORT_OBJ_TYPE;
                     } else if (sort1 == Sort.SHORT || sort1 == Sort.SHORT_OBJ) {
-                        return primitive ? Definition.shortType : Definition.shortobjType;
+                        return primitive ? Definition.SHORT_TYPE : Definition.SHORT_OBJ_TYPE;
                     } else if (sort1 == Sort.CHAR || sort1 == Sort.CHAR_OBJ) {
-                        return primitive ? Definition.intType : Definition.intobjType;
+                        return primitive ? Definition.INT_TYPE : Definition.INT_OBJ_TYPE;
                     } else if (sort1 == Sort.INT || sort1 == Sort.INT_OBJ) {
                         if (const1 != null) {
                             final int constant = (int)const1;
 
                             if (constant <= Short.MAX_VALUE && constant >= Short.MIN_VALUE) {
-                                return primitive ? Definition.shortType : Definition.shortobjType;
+                                return primitive ? Definition.SHORT_TYPE : Definition.SHORT_OBJ_TYPE;
                             }
                         }
 
-                        return primitive ? Definition.intType : Definition.intobjType;
+                        return primitive ? Definition.INT_TYPE : Definition.INT_OBJ_TYPE;
                     }
                 } else if (sort0 == Sort.CHAR || sort0 == Sort.CHAR_OBJ) {
                     if (sort1 == Sort.BYTE || sort1 == Sort.BYTE_OBJ) {
-                        return primitive ? Definition.intType : Definition.intobjType;
+                        return primitive ? Definition.INT_TYPE : Definition.INT_OBJ_TYPE;
                     } else if (sort1 == Sort.SHORT || sort1 == Sort.SHORT_OBJ) {
-                        return primitive ? Definition.intType : Definition.intobjType;
+                        return primitive ? Definition.INT_TYPE : Definition.INT_OBJ_TYPE;
                     } else if (sort1 == Sort.CHAR || sort1 == Sort.CHAR_OBJ) {
-                        return primitive ? Definition.charType : Definition.charobjType;
+                        return primitive ? Definition.CHAR_TYPE : Definition.CHAR_OBJ_TYPE;
                     } else if (sort1 == Sort.INT || sort1 == Sort.INT_OBJ) {
                         if (const1 != null) {
                             final int constant = (int)const1;
 
                             if (constant <= Character.MAX_VALUE && constant >= Character.MIN_VALUE) {
-                                return primitive ? Definition.byteType : Definition.byteobjType;
+                                return primitive ? Definition.BYTE_TYPE : Definition.BYTE_OBJ_TYPE;
                             }
                         }
 
-                        return primitive ? Definition.intType : Definition.intobjType;
+                        return primitive ? Definition.INT_TYPE : Definition.INT_OBJ_TYPE;
                     }
                 } else if (sort0 == Sort.INT || sort0 == Sort.INT_OBJ) {
                     if (sort1 == Sort.BYTE || sort1 == Sort.BYTE_OBJ) {
@@ -335,33 +335,33 @@ public final class AnalyzerCaster {
                             final int constant = (int)const0;
 
                             if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return primitive ? Definition.byteType : Definition.byteobjType;
+                                return primitive ? Definition.BYTE_TYPE : Definition.BYTE_OBJ_TYPE;
                             }
                         }
 
-                        return primitive ? Definition.intType : Definition.intobjType;
+                        return primitive ? Definition.INT_TYPE : Definition.INT_OBJ_TYPE;
                     } else if (sort1 == Sort.SHORT || sort1 == Sort.SHORT_OBJ) {
                         if (const0 != null) {
                             final int constant = (int)const0;
 
                             if (constant <= Short.MAX_VALUE && constant >= Short.MIN_VALUE) {
-                                return primitive ? Definition.byteType : Definition.byteobjType;
+                                return primitive ? Definition.BYTE_TYPE : Definition.BYTE_OBJ_TYPE;
                             }
                         }
 
-                        return primitive ? Definition.intType : Definition.intobjType;
+                        return primitive ? Definition.INT_TYPE : Definition.INT_OBJ_TYPE;
                     } else if (sort1 == Sort.CHAR || sort1 == Sort.CHAR_OBJ) {
                         if (const0 != null) {
                             final int constant = (int)const0;
 
                             if (constant <= Character.MAX_VALUE && constant >= Character.MIN_VALUE) {
-                                return primitive ? Definition.byteType : Definition.byteobjType;
+                                return primitive ? Definition.BYTE_TYPE : Definition.BYTE_OBJ_TYPE;
                             }
                         }
 
-                        return primitive ? Definition.intType : Definition.intobjType;
+                        return primitive ? Definition.INT_TYPE : Definition.INT_OBJ_TYPE;
                     } else if (sort1 == Sort.INT || sort1 == Sort.INT_OBJ) {
-                        return primitive ? Definition.intType : Definition.intobjType;
+                        return primitive ? Definition.INT_TYPE : Definition.INT_OBJ_TYPE;
                     }
                 }
             }
@@ -371,7 +371,7 @@ public final class AnalyzerCaster {
         //       to calculate the highest upper bound for the two types and return that.
         //       However, for now we just return objectType that may require an extra cast.
 
-        return Definition.objectType;
+        return Definition.OBJECT_TYPE;
     }
 
     private AnalyzerCaster() {}

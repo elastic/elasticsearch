@@ -199,7 +199,7 @@ public final class EChain extends AExpression {
 
             expression.expected = expression.actual;
         } else if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
-            expression.expected = Definition.intType;
+            expression.expected = Definition.INT_TYPE;
             expression.explicit = true;
         } else {
             expression.expected = promote;
@@ -211,7 +211,7 @@ public final class EChain extends AExpression {
         back = AnalyzerCaster.getLegalCast(location, promote, last.after, true);
 
         this.statement = true;
-        this.actual = read ? last.after : Definition.voidType;
+        this.actual = read ? last.after : Definition.VOID_TYPE;
     }
 
     private void analyzeWrite(final CompilerSettings settings, final Variables variables) {
@@ -231,7 +231,7 @@ public final class EChain extends AExpression {
         expression = expression.cast(settings, variables);
 
         this.statement = true;
-        this.actual = read ? last.after : Definition.voidType;
+        this.actual = read ? last.after : Definition.VOID_TYPE;
     }
 
     private void analyzeRead() {

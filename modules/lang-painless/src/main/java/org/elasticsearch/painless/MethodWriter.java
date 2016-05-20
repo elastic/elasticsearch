@@ -159,11 +159,11 @@ public final class MethodWriter extends GeneratorAdapter {
                 writeCast(from, to);
                 unbox(to.type);
             } else if (cast.boxFrom) {
-                valueOf(from.type);
+                box(from.type);
                 writeCast(from, to);
             } else if (cast.boxTo) {
                 writeCast(from, to);
-                valueOf(to.type);
+                box(to.type);
             } else {
                 writeCast(from, to);
             }
@@ -182,6 +182,14 @@ public final class MethodWriter extends GeneratorAdapter {
                 checkCast(to.type);
             }
         }
+    }
+
+    /**
+     * Proxy the box method to use valueOf instead to ensure that the modern boxing methods are used.
+     */
+    @Override
+    public void box(org.objectweb.asm.Type type) {
+        valueOf(type);
     }
 
     public void writeBranch(final Label tru, final Label fals) {

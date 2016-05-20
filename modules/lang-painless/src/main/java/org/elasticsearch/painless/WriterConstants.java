@@ -135,17 +135,7 @@ public final class WriterConstants {
     public final static Method STRINGBUILDER_APPEND_OBJECT  = getAsmMethod(StringBuilder.class, "append", Object.class);
     public final static Method STRINGBUILDER_TOSTRING       = getAsmMethod(String.class, "toString");
 
-    public final static Method CHECKEQUALS              =
-        getAsmMethod(boolean.class, "checkEquals",              Object.class, Object.class);
-
-    public final static Type BOOLEAN_OBJECT   = Type.getType(Boolean.class);
-    public final static Type BYTE_OBJECT      = Type.getType(Byte.class);
-    public final static Type SHORT_OBJECT     = Type.getType(Short.class);
-    public final static Type CHARACTER_OBJECT = Type.getType(Character.class);
-    public final static Type INTEGER_OBJECT   = Type.getType(Integer.class);
-    public final static Type LONG_OBJECT      = Type.getType(Long.class);
-    public final static Type FLOAT_OBJECT     = Type.getType(Float.class);
-    public final static Type DOUBLE_OBJECT    = Type.getType(Double.class);
+    public final static Method CHECKEQUALS = getAsmMethod(boolean.class, "checkEquals", Object.class, Object.class);
 
     private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());

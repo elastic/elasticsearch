@@ -30,14 +30,9 @@ import org.elasticsearch.script.ScriptModule;
  */
 public final class PainlessPlugin extends Plugin {
 
-    // parse our definition at startup (not on the user's first script)
-    // compilation process is sandboxed and has no file access.
+    // force to pare our definition at startup (not on the user's first script)
     static {
-        try {
-            Class.forName("org.elasticsearch.painless.Definition");
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(e);
-        }
+        Definition.voidType.hashCode();
     }
 
     @Override

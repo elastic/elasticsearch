@@ -314,7 +314,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
     public void testSpanContaining() {
         spanContainingQuery(
                 spanNearQuery(spanTermQuery("field1","bar"), 5)
-                    .clause(spanTermQuery("field1","baz"))
+                    .addClause(spanTermQuery("field1","baz"))
                     .inOrder(true),
                 spanTermQuery("field1","foo"));
     }
@@ -332,8 +332,8 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
     public void testSpanNear() {
         spanNearQuery(spanTermQuery("field","value1"), 12)
-        .clause(spanTermQuery("field","value2"))
-        .clause(spanTermQuery("field","value3"))
+        .addClause(spanTermQuery("field","value2"))
+        .addClause(spanTermQuery("field","value3"))
         .inOrder(false);
     }
 
@@ -344,8 +344,8 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
     public void testSpanOr() {
         spanOrQuery(spanTermQuery("field","value1"))
-        .clause(spanTermQuery("field","value2"))
-        .clause(spanTermQuery("field","value3"));
+        .addClause(spanTermQuery("field","value2"))
+        .addClause(spanTermQuery("field","value3"));
     }
 
     public void testSpanTerm() {
@@ -355,7 +355,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
     public void testSpanWithin() {
         spanWithinQuery(
                 spanNearQuery(spanTermQuery("field1", "bar"), 5)
-                    .clause(spanTermQuery("field1", "baz"))
+                    .addClause(spanTermQuery("field1", "baz"))
                     .inOrder(true),
                 spanTermQuery("field1", "foo"));
     }

@@ -158,7 +158,7 @@ delimiter
 assignment
     : lhs ( ASSIGN | AADD | ASUB | AMUL |
             ADIV   | AREM | AAND | AXOR |
-            AOR    | ALSH | ARSH | AUSH ) ( conditional | assignment )
+            AOR    | ALSH | ARSH | AUSH ) ( expression | assignment )
     ;
 
 lhs
@@ -167,80 +167,8 @@ lhs
     | array
     ;
 
-conditional
-    : booleanOr
-    | booleanOr COND booleanOr COLON booleanOr
-    ;
-
-booleanOr
-    : booleanAnd
-    | booleanAnd OR booleanOr
-    ;
-
-booleanAnd
-    : bitOr
-    | bitOr AND booleanAnd
-    ;
-
-bitOr
-    : bitXor
-    | bitXor BWOR bitOr
-    ;
-
-bitXor
-    : bitAnd
-    | bitAnd BWXOR bitXor
-    ;
-
-bitAnd
-    : equality
-    | equality BWAND bitAnd
-    ;
-
-equality
-    : comparison
-    | comparison ( EQ | EQR | NE | NER ) equality
-    ;
-
-comparison
-    : shift
-    | shift ( LT | LTE | GT | GTE ) comparison
-    ;
-
-shift
-    : additive
-    | additive ( LSH | RSH | USH ) shift
-    ;
-
-additive
-    : multiplicative
-    | multiplicative ( ADD | SUB ) additive
-    ;
-
-multiplicative
-    : unary
-    | unary ( MUL | DIV | REM ) multiplicative
-    ;
-
-unary
-    :
-    ;
-
-preIncrement
-
-preDecerement
-
 expression
-    :               LP expression RP                                    # precedence
-    |               ( OCTAL | HEX | INTEGER | DECIMAL )                 # numeric
-    |               TRUE                                                # true
-    |               FALSE                                               # false
-    |               NULL                                                # null
-    | <assoc=right> chain ( INCR | DECR )                               # postinc
-    | <assoc=right> ( INCR | DECR ) chain                               # preinc
-    |               chain                                               # read
-    | <assoc=right> ( BOOLNOT | BWNOT | ADD | SUB ) expression          # unary
-    | <assoc=right> LP declarationType RP expression                    # cast
+    :               unary                                               # single
     |               expression ( MUL | DIV | REM ) expression           # binary
     |               expression ( ADD | SUB ) expression                 # binary
     |               expression ( LSH | RSH | USH ) expression           # binary
@@ -253,6 +181,26 @@ expression
     |               expression BOOLOR expression                        # bool
     | <assoc=right> expression COND expression COLON expression         # conditional
     ;
+
+unary
+    : ( INCR | DECR ) chain                 # preincrement
+    | postfix                               # post
+    | ( BOOLNOT | BWNOT | ADD | SUB ) unary # operator
+    | LP declarationType RP unary           # cast
+    ;
+
+postfix
+
+    :               LP expression RP                                    # precedence
+    |               ( OCTAL | HEX | INTEGER | DECIMAL )                 # numeric
+    |               TRUE                                                # true
+    |               FALSE                                               # false
+    |               NULL                                                # null
+    | <assoc=right> chain ( INCR | DECR )                               # postinc
+    | <assoc=right> ( INCR | DECR ) chain                               # preinc
+    |               chain                                               # read
+    | <assoc=right> ( BOOLNOT | BWNOT | ADD | SUB ) expression          # unary
+    | <assoc=right> LP declarationType RP expression                    # cast
 
 chain
     : linkprec

@@ -38,9 +38,10 @@ import java.io.IOException;
  * Request to submit cluster reroute allocation commands
  */
 public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteRequest> {
-    AllocationCommands commands = new AllocationCommands();
-    boolean dryRun;
-    boolean explain;
+    private AllocationCommands commands = new AllocationCommands();
+    private boolean dryRun;
+    private boolean explain;
+    private boolean retryFailed;
 
     public ClusterRerouteRequest() {
     }
@@ -82,6 +83,15 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
     }
 
     /**
+     * Sets the retry failed flag (defaults to <tt>false</tt>). If true, the
+     * request will retry allocating shards that can't currently be allocated due to too many allocation failures.
+     */
+    public ClusterRerouteRequest setRetryFailed(boolean retryFailed) {
+        this.retryFailed = retryFailed;
+        return this;
+    }
+
+    /**
      * Returns the current explain flag
      */
     public boolean explain() {
@@ -89,11 +99,26 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
     }
 
     /**
+     * Returns the current retry failed flag
+     */
+    public boolean isRetryFailed() {
+        return this.retryFailed;
+    }
+
+
+    /**
      * Set the allocation commands to execute.
      */
     public ClusterRerouteRequest commands(AllocationCommand... commands) {
         this.commands = new AllocationCommands(commands);
         return this;
+    }
+
+    /**
+     * Returns the allocation commands to execute
+     */
+    public AllocationCommands getCommands() {
+        return commands;
     }
 
     /**
@@ -136,6 +161,7 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         commands = AllocationCommands.readFrom(in);
         dryRun = in.readBoolean();
         explain = in.readBoolean();
+        retryFailed = in.readBoolean();
         readTimeout(in);
     }
 
@@ -145,6 +171,7 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         AllocationCommands.writeTo(commands, out);
         out.writeBoolean(dryRun);
         out.writeBoolean(explain);
+        out.writeBoolean(retryFailed);
         writeTimeout(out);
     }
 }

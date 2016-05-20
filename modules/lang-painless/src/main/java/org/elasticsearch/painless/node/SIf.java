@@ -33,8 +33,7 @@ public final class SIf extends AStatement {
     AExpression condition;
     final SBlock ifblock;
 
-    public SIf(final int line, final String location,
-               final AExpression condition, final SBlock ifblock) {
+    public SIf(int line, String location, AExpression condition, SBlock ifblock) {
         super(line, location);
 
         this.condition = condition;
@@ -42,10 +41,10 @@ public final class SIf extends AStatement {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        condition.expected = definition.booleanType;
-        condition.analyze(settings, definition, variables);
-        condition = condition.cast(settings, definition, variables);
+    void analyze(Variables variables) {
+        condition.expected = Definition.BOOLEAN_TYPE;
+        condition.analyze(variables);
+        condition = condition.cast(variables);
 
         if (condition.constant != null) {
             throw new IllegalArgumentException(error("Extraneous if statement."));
@@ -60,7 +59,7 @@ public final class SIf extends AStatement {
         ifblock.lastLoop = lastLoop;
 
         variables.incrementScope();
-        ifblock.analyze(settings, definition, variables);
+        ifblock.analyze(variables);
         variables.decrementScope();
 
         anyContinue = ifblock.anyContinue;
@@ -69,16 +68,16 @@ public final class SIf extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         writeDebugInfo(adapter);
         final Label fals = new Label();
 
         condition.fals = fals;
-        condition.write(settings, definition, adapter);
+        condition.write(adapter);
 
         ifblock.continu = continu;
         ifblock.brake = brake;
-        ifblock.write(settings, definition, adapter);
+        ifblock.write(adapter);
 
         adapter.mark(fals);
     }

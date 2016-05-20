@@ -50,7 +50,7 @@ public final class PercolateQuery extends Query implements Accountable {
     public static class Builder {
 
         private final String docType;
-        private final QueryRegistry queryRegistry;
+        private final QueryStore queryStore;
         private final BytesReference documentSource;
         private final IndexSearcher percolatorIndexSearcher;
 
@@ -59,15 +59,15 @@ public final class PercolateQuery extends Query implements Accountable {
 
         /**
          * @param docType                   The type of the document being percolated
-         * @param queryRegistry             The registry holding all the percolator queries as Lucene queries.
+         * @param queryStore                The lookup holding all the percolator queries as Lucene queries.
          * @param documentSource            The source of the document being percolated
          * @param percolatorIndexSearcher   The index searcher on top of the in-memory index that holds the document being percolated
          */
-        public Builder(String docType, QueryRegistry queryRegistry, BytesReference documentSource, IndexSearcher percolatorIndexSearcher) {
+        public Builder(String docType, QueryStore queryStore, BytesReference documentSource, IndexSearcher percolatorIndexSearcher) {
             this.docType = Objects.requireNonNull(docType);
             this.documentSource = Objects.requireNonNull(documentSource);
             this.percolatorIndexSearcher = Objects.requireNonNull(percolatorIndexSearcher);
-            this.queryRegistry = Objects.requireNonNull(queryRegistry);
+            this.queryStore = Objects.requireNonNull(queryStore);
         }
 
         /**
@@ -94,7 +94,6 @@ public final class PercolateQuery extends Query implements Accountable {
             if (percolateTypeQuery != null && queriesMetaDataQuery != null) {
                 throw new IllegalStateException("Either filter by deprecated percolator type or by query metadata");
             }
-
             // The query that selects which percolator queries will be evaluated by MemoryIndex:
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             if (percolateTypeQuery != null) {
@@ -103,24 +102,23 @@ public final class PercolateQuery extends Query implements Accountable {
             if (queriesMetaDataQuery != null) {
                 builder.add(queriesMetaDataQuery, FILTER);
             }
-
-            return new PercolateQuery(docType, queryRegistry, documentSource, builder.build(), percolatorIndexSearcher);
+            return new PercolateQuery(docType, queryStore, documentSource, builder.build(), percolatorIndexSearcher);
         }
 
     }
 
     private final String documentType;
-    private final QueryRegistry queryRegistry;
+    private final QueryStore queryStore;
     private final BytesReference documentSource;
     private final Query percolatorQueriesQuery;
     private final IndexSearcher percolatorIndexSearcher;
 
-    private PercolateQuery(String documentType, QueryRegistry queryRegistry, BytesReference documentSource,
+    private PercolateQuery(String documentType, QueryStore queryStore, BytesReference documentSource,
                            Query percolatorQueriesQuery, IndexSearcher percolatorIndexSearcher) {
         this.documentType = documentType;
         this.documentSource = documentSource;
         this.percolatorQueriesQuery = percolatorQueriesQuery;
-        this.queryRegistry = queryRegistry;
+        this.queryStore = queryStore;
         this.percolatorIndexSearcher = percolatorIndexSearcher;
     }
 
@@ -128,7 +126,7 @@ public final class PercolateQuery extends Query implements Accountable {
     public Query rewrite(IndexReader reader) throws IOException {
         Query rewritten = percolatorQueriesQuery.rewrite(reader);
         if (rewritten != percolatorQueriesQuery) {
-            return new PercolateQuery(documentType, queryRegistry, documentSource, rewritten, percolatorIndexSearcher);
+            return new PercolateQuery(documentType, queryStore, documentSource, rewritten, percolatorIndexSearcher);
         } else {
             return this;
         }
@@ -151,7 +149,7 @@ public final class PercolateQuery extends Query implements Accountable {
                     if (result == docId) {
                         if (twoPhaseIterator.matches()) {
                             if (needsScores) {
-                                QueryRegistry.Leaf percolatorQueries = queryRegistry.getQueries(leafReaderContext);
+                                QueryStore.Leaf percolatorQueries = queryStore.getQueries(leafReaderContext);
                                 Query query = percolatorQueries.getQuery(docId);
                                 Explanation detail = percolatorIndexSearcher.explain(query, 0);
                                 return Explanation.match(scorer.score(), "PercolateQuery", detail);
@@ -181,9 +179,9 @@ public final class PercolateQuery extends Query implements Accountable {
                     return null;
                 }
 
-                final QueryRegistry.Leaf percolatorQueries = queryRegistry.getQueries(leafReaderContext);
+                final QueryStore.Leaf queries = queryStore.getQueries(leafReaderContext);
                 if (needsScores) {
-                    return new BaseScorer(this, approximation, percolatorQueries, percolatorIndexSearcher) {
+                    return new BaseScorer(this, approximation, queries, percolatorIndexSearcher) {
 
                         float score;
 
@@ -209,7 +207,7 @@ public final class PercolateQuery extends Query implements Accountable {
                         }
                     };
                 } else {
-                    return new BaseScorer(this, approximation, percolatorQueries, percolatorIndexSearcher) {
+                    return new BaseScorer(this, approximation, queries, percolatorIndexSearcher) {
 
                         @Override
                         public float score() throws IOException {
@@ -236,6 +234,10 @@ public final class PercolateQuery extends Query implements Accountable {
 
     public BytesReference getDocumentSource() {
         return documentSource;
+    }
+
+    public QueryStore getQueryStore() {
+        return queryStore;
     }
 
     @Override
@@ -276,13 +278,15 @@ public final class PercolateQuery extends Query implements Accountable {
         return sizeInBytes;
     }
 
-    public interface QueryRegistry {
+    @FunctionalInterface
+    public interface QueryStore {
 
-        Leaf getQueries(LeafReaderContext ctx);
+        Leaf getQueries(LeafReaderContext ctx) throws IOException;
 
+        @FunctionalInterface
         interface Leaf {
 
-            Query getQuery(int docId);
+            Query getQuery(int docId) throws IOException;
 
         }
 
@@ -291,10 +295,10 @@ public final class PercolateQuery extends Query implements Accountable {
     static abstract class BaseScorer extends Scorer {
 
         final Scorer approximation;
-        final QueryRegistry.Leaf percolatorQueries;
+        final QueryStore.Leaf percolatorQueries;
         final IndexSearcher percolatorIndexSearcher;
 
-        BaseScorer(Weight weight, Scorer approximation, QueryRegistry.Leaf percolatorQueries, IndexSearcher percolatorIndexSearcher) {
+        BaseScorer(Weight weight, Scorer approximation, QueryStore.Leaf percolatorQueries, IndexSearcher percolatorIndexSearcher) {
             super(weight);
             this.approximation = approximation;
             this.percolatorQueries = percolatorQueries;

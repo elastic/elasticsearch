@@ -26,15 +26,6 @@ import java.util.Map;
 /** Tests integer overflow with numeric overflow disabled */
 public class IntegerOverflowDisabledTests extends ScriptTestCase {
 
-    /** wire overflow to false for all tests */
-    @Override
-    public Object exec(String script, Map<String, Object> vars) {
-        Map<String,String> compilerSettings = new HashMap<>();
-        compilerSettings.put(CompilerSettings.NUMERIC_OVERFLOW, "false");
-        compilerSettings.put(CompilerSettings.PICKY, "true" /* TODO: Boolean.toString(random().nextBoolean()) */);
-        return exec(script, vars, Collections.unmodifiableMap(compilerSettings));
-    }
-
     public void testAssignmentAdditionOverflow() {
         // byte
         try {

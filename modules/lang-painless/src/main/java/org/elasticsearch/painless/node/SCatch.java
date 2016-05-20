@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.Variables.Variable;
 import org.objectweb.asm.Label;
@@ -42,7 +40,7 @@ public final class SCatch extends AStatement {
     Label end;
     Label exception;
 
-    public SCatch(final int line, final String location, final String type, final String name, final SBlock block) {
+    public SCatch(int line, String location, String type, String name, SBlock block) {
         super(line, location);
 
         this.type = type;
@@ -51,7 +49,7 @@ public final class SCatch extends AStatement {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Variables variables) {
         variable = variables.addVariable(location, type, name, true, false);
 
         if (!Exception.class.isAssignableFrom(variable.type.clazz)) {
@@ -63,7 +61,7 @@ public final class SCatch extends AStatement {
             block.inLoop = inLoop;
             block.lastLoop = lastLoop;
 
-            block.analyze(settings, definition, variables);
+            block.analyze(variables);
 
             methodEscape = block.methodEscape;
             loopEscape = block.loopEscape;
@@ -75,7 +73,7 @@ public final class SCatch extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         writeDebugInfo(adapter);
         final Label jump = new Label();
 
@@ -85,7 +83,7 @@ public final class SCatch extends AStatement {
         if (block != null) {
             block.continu = continu;
             block.brake = brake;
-            block.write(settings, definition, adapter);
+            block.write(adapter);
         }
 
         adapter.visitTryCatchBlock(begin, end, jump, variable.type.type.getInternalName());

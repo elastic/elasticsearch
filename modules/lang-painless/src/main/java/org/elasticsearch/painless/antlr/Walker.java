@@ -27,6 +27,7 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Variables.Reserved;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentsContext;
@@ -131,19 +132,21 @@ import java.util.List;
  */
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
-    public static SSource buildPainlessTree(final String source, final Reserved reserved, boolean picky) {
-        return new Walker(source, reserved, picky).source;
+    public static SSource buildPainlessTree(String source, Reserved reserved, CompilerSettings settings) {
+        return new Walker(source, reserved, settings).source;
     }
 
     private final Reserved reserved;
     private final SSource source;
+    private final CompilerSettings settings;
 
-    private Walker(final String source, final Reserved reserved, boolean picky) {
+    private Walker(String source, Reserved reserved, CompilerSettings settings) {
         this.reserved = reserved;
-        this.source = (SSource)visit(buildAntlrTree(source, picky));
+        this.settings = settings;
+        this.source = (SSource)visit(buildAntlrTree(source));
     }
 
-    private static SourceBlockContext buildAntlrTree(final String source, boolean picky) {
+    private SourceBlockContext buildAntlrTree(String source) {
         final ANTLRInputStream stream = new ANTLRInputStream(source);
         final PainlessLexer lexer = new ErrorHandlingLexer(stream);
         final PainlessParser parser = new PainlessParser(new CommonTokenStream(lexer));
@@ -152,7 +155,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         lexer.removeErrorListeners();
         parser.removeErrorListeners();
 
-        if (picky) {
+        if (settings.isPicky()) {
             // Diagnostic listener invokes syntaxError on other listeners for ambiguity issues,
             parser.addErrorListener(new DiagnosticErrorListener(true));
             // a second listener to fail the test when the above happens.
@@ -338,7 +341,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
         reserved.usesLoop();
 
-        return new SWhile(line(ctx), location(ctx), condition, block);
+        return new SWhile(line(ctx), location(ctx), condition, block, settings.getMaxLoopCounter());
     }
 
     @Override
@@ -356,7 +359,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
         reserved.usesLoop();
 
-        return new SWhile(line(ctx), location(ctx), condition, block);
+        return new SWhile(line(ctx), location(ctx), condition, block, settings.getMaxLoopCounter());
     }
 
     @Override
@@ -376,7 +379,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
         reserved.usesLoop();
 
-        return new SFor(line(ctx), location(ctx), intializer, condition, afterthought, block);
+        return new SFor(line(ctx), location(ctx), intializer, condition, afterthought, block, settings.getMaxLoopCounter());
     }
 
     @Override
@@ -396,7 +399,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
         reserved.usesLoop();
 
-        return new SFor(line(ctx), location(ctx), intializer, condition, afterthought, block);
+        return new SFor(line(ctx), location(ctx), intializer, condition, afterthought, block, settings.getMaxLoopCounter());
     }
 
     @Override
@@ -406,7 +409,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
         reserved.usesLoop();
 
-        return new SDo(line(ctx), location(ctx), block, condition);
+        return new SDo(line(ctx), location(ctx), block, condition, settings.getMaxLoopCounter());
     }
 
     @Override

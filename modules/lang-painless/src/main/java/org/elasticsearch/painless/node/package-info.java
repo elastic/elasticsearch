@@ -22,6 +22,7 @@
  * <p>
  * The following are the types of nodes:
  * A* (abstract) - These are the abstract nodes that are the superclasses for the other types.
+ * I* (interface) -- Thse are marker interfaces to denote a property of the node.
  * S* (statement) - These are nodes that represent a statement in Painless.  These are the highest level nodes.
  * E* (expression) - These are nodess that represent an expression in Painless.  These are the middle level nodes.
  * L* (link) - These are nodes that respresent a piece of a variable/method chain.  The are the lowest level nodes.

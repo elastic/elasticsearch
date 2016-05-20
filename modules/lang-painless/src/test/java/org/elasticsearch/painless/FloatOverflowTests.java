@@ -19,21 +19,8 @@
 
 package org.elasticsearch.painless;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
-/** Tests floating point overflow with numeric overflow enabled */
-public class FloatOverflowEnabledTests extends ScriptTestCase {
-
-    /** wire overflow to true for all tests */
-    @Override
-    public Object exec(String script, Map<String, Object> vars) {
-        Map<String,String> compilerSettings = new HashMap<>();
-        compilerSettings.put(CompilerSettings.NUMERIC_OVERFLOW, "true");
-        compilerSettings.put(CompilerSettings.PICKY, "true" /* TODO: Boolean.toString(random().nextBoolean()) */);
-        return exec(script, vars, Collections.unmodifiableMap(compilerSettings));
-    }
+/** Tests floating point overflow cases */
+public class FloatOverflowTests extends ScriptTestCase {
 
     public void testAssignmentAdditionOverflow() {
         // float

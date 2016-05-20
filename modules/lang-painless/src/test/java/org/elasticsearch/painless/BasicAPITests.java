@@ -22,15 +22,17 @@ package org.elasticsearch.painless;
 public class BasicAPITests extends ScriptTestCase {
 
     public void testListIterator() {
-        assertEquals(3, exec("List x = new ArrayList(); x.add(2); x.add(3); x.add(-2); Iterator y = x.iterator(); " +
-            "int total = 0; while (y.hasNext()) total += y.next(); return total;"));
+        assertEquals("abc", exec("List x = new ArrayList(); x.add(\"a\"); x.add(\"b\"); x.add(\"c\"); " +
+            "Iterator y = x.iterator(); String total = \"\"; while (y.hasNext()) total += y.next(); return total;"));
+        assertEquals(3, exec("def x = new ArrayList(); x.add(2); x.add(3); x.add(-2); def y = x.iterator(); " +
+            "def total = 0; while (y.hasNext()) total += y.next(); return total;"));
     }
 
     public void testSetIterator() {
         assertEquals(3, exec("Set x = new HashSet(); x.add(2); x.add(3); x.add(-2); Iterator y = x.iterator(); " +
             "int total = 0; while (y.hasNext()) total += y.next(); return total;"));
-        assertEquals(3, exec("def x = new HashSet(); x.add(2); x.add(3); x.add(-2); def y = x.iterator(); " +
-            "def total = 0; while (y.hasNext()) total += (int)y.next(); return total;"));
+        assertEquals("abc", exec("Set x = new HashSet(); x.add(\"a\"); x.add(\"b\"); x.add(\"c\"); " +
+            "Iterator y = x.iterator(); String total = \"\"; while (y.hasNext()) total += y.next(); return total;"));
     }
 
     public void testMapIterator() {
@@ -68,12 +70,20 @@ public class BasicAPITests extends ScriptTestCase {
         assertEquals(1, exec("def x = new ArrayList(); x.add(5); return x.length"));
         assertEquals(5, exec("def x = new ArrayList(); x.add(5); return x[0]"));
         assertEquals(1, exec("List x = new ArrayList(); x.add('Hallo'); return x.length"));
-        assertEquals(1, exec("List x = new ArrayList(); x.add('Hallo'); return x.length"));
-        assertEquals(1, exec("List x = new ArrayList(); x.add('Hallo'); return x.length"));
     }
 
     public void testDefAssignments() {
         assertEquals(2, exec("int x; def y = 2.0; x = (int)y;"));
     }
 
+    public void testInternalBoxing() {
+        assertBytecodeExists("def x = true", "INVOKESTATIC java/lang/Boolean.valueOf (Z)Ljava/lang/Boolean;");
+        assertBytecodeExists("def x = (byte)1", "INVOKESTATIC java/lang/Byte.valueOf (B)Ljava/lang/Byte;");
+        assertBytecodeExists("def x = (short)1", "INVOKESTATIC java/lang/Short.valueOf (S)Ljava/lang/Short;");
+        assertBytecodeExists("def x = (char)1", "INVOKESTATIC java/lang/Character.valueOf (C)Ljava/lang/Character;");
+        assertBytecodeExists("def x = 1", "INVOKESTATIC java/lang/Integer.valueOf (I)Ljava/lang/Integer;");
+        assertBytecodeExists("def x = 1L", "INVOKESTATIC java/lang/Long.valueOf (J)Ljava/lang/Long;");
+        assertBytecodeExists("def x = 1F", "INVOKESTATIC java/lang/Float.valueOf (F)Ljava/lang/Float;");
+        assertBytecodeExists("def x = 1D", "INVOKESTATIC java/lang/Double.valueOf (D)Ljava/lang/Double;");
+    }
 }

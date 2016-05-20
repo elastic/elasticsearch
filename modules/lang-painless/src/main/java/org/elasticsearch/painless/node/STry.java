@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
@@ -36,7 +34,7 @@ public final class STry extends AStatement {
     final SBlock block;
     final List<SCatch> catches;
 
-    public STry(final int line, final String location, final SBlock block, final List<SCatch> traps) {
+    public STry(int line, String location, SBlock block, List<SCatch> traps) {
         super(line, location);
 
         this.block = block;
@@ -44,7 +42,7 @@ public final class STry extends AStatement {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Variables variables) {
         if (block == null) {
             throw new IllegalArgumentException(error("Extraneous try statement."));
         }
@@ -54,7 +52,7 @@ public final class STry extends AStatement {
         block.lastLoop = lastLoop;
 
         variables.incrementScope();
-        block.analyze(settings, definition, variables);
+        block.analyze(variables);
         variables.decrementScope();
 
         methodEscape = block.methodEscape;
@@ -71,7 +69,7 @@ public final class STry extends AStatement {
             catc.lastLoop = lastLoop;
 
             variables.incrementScope();
-            catc.analyze(settings, definition, variables);
+            catc.analyze(variables);
             variables.decrementScope();
 
             methodEscape &= catc.methodEscape;
@@ -87,7 +85,7 @@ public final class STry extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         writeDebugInfo(adapter);
         final Label begin = new Label();
         final Label end = new Label();
@@ -97,7 +95,7 @@ public final class STry extends AStatement {
 
         block.continu = continu;
         block.brake = brake;
-        block.write(settings, definition, adapter);
+        block.write(adapter);
 
         if (!block.allEscape) {
             adapter.goTo(exception);
@@ -109,7 +107,7 @@ public final class STry extends AStatement {
             catc.begin = begin;
             catc.end = end;
             catc.exception = catches.size() > 1 ? exception : null;
-            catc.write(settings, definition, adapter);
+            catc.write(adapter);
         }
 
         if (!block.allEscape || catches.size() > 1) {

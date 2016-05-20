@@ -40,8 +40,7 @@ public final class Definition {
     
     private static final String DEFINITION_FILE = "definition.txt";
 
-    // The second construction is used to finalize all the variables, so there is no mistake of modification afterwards.
-    private static final Definition INSTANCE = new Definition(new Definition());
+    private static final Definition INSTANCE = new Definition();
     
     /** Some native types as constants: */
     public static final Type voidType = getType("void");
@@ -293,7 +292,7 @@ public final class Definition {
             staticMembers = new HashMap<>();
             members = new HashMap<>();
         }
-
+        
         private Struct(final Struct struct) {
             name = struct.name;
             clazz = struct.clazz;
@@ -305,6 +304,10 @@ public final class Definition {
 
             staticMembers = Collections.unmodifiableMap(struct.staticMembers);
             members = Collections.unmodifiableMap(struct.members);
+        }
+
+        private Struct freeze() {
+            return new Struct(this);
         }
 
         @Override
@@ -385,9 +388,9 @@ public final class Definition {
 
         private RuntimeClass(final Map<MethodKey, Method> methods,
                              final Map<String, MethodHandle> getters, final Map<String, MethodHandle> setters) {
-            this.methods = methods;
-            this.getters = getters;
-            this.setters = setters;
+            this.methods = Collections.unmodifiableMap(methods);
+            this.getters = Collections.unmodifiableMap(getters);
+            this.setters = Collections.unmodifiableMap(setters);
         }
     }
 
@@ -436,19 +439,10 @@ public final class Definition {
         for (Struct struct : structsMap.values()) {
           addRuntimeClass(struct);
         }
-    }
-
-    private Definition(final Definition definition) {
-        final Map<String, Struct> structs = new HashMap<>();
-
-        for (final Struct struct : definition.structsMap.values()) {
-            structs.put(struct.name, new Struct(struct));
+        // copy all structs to make them unmodifiable for outside users:
+        for (final Map.Entry<String,Struct> entry : structsMap.entrySet()) {
+            entry.setValue(entry.getValue().freeze());
         }
-
-        this.structsMap = Collections.unmodifiableMap(structs);
-        this.transformsMap = Collections.unmodifiableMap(definition.transformsMap);
-        this.runtimeMap = Collections.unmodifiableMap(definition.runtimeMap);
-        this.simpleTypesMap = Collections.unmodifiableMap(definition.simpleTypesMap);
     }
 
     /** adds classes from definition. returns hierarchy */

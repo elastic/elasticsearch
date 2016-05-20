@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.translog;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.Term;
@@ -43,7 +42,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -139,8 +137,8 @@ public class TranslogTests extends ESTestCase {
 
     private TranslogConfig getTranslogConfig(Path path) {
         Settings build = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
-                .build();
+            .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
+            .build();
         ByteSizeValue bufferSize = randomBoolean() ? TranslogConfig.DEFAULT_BUFFER_SIZE : new ByteSizeValue(10 + randomInt(128 * 1024), ByteSizeUnit.BYTES);
         return new TranslogConfig(shardId, path, IndexSettingsModule.newIndexSettings(shardId.getIndex(), build), BigArrays.NON_RECYCLING_INSTANCE, bufferSize);
     }
@@ -331,9 +329,9 @@ public class TranslogTests extends ESTestCase {
         assertEquals(6, copy.estimatedNumberOfOperations());
         assertEquals(431, copy.getTranslogSizeInBytes());
         assertEquals("\"translog\"{\n" +
-                "  \"operations\" : 6,\n" +
-                "  \"size_in_bytes\" : 431\n" +
-                "}", copy.toString().trim());
+            "  \"operations\" : 6,\n" +
+            "  \"size_in_bytes\" : 431\n" +
+            "}", copy.toString().trim());
 
         try {
             new TranslogStats(1, -1);
@@ -1267,12 +1265,12 @@ public class TranslogTests extends ESTestCase {
                         case CREATE:
                         case INDEX:
                             op = new Translog.Index("test", threadId + "_" + opCount,
-                                    randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8"));
+                                randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8"));
                             break;
                         case DELETE:
                             op = new Translog.Delete(new Term("_uid", threadId + "_" + opCount),
-                                    1 + randomInt(100000),
-                                    randomFrom(VersionType.values()));
+                                1 + randomInt(100000),
+                                randomFrom(VersionType.values()));
                             break;
                         default:
                             throw new ElasticsearchException("not supported op type");

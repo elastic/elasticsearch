@@ -54,11 +54,12 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
         if (unassignedInfo != null && unassignedInfo.getNumFailedAllocations() > 0) {
-            IndexMetaData indexSafe = allocation.metaData().getIndexSafe(shardRouting.index());
-            int maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(indexSafe.getSettings());
+            final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
+            final int maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(indexMetaData.getSettings());
             if (unassignedInfo.getNumFailedAllocations() >= maxRetry) {
                 return allocation.decision(Decision.NO, NAME, "shard has already failed allocating ["
-                    + unassignedInfo.getNumFailedAllocations() + "] times " + unassignedInfo.toString());
+                    + unassignedInfo.getNumFailedAllocations() + "] times vs. [" + maxRetry + "] retries allowed"
+                    + unassignedInfo.toString() + " raise [" + SETTING_ALLOCATION_MAX_RETRY.getKey() + "] to retry");
             }
         }
         return allocation.decision(Decision.YES, NAME, "shard has no previous failures");

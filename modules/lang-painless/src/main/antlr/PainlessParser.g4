@@ -126,16 +126,17 @@ throwStatement
     ;
 
 expressionStatement
-    : assignment
+    : expression
+    | assignment
     ;
 
 forInitializer
     : declarationStatement
-    | expression
+    | expressionStatement
     ;
 
 forAfterthought
-    : expression
+    : expressionStatement
     ;
 
 declarationType
@@ -156,15 +157,13 @@ delimiter
     ;
 
 assignment
-    : lhs ( ASSIGN | AADD | ASUB | AMUL |
-            ADIV   | AREM | AAND | AXOR |
-            AOR    | ALSH | ARSH | AUSH ) ( expression | assignment )
+    : leftHandSide ( ASSIGN | AADD | ASUB | AMUL |
+                     ADIV   | AREM | AAND | AXOR |
+                     AOR    | ALSH | ARSH | AUSH ) ( expression | assignment )
     ;
 
-lhs
-    : ID
-    | field
-    | array
+leftHandSide
+    : ID secondary*
     ;
 
 expression
@@ -183,44 +182,38 @@ expression
     ;
 
 unary
-    : ( INCR | DECR ) chain                 # preincrement
-    | postfix                               # post
+    : LP expression RP                      # prec
+    | ( INCR | DECR ) postfix               # pre
+    | postfix (INCR | DECR )                # post
+    | postfix                               # fix
+    | ( OCTAL | HEX | INTEGER | DECIMAL )   # numeric
+    | TRUE                                  # true
+    | FALSE                                 # false
     | ( BOOLNOT | BWNOT | ADD | SUB ) unary # operator
     | LP declarationType RP unary           # cast
     ;
 
 postfix
-
-    :               LP expression RP                                    # precedence
-    |               ( OCTAL | HEX | INTEGER | DECIMAL )                 # numeric
-    |               TRUE                                                # true
-    |               FALSE                                               # false
-    |               NULL                                                # null
-    | <assoc=right> chain ( INCR | DECR )                               # postinc
-    | <assoc=right> ( INCR | DECR ) chain                               # preinc
-    |               chain                                               # read
-    | <assoc=right> ( BOOLNOT | BWNOT | ADD | SUB ) expression          # unary
-    | <assoc=right> LP declarationType RP expression                    # cast
-
-chain
-    : linkprec
-    | linkcast
-    | linkvar
-    | linknew
-    | linkstring
+    : primary secondary*
+    | newArray
     ;
 
-linkprec:   LP ( linkprec | linkcast | linkvar | linknew | linkstring ) RP ( linkdot | linkbrace )?;
-linkcast:   LP declarationType RP ( linkprec | linkcast | linkvar | linknew | linkstring );
-linkbrace:  LBRACE expression RBRACE ( linkdot | linkbrace )?;
-linkdot:    DOT ( linkcall | linkfield );
-linkcall:   EXTID arguments ( linkdot | linkbrace )?;
-linkvar:    ID ( linkdot | linkbrace )?;
-linkfield:  ( EXTID | EXTINTEGER ) ( linkdot | linkbrace )?;
-linknew:    NEW ID ( ( arguments linkdot? ) | ( ( LBRACE expression RBRACE )+ linkdot? ) );
-linkstring: STRING (linkdot | linkbrace )?;
+primary
+    : STRING           # string
+    | ID               # variable
+    | NEW ID arguments # newobject
+    ;
+
+secondary
+    : DOT EXTID arguments        # call
+    | DOT ( EXTID | EXTINTEGER ) # field
+    | LBRACE expression RBRACE   # array
+    ;
+
+newArray
+    : NEW ID ( LBRACE expression RBRACE )+
+    ;
 
 arguments
     : ( LP ( expression ( COMMA expression )* )? RP )
     ;
-

@@ -318,8 +318,10 @@ public class PercolatorService extends AbstractComponent {
                         if (context.percolateQuery() != null) {
                             throw new ElasticsearchParseException("Either specify query or filter, not both");
                         }
-                        Query filter = documentIndexService.queryParserService().parseInnerFilter(parser).query();
-                        context.percolateQuery(new ConstantScoreQuery(filter));
+                        ParsedQuery parsedQuery = documentIndexService.queryParserService().parseInnerFilter(parser);
+                        if(parsedQuery != null) {
+                            context.percolateQuery(new ConstantScoreQuery(parsedQuery.query()));
+                        }
                     } else if ("sort".equals(currentFieldName)) {
                         parseSort(parser, context);
                     } else if (element != null) {

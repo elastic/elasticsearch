@@ -38,7 +38,6 @@ import org.junit.Before;
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.percolator.PercolatorQueryCache.QUERY_BUILDER_CONTENT_TYPE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -251,7 +250,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     private void assertQueryBuilder(BytesRef actual, QueryBuilder expected) throws IOException {
-        XContentParser sourceParser = QUERY_BUILDER_CONTENT_TYPE.xContent().createParser(actual.bytes, actual.offset, actual.length);
+        XContentParser sourceParser = PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent()
+                .createParser(actual.bytes, actual.offset, actual.length);
         QueryParseContext qsc = indexService.newQueryShardContext().newParseContext(sourceParser);
         assertThat(qsc.parseInnerQueryBuilder(), equalTo(expected));
     }

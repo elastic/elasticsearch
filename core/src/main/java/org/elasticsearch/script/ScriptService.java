@@ -473,15 +473,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         if (scriptContextRegistry.isSupportedContext(scriptContext) == false) {
             throw new IllegalArgumentException("script context [" + scriptContext.getKey() + "] not supported");
         }
-        ScriptMode mode = scriptModes.getScriptMode(lang, scriptType, scriptContext);
-        switch (mode) {
-            case ON:
-                return true;
-            case OFF:
-                return false;
-            default:
-                throw new IllegalArgumentException("script mode [" + mode + "] not supported");
-        }
+        return scriptModes.getScriptEnabled(lang, scriptType, scriptContext);
     }
 
     public ScriptStats stats() {
@@ -610,14 +602,14 @@ public class ScriptService extends AbstractComponent implements Closeable {
      */
     public enum ScriptType {
 
-        INLINE(0, "inline", "inline", ScriptMode.OFF),
-        STORED(1, "id", "stored", ScriptMode.OFF),
-        FILE(2, "file", "file", ScriptMode.ON);
+        INLINE(0, "inline", "inline", false),
+        STORED(1, "id", "stored", false),
+        FILE(2, "file", "file", true);
 
         private final int val;
         private final ParseField parseField;
         private final String scriptType;
-        private final ScriptMode defaultScriptMode;
+        private final boolean defaultScriptEnabled;
 
         public static ScriptType readFrom(StreamInput in) throws IOException {
             int scriptTypeVal = in.readVInt();
@@ -638,19 +630,19 @@ public class ScriptService extends AbstractComponent implements Closeable {
             }
         }
 
-        ScriptType(int val, String name, String scriptType, ScriptMode defaultScriptMode) {
+        ScriptType(int val, String name, String scriptType, boolean defaultScriptEnabled) {
             this.val = val;
             this.parseField = new ParseField(name);
             this.scriptType = scriptType;
-            this.defaultScriptMode = defaultScriptMode;
+            this.defaultScriptEnabled = defaultScriptEnabled;
         }
 
         public ParseField getParseField() {
             return parseField;
         }
 
-        public ScriptMode getDefaultScriptMode() {
-            return defaultScriptMode;
+        public boolean getDefaultScriptEnabled() {
+            return defaultScriptEnabled;
         }
 
         public String getScriptType() {

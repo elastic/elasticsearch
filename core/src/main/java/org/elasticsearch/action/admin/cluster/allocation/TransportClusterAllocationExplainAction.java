@@ -250,7 +250,7 @@ public class TransportClusterAllocationExplainAction
                                    final ActionListener<ClusterAllocationExplainResponse> listener) {
         final RoutingNodes routingNodes = state.getRoutingNodes();
         final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, state,
-                clusterInfoService.getClusterInfo(), System.nanoTime());
+                clusterInfoService.getClusterInfo(), System.nanoTime(), false);
 
         ShardRouting foundShard = null;
         if (request.useAnyUnassignedShard()) {

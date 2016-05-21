@@ -70,13 +70,13 @@ public class StringTests extends ScriptTestCase {
     public void testAppendMultiple() {
         assertEquals("cat" + true + "abc" + null, exec("String s = \"cat\"; return s + true + 'abc' + null;"));
     }
-    
+
     public void testAppendMany() {
         for (int i = MAX_INDY_STRING_CONCAT_ARGS - 5; i < MAX_INDY_STRING_CONCAT_ARGS + 5; i++) {
             doTestAppendMany(i);
         }
     }
-    
+
     private void doTestAppendMany(int count) {
         StringBuilder script = new StringBuilder("String s = \"cat\"; return s");
         StringBuilder result = new StringBuilder("cat");
@@ -90,11 +90,11 @@ public class StringTests extends ScriptTestCase {
                 Debugger.toString(s).contains(String.format(Locale.ROOT, "LDC \"%03d\"", count/2)));
         assertEquals(result.toString(), exec(s));
     }
-    
+
     public void testNestedConcats() {
         assertEquals("foo1010foo", exec("String s = 'foo'; String x = '10'; return s + Integer.parseInt(x + x) + s;"));
     }
-    
+
     public void testStringAPI() {
         assertEquals("", exec("return new String();"));
         assertEquals('x', exec("String s = \"x\"; return s.charAt(0);"));
@@ -166,14 +166,14 @@ public class StringTests extends ScriptTestCase {
             assertEquals("cc", exec("return (String)(char)\"cc\""));
             fail();
         } catch (final ClassCastException cce) {
-            assertTrue(cce.getMessage().contains("Cannot cast from [String] to [char]."));
+            assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
         }
 
         try {
             assertEquals("cc", exec("return (String)(char)'cc'"));
             fail();
         } catch (final ClassCastException cce) {
-            assertTrue(cce.getMessage().contains("Cannot cast from [String] to [char]."));
+            assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
         }
 
         try {
@@ -188,42 +188,6 @@ public class StringTests extends ScriptTestCase {
             fail();
         } catch (final ClassCastException cce) {
             assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
-        }
-
-        assertEquals('c', exec("return (Character)\"c\""));
-        assertEquals('c', exec("return (Character)'c'"));
-        assertEquals("c", exec("return (String)(Character)\"c\""));
-        assertEquals("c", exec("return (String)(Character)'c'"));
-
-        assertEquals('c', exec("String s = \"c\"; (Character)s"));
-        assertEquals('c', exec("String s = 'c'; (Character)s"));
-
-        try {
-            assertEquals("cc", exec("return (String)(Character)\"cc\""));
-            fail();
-        } catch (final ClassCastException ise) {
-            assertTrue(ise.getMessage().contains("Cannot cast [String] with length greater than one to [Character]."));
-        }
-
-        try {
-            assertEquals("cc", exec("return (String)(Character)'cc'"));
-            fail();
-        } catch (final ClassCastException ise) {
-            assertTrue(ise.getMessage().contains("Cannot cast [String] with length greater than one to [Character]."));
-        }
-
-        try {
-            assertEquals('c', exec("String s = \"cc\"; (Character)s"));
-            fail();
-        } catch (final ClassCastException cce) {
-            assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [Character]."));
-        }
-
-        try {
-            assertEquals('c', exec("String s = 'cc'; (Character)s"));
-            fail();
-        } catch (final ClassCastException cce) {
-            assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [Character]."));
         }
     }
 }

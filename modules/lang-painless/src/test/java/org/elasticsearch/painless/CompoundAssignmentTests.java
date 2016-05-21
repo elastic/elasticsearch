@@ -230,18 +230,18 @@ public class CompoundAssignmentTests extends ScriptTestCase {
         assertEquals(false, exec("boolean x = true; x &= false; return x;"));
         assertEquals(false, exec("boolean x = false; x &= true; return x;"));
         assertEquals(false, exec("boolean x = false; x &= false; return x;"));
-        assertEquals(true, exec("Boolean x = true; x &= true; return x;"));
-        assertEquals(false, exec("Boolean x = true; x &= false; return x;"));
-        assertEquals(false, exec("Boolean x = false; x &= true; return x;"));
-        assertEquals(false, exec("Boolean x = false; x &= false; return x;"));
+        assertEquals(true, exec("def x = true; x &= true; return x;"));
+        assertEquals(false, exec("def x = true; x &= false; return x;"));
+        assertEquals(false, exec("def x = false; x &= true; return x;"));
+        assertEquals(false, exec("def x = false; x &= false; return x;"));
         assertEquals(true, exec("boolean[] x = new boolean[1]; x[0] = true; x[0] &= true; return x[0];"));
         assertEquals(false, exec("boolean[] x = new boolean[1]; x[0] = true; x[0] &= false; return x[0];"));
         assertEquals(false, exec("boolean[] x = new boolean[1]; x[0] = false; x[0] &= true; return x[0];"));
         assertEquals(false, exec("boolean[] x = new boolean[1]; x[0] = false; x[0] &= false; return x[0];"));
-        assertEquals(true, exec("Boolean[] x = new Boolean[1]; x[0] = true; x[0] &= true; return x[0];"));
-        assertEquals(false, exec("Boolean[] x = new Boolean[1]; x[0] = true; x[0] &= false; return x[0];"));
-        assertEquals(false, exec("Boolean[] x = new Boolean[1]; x[0] = false; x[0] &= true; return x[0];"));
-        assertEquals(false, exec("Boolean[] x = new Boolean[1]; x[0] = false; x[0] &= false; return x[0];"));
+        assertEquals(true, exec("def[] x = new def[1]; x[0] = true; x[0] &= true; return x[0];"));
+        assertEquals(false, exec("def[] x = new def[1]; x[0] = true; x[0] &= false; return x[0];"));
+        assertEquals(false, exec("def[] x = new def[1]; x[0] = false; x[0] &= true; return x[0];"));
+        assertEquals(false, exec("def[] x = new def[1]; x[0] = false; x[0] &= false; return x[0];"));
 
         // byte
         assertEquals((byte) (13 & 14), exec("byte x = 13; x &= 14; return x;"));
@@ -261,18 +261,18 @@ public class CompoundAssignmentTests extends ScriptTestCase {
         assertEquals(true, exec("boolean x = true; x |= false; return x;"));
         assertEquals(true, exec("boolean x = false; x |= true; return x;"));
         assertEquals(false, exec("boolean x = false; x |= false; return x;"));
-        assertEquals(true, exec("Boolean x = true; x |= true; return x;"));
-        assertEquals(true, exec("Boolean x = true; x |= false; return x;"));
-        assertEquals(true, exec("Boolean x = false; x |= true; return x;"));
-        assertEquals(false, exec("Boolean x = false; x |= false; return x;"));
+        assertEquals(true, exec("def x = true; x |= true; return x;"));
+        assertEquals(true, exec("def x = true; x |= false; return x;"));
+        assertEquals(true, exec("def x = false; x |= true; return x;"));
+        assertEquals(false, exec("def x = false; x |= false; return x;"));
         assertEquals(true, exec("boolean[] x = new boolean[1]; x[0] = true; x[0] |= true; return x[0];"));
         assertEquals(true, exec("boolean[] x = new boolean[1]; x[0] = true; x[0] |= false; return x[0];"));
         assertEquals(true, exec("boolean[] x = new boolean[1]; x[0] = false; x[0] |= true; return x[0];"));
         assertEquals(false, exec("boolean[] x = new boolean[1]; x[0] = false; x[0] |= false; return x[0];"));
-        assertEquals(true, exec("Boolean[] x = new Boolean[1]; x[0] = true; x[0] |= true; return x[0];"));
-        assertEquals(true, exec("Boolean[] x = new Boolean[1]; x[0] = true; x[0] |= false; return x[0];"));
-        assertEquals(true, exec("Boolean[] x = new Boolean[1]; x[0] = false; x[0] |= true; return x[0];"));
-        assertEquals(false, exec("Boolean[] x = new Boolean[1]; x[0] = false; x[0] |= false; return x[0];"));
+        assertEquals(true, exec("def[] x = new def[1]; x[0] = true; x[0] |= true; return x[0];"));
+        assertEquals(true, exec("def[] x = new def[1]; x[0] = true; x[0] |= false; return x[0];"));
+        assertEquals(true, exec("def[] x = new def[1]; x[0] = false; x[0] |= true; return x[0];"));
+        assertEquals(false, exec("def[] x = new def[1]; x[0] = false; x[0] |= false; return x[0];"));
 
         // byte
         assertEquals((byte) (13 | 14), exec("byte x = 13; x |= 14; return x;"));
@@ -292,18 +292,18 @@ public class CompoundAssignmentTests extends ScriptTestCase {
         assertEquals(true, exec("boolean x = true; x ^= false; return x;"));
         assertEquals(true, exec("boolean x = false; x ^= true; return x;"));
         assertEquals(false, exec("boolean x = false; x ^= false; return x;"));
-        assertEquals(false, exec("Boolean x = true; x ^= true; return x;"));
-        assertEquals(true, exec("Boolean x = true; x ^= false; return x;"));
-        assertEquals(true, exec("Boolean x = false; x ^= true; return x;"));
-        assertEquals(false, exec("Boolean x = false; x ^= false; return x;"));
+        assertEquals(false, exec("def x = true; x ^= true; return x;"));
+        assertEquals(true, exec("def x = true; x ^= false; return x;"));
+        assertEquals(true, exec("def x = false; x ^= true; return x;"));
+        assertEquals(false, exec("def x = false; x ^= false; return x;"));
         assertEquals(false, exec("boolean[] x = new boolean[1]; x[0] = true; x[0] ^= true; return x[0];"));
         assertEquals(true, exec("boolean[] x = new boolean[1]; x[0] = true; x[0] ^= false; return x[0];"));
         assertEquals(true, exec("boolean[] x = new boolean[1]; x[0] = false; x[0] ^= true; return x[0];"));
         assertEquals(false, exec("boolean[] x = new boolean[1]; x[0] = false; x[0] ^= false; return x[0];"));
-        assertEquals(false, exec("Boolean[] x = new Boolean[1]; x[0] = true; x[0] ^= true; return x[0];"));
-        assertEquals(true, exec("Boolean[] x = new Boolean[1]; x[0] = true; x[0] ^= false; return x[0];"));
-        assertEquals(true, exec("Boolean[] x = new Boolean[1]; x[0] = false; x[0] ^= true; return x[0];"));
-        assertEquals(false, exec("Boolean[] x = new Boolean[1]; x[0] = false; x[0] ^= false; return x[0];"));
+        assertEquals(false, exec("def[] x = new def[1]; x[0] = true; x[0] ^= true; return x[0];"));
+        assertEquals(true, exec("def[] x = new def[1]; x[0] = true; x[0] ^= false; return x[0];"));
+        assertEquals(true, exec("def[] x = new def[1]; x[0] = false; x[0] ^= true; return x[0];"));
+        assertEquals(false, exec("def[] x = new def[1]; x[0] = false; x[0] ^= false; return x[0];"));
 
         // byte
         assertEquals((byte) (13 ^ 14), exec("byte x = 13; x ^= 14; return x;"));

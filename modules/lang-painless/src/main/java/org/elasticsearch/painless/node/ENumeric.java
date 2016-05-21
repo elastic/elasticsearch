@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
@@ -33,7 +32,7 @@ public final class ENumeric extends AExpression {
     final String value;
     int radix;
 
-    public ENumeric(final int line, final String location, final String value, final int radix) {
+    public ENumeric(int line, String location, String value, int radix) {
         super(line, location);
 
         this.value = value;
@@ -41,7 +40,7 @@ public final class ENumeric extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Variables variables) {
         if (value.endsWith("d") || value.endsWith("D")) {
             if (radix != 10) {
                 throw new IllegalStateException(error("Invalid tree structure."));
@@ -49,7 +48,7 @@ public final class ENumeric extends AExpression {
 
             try {
                 constant = Double.parseDouble(value.substring(0, value.length() - 1));
-                actual = definition.doubleType;
+                actual = Definition.DOUBLE_TYPE;
             } catch (final NumberFormatException exception) {
                 throw new IllegalArgumentException(error("Invalid double constant [" + value + "]."));
             }
@@ -60,14 +59,14 @@ public final class ENumeric extends AExpression {
 
             try {
                 constant = Float.parseFloat(value.substring(0, value.length() - 1));
-                actual = definition.floatType;
+                actual = Definition.FLOAT_TYPE;
             } catch (final NumberFormatException exception) {
                 throw new IllegalArgumentException(error("Invalid float constant [" + value + "]."));
             }
         } else if (value.endsWith("l") || value.endsWith("L")) {
             try {
                 constant = Long.parseLong(value.substring(0, value.length() - 1), radix);
-                actual = definition.longType;
+                actual = Definition.LONG_TYPE;
             } catch (final NumberFormatException exception) {
                 throw new IllegalArgumentException(error("Invalid long constant [" + value + "]."));
             }
@@ -78,16 +77,16 @@ public final class ENumeric extends AExpression {
 
                 if (sort == Sort.BYTE && integer >= Byte.MIN_VALUE && integer <= Byte.MAX_VALUE) {
                     constant = (byte)integer;
-                    actual = definition.byteType;
+                    actual = Definition.BYTE_TYPE;
                 } else if (sort == Sort.CHAR && integer >= Character.MIN_VALUE && integer <= Character.MAX_VALUE) {
                     constant = (char)integer;
-                    actual = definition.charType;
+                    actual = Definition.CHAR_TYPE;
                 } else if (sort == Sort.SHORT && integer >= Short.MIN_VALUE && integer <= Short.MAX_VALUE) {
                     constant = (short)integer;
-                    actual = definition.shortType;
+                    actual = Definition.SHORT_TYPE;
                 } else {
                     constant = integer;
-                    actual = definition.intType;
+                    actual = Definition.INT_TYPE;
                 }
             } catch (final NumberFormatException exception) {
                 throw new IllegalArgumentException(error("Invalid int constant [" + value + "]."));
@@ -96,7 +95,7 @@ public final class ENumeric extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         throw new IllegalArgumentException(error("Illegal tree structure."));
     }
 }

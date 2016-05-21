@@ -59,7 +59,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
         final int expectedSize;
         if (sizeBasedOnNumberOfProcessors < min || randomBoolean()) {
-            expectedSize = randomIntBetween(min, 16);
+            expectedSize = randomIntBetween(Math.max(1, min), 16);
             builder.put("threadpool." + threadPoolName + ".size", expectedSize);
         }  else {
             expectedSize = sizeBasedOnNumberOfProcessors;

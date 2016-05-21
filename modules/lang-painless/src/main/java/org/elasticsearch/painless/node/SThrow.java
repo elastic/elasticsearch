@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
@@ -31,17 +30,17 @@ public final class SThrow extends AStatement {
 
     AExpression expression;
 
-    public SThrow(final int line, final String location, final AExpression expression) {
+    public SThrow(int line, String location, AExpression expression) {
         super(line, location);
 
         this.expression = expression;
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        expression.expected = definition.exceptionType;
-        expression.analyze(settings, definition, variables);
-        expression = expression.cast(settings, definition, variables);
+    void analyze(Variables variables) {
+        expression.expected = Definition.EXCEPTION_TYPE;
+        expression.analyze(variables);
+        expression = expression.cast(variables);
 
         methodEscape = true;
         loopEscape = true;
@@ -50,9 +49,9 @@ public final class SThrow extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter adapter) {
         writeDebugInfo(adapter);
-        expression.write(settings, definition, adapter);
+        expression.write(adapter);
         adapter.throwException();
     }
 }

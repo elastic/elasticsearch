@@ -46,4 +46,4 @@ the existing document.
 
 ==== Percolate Stats
 
-Percolate stats have been replaced with `percolate` query cache stats in nodes stats and cluster stats APIs.
+The percolate stats have been removed. This is because the percolator no longer caches the percolator queries.

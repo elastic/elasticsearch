@@ -55,7 +55,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
@@ -80,7 +79,7 @@ import static org.elasticsearch.cluster.service.ClusterServiceUtils.createCluste
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> extends ESTestCase {
+public abstract class BaseAggregationTestCase<AB extends AggregationBuilder<AB>> extends ESTestCase {
 
     protected static final String STRING_FIELD_NAME = "mapped_string";
     protected static final String INT_FIELD_NAME = "mapped_int";
@@ -149,7 +148,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
                         new ScriptEngineRegistry(Collections
                                 .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class,
                                                                                                  MockScriptEngine.NAME,
-                                                                                                 ScriptMode.ON)));
+                                                                                                 true)));
                 bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
                 ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
                 bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
@@ -238,7 +237,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(testAgg.type.name(), parser.currentName());
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        AggregatorBuilder<?> newAgg = aggParsers.parser(testAgg.getType(), ParseFieldMatcher.STRICT).parse(testAgg.name, parseContext);
+        AggregationBuilder<?> newAgg = aggParsers.parser(testAgg.getType(), ParseFieldMatcher.STRICT).parse(testAgg.name, parseContext);
         assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
@@ -258,7 +257,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.writeNamedWriteable(testAgg);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorBuilder<?> deserialized = in.readNamedWriteable(AggregatorBuilder.class);
+                AggregationBuilder<?> deserialized = in.readNamedWriteable(AggregationBuilder.class);
                 assertEquals(testAgg, deserialized);
                 assertEquals(testAgg.hashCode(), deserialized.hashCode());
                 assertNotSame(testAgg, deserialized);
@@ -299,7 +298,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
             agg.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
                 @SuppressWarnings("unchecked")
-                AB secondAgg = (AB) namedWriteableRegistry.getReader(AggregatorBuilder.class, agg.getWriteableName()).read(in);
+                AB secondAgg = (AB) namedWriteableRegistry.getReader(AggregationBuilder.class, agg.getWriteableName()).read(in);
                 return secondAgg;
             }
         }

@@ -59,7 +59,7 @@
 ---
 "search size fails if not a number":
   - do:
-      catch: '/NumberFormatException: For input string: "cat"/'
+      catch: '/number_format_exception.*For input string: \"cat\"/'
       reindex:
         body:
           source:

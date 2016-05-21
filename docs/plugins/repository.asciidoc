@@ -22,6 +22,10 @@ The Azure repository plugin adds support for using Azure as a repository.
 
 The Hadoop HDFS Repository plugin adds support for using HDFS as a repository.
 
+<<repository-gcs,Google Cloud Storage Repository>>::
+
+The GCS repository plugin adds support for using Google Cloud Storage service as a repository.
+
 
 [float]
 === Community contributed repository plugins
@@ -37,3 +41,4 @@ include::repository-s3.asciidoc[]
 
 include::repository-hdfs.asciidoc[]
 
+include::repository-gcs.asciidoc[]

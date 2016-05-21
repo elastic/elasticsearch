@@ -27,11 +27,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.SettingCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -56,6 +59,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.zip.ZipEntry;
@@ -95,7 +99,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  * elasticsearch config directory, using the name of the plugin. If any files to be installed
  * already exist, they will be skipped.
  */
-class InstallPluginCommand extends Command {
+class InstallPluginCommand extends SettingCommand {
 
     private static final String PROPERTY_SUPPORT_STAGING_URLS = "es.plugins.staging";
 
@@ -126,12 +130,12 @@ class InstallPluginCommand extends Command {
             "mapper-murmur3",
             "mapper-size",
             "repository-azure",
+            "repository-gcs",
             "repository-hdfs",
             "repository-s3",
             "store-smb",
             "x-pack")));
 
-    private final Environment env;
     private final OptionSpec<Void> batchOption;
     private final OptionSpec<String> arguments;
 
@@ -159,9 +163,8 @@ class InstallPluginCommand extends Command {
         FILE_PERMS = Collections.unmodifiableSet(filePerms);
     }
 
-    InstallPluginCommand(Environment env) {
+    InstallPluginCommand() {
         super("Install a plugin");
-        this.env = env;
         this.batchOption = parser.acceptsAll(Arrays.asList("b", "batch"),
                 "Enable batch mode explicitly, automatic confirmation of security permission");
         this.arguments = parser.nonOptions("plugin id");
@@ -177,7 +180,7 @@ class InstallPluginCommand extends Command {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
         // TODO: in jopt-simple 5.0 we can enforce a min/max number of positional args
         List<String> args = arguments.values(options);
         if (args.size() != 1) {
@@ -185,12 +188,12 @@ class InstallPluginCommand extends Command {
         }
         String pluginId = args.get(0);
         boolean isBatch = options.has(batchOption) || System.console() == null;
-        execute(terminal, pluginId, isBatch);
+        execute(terminal, pluginId, isBatch, settings);
     }
 
     // pkg private for testing
-    void execute(Terminal terminal, String pluginId, boolean isBatch) throws Exception {
-
+    void execute(Terminal terminal, String pluginId, boolean isBatch, Map<String, String> settings) throws Exception {
+        final Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
         // TODO: remove this leniency!! is it needed anymore?
         if (Files.exists(env.pluginsFile()) == false) {
             terminal.println("Plugins directory [" + env.pluginsFile() + "] does not exist. Creating...");
@@ -199,7 +202,7 @@ class InstallPluginCommand extends Command {
 
         Path pluginZip = download(terminal, pluginId, env.tmpFile());
         Path extractedZip = unzip(pluginZip, env.pluginsFile());
-        install(terminal, isBatch, extractedZip);
+        install(terminal, isBatch, extractedZip, env);
     }
 
     /** Downloads the plugin and returns the file it was downloaded to. */
@@ -348,7 +351,7 @@ class InstallPluginCommand extends Command {
     }
 
     /** Load information about the plugin, and verify it can be installed with no errors. */
-    private PluginInfo verify(Terminal terminal, Path pluginRoot, boolean isBatch) throws Exception {
+    private PluginInfo verify(Terminal terminal, Path pluginRoot, boolean isBatch, Environment env) throws Exception {
         // read and validate the plugin descriptor
         PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
         terminal.println(VERBOSE, info.toString());
@@ -397,12 +400,12 @@ class InstallPluginCommand extends Command {
      * Installs the plugin from {@code tmpRoot} into the plugins dir.
      * If the plugin has a bin dir and/or a config dir, those are copied.
      */
-    private void install(Terminal terminal, boolean isBatch, Path tmpRoot) throws Exception {
+    private void install(Terminal terminal, boolean isBatch, Path tmpRoot, Environment env) throws Exception {
         List<Path> deleteOnFailure = new ArrayList<>();
         deleteOnFailure.add(tmpRoot);
 
         try {
-            PluginInfo info = verify(terminal, tmpRoot, isBatch);
+            PluginInfo info = verify(terminal, tmpRoot, isBatch, env);
 
             final Path destination = env.pluginsFile().resolve(info.getName());
             if (Files.exists(destination)) {

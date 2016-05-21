@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
-import org.elasticsearch.index.percolator.PercolatorQueryCacheStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
@@ -45,7 +44,6 @@ public class ClusterStatsIndices implements ToXContent {
     private QueryCacheStats queryCache;
     private CompletionStats completion;
     private SegmentsStats segments;
-    private PercolatorQueryCacheStats percolatorCache;
 
     public ClusterStatsIndices(List<ClusterStatsNodeResponse> nodeResponses) {
         ObjectObjectHashMap<String, ShardStats> countsPerIndex = new ObjectObjectHashMap<>();
@@ -56,7 +54,6 @@ public class ClusterStatsIndices implements ToXContent {
         this.queryCache = new QueryCacheStats();
         this.completion = new CompletionStats();
         this.segments = new SegmentsStats();
-        this.percolatorCache = new PercolatorQueryCacheStats();
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
             for (org.elasticsearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
@@ -79,7 +76,6 @@ public class ClusterStatsIndices implements ToXContent {
                 queryCache.add(shardCommonStats.queryCache);
                 completion.add(shardCommonStats.completion);
                 segments.add(shardCommonStats.segments);
-                percolatorCache.add(shardCommonStats.percolatorCache);
             }
         }
 
@@ -122,10 +118,6 @@ public class ClusterStatsIndices implements ToXContent {
         return segments;
     }
 
-    public PercolatorQueryCacheStats getPercolatorCache() {
-        return percolatorCache;
-    }
-
     static final class Fields {
         static final String COUNT = "count";
     }
@@ -140,7 +132,6 @@ public class ClusterStatsIndices implements ToXContent {
         queryCache.toXContent(builder, params);
         completion.toXContent(builder, params);
         segments.toXContent(builder, params);
-        percolatorCache.toXContent(builder, params);
         return builder;
     }
 

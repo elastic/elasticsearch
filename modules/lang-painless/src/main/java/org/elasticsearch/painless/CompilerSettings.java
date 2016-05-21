@@ -25,45 +25,14 @@ package org.elasticsearch.painless;
 public final class CompilerSettings {
 
     /**
-     * Constant to be used when specifying numeric overflow when compiling a script.
-     */
-    public static final String NUMERIC_OVERFLOW = "numeric_overflow";
-
-    /**
      * Constant to be used when specifying the maximum loop counter when compiling a script.
      */
     public static final String MAX_LOOP_COUNTER = "max_loop_counter";
 
     /**
-     * Whether or not to allow numeric values to overflow without exception.
-     */
-    private boolean numericOverflow = true;
-
-    /**
      * The maximum number of statements allowed to be run in a loop.
      */
     private int maxLoopCounter = 10000;
-
-    /**
-     * Returns {@code true} if numeric operations should overflow, {@code false}
-     * if they should signal an exception.
-     * <p>
-     * If this value is {@code true} (default), then things behave like java:
-     * overflow for integer types can result in unexpected values / unexpected
-     * signs, and overflow for floating point types can result in infinite or
-     * {@code NaN} values.
-     */
-    public final boolean getNumericOverflow() {
-        return numericOverflow;
-    }
-
-    /**
-     * Set {@code true} for numerics to overflow, false to deliver exceptions.
-     * @see #getNumericOverflow
-     */
-    public final void setNumericOverflow(boolean allow) {
-        this.numericOverflow = allow;
-    }
 
     /**
      * Returns the value for the cumulative total number of statements that can be made in all loops

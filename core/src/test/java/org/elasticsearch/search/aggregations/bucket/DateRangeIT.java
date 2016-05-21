@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.bucket.DateScriptMocks.DateScriptsM
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
-import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
@@ -117,7 +117,7 @@ public class DateRangeIT extends ESIntegTestCase {
     public void testDateMath() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("fieldname", "date");
-        DateRangeAggregatorBuilder rangeBuilder = dateRange("range");
+        DateRangeAggregationBuilder rangeBuilder = dateRange("range");
         if (randomBoolean()) {
             rangeBuilder.field("date");
         } else {
@@ -295,8 +295,7 @@ public class DateRangeIT extends ESIntegTestCase {
     }
 
     public void testSingleValueFieldWithDateMath() throws Exception {
-        String[] ids = DateTimeZone.getAvailableIDs().toArray(new String[DateTimeZone.getAvailableIDs().size()]);
-        DateTimeZone timezone = DateTimeZone.forID(randomFrom(ids));
+        DateTimeZone timezone = randomDateTimeZone();
         int timeZoneOffset = timezone.getOffset(date(2, 15));
         // if time zone is UTC (or equivalent), time zone suffix is "Z", else something like "+03:00", which we get with the "ZZ" format
         String feb15Suffix = timeZoneOffset == 0 ? "Z" : date(2,15, timezone).toString("ZZ");

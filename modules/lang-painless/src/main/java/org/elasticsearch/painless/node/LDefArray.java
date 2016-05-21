@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Variables;
@@ -35,37 +34,37 @@ final class LDefArray extends ALink implements IDefLink {
 
     AExpression index;
 
-    LDefArray(final int line, final String location, final AExpression index) {
+    LDefArray(int line, String location, AExpression index) {
         super(line, location, 2);
 
         this.index = index;
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        index.analyze(settings, definition, variables);
+    ALink analyze(Variables variables) {
+        index.analyze(variables);
         index.expected = index.actual;
-        index = index.cast(settings, definition, variables);
+        index = index.cast(variables);
 
-        after = definition.defType;
+        after = Definition.DEF_TYPE;
 
         return this;
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        index.write(settings, definition, adapter);
+    void write(MethodWriter adapter) {
+        index.write(adapter);
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        final String desc = Type.getMethodDescriptor(after.type, definition.defType.type, index.actual.type);
+    void load(MethodWriter adapter) {
+        final String desc = Type.getMethodDescriptor(after.type, Definition.DEF_TYPE.type, index.actual.type);
         adapter.invokeDynamic("arrayLoad", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_LOAD);
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        final String desc = Type.getMethodDescriptor(definition.voidType.type, definition.defType.type,
+    void store(MethodWriter adapter) {
+        final String desc = Type.getMethodDescriptor(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type,
             index.actual.type, after.type);
         adapter.invokeDynamic("arrayStore", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_STORE);
     }

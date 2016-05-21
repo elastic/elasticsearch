@@ -21,10 +21,13 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.SlowCompositeReaderWrapper;
+import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
@@ -33,23 +36,27 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
@@ -57,15 +64,16 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.percolator.PercolatorFieldMapper;
-import org.elasticsearch.index.percolator.PercolatorQueryCache;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
+import static org.elasticsearch.index.percolator.PercolatorFieldMapper.parseQuery;
 
 public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBuilder> {
 
@@ -388,16 +396,14 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             docSearcher.setQueryCache(null);
         }
 
-        PercolatorQueryCache registry = context.getPercolatorQueryCache();
-        if (registry == null) {
-            throw new QueryShardException(context, "no percolator query registry");
-        }
+        IndexSettings indexSettings = context.getIndexSettings();
+        boolean mapUnmappedFieldsAsString = indexSettings.getValue(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
+        return buildQuery(indexSettings.getIndexVersionCreated(), context, docSearcher, mapUnmappedFieldsAsString);
+    }
 
-        PercolateQuery.Builder builder = new PercolateQuery.Builder(
-                documentType, registry, document, docSearcher
-        );
-        Settings indexSettings = registry.getIndexSettings().getSettings();
-        if (indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_5_0_0_alpha1)) {
+    Query buildQuery(Version indexVersionCreated, QueryShardContext context, IndexSearcher docSearcher,
+                     boolean mapUnmappedFieldsAsString) throws IOException {
+        if (indexVersionCreated.onOrAfter(Version.V_5_0_0_alpha1)) {
             MappedFieldType fieldType = context.fieldMapper(field);
             if (fieldType == null) {
                 throw new QueryShardException(context, "field [" + field + "] does not exist");
@@ -408,12 +414,19 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         "] to be of type [percolator], but is of type [" + fieldType.typeName() + "]");
             }
             PercolatorFieldMapper.PercolatorFieldType pft = (PercolatorFieldMapper.PercolatorFieldType) fieldType;
+            PercolateQuery.Builder builder = new PercolateQuery.Builder(
+                    documentType, createStore(pft, context, mapUnmappedFieldsAsString), document, docSearcher
+            );
             builder.extractQueryTermsQuery(pft.getExtractedTermsField(), pft.getUnknownQueryFieldName());
+            return builder.build();
         } else {
             Query percolateTypeQuery = new TermQuery(new Term(TypeFieldMapper.NAME, PercolatorFieldMapper.LEGACY_TYPE_NAME));
+            PercolateQuery.Builder builder = new PercolateQuery.Builder(
+                    documentType, createLegacyStore(context, mapUnmappedFieldsAsString), document, docSearcher
+            );
             builder.setPercolateTypeQuery(percolateTypeQuery);
+            return builder.build();
         }
-        return builder.build();
     }
 
     public String getField() {
@@ -457,6 +470,93 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         } catch (IOException e) {
             throw new ElasticsearchException("Failed to create index for percolator with nested document ", e);
         }
+    }
+
+    private static PercolateQuery.QueryStore createStore(PercolatorFieldMapper.PercolatorFieldType fieldType,
+                                                         QueryShardContext context,
+                                                         boolean mapUnmappedFieldsAsString) {
+        return ctx -> {
+            LeafReader leafReader = ctx.reader();
+            BinaryDocValues binaryDocValues = leafReader.getBinaryDocValues(fieldType.getQueryBuilderFieldName());
+            if (binaryDocValues == null) {
+                return docId -> null;
+            }
+
+            Bits bits = leafReader.getDocsWithField(fieldType.getQueryBuilderFieldName());
+            return docId -> {
+                if (bits.get(docId)) {
+                    BytesRef qbSource = binaryDocValues.get(docId);
+                    if (qbSource.length > 0) {
+                        XContent xContent = PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent();
+                        try (XContentParser sourceParser = xContent.createParser(qbSource.bytes, qbSource.offset, qbSource.length)) {
+                            return parseQuery(context, mapUnmappedFieldsAsString, sourceParser);
+                        }
+                    } else {
+                        return null;
+                    }
+                } else {
+                    return null;
+                }
+            };
+        };
+    }
+
+    private static PercolateQuery.QueryStore createLegacyStore(QueryShardContext context, boolean mapUnmappedFieldsAsString) {
+        return ctx -> {
+            LeafReader leafReader = ctx.reader();
+            return docId -> {
+                LegacyQueryFieldVisitor visitor = new LegacyQueryFieldVisitor();
+                leafReader.document(docId, visitor);
+                if (visitor.source == null) {
+                    throw new IllegalStateException("No source found for document with docid [" + docId + "]");
+                }
+
+                try (XContentParser sourceParser = XContentHelper.createParser(visitor.source)) {
+                    String currentFieldName = null;
+                    XContentParser.Token token = sourceParser.nextToken(); // move the START_OBJECT
+                    if (token != XContentParser.Token.START_OBJECT) {
+                        throw new ElasticsearchException("failed to parse query [" + docId + "], not starting with OBJECT");
+                    }
+                    while ((token = sourceParser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = sourceParser.currentName();
+                        } else if (token == XContentParser.Token.START_OBJECT) {
+                            if ("query".equals(currentFieldName)) {
+                                return parseQuery(context, mapUnmappedFieldsAsString, sourceParser);
+                            } else {
+                                sourceParser.skipChildren();
+                            }
+                        } else if (token == XContentParser.Token.START_ARRAY) {
+                            sourceParser.skipChildren();
+                        }
+                    }
+                }
+                return null;
+            };
+        };
+    }
+
+    private final static class LegacyQueryFieldVisitor extends StoredFieldVisitor {
+
+        private BytesArray source;
+
+        @Override
+        public void binaryField(FieldInfo fieldInfo, byte[] bytes) throws IOException {
+            source = new BytesArray(bytes);
+        }
+
+        @Override
+        public Status needsField(FieldInfo fieldInfo) throws IOException {
+            if (source != null)  {
+                return Status.STOP;
+            }
+            if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
+                return Status.YES;
+            } else {
+                return Status.NO;
+            }
+        }
+
     }
 
 }

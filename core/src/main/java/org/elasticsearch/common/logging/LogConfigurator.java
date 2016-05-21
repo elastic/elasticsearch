@@ -23,7 +23,6 @@ import org.apache.log4j.Java9Hack;
 import org.apache.log4j.PropertyConfigurator;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
@@ -99,8 +98,7 @@ public class LogConfigurator {
 
     /**
      * Consolidates settings and converts them into actual log4j settings, then initializes loggers and appenders.
-     *
-     * @param settings      custom settings that should be applied
+     *  @param settings      custom settings that should be applied
      * @param resolveConfig controls whether the logging conf file should be read too or not.
      */
     public static void configure(Settings settings, boolean resolveConfig) {
@@ -115,7 +113,7 @@ public class LogConfigurator {
         if (resolveConfig) {
             resolveConfig(environment, settingsBuilder);
         }
-        settingsBuilder.putProperties("es.", BootstrapInfo.getSystemProperties());
+
         // add custom settings after config was added so that they are not overwritten by config
         settingsBuilder.put(settings);
         settingsBuilder.replacePropertyPlaceholders();

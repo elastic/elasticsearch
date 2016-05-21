@@ -15,6 +15,7 @@ import org.elasticsearch.shield.authc.support.UsernamePasswordRealm;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -63,6 +64,14 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm {
     @Override
     public boolean userLookupSupported() {
         return sessionFactory.supportsUnauthenticatedSession();
+    }
+
+    @Override
+    public Map<String, Object> usageStats() {
+        Map<String, Object> usage = super.usageStats();
+        usage.put("load_balance_type", LdapLoadBalancing.resolve(config.settings()).toString());
+        usage.put("ssl", sessionFactory.sslUsed);
+        return usage;
     }
 
     private void logException(String action, Exception e, String principal) {

@@ -9,13 +9,15 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authc.support.UsernamePasswordRealm;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.watcher.ResourceWatcherService;
+
+import java.util.Map;
 
 /**
  *
@@ -53,6 +55,14 @@ public class FileRealm extends CachingUsernamePasswordRealm {
             return new User(username, roles);
         }
         return null;
+    }
+
+    @Override
+    public Map<String, Object> usageStats() {
+        Map<String, Object> stats = super.usageStats();
+        // here we can determine the size based on the in mem user store
+        stats.put("size", UserbaseSize.resolve(userPasswdStore.usersCount()));
+        return stats;
     }
 
     @Override

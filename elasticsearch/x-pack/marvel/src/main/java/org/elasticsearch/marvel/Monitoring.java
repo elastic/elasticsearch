@@ -46,7 +46,7 @@ public class Monitoring {
 
     public Monitoring(Settings settings) {
         this.settings = settings;
-        this.enabled = MonitoringSettings.ENABLED.get(settings);
+        this.enabled = enabled(settings);
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
         this.tribeNode = XPackPlugin.isTribeNode(settings);
     }
@@ -62,9 +62,9 @@ public class Monitoring {
     public Collection<Module> nodeModules() {
         List<Module> modules = new ArrayList<>();
         modules.add(new MonitoringModule(enabled, transportClientMode));
+        modules.add(new ExporterModule(settings));
         if (enabled && transportClientMode == false && tribeNode == false) {
             modules.add(new CollectorModule());
-            modules.add(new ExporterModule(settings));
             modules.add(new MonitoringClientModule());
         }
         return modules;
@@ -99,5 +99,9 @@ public class Monitoring {
         if (enabled && tribeNode == false) {
             module.registerLazyInitializable(MonitoringClientProxy.class);
         }
+    }
+
+    public static boolean enabled(Settings settings) {
+        return MonitoringSettings.ENABLED.get(settings);
     }
 }

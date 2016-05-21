@@ -52,7 +52,9 @@ public abstract class SessionFactory {
     protected final RealmConfig config;
     protected final TimeValue timeout;
     protected final ClientSSLService sslService;
+
     protected ServerSet serverSet;
+    protected boolean sslUsed;
 
     protected SessionFactory(RealmConfig config, ClientSSLService sslService) {
         this.config = config;
@@ -118,7 +120,9 @@ public abstract class SessionFactory {
     }
 
     public <T extends SessionFactory> T init() {
-        this.serverSet = serverSet(config.settings(), sslService, ldapServers(config.settings()));
+        LDAPServers ldapServers = ldapServers(config.settings());
+        this.serverSet = serverSet(config.settings(), sslService, ldapServers);
+        this.sslUsed = ldapServers.ssl;
         return (T) this;
     }
 

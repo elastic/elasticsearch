@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 
@@ -39,7 +39,7 @@ public class GraphExploreRequest extends ActionRequest<GraphExploreRequest> impl
     private String routing;
     private TimeValue timeout;
 
-    private int sampleSize = SamplerAggregatorBuilder.DEFAULT_SHARD_SAMPLE_SIZE;
+    private int sampleSize = SamplerAggregationBuilder.DEFAULT_SHARD_SAMPLE_SIZE;
     private String sampleDiversityField;
     private int maxDocsPerDiversityValue;
     private boolean useSignificance = true;
@@ -199,7 +199,7 @@ public class GraphExploreRequest extends ActionRequest<GraphExploreRequest> impl
 
     /**
      * The number of top-matching documents that are considered during each hop (default is 
-     * {@link SamplerAggregatorBuilder#DEFAULT_SHARD_SAMPLE_SIZE}
+     * {@link SamplerAggregationBuilder#DEFAULT_SHARD_SAMPLE_SIZE}
      * Very small values (less than 50) may not provide sufficient weight-of-evidence to identify
      * significant connections between terms. 
      * <p> Very large values (many thousands) are not recommended with loosely defined queries (fuzzy queries or those 

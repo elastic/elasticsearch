@@ -23,6 +23,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
  */
 @ESIntegTestCase.ClusterScope(scope = TEST, numDataNodes = 10, numClientNodes = 0)
 public class LicensesServiceNodeTests extends AbstractLicensesIntegrationTestCase {
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()

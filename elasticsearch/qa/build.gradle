@@ -1,5 +1,5 @@
 subprojects {
-  project.afterEvaluate {
+  tasks.withType(org.elasticsearch.gradle.precommit.LicenseHeadersTask) {
     // someone figure out what the x-plugins logic should be
     project.licenseHeaders.enabled = false
   }

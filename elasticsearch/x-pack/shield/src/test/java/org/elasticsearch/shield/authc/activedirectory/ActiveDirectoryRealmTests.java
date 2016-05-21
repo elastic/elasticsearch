@@ -57,6 +57,7 @@ import static org.mockito.Mockito.verify;
  * additional bind DN with a password in the test setup since it really is not a DN in the ldif file
  */
 public class ActiveDirectoryRealmTests extends ESTestCase {
+
     private static final String PASSWORD = "password";
 
     protected static int numberOfLdapServers;

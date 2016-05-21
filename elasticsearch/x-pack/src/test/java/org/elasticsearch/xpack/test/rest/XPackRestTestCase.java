@@ -10,6 +10,8 @@ import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
@@ -21,18 +23,20 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.BasicHttpClientConnectionManager;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.license.plugin.TestUtils;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
-import org.elasticsearch.xpack.common.xcontent.XContentUtils;
 import org.junit.After;
 import org.junit.Before;
 
@@ -79,6 +83,19 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
             request.addHeader("Authorization", BASIC_AUTH_VALUE);
             try (CloseableHttpResponse response = client.execute(request)) {
             }
+        }
+    }
+
+    @Before
+    public void installLicense() throws Exception {
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
+        TestUtils.generateSignedLicense("trial", TimeValue.timeValueHours(2)).toXContent(builder, ToXContent.EMPTY_PARAMS);
+        final BytesReference bytes = builder.bytes();
+        try (XContentParser parser = XContentFactory.xContent(bytes).createParser(bytes)) {
+            final List<Map<String, Object>> bodies = Collections.singletonList(Collections.singletonMap("license",
+                    parser.map()));
+            getAdminExecutionContext().callApi("license.post", Collections.singletonMap("acknowledge", "true"),
+                    bodies, Collections.singletonMap("Authorization", BASIC_AUTH_VALUE));
         }
     }
 

@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
 import javax.net.SocketFactory;
-import java.util.Arrays;
 import java.util.Locale;
 
 /**
@@ -83,25 +82,23 @@ public enum LdapLoadBalancing {
 
     @Override
     public String toString() {
-        return name().toLowerCase(Locale.ENGLISH);
+        return name().toLowerCase(Locale.ROOT);
+    }
+
+    public static LdapLoadBalancing resolve(Settings settings) {
+        Settings loadBalanceSettings = settings.getAsSettings(LOAD_BALANCE_SETTINGS);
+        String type = loadBalanceSettings.get(LOAD_BALANCE_TYPE_SETTING, LOAD_BALANCE_TYPE_DEFAULT);
+        try {
+            return valueOf(type.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ilae) {
+            throw new IllegalArgumentException("unknown load balance type [" + type + "]", ilae);
+        }
     }
 
     public static ServerSet serverSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory,
                                       @Nullable LDAPConnectionOptions options) {
+        LdapLoadBalancing loadBalancing = resolve(settings);
         Settings loadBalanceSettings = settings.getAsSettings(LOAD_BALANCE_SETTINGS);
-        String type = loadBalanceSettings.get(LOAD_BALANCE_TYPE_SETTING, LOAD_BALANCE_TYPE_DEFAULT);
-        switch (type.toLowerCase(Locale.ENGLISH)) {
-            case "failover":
-                return FAILOVER.buildServerSet(addresses, ports, loadBalanceSettings, socketFactory, options);
-            case "dns_failover":
-                return DNS_FAILOVER.buildServerSet(addresses, ports, loadBalanceSettings, socketFactory, options);
-            case "round_robin":
-                return ROUND_ROBIN.buildServerSet(addresses, ports, loadBalanceSettings, socketFactory, options);
-            case "dns_round_robin":
-                return DNS_ROUND_ROBIN.buildServerSet(addresses, ports, loadBalanceSettings, socketFactory, options);
-            default:
-                throw new IllegalArgumentException("unknown server set type [" + type + "]. value must be one of " +
-                        Arrays.toString(LdapLoadBalancing.values()));
-        }
+        return loadBalancing.buildServerSet(addresses, ports, loadBalanceSettings, socketFactory, options);
     }
 }

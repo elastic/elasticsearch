@@ -7,7 +7,9 @@ package org.elasticsearch.shield.ssl;
 
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.InputStream;
@@ -113,7 +115,8 @@ public class CertUtilsTests extends ESTestCase {
         GeneralName[] generalNameArray = generalNames.getNames();
         assertThat(generalNameArray, notNullValue());
 
-        if (resolveName) {
+        logger.info("resolve name [{}], address [{}], subject alt names [{}]", resolveName, NetworkAddress.format(address), generalNames);
+        if (resolveName && isResolvable(address)) {
             assertThat(generalNameArray.length, is(2));
             int firstType = generalNameArray[0].getTagNo();
             if (firstType == GeneralName.iPAddress) {
@@ -127,6 +130,12 @@ public class CertUtilsTests extends ESTestCase {
             assertThat(generalNameArray.length, is(1));
             assertThat(generalNameArray[0].getTagNo(), is(GeneralName.iPAddress));
         }
+    }
+
+    @SuppressForbidden(reason = "need to use getHostName to resolve DNS name and getHostAddress to ensure we resolved the name")
+    private boolean isResolvable(InetAddress inetAddress) {
+        String hostname = inetAddress.getHostName();
+        return hostname.equals(inetAddress.getHostAddress()) == false;
     }
 
     public void testIsAnyLocalAddress() throws Exception {

@@ -120,7 +120,8 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
 
     @Override
     protected void doStart() {
-        logger.info("monitoring service started");
+        // Please don't remove this log message since it can be used in integration tests
+        logger.debug("monitoring service started");
 
         for (Collector collector : collectors) {
             collector.start();

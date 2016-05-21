@@ -17,6 +17,7 @@ import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Authenticates username/password tokens against ldap, locates groups and maps them to roles.
@@ -27,6 +28,13 @@ public class LdapRealm extends AbstractLdapRealm {
 
     public LdapRealm(RealmConfig config, SessionFactory ldap, DnRoleMapper roleMapper) {
         super(TYPE, config, ldap, roleMapper);
+    }
+
+    @Override
+    public Map<String, Object> usageStats() {
+        Map<String, Object> stats = super.usageStats();
+        stats.put("user_search", Factory.userSearchSettings(config).isEmpty() == false);
+        return stats;
     }
 
     public static class Factory extends AbstractLdapRealm.Factory<LdapRealm> {
@@ -53,7 +61,7 @@ public class LdapRealm extends AbstractLdapRealm {
         }
 
         static SessionFactory sessionFactory(RealmConfig config, ClientSSLService clientSSLService) throws IOException {
-            Settings searchSettings = config.settings().getAsSettings("user_search");
+            Settings searchSettings = userSearchSettings(config);
             if (!searchSettings.names().isEmpty()) {
                 if (config.settings().getAsArray(LdapSessionFactory.USER_DN_TEMPLATES_SETTING).length > 0) {
                     throw new IllegalArgumentException("settings were found for both user search and user template modes of operation. " +
@@ -63,6 +71,10 @@ public class LdapRealm extends AbstractLdapRealm {
                 return new LdapUserSearchSessionFactory(config, clientSSLService).init();
             }
             return new LdapSessionFactory(config, clientSSLService).init();
+        }
+
+        static Settings userSearchSettings(RealmConfig config) {
+            return config.settings().getAsSettings("user_search");
         }
     }
 }

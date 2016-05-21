@@ -62,12 +62,22 @@ public class WatcherLicensee extends AbstractLicenseeComponent<WatcherLicensee> 
      *
      * @return {@code true} as long as the license is valid. Otherwise {@code false}.
      */
-    public boolean available() {
+    public boolean isAvailable() {
         // status is volatile, so a local variable is used for a consistent view
         Status localStatus = status;
 
-        return localStatus.getLicenseState() != LicenseState.DISABLED && (localStatus.getMode() == OperationMode.TRIAL ||
-                localStatus.getMode() == OperationMode.GOLD || localStatus.getMode() == OperationMode.PLATINUM);
+        if (localStatus.getLicenseState() == LicenseState.DISABLED) {
+            return false;
+        }
+
+        switch (localStatus.getMode()) {
+            case TRIAL:
+            case GOLD:
+            case PLATINUM:
+                return true;
+            default:
+                return false;
+        }
     }
 
     public boolean isExecutingActionsAllowed() {
@@ -84,7 +94,7 @@ public class WatcherLicensee extends AbstractLicenseeComponent<WatcherLicensee> 
 
 
     public boolean isWatcherTransportActionAllowed() {
-        return available();
+        return isAvailable();
     }
 
 

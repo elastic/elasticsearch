@@ -5,21 +5,20 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
-import java.io.File;
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserError;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
-
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserError;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
 
 import static org.elasticsearch.license.core.CryptUtils.writeEncryptedPrivateKey;
 import static org.elasticsearch.license.core.CryptUtils.writeEncryptedPublicKey;

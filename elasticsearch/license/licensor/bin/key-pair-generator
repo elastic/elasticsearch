@@ -34,25 +34,5 @@ else
     JAVA=`which java`
 fi
 
-
-# Parse any long getopt options and put them into properties before calling getopt below
-# Be dash compatible to make sure running under ubuntu works
-ARGCOUNT=$#
-COUNT=0
-while [ $COUNT -lt $ARGCOUNT ]
-do
-    case $1 in
-      -D*=*)
-           properties="$properties $1"
-           shift 1; COUNT=$(($COUNT+1))
-           ;;
-      -D*) 
-           properties="$properties $1=$2"
-           shift ; shift; COUNT=$(($COUNT+2))
-           ;;
-      *) set -- "$@" "$1"; shift; COUNT=$(($COUNT+1))
-    esac
-done
-
-exec "$JAVA" $JAVA_OPTS -Xmx64m -Xms16m $properties -cp "$LICENSE_CLASSPATH" -Des.path.home="`pwd`" org.elasticsearch.license.licensor.tools.KeyPairGeneratorTool "$@"
+exec "$JAVA" $JAVA_OPTS -Xmx64m -Xms16m -cp "$LICENSE_CLASSPATH" -Des.path.home="`pwd`" org.elasticsearch.license.licensor.tools.KeyPairGeneratorTool "$@"
 

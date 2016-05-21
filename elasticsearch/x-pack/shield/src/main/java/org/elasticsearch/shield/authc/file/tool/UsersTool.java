@@ -5,26 +5,14 @@
  */
 package org.elasticsearch.shield.authc.file.tool;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MultiCommand;
+import org.elasticsearch.cli.SettingCommand;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
@@ -40,32 +28,41 @@ import org.elasticsearch.shield.support.FileAttributesChecker;
 import org.elasticsearch.shield.support.Validation;
 import org.elasticsearch.shield.support.Validation.Users;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 public class UsersTool extends MultiCommand {
 
     public static void main(String[] args) throws Exception {
-        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, Terminal.DEFAULT);
-        exit(new UsersTool(env).main(args, Terminal.DEFAULT));
+        exit(new UsersTool().main(args, Terminal.DEFAULT));
     }
 
-    UsersTool(Environment env) {
+    UsersTool() {
         super("Manages elasticsearch native users");
-        subcommands.put("useradd", new AddUserCommand(env));
-        subcommands.put("userdel", new DeleteUserCommand(env));
-        subcommands.put("passwd", new PasswordCommand(env));
-        subcommands.put("roles", new RolesCommand(env));
-        subcommands.put("list", new ListCommand(env));
+        subcommands.put("useradd", new AddUserCommand());
+        subcommands.put("userdel", new DeleteUserCommand());
+        subcommands.put("passwd", new PasswordCommand());
+        subcommands.put("roles", new RolesCommand());
+        subcommands.put("list", new ListCommand());
     }
 
-    static class AddUserCommand extends Command {
+    static class AddUserCommand extends SettingCommand {
 
-        private final Environment env;
         private final OptionSpec<String> passwordOption;
         private final OptionSpec<String> rolesOption;
         private final OptionSpec<String> arguments;
 
-        AddUserCommand(Environment env) {
+        AddUserCommand() {
             super("Adds a native user");
-            this.env = env;
             this.passwordOption = parser.acceptsAll(Arrays.asList("p", "password"),
                 "The user password")
                 .withRequiredArg();
@@ -87,7 +84,7 @@ public class UsersTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
             String username = parseUsername(arguments.values(options));
             Validation.Error validationError = Users.validateUsername(username);
             if (validationError != null) {
@@ -95,6 +92,7 @@ public class UsersTool extends MultiCommand {
             }
 
             char[] password = parsePassword(terminal, passwordOption.value(options));
+            Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
             String[] roles = parseRoles(terminal, env, rolesOption.value(options));
 
             Settings fileSettings = Realms.fileRealmSettings(env.settings());
@@ -120,14 +118,12 @@ public class UsersTool extends MultiCommand {
         }
     }
 
-    static class DeleteUserCommand extends Command {
+    static class DeleteUserCommand extends SettingCommand {
 
-        private final Environment env;
         private final OptionSpec<String> arguments;
 
-        DeleteUserCommand(Environment env) {
+        DeleteUserCommand() {
             super("Deletes a file based user");
-            this.env = env;
             this.arguments = parser.nonOptions("username");
         }
 
@@ -143,8 +139,9 @@ public class UsersTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
             String username = parseUsername(arguments.values(options));
+            Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
             Settings fileSettings = Realms.fileRealmSettings(env.settings());
             Path passwordFile = FileUserPasswdStore.resolveFile(fileSettings, env);
             Path rolesFile = FileUserRolesStore.resolveFile(fileSettings, env);
@@ -173,15 +170,13 @@ public class UsersTool extends MultiCommand {
         }
     }
 
-    static class PasswordCommand extends Command {
+    static class PasswordCommand extends SettingCommand {
 
-        private final Environment env;
         private final OptionSpec<String> passwordOption;
         private final OptionSpec<String> arguments;
 
-        PasswordCommand(Environment env) {
+        PasswordCommand() {
             super("Changes the password of an existing file based user");
-            this.env = env;
             this.passwordOption = parser.acceptsAll(Arrays.asList("p", "password"),
                 "The user password")
                 .withRequiredArg();
@@ -200,10 +195,11 @@ public class UsersTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
             String username = parseUsername(arguments.values(options));
             char[] password = parsePassword(terminal, passwordOption.value(options));
 
+            Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
             Settings fileSettings = Realms.fileRealmSettings(env.settings());
             Path file = FileUserPasswdStore.resolveFile(fileSettings, env);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(file);
@@ -218,16 +214,14 @@ public class UsersTool extends MultiCommand {
         }
     }
 
-    static class RolesCommand extends Command {
+    static class RolesCommand extends SettingCommand {
 
-        private final Environment env;
         private final OptionSpec<String> addOption;
         private final OptionSpec<String> removeOption;
         private final OptionSpec<String> arguments;
 
-        RolesCommand(Environment env) {
+        RolesCommand() {
             super("Edit roles of an existing user");
-            this.env = env;
             this.addOption = parser.acceptsAll(Arrays.asList("a", "add"),
                 "Adds supplied roles to the specified user")
                 .withRequiredArg().defaultsTo("");
@@ -246,8 +240,9 @@ public class UsersTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
             String username = parseUsername(arguments.values(options));
+            Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
             String[] addRoles = parseRoles(terminal, env, addOption.value(options));
             String[] removeRoles = parseRoles(terminal, env, removeOption.value(options));
 
@@ -290,14 +285,12 @@ public class UsersTool extends MultiCommand {
         }
     }
 
-    static class ListCommand extends Command {
+    static class ListCommand extends SettingCommand {
 
-        private final Environment env;
         private final OptionSpec<String> arguments;
 
-        ListCommand(Environment env) {
+        ListCommand() {
             super("List existing file based users and their corresponding roles");
-            this.env = env;
             this.arguments = parser.nonOptions("username");
         }
 
@@ -308,11 +301,12 @@ public class UsersTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
             String username = null;
             if (options.has(arguments)) {
                 username = arguments.value(options);
             }
+            Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
             listUsersAndRoles(terminal, env, username);
         }
     }

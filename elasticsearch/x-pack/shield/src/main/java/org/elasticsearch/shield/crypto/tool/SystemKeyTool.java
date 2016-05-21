@@ -5,21 +5,14 @@
  */
 package org.elasticsearch.shield.crypto.tool;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.nio.file.attribute.PosixFileAttributeView;
-import java.nio.file.attribute.PosixFilePermission;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
-
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+import joptsimple.util.KeyValuePair;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserError;
+import org.elasticsearch.cli.SettingCommand;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -28,28 +21,47 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 
-public class SystemKeyTool extends Command {
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+
+public class SystemKeyTool extends SettingCommand {
+
+    private final OptionSpec<String> arguments;
+
+    SystemKeyTool() {
+        super("system key tool");
+        arguments = parser.nonOptions("key path");
+    }
 
     public static final Set<PosixFilePermission> PERMISSION_OWNER_READ_WRITE = Sets.newHashSet(PosixFilePermission.OWNER_READ,
             PosixFilePermission.OWNER_WRITE);
 
     public static void main(String[] args) throws Exception {
-        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, Terminal.DEFAULT);
-        exit(new SystemKeyTool(env).main(args, Terminal.DEFAULT));
+        final SystemKeyTool tool = new SystemKeyTool();
+        int status = main(tool, args, Terminal.DEFAULT);
+        if (status != ExitCodes.OK) {
+            exit(status);
+        }
     }
 
-    private final Environment env;
-    private final OptionSpec<String> arguments;
-
-    public SystemKeyTool(Environment env) {
-        super("Generates the system key");
-        this.env = env;
-        this.arguments = parser.nonOptions("key path");
+    static int main(SystemKeyTool tool, String[] args, Terminal terminal) throws Exception {
+        return tool.main(args, terminal);
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
         final Path keyPath;
+
+        final Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+
         if (options.hasArgument(arguments)) {
             List<String> args = arguments.values(options);
             if (args.size() > 1) {
@@ -79,4 +91,5 @@ public class SystemKeyTool extends Command {
     private static Path parsePath(String path) {
         return PathUtils.get(path);
     }
+
 }

@@ -7,9 +7,9 @@ package org.elasticsearch.shield.authc.support;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.shield.authc.RealmConfig;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -25,6 +25,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class CachingUsernamePasswordRealmTests extends ESTestCase {
+
     private Settings globalSettings;
 
     @Before

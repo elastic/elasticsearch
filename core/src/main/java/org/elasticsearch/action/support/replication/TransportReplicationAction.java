@@ -69,7 +69,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -83,8 +82,9 @@ import java.util.function.Supplier;
  */
 public abstract class TransportReplicationAction<
             Request extends ReplicationRequest<Request>,
-            AsyncStash,
+            PrimaryAsyncStash,
             ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
+            ReplicaAsyncStash,
             Response extends ReplicationResponse
         > extends TransportAction<Request, Response> {
 
@@ -157,7 +157,7 @@ public abstract class TransportReplicationAction<
      * @return Tuple of the request to send to the replicas and the information needed by the {
      *         {@link #asyncShardOperationOnPrimary(Object, ReplicationRequest, ActionListener)} to do its job
      */
-    protected abstract Tuple<ReplicaRequest, AsyncStash> shardOperationOnPrimary(Request shardRequest) throws Exception;
+    protected abstract Tuple<ReplicaRequest, PrimaryAsyncStash> shardOperationOnPrimary(Request shardRequest) throws Exception;
 
     /**
      * Asynchronous portion of primary operation on node with primary copy
@@ -166,13 +166,21 @@ public abstract class TransportReplicationAction<
      * @param shardRequest the request to the primary shard
      * @param listener implementers call this success or failure when the asynchronous operations are complete.
      */
-    protected abstract void asyncShardOperationOnPrimary(AsyncStash stash, Request shardRequest, ActionListener<Response> listener);
+    protected abstract void asyncShardOperationOnPrimary(PrimaryAsyncStash stash, Request shardRequest, ActionListener<Response> listener);
 
     /**
-     * Replica operation on nodes with replica copies. While this does take a listener it should not return until it has completed any
-     * operations that it must take under the shard lock. The listener is for waiting for things like index to become visible in search.
+     * Replica operation on nodes with replica copies. This is done under a replica operation lock.
      */
-    protected abstract void shardOperationOnReplica(ReplicaRequest shardRequest, ActionListener<TransportResponse.Empty> listener);
+    protected abstract ReplicaAsyncStash shardOperationOnReplica(ReplicaRequest shardRequest);
+
+    /**
+     * Asynchronous portion of replica operation on nodes with replica copies. Default implementation assumes there *is no* asynchronous
+     * portion and just immediately calls the listener. This is done outside of the replica operation lock.
+     */
+    protected void asyncShardOperationOnReplica(ReplicaAsyncStash stash, ReplicaRequest shardRequest,
+            ActionListener<TransportResponse.Empty> listener) {
+        listener.onResponse(TransportResponse.Empty.INSTANCE);
+    }
 
     /**
      * True if write consistency should be checked for an implementation
@@ -292,7 +300,7 @@ public abstract class TransportReplicationAction<
             }
         }
 
-        protected ReplicationOperation<Request, AsyncStash, ReplicaRequest, Response> createReplicatedOperation(Request request,
+        protected ReplicationOperation<Request, PrimaryAsyncStash, ReplicaRequest, Response> createReplicatedOperation(Request request,
                 ActionListener<Response> listener, PrimaryShardReference primaryShardReference, boolean executeOnReplicas) {
             return new ReplicationOperation<>(request, primaryShardReference, listener,
                 executeOnReplicas, checkWriteConsistency(), replicasProxy, clusterService::state, logger, actionName
@@ -356,10 +364,6 @@ public abstract class TransportReplicationAction<
     }
 
     private final class AsyncReplicaAction extends AbstractRunnable {
-        /**
-         * The number of operations remaining before we can reply. See javadoc for {@link #operationComplete()} more.
-         */
-        private final AtomicInteger operationsUntilReply = new AtomicInteger(2);
         private final ReplicaRequest request;
         private final TransportChannel channel;
         /**
@@ -422,45 +426,31 @@ public abstract class TransportReplicationAction<
         protected void doRun() throws Exception {
             setPhase(task, "replica");
             assert request.shardId() != null : "request shardId must be set";
+            ReplicaAsyncStash stash;
             try (Releasable ignored = acquireReplicaOperationLock(request.shardId(), request.primaryTerm())) {
-                shardOperationOnReplica(request, new ActionListener<TransportResponse.Empty>() {
-                    @Override
-                    public void onResponse(Empty response) {
-                        operationComplete();
+                stash = shardOperationOnReplica(request);
+            }
+            setPhase(task, "replica_async");
+            asyncShardOperationOnReplica(stash, request, new ActionListener<TransportResponse.Empty>() {
+                @Override
+                public void onResponse(Empty response) {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction, request.shardId(),
+                            request);
                     }
-
-                    @Override
-                    public void onFailure(Throwable e) {
-                        AsyncReplicaAction.this.onFailure(e);
+                    setPhase(task, "finished");
+                    try {
+                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                    } catch (Exception e) {
+                        onFailure(e);
                     }
-                });
-            }
-            operationComplete();
-        }
+                }
 
-        /**
-         * Handle a portion of the operation finishing. Called twice: once after the operation returns and the lock is released and once
-         * after the listener returns. We only reply over the channel when both have finished but we don't know in which order they will
-         * finish.
-         *
-         * The reason we can't reply until both is finished is a bit unclear - but the advantage of doing it this ways is that we never
-         * ever ever reply while we have the operation lock. And it is just a good idea in general not to do network IO while you have a
-         * lock. So that is something.
-         */
-        private void operationComplete() {
-            if (operationsUntilReply.decrementAndGet() != 0) {
-                return;
-            }
-            if (logger.isTraceEnabled()) {
-                logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction, request.shardId(),
-                    request);
-            }
-            setPhase(task, "finished");
-            try {
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
-            } catch (Exception e) {
-                onFailure(e);
-            }
+                @Override
+                public void onFailure(Throwable e) {
+                    AsyncReplicaAction.this.onFailure(e);
+                }
+            });
         }
     }
 
@@ -748,7 +738,7 @@ public abstract class TransportReplicationAction<
         return IndexMetaData.isIndexUsingShadowReplicas(settings) == false;
     }
 
-    class PrimaryShardReference implements ReplicationOperation.Primary<Request, AsyncStash, ReplicaRequest, Response>, Releasable {
+    class PrimaryShardReference implements ReplicationOperation.Primary<Request, PrimaryAsyncStash, ReplicaRequest, Response>, Releasable {
 
         private final IndexShard indexShard;
         private final Releasable operationLock;
@@ -777,14 +767,14 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public Tuple<ReplicaRequest, AsyncStash> perform(Request request) throws Exception {
-            Tuple<ReplicaRequest, AsyncStash> result = shardOperationOnPrimary(request);
+        public Tuple<ReplicaRequest, PrimaryAsyncStash> perform(Request request) throws Exception {
+            Tuple<ReplicaRequest, PrimaryAsyncStash> result = shardOperationOnPrimary(request);
             result.v1().primaryTerm(indexShard.getPrimaryTerm());
             return result;
         }
 
         @Override
-        public void performAsync(AsyncStash stash, Request request, ActionListener<Response> listener) throws Exception {
+        public void performAsync(PrimaryAsyncStash stash, Request request, ActionListener<Response> listener) throws Exception {
             asyncShardOperationOnPrimary(stash, request, listener);
         }
 

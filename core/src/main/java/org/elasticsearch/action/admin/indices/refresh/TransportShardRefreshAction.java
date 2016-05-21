@@ -35,11 +35,10 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportShardRefreshAction
-        extends TransportReplicationAction<BasicReplicationRequest, Void, BasicReplicationRequest, ReplicationResponse> {
+        extends TransportReplicationAction<BasicReplicationRequest, Void, BasicReplicationRequest, Void, ReplicationResponse> {
 
     public static final String NAME = RefreshAction.NAME + "[s]";
 
@@ -71,12 +70,12 @@ public class TransportShardRefreshAction
     }
 
     @Override
-    protected void shardOperationOnReplica(BasicReplicationRequest request, ActionListener<TransportResponse.Empty> listener) {
+    protected Void shardOperationOnReplica(BasicReplicationRequest request) {
         final ShardId shardId = request.shardId();
         IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
         indexShard.refresh("api");
         logger.trace("{} refresh request executed on replica", indexShard.shardId());
-        listener.onResponse(TransportResponse.Empty.INSTANCE);
+        return null;
     }
 
     @Override

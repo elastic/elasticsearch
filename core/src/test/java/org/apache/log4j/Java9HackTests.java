@@ -19,18 +19,10 @@
 
 package org.apache.log4j;
 
-import org.apache.log4j.helpers.ThreadLocalMap;
+import org.elasticsearch.test.ESTestCase;
 
-/**
- * TODO: document this hack
- */
-public class Java9Hack {
-
-    public static void fixLog4j() {
-        System.out.println("Fixing log4j");
-        if (MDC.mdc.tlm == null) {
-            System.out.println("FOR REAL");
-            MDC.mdc.tlm = new ThreadLocalMap();
-        }
+public class Java9HackTests extends ESTestCase {
+    public void testJava9Hack() {
+        assertNotNull(MDC.mdc.tlm != null);
     }
 }

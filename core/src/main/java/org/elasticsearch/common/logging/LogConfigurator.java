@@ -19,7 +19,9 @@
 
 package org.elasticsearch.common.logging;
 
+import org.apache.log4j.Java9Hack;
 import org.apache.log4j.PropertyConfigurator;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.common.settings.Settings;
@@ -87,6 +89,10 @@ public class LogConfigurator {
         replacements.put("ttcc", "org.apache.log4j.TTCCLayout");
         replacements.put("xml", "org.apache.log4j.XMLLayout");
         REPLACEMENTS = unmodifiableMap(replacements);
+
+        if (Constants.JRE_IS_MINIMUM_JAVA9) {
+            Java9Hack.fixLog4j();
+        }
     }
 
     private static boolean loaded;

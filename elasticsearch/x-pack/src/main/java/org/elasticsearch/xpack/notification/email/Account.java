@@ -32,13 +32,6 @@ public class Account {
     static final String SMTP_PROTOCOL = "smtp";
 
     static {
-        // required as java doesn't always find the correct mailcap to properly handle mime types
-        final MailcapCommandMap mailcap = (MailcapCommandMap) CommandMap.getDefaultCommandMap();
-        mailcap.addMailcap("text/html;; x-java-content-handler=com.sun.mail.handlers.text_html");
-        mailcap.addMailcap("text/xml;; x-java-content-handler=com.sun.mail.handlers.text_xml");
-        mailcap.addMailcap("text/plain;; x-java-content-handler=com.sun.mail.handlers.text_plain");
-        mailcap.addMailcap("multipart/*;; x-java-content-handler=com.sun.mail.handlers.multipart_mixed");
-        mailcap.addMailcap("message/rfc822;; x-java-content-handler=com.sun.mail.handlers.message_rfc822");
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
@@ -46,11 +39,21 @@ public class Account {
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             @Override
             public Void run() {
+                // required as java doesn't always find the correct mailcap to properly handle mime types
+                final MailcapCommandMap mailcap = (MailcapCommandMap) CommandMap.getDefaultCommandMap();
+                mailcap.addMailcap("text/html;; x-java-content-handler=com.sun.mail.handlers.text_html");
+                mailcap.addMailcap("text/xml;; x-java-content-handler=com.sun.mail.handlers.text_xml");
+                mailcap.addMailcap("text/plain;; x-java-content-handler=com.sun.mail.handlers.text_plain");
+                mailcap.addMailcap("multipart/*;; x-java-content-handler=com.sun.mail.handlers.multipart_mixed");
+                mailcap.addMailcap("message/rfc822;; x-java-content-handler=com.sun.mail.handlers.message_rfc822");
                 CommandMap.setDefaultCommandMap(mailcap);
                 return null;
             }
         });
     }
+
+    // exists only to allow ensuring class is initialized
+    public static void init() {}
 
     static final Settings DEFAULT_SMTP_TIMEOUT_SETTINGS = Settings.builder()
             .put("connection_timeout", TimeValue.timeValueMinutes(2))

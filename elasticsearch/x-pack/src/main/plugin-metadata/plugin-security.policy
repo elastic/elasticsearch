@@ -11,6 +11,7 @@ grant {
   // to load the class with the application class loader
   permission java.lang.RuntimePermission "setContextClassLoader";
   permission java.lang.RuntimePermission "getClassLoader";
+  permission java.lang.RuntimePermission "accessClassInPackage.com.sun.activation.registries";
 
   // bouncy castle
   permission java.security.SecurityPermission "putProviderProperty.BC";

@@ -22,14 +22,15 @@ package org.apache.log4j;
 import org.apache.log4j.helpers.ThreadLocalMap;
 
 /**
- * TODO: document this hack
+ * Log4j 1.2 MDC breaks because it parses java.version incorrectly (does not handle new java9 versioning).
+ *
+ * This hack fixes up the pkg private members as if it had detected the java version correctly.
  */
 public class Java9Hack {
 
     public static void fixLog4j() {
-        System.out.println("Fixing log4j");
         if (MDC.mdc.tlm == null) {
-            System.out.println("FOR REAL");
+            MDC.mdc.java1 = false;
             MDC.mdc.tlm = new ThreadLocalMap();
         }
     }

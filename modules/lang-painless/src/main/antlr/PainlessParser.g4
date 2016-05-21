@@ -126,8 +126,7 @@ throwStatement
     ;
 
 expressionStatement
-    : expression
-    | assignment
+    : expressions
     ;
 
 forInitializer
@@ -140,7 +139,11 @@ forAfterthought
     ;
 
 declarationType
-    : ID (LBRACE RBRACE)*
+    : type (LBRACE RBRACE)*
+    ;
+
+type
+    : TYPE (DOT DOTTYPE)*
     ;
 
 declarationVariable
@@ -156,36 +159,32 @@ delimiter
     | EOF
     ;
 
-assignment
-    : leftHandSide ( ASSIGN | AADD | ASUB | AMUL |
+expressions
+    : expression
+    | leftHandSide ( ASSIGN | AADD | ASUB | AMUL |
                      ADIV   | AREM | AAND | AXOR |
-                     AOR    | ALSH | ARSH | AUSH ) ( expression | assignment )
-    ;
-
-leftHandSide
-    : ID secondary*
+                     AOR    | ALSH | ARSH | AUSH ) expressions
     ;
 
 expression
-    :               unary                                               # single
-    |               expression ( MUL | DIV | REM ) expression           # binary
-    |               expression ( ADD | SUB ) expression                 # binary
-    |               expression ( LSH | RSH | USH ) expression           # binary
-    |               expression ( LT | LTE | GT | GTE ) expression       # comp
-    |               expression ( EQ | EQR | NE | NER ) expression       # comp
-    |               expression BWAND expression                         # binary
-    |               expression XOR expression                           # binary
-    |               expression BWOR expression                          # binary
-    |               expression BOOLAND expression                       # bool
-    |               expression BOOLOR expression                        # bool
-    | <assoc=right> expression COND expression COLON expression         # conditional
+    :               unary                                         # single
+    |               expression ( MUL | DIV | REM ) expression     # binary
+    |               expression ( ADD | SUB ) expression           # binary
+    |               expression ( LSH | RSH | USH ) expression     # binary
+    |               expression ( LT | LTE | GT | GTE ) expression # comp
+    |               expression ( EQ | EQR | NE | NER ) expression # comp
+    |               expression BWAND expression                   # binary
+    |               expression XOR expression                     # binary
+    |               expression BWOR expression                    # binary
+    |               expression BOOLAND expression                 # bool
+    |               expression BOOLOR expression                  # bool
+    | <assoc=right> expression COND expressions COLON expression  # conditional
     ;
 
 unary
-    : LP expression RP                      # prec
-    | ( INCR | DECR ) postfix               # pre
-    | postfix (INCR | DECR )                # post
-    | postfix                               # fix
+    : ( INCR | DECR ) chain                 # pre
+    | chain (INCR | DECR )                  # post
+    | chain                                 # read
     | ( OCTAL | HEX | INTEGER | DECIMAL )   # numeric
     | TRUE                                  # true
     | FALSE                                 # false
@@ -193,27 +192,33 @@ unary
     | LP declarationType RP unary           # cast
     ;
 
-postfix
-    : primary secondary*
-    | newArray
+chain
+    : primary secondary* # variableprimary
+    | type secondary+    # typeprimary
+    | newarray           # arraycreation
+    ;
+
+leftHandSide
+    : ID secondary*
     ;
 
 primary
-    : STRING           # string
-    | ID               # variable
-    | NEW ID arguments # newobject
+    : LP expressions RP                      # precedence
+    | STRING                                 # string
+    | ID                                     # variable
+    | NEW type arguments                     # newobject
+    ;
+
+newarray
+    : NEW type ( LBRACE expressions RBRACE )+
     ;
 
 secondary
-    : DOT EXTID arguments        # call
-    | DOT ( EXTID | EXTINTEGER ) # field
-    | LBRACE expression RBRACE   # array
-    ;
-
-newArray
-    : NEW ID ( LBRACE expression RBRACE )+
+    : DOT DOTID arguments        # callinvoke
+    | DOT ( DOTID | DOTINTEGER ) # fieldaccess
+    | LBRACE expressions RBRACE  # arrayaccess
     ;
 
 arguments
-    : ( LP ( expression ( COMMA expression )* )? RP )
+    : ( LP ( expressions ( COMMA expressions )* )? RP )
     ;

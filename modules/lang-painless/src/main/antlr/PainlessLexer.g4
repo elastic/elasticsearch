@@ -28,7 +28,7 @@ LBRACE:    '[';
 RBRACE:    ']';
 LP:        '(';
 RP:        ')';
-DOT:       '.' -> mode(EXT);
+DOT:       '.' -> mode(AFTER_DOT);
 COMMA:     ',';
 SEMICOLON: ';';
 IF:        'if';
@@ -97,8 +97,10 @@ FALSE: 'false';
 
 NULL: 'null';
 
-ID: [_a-zA-Z] [_a-zA-Z0-9]*;
+TYPE: 'void' | 'boolean' | 'byte' | 'short' | 'char' | 'int' | 'long' | 'float' | 'double' | [A-Z] [_a-zA-Z0-9]*;
+ID: [_a-z] [_a-zA-Z0-9]*;
 
-mode EXT;
-EXTINTEGER: ( '0' | [1-9] [0-9]* ) -> mode(DEFAULT_MODE);
-EXTID: [_a-zA-Z] [_a-zA-Z0-9]* -> mode(DEFAULT_MODE);
+mode AFTER_DOT;
+DOTINTEGER: ( '0' | [1-9] [0-9]* ) -> mode(DEFAULT_MODE);
+DOTTYPE: ('void' | 'boolean' | 'byte' | 'short' | 'char' | 'int' | 'long' | 'float' | 'double' | [A-Z] [_a-zA-Z0-9]*) -> mode(DEFAULT_MODE);
+DOTID: [_a-z] [_a-zA-Z0-9]* -> mode(DEFAULT_MODE);

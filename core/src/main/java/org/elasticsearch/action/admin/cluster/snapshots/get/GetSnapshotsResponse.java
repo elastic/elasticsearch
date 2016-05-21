@@ -74,13 +74,9 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContent {
         }
     }
 
-    static final class Fields {
-        static final String SNAPSHOTS = "snapshots";
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startArray(Fields.SNAPSHOTS);
+        builder.startArray("snapshots");
         for (SnapshotInfo snapshotInfo : snapshots) {
             snapshotInfo.toExternalXContent(builder, params);
         }

@@ -55,7 +55,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
@@ -149,7 +148,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregationBuilder<AB>>
                         new ScriptEngineRegistry(Collections
                                 .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class,
                                                                                                  MockScriptEngine.NAME,
-                                                                                                 ScriptMode.ON)));
+                                                                                                 true)));
                 bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
                 ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
                 bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);

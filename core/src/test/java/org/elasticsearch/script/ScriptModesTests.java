@@ -83,7 +83,7 @@ public class ScriptModesTests extends ESTestCase {
     @After
     public void assertNativeScriptsAreAlwaysAllowed() {
         if (assertScriptModesNonNull) {
-            assertThat(scriptModes.getScriptMode(NativeScriptEngineService.NAME, randomFrom(ScriptType.values()), randomFrom(scriptContexts)), equalTo(ScriptMode.ON));
+            assertThat(scriptModes.getScriptEnabled(NativeScriptEngineService.NAME, randomFrom(ScriptType.values()), randomFrom(scriptContexts)), equalTo(true));
         }
     }
 
@@ -93,7 +93,7 @@ public class ScriptModesTests extends ESTestCase {
             assertThat(scriptModes, notNullValue());
             int numberOfSettings = ScriptType.values().length * scriptContextRegistry.scriptContexts().size();
             numberOfSettings += 3; // for top-level inline/store/file settings
-            assertThat(scriptModes.scriptModes.size(), equalTo(numberOfSettings));
+            assertThat(scriptModes.scriptEnabled.size(), equalTo(numberOfSettings));
             if (assertAllSettingsWereChecked) {
                 assertThat(checkedSettings.size(), equalTo(numberOfSettings));
             }
@@ -102,15 +102,15 @@ public class ScriptModesTests extends ESTestCase {
 
     public void testDefaultSettings() {
         this.scriptModes = new ScriptModes(scriptSettings, Settings.EMPTY);
-        assertScriptModesAllOps(ScriptMode.ON, ScriptType.FILE);
-        assertScriptModesAllOps(ScriptMode.OFF, ScriptType.STORED, ScriptType.INLINE);
+        assertScriptModesAllOps(true, ScriptType.FILE);
+        assertScriptModesAllOps(false, ScriptType.STORED, ScriptType.INLINE);
     }
 
     public void testMissingSetting() {
         assertAllSettingsWereChecked = false;
         this.scriptModes = new ScriptModes(scriptSettings, Settings.EMPTY);
         try {
-            scriptModes.getScriptMode("non_existing", randomFrom(ScriptType.values()), randomFrom(scriptContexts));
+            scriptModes.getScriptEnabled("non_existing", randomFrom(ScriptType.values()), randomFrom(scriptContexts));
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("not found for lang [non_existing]"));
@@ -120,13 +120,13 @@ public class ScriptModesTests extends ESTestCase {
     public void testScriptTypeGenericSettings() {
         int randomInt = randomIntBetween(1, ScriptType.values().length - 1);
         Set<ScriptType> randomScriptTypesSet = new HashSet<>();
-        ScriptMode[] randomScriptModes = new ScriptMode[randomInt];
+        boolean[] randomScriptModes = new boolean[randomInt];
         for (int i = 0; i < randomInt; i++) {
             boolean added = false;
             while (added == false) {
                 added = randomScriptTypesSet.add(randomFrom(ScriptType.values()));
             }
-            randomScriptModes[i] = randomFrom(ScriptMode.values());
+            randomScriptModes[i] = randomBoolean();
         }
         ScriptType[] randomScriptTypes = randomScriptTypesSet.toArray(new ScriptType[randomScriptTypesSet.size()]);
         Settings.Builder builder = Settings.builder();
@@ -139,26 +139,26 @@ public class ScriptModesTests extends ESTestCase {
             assertScriptModesAllOps(randomScriptModes[i], randomScriptTypes[i]);
         }
         if (randomScriptTypesSet.contains(ScriptType.FILE) == false) {
-            assertScriptModesAllOps(ScriptMode.ON, ScriptType.FILE);
+            assertScriptModesAllOps(true, ScriptType.FILE);
         }
         if (randomScriptTypesSet.contains(ScriptType.STORED) == false) {
-            assertScriptModesAllOps(ScriptMode.OFF, ScriptType.STORED);
+            assertScriptModesAllOps(false, ScriptType.STORED);
         }
         if (randomScriptTypesSet.contains(ScriptType.INLINE) == false) {
-            assertScriptModesAllOps(ScriptMode.OFF, ScriptType.INLINE);
+            assertScriptModesAllOps(false, ScriptType.INLINE);
         }
     }
 
     public void testScriptContextGenericSettings() {
         int randomInt = randomIntBetween(1, scriptContexts.length - 1);
         Set<ScriptContext> randomScriptContextsSet = new HashSet<>();
-        ScriptMode[] randomScriptModes = new ScriptMode[randomInt];
+        boolean[] randomScriptModes = new boolean[randomInt];
         for (int i = 0; i < randomInt; i++) {
             boolean added = false;
             while (added == false) {
                 added = randomScriptContextsSet.add(randomFrom(scriptContexts));
             }
-            randomScriptModes[i] = randomFrom(ScriptMode.values());
+            randomScriptModes[i] = randomBoolean();
         }
         ScriptContext[] randomScriptContexts = randomScriptContextsSet.toArray(new ScriptContext[randomScriptContextsSet.size()]);
         Settings.Builder builder = Settings.builder();
@@ -172,8 +172,8 @@ public class ScriptModesTests extends ESTestCase {
         }
 
         ScriptContext[] complementOf = complementOf(randomScriptContexts);
-        assertScriptModes(ScriptMode.ON, new ScriptType[]{ScriptType.FILE}, complementOf);
-        assertScriptModes(ScriptMode.OFF, new ScriptType[]{ScriptType.STORED, ScriptType.INLINE}, complementOf);
+        assertScriptModes(true, new ScriptType[]{ScriptType.FILE}, complementOf);
+        assertScriptModes(false, new ScriptType[]{ScriptType.STORED, ScriptType.INLINE}, complementOf);
     }
 
     public void testConflictingScriptTypeAndOpGenericSettings() {
@@ -184,28 +184,28 @@ public class ScriptModesTests extends ESTestCase {
                 .put("script.inline", "true");
         //operations generic settings have precedence over script type generic settings
         this.scriptModes = new ScriptModes(scriptSettings, builder.build());
-        assertScriptModesAllTypes(ScriptMode.OFF, scriptContext);
+        assertScriptModesAllTypes(false, scriptContext);
         ScriptContext[] complementOf = complementOf(scriptContext);
-        assertScriptModes(ScriptMode.ON, new ScriptType[]{ScriptType.FILE, ScriptType.STORED}, complementOf);
-        assertScriptModes(ScriptMode.ON, new ScriptType[]{ScriptType.INLINE}, complementOf);
+        assertScriptModes(true, new ScriptType[]{ScriptType.FILE, ScriptType.STORED}, complementOf);
+        assertScriptModes(true, new ScriptType[]{ScriptType.INLINE}, complementOf);
     }
 
-    private void assertScriptModesAllOps(ScriptMode expectedScriptMode, ScriptType... scriptTypes) {
-        assertScriptModes(expectedScriptMode, scriptTypes, scriptContexts);
+    private void assertScriptModesAllOps(boolean expectedScriptEnabled, ScriptType... scriptTypes) {
+        assertScriptModes(expectedScriptEnabled, scriptTypes, scriptContexts);
     }
 
-    private void assertScriptModesAllTypes(ScriptMode expectedScriptMode, ScriptContext... scriptContexts) {
-        assertScriptModes(expectedScriptMode, ScriptType.values(), scriptContexts);
+    private void assertScriptModesAllTypes(boolean expectedScriptEnabled, ScriptContext... scriptContexts) {
+        assertScriptModes(expectedScriptEnabled, ScriptType.values(), scriptContexts);
     }
 
-    private void assertScriptModes(ScriptMode expectedScriptMode, ScriptType[] scriptTypes, ScriptContext... scriptContexts) {
+    private void assertScriptModes(boolean expectedScriptEnabled, ScriptType[] scriptTypes, ScriptContext... scriptContexts) {
         assert scriptTypes.length > 0;
         assert scriptContexts.length > 0;
         for (ScriptType scriptType : scriptTypes) {
             checkedSettings.add("script.engine.custom." + scriptType);
             for (ScriptContext scriptContext : scriptContexts) {
                 assertThat("custom." + scriptType + "." + scriptContext.getKey() + " doesn't have the expected value",
-                        scriptModes.getScriptMode("custom", scriptType, scriptContext), equalTo(expectedScriptMode));
+                        scriptModes.getScriptEnabled("custom", scriptType, scriptContext), equalTo(expectedScriptEnabled));
                 checkedSettings.add("custom." + scriptType + "." + scriptContext);
             }
         }

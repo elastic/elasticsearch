@@ -5,18 +5,30 @@
  */
 package org.elasticsearch.xpack.notification.email.support;
 
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.xcontent.ToXContent;
 
+import javax.activation.CommandMap;
 import javax.activation.FileTypeMap;
 import javax.mail.MessagingException;
 import javax.mail.internet.MimeBodyPart;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 
 /**
  *
  */
 public abstract class BodyPartSource implements ToXContent {
 
-    protected static FileTypeMap fileTypeMap = FileTypeMap.getDefaultFileTypeMap();
+    protected static FileTypeMap fileTypeMap;
+    static {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
+        fileTypeMap = AccessController.doPrivileged(
+            (PrivilegedAction<FileTypeMap>)() -> FileTypeMap.getDefaultFileTypeMap());
+    }
 
     protected final String id;
     protected final String name;
@@ -45,5 +57,8 @@ public abstract class BodyPartSource implements ToXContent {
     }
 
     public abstract MimeBodyPart bodyPart() throws MessagingException;
+
+    // exists only to allow ensuring class is initialized
+    public static void init() {}
 
 }

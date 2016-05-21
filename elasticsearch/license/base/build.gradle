@@ -5,6 +5,8 @@ dependencies {
   testCompile "org.elasticsearch.test:framework:${version}"
 }
 
+compactProfile = 'full'
+
 dependencyLicenses.enabled = false
 
 jar {

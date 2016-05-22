@@ -447,14 +447,19 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
+    public ANode visitType(PainlessParser.TypeContext ctx) {
+        return null;
+    }
+
+    @Override
     public ANode visitDeclarationVariable(final DeclarationVariableContext ctx) {
         throw new IllegalStateException("Error " + location(ctx) + ": Illegal tree structure.");
     }
 
     @Override
     public ANode visitCatchBlock(final CatchBlockContext ctx) {
-        final String type = ctx.ID(0).getText();
-        final String name = ctx.ID(1).getText();
+        final String type = ctx.type().getText();
+        final String name = ctx.ID().getText();
         final SBlock block = (SBlock)visit(ctx.statementBlock());
 
         return new SCatch(line(ctx), location(ctx), type, name, block);
@@ -463,5 +468,135 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     @Override
     public ANode visitDelimiter(final DelimiterContext ctx) {
         throw new IllegalStateException("Error " + location(ctx) + ": Illegal tree structure.");
+    }
+
+    @Override
+    public ANode visitSingle(PainlessParser.SingleContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitComp(PainlessParser.CompContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitBool(PainlessParser.BoolContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitConditional(PainlessParser.ConditionalContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitAssignment(PainlessParser.AssignmentContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitBinary(PainlessParser.BinaryContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitPre(PainlessParser.PreContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitPost(PainlessParser.PostContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitRead(PainlessParser.ReadContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitNumeric(PainlessParser.NumericContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitTrue(PainlessParser.TrueContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitFalse(PainlessParser.FalseContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitOperator(PainlessParser.OperatorContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitCast(PainlessParser.CastContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitVariableprimary(PainlessParser.VariableprimaryContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitTypeprimary(PainlessParser.TypeprimaryContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitArraycreation(PainlessParser.ArraycreationContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitPrecedence(PainlessParser.PrecedenceContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitString(PainlessParser.StringContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitVariable(PainlessParser.VariableContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitNewobject(PainlessParser.NewobjectContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitNewarray(PainlessParser.NewarrayContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitCallinvoke(PainlessParser.CallinvokeContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitFieldaccess(PainlessParser.FieldaccessContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitArrayaccess(PainlessParser.ArrayaccessContext ctx) {
+        return null;
+    }
+
+    @Override
+    public ANode visitArguments(PainlessParser.ArgumentsContext ctx) {
+        return null;
     }
 }

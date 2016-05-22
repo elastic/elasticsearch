@@ -21,6 +21,10 @@ parser grammar PainlessParser;
 
 options { tokenVocab=PainlessLexer; }
 
+@members {
+    private boolean secondary = true;
+}
+
 sourceBlock
     : shortStatement+ EOF
     ;
@@ -126,16 +130,16 @@ throwStatement
     ;
 
 expressionStatement
-    : expressions
+    : expression
     ;
 
 forInitializer
     : declarationStatement
-    | expressionStatement
+    | expression
     ;
 
 forAfterthought
-    : expressionStatement
+    : expression
     ;
 
 declarationType
@@ -151,7 +155,7 @@ declarationVariable
     ;
 
 catchBlock
-    : CATCH LP ( ID ID ) RP ( statementBlock )
+    : CATCH LP ( type ID ) RP ( statementBlock )
     ;
 
 delimiter
@@ -159,26 +163,22 @@ delimiter
     | EOF
     ;
 
-expressions
-    : expression
-    | leftHandSide ( ASSIGN | AADD | ASUB | AMUL |
-                     ADIV   | AREM | AAND | AXOR |
-                     AOR    | ALSH | ARSH | AUSH ) expressions
-    ;
-
 expression
-    :               unary                                         # single
-    |               expression ( MUL | DIV | REM ) expression     # binary
-    |               expression ( ADD | SUB ) expression           # binary
-    |               expression ( LSH | RSH | USH ) expression     # binary
-    |               expression ( LT | LTE | GT | GTE ) expression # comp
-    |               expression ( EQ | EQR | NE | NER ) expression # comp
-    |               expression BWAND expression                   # binary
-    |               expression XOR expression                     # binary
-    |               expression BWOR expression                    # binary
-    |               expression BOOLAND expression                 # bool
-    |               expression BOOLOR expression                  # bool
-    | <assoc=right> expression COND expressions COLON expression  # conditional
+    :               unary                                            # single
+    |               expression ( MUL | DIV | REM ) expression        # binary
+    |               expression ( ADD | SUB ) expression              # binary
+    |               expression ( LSH | RSH | USH ) expression        # binary
+    |               expression ( LT | LTE | GT | GTE ) expression    # comp
+    |               expression ( EQ | EQR | NE | NER ) expression    # comp
+    |               expression BWAND expression                      # binary
+    |               expression XOR expression                        # binary
+    |               expression BWOR expression                       # binary
+    |               expression BOOLAND expression                    # bool
+    |               expression BOOLOR expression                     # bool
+    | <assoc=right> expression COND expression COLON expression      # conditional
+    |               chain ( ASSIGN | AADD | ASUB | AMUL |
+                            ADIV   | AREM | AAND | AXOR |
+                            AOR    | ALSH | ARSH | AUSH ) expression # assignment
     ;
 
 unary
@@ -193,32 +193,32 @@ unary
     ;
 
 chain
-    : primary secondary* # variableprimary
-    | type secondary+    # typeprimary
-    | newarray           # arraycreation
-    ;
-
-leftHandSide
-    : ID secondary*
+    : primary secondary*                                  # dynamicprimary
+    | declarationType dotsecondary secondary*             # staticprimary
+    | NEW type bracesecondary+ (dotsecondary secondary*)? # arraycreation
     ;
 
 primary
-    : LP expressions RP                      # precedence
+    : LP expression RP                       # precedence
     | STRING                                 # string
     | ID                                     # variable
     | NEW type arguments                     # newobject
     ;
 
-newarray
-    : NEW type ( LBRACE expressions RBRACE )+
+secondary
+    : dotsecondary
+    | bracesecondary
     ;
 
-secondary
+dotsecondary
     : DOT DOTID arguments        # callinvoke
     | DOT ( DOTID | DOTINTEGER ) # fieldaccess
-    | LBRACE expressions RBRACE  # arrayaccess
+    ;
+
+bracesecondary
+    : LBRACE expression RBRACE # braceaccess
     ;
 
 arguments
-    : ( LP ( expressions ( COMMA expressions )* )? RP )
+    : ( LP ( expression ( COMMA expression )* )? RP )
     ;

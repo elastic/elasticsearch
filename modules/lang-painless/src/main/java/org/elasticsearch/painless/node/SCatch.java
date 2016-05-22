@@ -40,8 +40,8 @@ public final class SCatch extends AStatement {
     Label end;
     Label exception;
 
-    public SCatch(int line, String location, String type, String name, SBlock block) {
-        super(line, location);
+    public SCatch(int line, int offset, String location, String type, String name, SBlock block) {
+        super(line, offset, location);
 
         this.type = type;
         this.name = name;
@@ -75,7 +75,8 @@ public final class SCatch extends AStatement {
     @Override
     void write(MethodWriter adapter) {
         writeDebugInfo(adapter);
-        final Label jump = new Label();
+
+        Label jump = new Label();
 
         adapter.mark(jump);
         adapter.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.slot);

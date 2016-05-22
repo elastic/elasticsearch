@@ -32,16 +32,16 @@ public final class SBlock extends AStatement {
 
     final List<AStatement> statements;
 
-    public SBlock(int line, String location, List<AStatement> statements) {
-        super(line, location);
+    public SBlock(int line, int offset, String location, List<AStatement> statements) {
+        super(line, offset, location);
 
         this.statements = Collections.unmodifiableList(statements);
     }
 
     @Override
     void analyze(Variables variables) {
-        if (statements.isEmpty()) {
-            throw new IllegalStateException(error("Illegal tree structure."));
+        if (statements == null || statements.isEmpty()) {
+            throw new IllegalArgumentException(error("A block must contain at least one statement."));
         }
 
         final AStatement last = statements.get(statements.size() - 1);
@@ -67,11 +67,11 @@ public final class SBlock extends AStatement {
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         for (AStatement statement : statements) {
             statement.continu = continu;
             statement.brake = brake;
-            statement.write(adapter);
+            statement.write(writer);
         }
     }
 }

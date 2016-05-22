@@ -33,8 +33,8 @@ public final class SIfElse extends AStatement {
     final SBlock ifblock;
     final SBlock elseblock;
 
-    public SIfElse(int line, String location, AExpression condition, SBlock ifblock, SBlock elseblock) {
-        super(line, location);
+    public SIfElse(int line, int offset, String location, AExpression condition, SBlock ifblock, SBlock elseblock) {
+        super(line, offset, location);
 
         this.condition = condition;
         this.ifblock = ifblock;
@@ -88,29 +88,29 @@ public final class SIfElse extends AStatement {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        writeDebugInfo(adapter);
+    void write(MethodWriter writer) {
+        writeDebugInfo(writer);
 
-        final Label end = new Label();
-        final Label fals = elseblock != null ? new Label() : end;
+        Label end = new Label();
+        Label fals = elseblock != null ? new Label() : end;
 
         condition.fals = fals;
-        condition.write(adapter);
+        condition.write(writer);
 
         ifblock.continu = continu;
         ifblock.brake = brake;
-        ifblock.write(adapter);
+        ifblock.write(writer);
 
         if (!ifblock.allEscape) {
-            adapter.goTo(end);
+            writer.goTo(end);
         }
 
-        adapter.mark(fals);
+        writer.mark(fals);
 
         elseblock.continu = continu;
         elseblock.brake = brake;
-        elseblock.write(adapter);
+        elseblock.write(writer);
 
-        adapter.mark(end);
+        writer.mark(end);
     }
 }

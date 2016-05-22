@@ -98,8 +98,8 @@ public abstract class AExpression extends ANode {
      */
     protected Label fals = null;
 
-    public AExpression(final int line, final String location) {
-        super(line, location);
+    public AExpression(int line, int offset, String location) {
+        super(line, offset, location);
     }
 
     /**
@@ -110,7 +110,7 @@ public abstract class AExpression extends ANode {
     /**
      * Writes ASM based on the data collected during the analysis phase.
      */
-    abstract void write(MethodWriter adapter);
+    abstract void write(MethodWriter writer);
 
     /**
      * Inserts {@link ECast} nodes into the tree for implicit casts.  Also replaces

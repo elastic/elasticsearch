@@ -29,12 +29,12 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class SDo extends AStatement {
 
+    final int maxLoopCounter;
     final SBlock block;
     AExpression condition;
-    final int maxLoopCounter;
 
-    public SDo(int line, String location, SBlock block, AExpression condition, int maxLoopCounter) {
-        super(line, location);
+    public SDo(int line, int offset, String location, int maxLoopCounter, SBlock block, AExpression condition) {
+        super(line, offset, location);
 
         this.condition = condition;
         this.block = block;
@@ -85,26 +85,27 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        final Label start = new Label();
-        final Label begin = new Label();
-        final Label end = new Label();
+    void write(MethodWriter writer) {
+        writeDebugInfo(writer);
 
-        adapter.mark(start);
+        Label start = new Label();
+        Label begin = new Label();
+        Label end = new Label();
+
+        writer.mark(start);
 
         block.continu = begin;
         block.brake = end;
-        block.write(adapter);
+        block.write(writer);
 
-        adapter.mark(begin);
+        writer.mark(begin);
 
         condition.fals = end;
-        condition.write(adapter);
+        condition.write(writer);
 
-        adapter.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount));
+        writer.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount));
 
-        adapter.goTo(start);
-        adapter.mark(end);
+        writer.goTo(start);
+        writer.mark(end);
     }
 }

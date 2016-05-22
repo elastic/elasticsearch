@@ -58,6 +58,7 @@ import org.elasticsearch.painless.antlr.PainlessParser.SourceBlockContext;
 import org.elasticsearch.painless.antlr.PainlessParser.StatementBlockContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ThrowStatementContext;
 import org.elasticsearch.painless.antlr.PainlessParser.TryStatementContext;
+import org.elasticsearch.painless.antlr.PainlessParser.TypeContext;
 import org.elasticsearch.painless.node.AExpression;
 import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.AStatement;
@@ -101,30 +102,16 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     private SourceBlockContext buildAntlrTree(String source) {
-        final ANTLRInputStream stream = new ANTLRInputStream(source);
-        final PainlessLexer lexer = new ErrorHandlingLexer(stream);
-        final PainlessParser parser = new PainlessParser(new CommonTokenStream(lexer));
-        final ParserErrorStrategy strategy = new ParserErrorStrategy();
+        ANTLRInputStream stream = new ANTLRInputStream(source);
+        PainlessLexer lexer = new ErrorHandlingLexer(stream);
+        PainlessParser parser = new PainlessParser(new CommonTokenStream(lexer));
+        ParserErrorStrategy strategy = new ParserErrorStrategy();
 
         lexer.removeErrorListeners();
         parser.removeErrorListeners();
 
         if (settings.isPicky()) {
-            // Diagnostic listener invokes syntaxError on other listeners for ambiguity issues,
-            parser.addErrorListener(new DiagnosticErrorListener(true));
-            // a second listener to fail the test when the above happens.
-            parser.addErrorListener(new BaseErrorListener() {
-                @Override
-                public void syntaxError(final Recognizer<?,?> recognizer, final Object offendingSymbol, final int line,
-                                        final int charPositionInLine, final String msg, final RecognitionException e) {
-                    throw new AssertionError("line: " + line + ", offset: " + charPositionInLine +
-                                             ", symbol:" + offendingSymbol + " " + msg);
-                }
-            });
-
-            // Enable exact ambiguity detection (costly). we enable exact since its the default for
-            // DiagnosticErrorListener, life is too short to think about what 'inexact ambiguity' might mean.
-            parser.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION);
+            setupPicky(parser);
         }
 
         parser.setErrorHandler(strategy);
@@ -132,75 +119,98 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         return parser.sourceBlock();
     }
 
-    private int line(final ParserRuleContext ctx) {
+    private void setupPicky(PainlessParser parser) {
+        // Diagnostic listener invokes syntaxError on other listeners for ambiguity issues,
+        parser.addErrorListener(new DiagnosticErrorListener(true));
+        // a second listener to fail the test when the above happens.
+        parser.addErrorListener(new BaseErrorListener() {
+            @Override
+            public void syntaxError(final Recognizer<?,?> recognizer, final Object offendingSymbol, final int line,
+                                    final int charPositionInLine, final String msg, final RecognitionException e) {
+                throw new AssertionError("line: " + line + ", offset: " + charPositionInLine +
+                    ", symbol:" + offendingSymbol + " " + msg);
+            }
+        });
+
+        // Enable exact ambiguity detection (costly). we enable exact since its the default for
+        // DiagnosticErrorListener, life is too short to think about what 'inexact ambiguity' might mean.
+        parser.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION);
+    }
+
+    private int line(ParserRuleContext ctx) {
         return ctx.getStart().getLine();
     }
 
-    private String location(final ParserRuleContext ctx) {
+    private int offset(ParserRuleContext ctx) {
+        return ctx.getStart().getStartIndex();
+    }
+
+    private String location(ParserRuleContext ctx) {
         return "[ " + ctx.getStart().getLine() + " : " + ctx.getStart().getCharPositionInLine() + " ]";
     }
 
-    @Override
-    public ANode visitSourceBlock(final SourceBlockContext ctx) {
-        final List<AStatement> statements = new ArrayList<>();
 
-        for (final ShortStatementContext statement : ctx.shortStatement()) {
+    @Override
+    public ANode visitSourceBlock(SourceBlockContext ctx) {
+        List<AStatement> statements = new ArrayList<>();
+
+        for (ShortStatementContext statement : ctx.shortStatement()) {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SSource(line(ctx), location(ctx), statements);
-    }
+        return new SSource(line(ctx), offset(ctx), location(ctx), statements);
+     }
 
     @Override
-    public ANode visitShortStatementBlock(final ShortStatementBlockContext ctx) {
+    public ANode visitShortStatementBlock(ShortStatementBlockContext ctx) {
         if (ctx.statementBlock() != null) {
             return visit(ctx.statementBlock());
         } else if (ctx.shortStatement() != null) {
-            final List<AStatement> statements = new ArrayList<>();
+            List<AStatement> statements = new ArrayList<>();
             statements.add((AStatement)visit(ctx.shortStatement()));
 
-            return new SBlock(line(ctx), location(ctx), statements);
+            return new SBlock(line(ctx), offset(ctx), location(ctx), statements);
         } else {
             throw new IllegalStateException("Error " + location(ctx) + ": Illegal tree structure.");
         }
     }
 
     @Override
-    public ANode visitLongStatementBlock(final LongStatementBlockContext ctx) {
+    public ANode visitLongStatementBlock(LongStatementBlockContext ctx) {
         if (ctx.statementBlock() != null) {
             return visit(ctx.statementBlock());
         } else if (ctx.longStatement() != null) {
-            final List<AStatement> statements = new ArrayList<>();
+            List<AStatement> statements = new ArrayList<>();
             statements.add((AStatement)visit(ctx.longStatement()));
 
-            return new SBlock(line(ctx), location(ctx), statements);
+            return new SBlock(line(ctx), offset(ctx), location(ctx), statements);
         } else {
             throw new IllegalStateException("Error " + location(ctx) + ": Illegal tree structure.");
         }
     }
 
     @Override
-    public ANode visitStatementBlock(final StatementBlockContext ctx) {
+    public ANode visitStatementBlock(StatementBlockContext ctx) {
         if (ctx.shortStatement().isEmpty()) {
             return null;
         } else {
-            final List<AStatement> statements = new ArrayList<>();
+            List<AStatement> statements = new ArrayList<>();
 
-            for (final ShortStatementContext statement : ctx.shortStatement()) {
+            for (ShortStatementContext statement : ctx.shortStatement()) {
                 statements.add((AStatement)visit(statement));
             }
 
-            return new SBlock(line(ctx), location(ctx), statements);
+            return new SBlock(line(ctx), offset(ctx), location(ctx), statements);
         }
     }
 
     @Override
-    public ANode visitEmptyStatement(final EmptyStatementContext ctx) {
+    public ANode visitEmptyStatement(EmptyStatementContext ctx) {
         throw new IllegalStateException("Error " + location(ctx) + ": Illegal tree structure.");
     }
 
     @Override
-    public ANode visitShortStatement(final ShortStatementContext ctx) {
+    public ANode visitShortStatement(ShortStatementContext ctx) {
         if (ctx.noTrailingStatement() != null) {
             return visit(ctx.noTrailingStatement());
         } else if (ctx.shortIfStatement() != null) {
@@ -232,7 +242,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
-    public ANode visitNoTrailingStatement(final NoTrailingStatementContext ctx) {
+    public ANode visitNoTrailingStatement(NoTrailingStatementContext ctx) {
         if (ctx.declarationStatement() != null) {
             return visit(ctx.declarationStatement());
         } else if (ctx.doStatement() != null) {
@@ -255,34 +265,38 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
-    public ANode visitShortIfStatement(final ShortIfStatementContext ctx) {
-        final AExpression condition = (AExpression)visit(ctx.expression());
-        final SBlock ifblock = (SBlock)visit(ctx.shortStatementBlock());
+    public ANode visitShortIfStatement(ShortIfStatementContext ctx) {
+        AExpression expression = (AExpression)visit(ctx.expression());
+        SBlock block = (SBlock)visit(ctx.shortStatementBlock());
 
-        return new SIf(line(ctx), location(ctx), condition, ifblock);
+        return new SIf(line(ctx), offset(ctx), location(ctx), expression, block);
     }
 
     @Override
-    public ANode visitLongIfShortElseStatement(final LongIfShortElseStatementContext ctx) {
-        final AExpression condition = (AExpression)visit(ctx.expression());
-        final SBlock ifblock = (SBlock)visit(ctx.longStatementBlock());
-        final SBlock elseblock = (SBlock)visit(ctx.shortStatementBlock());
+    public ANode visitLongIfShortElseStatement(LongIfShortElseStatementContext ctx) {
+        AExpression expression = (AExpression)visit(ctx.expression());
+        SBlock ifblock = (SBlock)visit(ctx.longStatementBlock());
+        SBlock elseblock = (SBlock)visit(ctx.shortStatementBlock());
 
-        return new SIfElse(line(ctx), location(ctx), condition, ifblock, elseblock);
+        return new SIfElse(line(ctx), offset(ctx), location(ctx), expression, ifblock, elseblock);
     }
 
     @Override
-    public ANode visitLongIfStatement(final LongIfStatementContext ctx) {
-        final AExpression condition = (AExpression)visit(ctx.expression());
-        final SBlock ifblock = (SBlock)visit(ctx.longStatementBlock(0));
-        final SBlock elseblock = (SBlock)visit(ctx.longStatementBlock(1));
+    public ANode visitLongIfStatement(LongIfStatementContext ctx) {
+        AExpression expression = (AExpression)visit(ctx.expression());
+        SBlock ifblock = (SBlock)visit(ctx.longStatementBlock(0));
+        SBlock elseblock = (SBlock)visit(ctx.longStatementBlock(1));
 
-        return new SIfElse(line(ctx), location(ctx), condition, ifblock, elseblock);
+        return new SIfElse(line(ctx), offset(ctx), location(ctx), expression, ifblock, elseblock);
     }
 
     @Override
-    public ANode visitShortWhileStatement(final ShortWhileStatementContext ctx) {
-        final AExpression condition = (AExpression)visit(ctx.expression());
+    public ANode visitShortWhileStatement(ShortWhileStatementContext ctx) {
+        if (settings.getMaxLoopCounter() > 0) {
+            reserved.usesLoop();
+        }
+
+        AExpression expression = (AExpression)visit(ctx.expression());
         final SBlock block;
 
         if (ctx.shortStatementBlock() != null) {
@@ -293,14 +307,16 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw new IllegalStateException("Error " + location(ctx) + ": Illegal tree structure.");
         }
 
-        reserved.usesLoop();
-
-        return new SWhile(line(ctx), location(ctx), condition, block, settings.getMaxLoopCounter());
+        return new SWhile(line(ctx), offset(ctx), location(ctx), settings.getMaxLoopCounter(), expression, block);
     }
 
     @Override
-    public ANode visitLongWhileStatement(final LongWhileStatementContext ctx) {
-        final AExpression condition = (AExpression)visit(ctx.expression());
+    public ANode visitLongWhileStatement(LongWhileStatementContext ctx) {
+        if (settings.getMaxLoopCounter() > 0) {
+            reserved.usesLoop();
+        }
+
+        AExpression expression = (AExpression)visit(ctx.expression());
         final SBlock block;
 
         if (ctx.longStatementBlock() != null) {
@@ -311,16 +327,18 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw new IllegalStateException("Error " + location(ctx) + ": Illegal tree structure.");
         }
 
-        reserved.usesLoop();
-
-        return new SWhile(line(ctx), location(ctx), condition, block, settings.getMaxLoopCounter());
+        return new SWhile(line(ctx), offset(ctx), location(ctx), settings.getMaxLoopCounter(), expression, block);
     }
 
     @Override
-    public ANode visitShortForStatement(final ShortForStatementContext ctx) {
-        final ANode intializer = ctx.forInitializer() == null ? null : visit(ctx.forInitializer());
-        final AExpression condition = ctx.expression() == null ? null : (AExpression)visit(ctx.expression());
-        final AExpression afterthought = ctx.forAfterthought() == null ? null : (AExpression)visit(ctx.forAfterthought());
+    public ANode visitShortForStatement(ShortForStatementContext ctx) {
+        if (settings.getMaxLoopCounter() > 0) {
+            reserved.usesLoop();
+        }
+
+        ANode initializer = ctx.forInitializer() == null ? null : visit(ctx.forInitializer());
+        AExpression expression = ctx.expression() == null ? null : (AExpression)visit(ctx.expression());
+        AExpression afterthought = ctx.forInitializer() == null ? null : (AExpression)visit(ctx.forInitializer());
         final SBlock block;
 
         if (ctx.shortStatementBlock() != null) {
@@ -331,16 +349,19 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw new IllegalStateException("Error " + location(ctx) + ": Illegal tree structure.");
         }
 
-        reserved.usesLoop();
-
-        return new SFor(line(ctx), location(ctx), intializer, condition, afterthought, block, settings.getMaxLoopCounter());
+        return new SFor(line(ctx), offset(ctx), location(ctx), settings.getMaxLoopCounter(),
+            initializer, expression, afterthought, block);
     }
 
     @Override
-    public ANode visitLongForStatement(final LongForStatementContext ctx) {
-        final ANode intializer = ctx.forInitializer() == null ? null : visit(ctx.forInitializer());
-        final AExpression condition = ctx.expression() == null ? null : (AExpression)visit(ctx.expression());
-        final AExpression afterthought = ctx.forAfterthought() == null ? null : (AExpression)visit(ctx.forAfterthought());
+    public ANode visitLongForStatement(LongForStatementContext ctx) {
+        if (settings.getMaxLoopCounter() > 0) {
+            reserved.usesLoop();
+        }
+
+        ANode initializer = ctx.forInitializer() == null ? null : visit(ctx.forInitializer());
+        AExpression expression = ctx.expression() == null ? null : (AExpression)visit(ctx.expression());
+        AExpression afterthought = ctx.forInitializer() == null ? null : (AExpression)visit(ctx.forInitializer());
         final SBlock block;
 
         if (ctx.longStatementBlock() != null) {
@@ -351,122 +372,122 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw new IllegalStateException("Error " + location(ctx) + ": Illegal tree structure.");
         }
 
-        reserved.usesLoop();
-
-        return new SFor(line(ctx), location(ctx), intializer, condition, afterthought, block, settings.getMaxLoopCounter());
+        return new SFor(line(ctx), offset(ctx), location(ctx), settings.getMaxLoopCounter(),
+            initializer, expression, afterthought, block);
     }
 
     @Override
-    public ANode visitDoStatement(final DoStatementContext ctx) {
-        final AExpression condition = (AExpression)visit(ctx.expression());
-        final SBlock block = (SBlock)visit(ctx.statementBlock());
-
-        reserved.usesLoop();
-
-        return new SDo(line(ctx), location(ctx), block, condition, settings.getMaxLoopCounter());
-    }
-
-    @Override
-    public ANode visitDeclarationStatement(final DeclarationStatementContext ctx) {
-        final String type = ctx.declarationType().getText();
-        final List<SDeclaration> declarations = new ArrayList<>();
-
-        for (final DeclarationVariableContext declarationVariable : ctx.declarationVariable()) {
-            final String name = declarationVariable.ID().getText();
-            final AExpression expression = declarationVariable.expression() == null ?
-                null : (AExpression)visit(declarationVariable.expression());
-
-            declarations.add(new SDeclaration(line(ctx), location(ctx), type, name, expression));
+    public ANode visitDoStatement(DoStatementContext ctx) {
+        if (settings.getMaxLoopCounter() > 0) {
+            reserved.usesLoop();
         }
 
-        return new SDeclBlock(line(ctx), location(ctx), declarations);
+        SBlock block = (SBlock)visit(ctx.statementBlock());
+        AExpression expression = (AExpression)visit(ctx.expression());
+
+        return new SDo(line(ctx), offset(ctx), location(ctx), settings.getMaxLoopCounter(), block, expression);
     }
 
     @Override
-    public ANode visitContinueStatement(final ContinueStatementContext ctx) {
-        return new SContinue(line(ctx), location(ctx));
-    }
+    public ANode visitDeclarationStatement(DeclarationStatementContext ctx) {
+        String type = ctx.declarationType().getText();
+        List<SDeclaration> declarations = new ArrayList<>();
 
-    @Override
-    public ANode visitBreakStatement(final BreakStatementContext ctx) {
-        return new SBreak(line(ctx), location(ctx));
-    }
+        for (DeclarationVariableContext declaration : ctx.declarationVariable()) {
+            String name = declaration.ID().getText();
+            AExpression expression = declaration.expression() == null ? null : (AExpression)visit(declaration.expression());
 
-    @Override
-    public ANode visitReturnStatement(final ReturnStatementContext ctx) {
-        final AExpression expression = (AExpression)visit(ctx.expression());
-
-        return new SReturn(line(ctx), location(ctx), expression);
-    }
-
-    @Override
-    public ANode visitTryStatement(final TryStatementContext ctx) {
-        final SBlock block = (SBlock)visit(ctx.statementBlock());
-        final List<SCatch> traps = new ArrayList<>();
-
-        for (final CatchBlockContext trap : ctx.catchBlock()) {
-            traps.add((SCatch)visit(trap));
+            declarations.add(new SDeclaration(line(ctx), offset(ctx), location(ctx), type, name, expression));
         }
 
-        return new STry(line(ctx), location(ctx), block, traps);
+        return new SDeclBlock(line(ctx), offset(ctx), location(ctx), declarations);
     }
 
     @Override
-    public ANode visitThrowStatement(final ThrowStatementContext ctx) {
-        final AExpression expression = (AExpression)visit(ctx.expression());
-
-        return new SThrow(line(ctx), location(ctx), expression);
+    public ANode visitContinueStatement(ContinueStatementContext ctx) {
+        return new SContinue(line(ctx), offset(ctx), location(ctx));
     }
 
     @Override
-    public ANode visitExpressionStatement(final ExpressionStatementContext ctx) {
-        final AExpression expression = (AExpression)visit(ctx.expression());
-
-        return new SExpression(line(ctx), location(ctx), expression);
+    public ANode visitBreakStatement(BreakStatementContext ctx) {
+        return new SBreak(line(ctx), offset(ctx), location(ctx));
     }
 
     @Override
-    public ANode visitForInitializer(final ForInitializerContext ctx) {
+    public ANode visitReturnStatement(ReturnStatementContext ctx) {
+        AExpression expression = (AExpression)visit(ctx.expression());
+
+        return new SReturn(line(ctx), offset(ctx), location(ctx), expression);
+    }
+
+    @Override
+    public ANode visitTryStatement(TryStatementContext ctx) {
+        SBlock block = (SBlock)visit(ctx.statementBlock());
+        List<SCatch> catches = new ArrayList<>();
+
+        for (CatchBlockContext catc : ctx.catchBlock()) {
+            catches.add((SCatch)visit(catc));
+        }
+
+        return new STry(line(ctx), offset(ctx), location(ctx), block, catches);
+    }
+
+    @Override
+    public ANode visitThrowStatement(ThrowStatementContext ctx) {
+        AExpression expression = (AExpression)visit(ctx.expression());
+
+        return new SThrow(line(ctx), offset(ctx), location(ctx), expression);
+    }
+
+    @Override
+    public ANode visitExpressionStatement(ExpressionStatementContext ctx) {
+        AExpression expression = (AExpression)visit(ctx.expression());
+
+        return new SExpression(line(ctx), offset(ctx), location(ctx), expression);
+    }
+
+    @Override
+    public ANode visitForInitializer(ForInitializerContext ctx) {
         if (ctx.declarationStatement() != null) {
             return visit(ctx.declarationStatement());
         } else if (ctx.expression() != null) {
             return visit(ctx.expression());
+        } else {
+            throw new IllegalStateException("Error " + location(ctx) + ": Illegal tree structure.");
         }
-
-        throw new IllegalStateException("Error " + location(ctx) + ": Illegal tree structure.");
     }
 
     @Override
-    public ANode visitForAfterthought(final ForAfterthoughtContext ctx) {
+    public ANode visitForAfterthought(ForAfterthoughtContext ctx) {
         return visit(ctx.expression());
     }
 
     @Override
-    public ANode visitDeclarationType(final DeclarationTypeContext ctx) {
+    public ANode visitDeclarationType(DeclarationTypeContext ctx) {
         throw new IllegalStateException("Error " + location(ctx) + ": Illegal tree structure.");
     }
 
     @Override
-    public ANode visitType(PainlessParser.TypeContext ctx) {
-        return null;
-    }
-
-    @Override
-    public ANode visitDeclarationVariable(final DeclarationVariableContext ctx) {
+    public ANode visitType(TypeContext ctx) {
         throw new IllegalStateException("Error " + location(ctx) + ": Illegal tree structure.");
     }
 
     @Override
-    public ANode visitCatchBlock(final CatchBlockContext ctx) {
-        final String type = ctx.type().getText();
-        final String name = ctx.ID().getText();
-        final SBlock block = (SBlock)visit(ctx.statementBlock());
-
-        return new SCatch(line(ctx), location(ctx), type, name, block);
+    public ANode visitDeclarationVariable(DeclarationVariableContext ctx) {
+        throw new IllegalStateException("Error " + location(ctx) + ": Illegal tree structure.");
     }
 
     @Override
-    public ANode visitDelimiter(final DelimiterContext ctx) {
+    public ANode visitCatchBlock(CatchBlockContext ctx) {
+        String type = ctx.type().getText();
+        String name = ctx.ID().getText();
+        SBlock block = (SBlock)visit(ctx.statementBlock());
+
+        return new SCatch(line(ctx), offset(ctx), location(ctx), type, name, block);
+    }
+
+    @Override
+    public ANode visitDelimiter(DelimiterContext ctx) {
         throw new IllegalStateException("Error " + location(ctx) + ": Illegal tree structure.");
     }
 
@@ -541,12 +562,12 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
-    public ANode visitVariableprimary(PainlessParser.VariableprimaryContext ctx) {
+    public ANode visitDynamicprimary(PainlessParser.DynamicprimaryContext ctx) {
         return null;
     }
 
     @Override
-    public ANode visitTypeprimary(PainlessParser.TypeprimaryContext ctx) {
+    public ANode visitStaticprimary(PainlessParser.StaticprimaryContext ctx) {
         return null;
     }
 
@@ -576,7 +597,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
-    public ANode visitNewarray(PainlessParser.NewarrayContext ctx) {
+    public ANode visitSecondary(PainlessParser.SecondaryContext ctx) {
         return null;
     }
 
@@ -591,7 +612,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
-    public ANode visitArrayaccess(PainlessParser.ArrayaccessContext ctx) {
+    public ANode visitBraceaccess(PainlessParser.BraceaccessContext ctx) {
         return null;
     }
 

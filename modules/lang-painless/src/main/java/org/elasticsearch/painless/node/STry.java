@@ -34,8 +34,8 @@ public final class STry extends AStatement {
     final SBlock block;
     final List<SCatch> catches;
 
-    public STry(int line, String location, SBlock block, List<SCatch> traps) {
-        super(line, location);
+    public STry(int line, int offset, String location, SBlock block, List<SCatch> traps) {
+        super(line, offset, location);
 
         this.block = block;
         this.catches = Collections.unmodifiableList(traps);
@@ -63,7 +63,7 @@ public final class STry extends AStatement {
 
         int statementCount = 0;
 
-        for (final SCatch catc : catches) {
+        for (SCatch catc : catches) {
             catc.lastSource = lastSource;
             catc.inLoop = inLoop;
             catc.lastLoop = lastLoop;
@@ -85,33 +85,34 @@ public final class STry extends AStatement {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        final Label begin = new Label();
-        final Label end = new Label();
-        final Label exception = new Label();
+    void write(MethodWriter writer) {
+        writeDebugInfo(writer);
 
-        adapter.mark(begin);
+        Label begin = new Label();
+        Label end = new Label();
+        Label exception = new Label();
+
+        writer.mark(begin);
 
         block.continu = continu;
         block.brake = brake;
-        block.write(adapter);
+        block.write(writer);
 
         if (!block.allEscape) {
-            adapter.goTo(exception);
+            writer.goTo(exception);
         }
 
-        adapter.mark(end);
+        writer.mark(end);
 
-        for (final SCatch catc : catches) {
+        for (SCatch catc : catches) {
             catc.begin = begin;
             catc.end = end;
             catc.exception = catches.size() > 1 ? exception : null;
-            catc.write(adapter);
+            catc.write(writer);
         }
 
         if (!block.allEscape || catches.size() > 1) {
-            adapter.mark(exception);
+            writer.mark(exception);
         }
     }
 }

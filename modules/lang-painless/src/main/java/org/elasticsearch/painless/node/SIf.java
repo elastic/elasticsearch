@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
@@ -33,8 +32,8 @@ public final class SIf extends AStatement {
     AExpression condition;
     final SBlock ifblock;
 
-    public SIf(int line, String location, AExpression condition, SBlock ifblock) {
-        super(line, location);
+    public SIf(int line, int offset, String location, AExpression condition, SBlock ifblock) {
+        super(line, offset, location);
 
         this.condition = condition;
         this.ifblock = ifblock;
@@ -68,17 +67,18 @@ public final class SIf extends AStatement {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        final Label fals = new Label();
+    void write(MethodWriter writer) {
+        writeDebugInfo(writer);
+
+        Label fals = new Label();
 
         condition.fals = fals;
-        condition.write(adapter);
+        condition.write(writer);
 
         ifblock.continu = continu;
         ifblock.brake = brake;
-        ifblock.write(adapter);
+        ifblock.write(writer);
 
-        adapter.mark(fals);
+        writer.mark(fals);
     }
 }

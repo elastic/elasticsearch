@@ -50,7 +50,7 @@ public final class Variables {
         boolean ctx = false;
         boolean loop = false;
 
-        public void markReserved(final String name) {
+        public void markReserved(String name) {
             if (SCORE.equals(name)) {
                 score = true;
             } else if (CTX.equals(name)) {
@@ -58,7 +58,7 @@ public final class Variables {
             }
         }
 
-        public boolean isReserved(final String name) {
+        public boolean isReserved(String name) {
             return name.equals(THIS) || name.equals(PARAMS) || name.equals(SCORER) || name.equals(DOC) ||
                 name.equals(VALUE) || name.equals(SCORE) || name.equals(CTX) || name.equals(LOOP);
          }
@@ -77,7 +77,7 @@ public final class Variables {
 
         public boolean read = false;
 
-        private Variable(final String location, final String name, final Type type, final int slot, final boolean readonly) {
+        private Variable(String location, String name, Type type, int slot, boolean readonly) {
             this.location = location;
             this.name = name;
             this.type = type;
@@ -91,7 +91,7 @@ public final class Variables {
     private final Deque<Integer> scopes = new ArrayDeque<>();
     private final Deque<Variable> variables = new ArrayDeque<>();
 
-    public Variables(final CompilerSettings settings, final Reserved reserved) {
+    public Variables(Reserved reserved) {
         this.reserved = reserved;
 
         incrementScope();
@@ -101,7 +101,7 @@ public final class Variables {
         // This reference.  Internal use only.
         addVariable("[" + Reserved.THIS + "]"  , "Executable", Reserved.THIS  , true, true);
 
-        // Input map of variables passed to the script.  TODO: Rename to 'params' since that will be its use.
+        // Input map of variables passed to the script.
         addVariable("[" + Reserved.PARAMS + "]", "Map", Reserved.PARAMS, true, true);
 
         // Scorer parameter passed to the script.  Internal use only.
@@ -126,7 +126,7 @@ public final class Variables {
         }
 
         // Loop counter to catch infinite loops.  Internal use only.
-        if (reserved.loop && settings.getMaxLoopCounter() > 0) {
+        if (reserved.loop) {
             addVariable("[" + Reserved.LOOP + "]", "int", Reserved.LOOP, true, true);
         }
     }
@@ -139,7 +139,7 @@ public final class Variables {
         int remove = scopes.pop();
 
         while (remove > 0) {
-            final Variable variable = variables.pop();
+             Variable variable = variables.pop();
 
             if (variable.read) {
                 throw new IllegalArgumentException("Error [" + variable.location + "]: Variable [" + variable.name + "] never used.");
@@ -149,11 +149,11 @@ public final class Variables {
         }
     }
 
-    public Variable getVariable(final String location, final String name) {
-        final Iterator<Variable> itr = variables.iterator();
+    public Variable getVariable(String location, String name) {
+         Iterator<Variable> itr = variables.iterator();
 
         while (itr.hasNext()) {
-            final Variable variable = itr.next();
+             Variable variable = itr.next();
 
             if (variable.name.equals(name)) {
                 return variable;
@@ -167,8 +167,7 @@ public final class Variables {
         return null;
     }
 
-    public Variable addVariable(final String location, final String typestr, final String name,
-                                final boolean readonly, final boolean reserved) {
+    public Variable addVariable(String location, String typestr, String name, boolean readonly, boolean reserved) {
         if (!reserved && this.reserved.isReserved(name)) {
             throw new IllegalArgumentException("Error " + location + ": Variable name [" + name + "] is reserved.");
         }
@@ -181,34 +180,27 @@ public final class Variables {
 
         try {
             type = Definition.getType(typestr);
-        } catch (final IllegalArgumentException exception) {
+        } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException("Error " + location + ": Not a type [" + typestr + "].");
         }
 
-        boolean legal = !name.contains("<");
-
         try {
             Definition.getType(name);
-            legal = false;
-        } catch (final IllegalArgumentException exception) {
+        } catch (IllegalArgumentException exception) {
             // Do nothing.
         }
 
-        if (!legal) {
-            throw new IllegalArgumentException("Error " + location + ": Variable name [" + name + "] cannot be a type.");
-        }
-
-        final Variable previous = variables.peekFirst();
+        Variable previous = variables.peekFirst();
         int slot = 0;
 
         if (previous != null) {
             slot = previous.slot + previous.type.type.getSize();
         }
 
-        final Variable variable = new Variable(location, name, type, slot, readonly);
+        Variable variable = new Variable(location, name, type, slot, readonly);
         variables.push(variable);
 
-        final int update = scopes.pop() + 1;
+        int update = scopes.pop() + 1;
         scopes.push(update);
 
         return variable;

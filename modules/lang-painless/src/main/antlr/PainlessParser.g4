@@ -21,12 +21,8 @@ parser grammar PainlessParser;
 
 options { tokenVocab=PainlessLexer; }
 
-@members {
-    private boolean secondary = true;
-}
-
 sourceBlock
-    : shortStatement+ EOF
+    : shortStatement* EOF
     ;
 
 shortStatementBlock

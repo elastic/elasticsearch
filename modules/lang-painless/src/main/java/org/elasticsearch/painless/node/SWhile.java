@@ -29,16 +29,16 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class SWhile extends AStatement {
 
+    final int maxLoopCounter;
     AExpression condition;
     final SBlock block;
-    final int maxLoopCounter;
 
-    public SWhile(int line, String location, AExpression condition, SBlock block, int maxLoopCounter) {
-        super(line, location);
+    public SWhile(int line, int offset, String location, int maxLoopCounter, AExpression condition, SBlock block) {
+        super(line, offset, location);
 
+        this.maxLoopCounter = maxLoopCounter;
         this.condition = condition;
         this.block = block;
-        this.maxLoopCounter = maxLoopCounter;
     }
 
     @Override
@@ -91,30 +91,31 @@ public final class SWhile extends AStatement {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        final Label begin = new Label();
-        final Label end = new Label();
+    void write(MethodWriter writer) {
+        writeDebugInfo(writer);
 
-        adapter.mark(begin);
+        Label begin = new Label();
+        Label end = new Label();
+
+        writer.mark(begin);
 
         condition.fals = end;
-        condition.write(adapter);
+        condition.write(writer);
 
         if (block != null) {
-            adapter.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount));
+            writer.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount));
 
             block.continu = begin;
             block.brake = end;
-            block.write(adapter);
+            block.write(writer);
         } else {
-            adapter.writeLoopCounter(loopCounterSlot, 1);
+            writer.writeLoopCounter(loopCounterSlot, 1);
         }
 
         if (block == null || !block.allEscape) {
-            adapter.goTo(begin);
+            writer.goTo(begin);
         }
 
-        adapter.mark(end);
+        writer.mark(end);
     }
 }

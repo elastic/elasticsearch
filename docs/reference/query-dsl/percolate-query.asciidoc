@@ -336,7 +336,7 @@ a special query is build based on the terms in the in-memory index that select c
 their indexed query terms. These queries are then evaluated by the in-memory index if they actually match.
 
 The selecting of candidate percolator queries matches is an important performance optimization during the execution
-of the `percolate` query as it can significantly reduce the number of candidate matches the in-memory index need to
+of the `percolate` query as it can significantly reduce the number of candidate matches the in-memory index needs to
 evaluate. The reason the `percolate` query can do this is because during indexing of the percolator queries the query
 terms are being extracted and indexed with the percolator query. Unfortunately the percolator cannot extract terms from
 all queries (for example the `wildcard` or `geo_shape` query) and as a result of that in certain cases the percolator

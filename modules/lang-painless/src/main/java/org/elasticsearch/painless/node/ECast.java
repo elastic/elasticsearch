@@ -19,12 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.WriterUtility;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents an implicit cast in most cases, though it will replace
@@ -37,7 +34,7 @@ final class ECast extends AExpression {
 
     Cast cast = null;
 
-    ECast(final int line, final String location, final AExpression child, final Cast cast) {
+    ECast(int line, String location, AExpression child, Cast cast) {
         super(line, location);
 
         this.type = null;
@@ -47,14 +44,14 @@ final class ECast extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Variables variables) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        child.write(settings, definition, adapter);
-        WriterUtility.writeCast(adapter, cast);
-        WriterUtility.writeBranch(adapter, tru, fals);
+    void write(MethodWriter adapter) {
+        child.write(adapter);
+        adapter.writeCast(cast);
+        adapter.writeBranch(tru, fals);
     }
 }

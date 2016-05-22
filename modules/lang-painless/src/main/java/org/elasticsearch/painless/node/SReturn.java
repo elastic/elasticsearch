@@ -19,10 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a return statement.
@@ -31,17 +30,18 @@ public final class SReturn extends AStatement {
 
     AExpression expression;
 
-    public SReturn(final int line, final String location, final AExpression expression) {
+    public SReturn(int line, String location, AExpression expression) {
         super(line, location);
 
         this.expression = expression;
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        expression.expected = definition.objectType;
-        expression.analyze(settings, definition, variables);
-        expression = expression.cast(settings, definition, variables);
+    void analyze(Variables variables) {
+        expression.expected = Definition.OBJECT_TYPE;
+        expression.internal = true;
+        expression.analyze(variables);
+        expression = expression.cast(variables);
 
         methodEscape = true;
         loopEscape = true;
@@ -51,9 +51,9 @@ public final class SReturn extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(MethodWriter adapter) {
         writeDebugInfo(adapter);
-        expression.write(settings, definition, adapter);
+        expression.write(adapter);
         adapter.returnValue();
     }
 }

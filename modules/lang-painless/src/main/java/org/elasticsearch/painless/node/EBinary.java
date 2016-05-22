@@ -19,15 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.WriterUtility;
-import org.objectweb.asm.commons.GeneratorAdapter;
 
 /**
  * Represents a binary math expression.
@@ -40,7 +38,7 @@ public final class EBinary extends AExpression {
 
     boolean cat = false;
 
-    public EBinary(final int line, final String location, final Operation operation, final AExpression left, final AExpression right) {
+    public EBinary(int line, String location, Operation operation, AExpression left, AExpression right) {
         super(line, location);
 
         this.operation = operation;
@@ -49,39 +47,39 @@ public final class EBinary extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Variables variables) {
         if (operation == Operation.MUL) {
-            analyzeMul(settings, definition, variables);
+            analyzeMul(variables);
         } else if (operation == Operation.DIV) {
-            analyzeDiv(settings, definition, variables);
+            analyzeDiv(variables);
         } else if (operation == Operation.REM) {
-            analyzeRem(settings, definition, variables);
+            analyzeRem(variables);
         } else if (operation == Operation.ADD) {
-            analyzeAdd(settings, definition, variables);
+            analyzeAdd(variables);
         } else if (operation == Operation.SUB) {
-            analyzeSub(settings, definition, variables);
+            analyzeSub(variables);
         } else if (operation == Operation.LSH) {
-            analyzeLSH(settings, definition, variables);
+            analyzeLSH(variables);
         } else if (operation == Operation.RSH) {
-            analyzeRSH(settings, definition, variables);
+            analyzeRSH(variables);
         } else if (operation == Operation.USH) {
-            analyzeUSH(settings, definition, variables);
+            analyzeUSH(variables);
         } else if (operation == Operation.BWAND) {
-            analyzeBWAnd(settings, definition, variables);
+            analyzeBWAnd(variables);
         } else if (operation == Operation.XOR) {
-            analyzeXor(settings, definition, variables);
+            analyzeXor(variables);
         } else if (operation == Operation.BWOR) {
-            analyzeBWOr(settings, definition, variables);
+            analyzeBWOr(variables);
         } else {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
     }
 
-    private void analyzeMul(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeMul(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply multiply [*] to types " +
@@ -91,25 +89,20 @@ public final class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final boolean overflow = settings.getNumericOverflow();
             final Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
-                constant = overflow ? (int)left.constant * (int)right.constant :
-                    Math.multiplyExact((int)left.constant, (int)right.constant);
+                constant = (int)left.constant * (int)right.constant;
             } else if (sort == Sort.LONG) {
-                constant = overflow ? (long)left.constant * (long)right.constant :
-                    Math.multiplyExact((long)left.constant, (long)right.constant);
+                constant = (long)left.constant * (long)right.constant;
             } else if (sort == Sort.FLOAT) {
-                constant = overflow ? (float)left.constant * (float)right.constant :
-                    org.elasticsearch.painless.Utility.multiplyWithoutOverflow((float)left.constant, (float)right.constant);
+                constant = (float)left.constant * (float)right.constant;
             } else if (sort == Sort.DOUBLE) {
-                constant = overflow ? (double)left.constant * (double)right.constant :
-                    org.elasticsearch.painless.Utility.multiplyWithoutOverflow((double)left.constant, (double)right.constant);
+                constant = (double)left.constant * (double)right.constant;
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
@@ -118,11 +111,11 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeDiv(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeDiv(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply divide [/] to types " +
@@ -132,25 +125,20 @@ public final class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final boolean overflow = settings.getNumericOverflow();
             final Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
-                constant = overflow ? (int)left.constant / (int)right.constant :
-                    org.elasticsearch.painless.Utility.divideWithoutOverflow((int)left.constant, (int)right.constant);
+                constant = (int)left.constant / (int)right.constant;
             } else if (sort == Sort.LONG) {
-                constant = overflow ? (long)left.constant / (long)right.constant :
-                    org.elasticsearch.painless.Utility.divideWithoutOverflow((long)left.constant, (long)right.constant);
+                constant = (long)left.constant / (long)right.constant;
             } else if (sort == Sort.FLOAT) {
-                constant = overflow ? (float)left.constant / (float)right.constant :
-                    org.elasticsearch.painless.Utility.divideWithoutOverflow((float)left.constant, (float)right.constant);
+                constant = (float)left.constant / (float)right.constant;
             } else if (sort == Sort.DOUBLE) {
-                constant = overflow ? (double)left.constant / (double)right.constant :
-                    org.elasticsearch.painless.Utility.divideWithoutOverflow((double)left.constant, (double)right.constant);
+                constant = (double)left.constant / (double)right.constant;
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
@@ -159,11 +147,11 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeRem(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeRem(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply remainder [%] to types " +
@@ -173,11 +161,10 @@ public final class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final boolean overflow = settings.getNumericOverflow();
             final Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
@@ -185,11 +172,9 @@ public final class EBinary extends AExpression {
             } else if (sort == Sort.LONG) {
                 constant = (long)left.constant % (long)right.constant;
             } else if (sort == Sort.FLOAT) {
-                constant = overflow ? (float)left.constant % (float)right.constant :
-                    org.elasticsearch.painless.Utility.remainderWithoutOverflow((float)left.constant, (float)right.constant);
+                constant = (float)left.constant % (float)right.constant;
             } else if (sort == Sort.DOUBLE) {
-                constant = overflow ? (double)left.constant % (double)right.constant :
-                    org.elasticsearch.painless.Utility.remainderWithoutOverflow((double)left.constant, (double)right.constant);
+                constant = (double)left.constant % (double)right.constant;
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
@@ -198,11 +183,11 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeAdd(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeAdd(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteAdd(definition, left.actual, right.actual);
+        final Type promote = AnalyzerCaster.promoteAdd(left.actual, right.actual);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply add [+] to types " +
@@ -228,24 +213,18 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final boolean overflow = settings.getNumericOverflow();
-
             if (sort == Sort.INT) {
-                constant = overflow ? (int)left.constant + (int)right.constant :
-                    Math.addExact((int)left.constant, (int)right.constant);
+                constant = (int)left.constant + (int)right.constant;
             } else if (sort == Sort.LONG) {
-                constant = overflow ? (long)left.constant + (long)right.constant :
-                    Math.addExact((long)left.constant, (long)right.constant);
+                constant = (long)left.constant + (long)right.constant;
             } else if (sort == Sort.FLOAT) {
-                constant = overflow ? (float)left.constant + (float)right.constant :
-                    org.elasticsearch.painless.Utility.addWithoutOverflow((float)left.constant, (float)right.constant);
+                constant = (float)left.constant + (float)right.constant;
             } else if (sort == Sort.DOUBLE) {
-                constant = overflow ? (double)left.constant + (double)right.constant :
-                    org.elasticsearch.painless.Utility.addWithoutOverflow((double)left.constant, (double)right.constant);
+                constant = (double)left.constant + (double)right.constant;
             } else if (sort == Sort.STRING) {
                 constant = "" + left.constant + right.constant;
             } else {
@@ -256,11 +235,11 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeSub(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeSub(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply subtract [-] to types " +
@@ -270,25 +249,20 @@ public final class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final boolean overflow = settings.getNumericOverflow();
             final Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
-                constant = overflow ? (int)left.constant - (int)right.constant :
-                    Math.subtractExact((int)left.constant, (int)right.constant);
+                constant = (int)left.constant - (int)right.constant;
             } else if (sort == Sort.LONG) {
-                constant = overflow ? (long)left.constant - (long)right.constant :
-                    Math.subtractExact((long)left.constant, (long)right.constant);
+                constant = (long)left.constant - (long)right.constant;
             } else if (sort == Sort.FLOAT) {
-                constant = overflow ? (float)left.constant - (float)right.constant :
-                    org.elasticsearch.painless.Utility.subtractWithoutOverflow((float)left.constant, (float)right.constant);
+                constant = (float)left.constant - (float)right.constant;
             } else if (sort == Sort.DOUBLE) {
-                constant = overflow ? (double)left.constant - (double)right.constant :
-                    org.elasticsearch.painless.Utility.subtractWithoutOverflow((double)left.constant, (double)right.constant);
+                constant = (double)left.constant - (double)right.constant;
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
@@ -297,11 +271,11 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeLSH(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeLSH(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, false, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, false);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply left shift [<<] to types " +
@@ -309,11 +283,11 @@ public final class EBinary extends AExpression {
         }
 
         left.expected = promote;
-        right.expected = definition.intType;
+        right.expected = Definition.INT_TYPE;
         right.explicit = true;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -330,11 +304,11 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeRSH(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeRSH(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, false, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, false);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply right shift [>>] to types " +
@@ -342,11 +316,11 @@ public final class EBinary extends AExpression {
         }
 
         left.expected = promote;
-        right.expected = definition.intType;
+        right.expected = Definition.INT_TYPE;
         right.explicit = true;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -363,11 +337,11 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeUSH(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeUSH(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, false, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, false);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply unsigned shift [>>>] to types " +
@@ -375,11 +349,11 @@ public final class EBinary extends AExpression {
         }
 
         left.expected = promote;
-        right.expected = definition.intType;
+        right.expected = Definition.INT_TYPE;
         right.explicit = true;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -396,11 +370,11 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeBWAnd(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeBWAnd(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, false, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply and [&] to types " +
@@ -410,8 +384,8 @@ public final class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -428,11 +402,11 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeXor(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeXor(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteXor(definition, left.actual, right.actual);
+        final Type promote = AnalyzerCaster.promoteXor(left.actual, right.actual);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply xor [^] to types " +
@@ -442,8 +416,8 @@ public final class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -462,11 +436,11 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeBWOr(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeBWOr(Variables variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, false, true);
+        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply or [|] to types " +
@@ -476,8 +450,8 @@ public final class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -495,34 +469,34 @@ public final class EBinary extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(MethodWriter adapter) {
         if (actual.sort == Sort.STRING && operation == Operation.ADD) {
             if (!cat) {
-                WriterUtility.writeNewStrings(adapter);
+                adapter.writeNewStrings();
             }
 
-            left.write(settings, definition, adapter);
+            left.write(adapter);
 
             if (!(left instanceof EBinary) || ((EBinary)left).operation != Operation.ADD || left.actual.sort != Sort.STRING) {
-                WriterUtility.writeAppendStrings(adapter, left.actual.sort);
+                adapter.writeAppendStrings(left.actual);
             }
 
-            right.write(settings, definition, adapter);
+            right.write(adapter);
 
             if (!(right instanceof EBinary) || ((EBinary)right).operation != Operation.ADD || right.actual.sort != Sort.STRING) {
-                WriterUtility.writeAppendStrings(adapter, right.actual.sort);
+                adapter.writeAppendStrings(right.actual);
             }
 
             if (!cat) {
-                WriterUtility.writeToStrings(adapter);
+                adapter.writeToStrings();
             }
         } else {
-            left.write(settings, definition, adapter);
-            right.write(settings, definition, adapter);
+            left.write(adapter);
+            right.write(adapter);
 
-            WriterUtility.writeBinaryInstruction(settings, definition, adapter, location, actual, operation);
+            adapter.writeBinaryInstruction(location, actual, operation);
         }
 
-        WriterUtility.writeBranch(adapter, tru, fals);
+        adapter.writeBranch(tru, fals);
     }
 }

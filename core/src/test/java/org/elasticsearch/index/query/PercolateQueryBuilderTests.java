@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -42,6 +41,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 

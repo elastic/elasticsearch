@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
@@ -178,7 +179,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         }
     }
 
-    public static final class CompletionFieldType extends MappedFieldType {
+    public static final class CompletionFieldType extends TermBasedFieldType {
 
         private static PostingsFormat postingsFormat;
 

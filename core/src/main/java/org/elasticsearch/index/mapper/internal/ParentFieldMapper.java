@@ -31,6 +31,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -194,7 +195,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         public Query termsQuery(List values, @Nullable QueryShardContext context) {
             BytesRef[] ids = new BytesRef[values.size()];
             for (int i = 0; i < ids.length; i++) {
-                ids[i] = indexedValueForSearch(values.get(i));
+                ids[i] = BytesRefs.toBytesRef(values.get(i));
             }
             BooleanQuery.Builder query = new BooleanQuery.Builder();
             query.add(new DocValuesTermsQuery(name(), ids), BooleanClause.Occur.MUST);

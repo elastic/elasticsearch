@@ -796,7 +796,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         AllocationCommand relocate1 = new MoveAllocationCommand("test", 0, "node2", "node3");
         AllocationCommands cmds = new AllocationCommands(relocate1);
 
-        routingTable = strategy.reroute(clusterState, cmds).routingTable();
+        routingTable = strategy.reroute(clusterState, cmds, false, false).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         logShardStates(clusterState);
 
@@ -808,7 +808,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             // node3, which will put it over the low watermark when it
             // completes, with shard relocations taken into account this should
             // throw an exception about not being able to complete
-            strategy.reroute(clusterState, cmds).routingTable();
+            strategy.reroute(clusterState, cmds, false, false).routingTable();
             fail("should not have been able to reroute the shard");
         } catch (IllegalArgumentException e) {
             assertThat("can't allocated because there isn't enough room: " + e.getMessage(),
@@ -875,8 +875,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         )
         );
         ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo,
-                System.nanoTime());
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), clusterState, clusterInfo,
+                System.nanoTime(), false);
         Decision decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
 
@@ -896,7 +896,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         )
         );
         clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
-        routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo, System.nanoTime());
+        routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), clusterState, clusterInfo, System.nanoTime(),
+            false);
         decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
 
@@ -991,8 +992,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         )
         );
         ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo,
-                System.nanoTime());
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), clusterState, clusterInfo,
+                System.nanoTime(), false);
         Decision decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
 
         // Two shards should start happily
@@ -1051,7 +1052,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         );
 
         clusterState = ClusterState.builder(updateClusterState).routingTable(builder.build()).build();
-        routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo, System.nanoTime());
+        routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), clusterState, clusterInfo, System.nanoTime(),
+            false);
         decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
 

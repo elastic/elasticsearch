@@ -19,11 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 
@@ -35,7 +34,7 @@ public final class LNewArray extends ALink {
     final String type;
     final List<AExpression> arguments;
 
-    public LNewArray(final int line, final String location, final String type, final List<AExpression> arguments) {
+    public LNewArray(int line, String location, String type, List<AExpression> arguments) {
         super(line, location, -1);
 
         this.type = type;
@@ -43,7 +42,7 @@ public final class LNewArray extends ALink {
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(Variables variables) {
         if (before != null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         } else if (store) {
@@ -55,7 +54,7 @@ public final class LNewArray extends ALink {
         final Type type;
 
         try {
-            type = definition.getType(this.type);
+            type = Definition.getType(this.type);
         } catch (final IllegalArgumentException exception) {
             throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
         }
@@ -63,36 +62,36 @@ public final class LNewArray extends ALink {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             final AExpression expression = arguments.get(argument);
 
-            expression.expected = definition.intType;
-            expression.analyze(settings, definition, variables);
-            arguments.set(argument, expression.cast(settings, definition, variables));
+            expression.expected = Definition.INT_TYPE;
+            expression.analyze(variables);
+            arguments.set(argument, expression.cast(variables));
         }
 
-        after = definition.getType(type.struct, arguments.size());
+        after = Definition.getType(type.struct, arguments.size());
 
         return this;
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(MethodWriter adapter) {
         for (final AExpression argument : arguments) {
-            argument.write(settings, definition, adapter);
+            argument.write(adapter);
         }
 
         if (arguments.size() > 1) {
             adapter.visitMultiANewArrayInsn(after.type.getDescriptor(), after.type.getDimensions());
         } else {
-            adapter.newArray(definition.getType(after.struct, 0).type);
+            adapter.newArray(Definition.getType(after.struct, 0).type);
         }
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(MethodWriter adapter) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

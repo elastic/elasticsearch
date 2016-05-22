@@ -51,7 +51,7 @@ public class RangeParser extends NumericValuesSourceParser {
     @Override
     protected AbstractRangeBuilder<?, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        RangeAggregatorBuilder factory = new RangeAggregatorBuilder(aggregationName);
+        RangeAggregationBuilder factory = new RangeAggregationBuilder(aggregationName);
         @SuppressWarnings("unchecked")
         List<? extends Range> ranges = (List<? extends Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
         for (Range range : ranges) {

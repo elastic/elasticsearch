@@ -128,15 +128,6 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
 
     /**
      * Run the script.
-     * @return The script result as a float.
-     */
-    @Override
-    public float runAsFloat() {
-        return ((Number)run()).floatValue();
-    }
-
-    /**
-     * Run the script.
      * @return The script result as a long.
      */
     @Override

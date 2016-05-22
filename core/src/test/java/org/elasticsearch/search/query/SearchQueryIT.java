@@ -1003,14 +1003,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("1"));
-
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("num:11~1")).get();
-        assertHitCount(searchResponse, 1L);
-        assertFirstHit(searchResponse, hasId("1"));
-
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("date:2012-02-02~1d")).get();
-        assertHitCount(searchResponse, 1L);
-        assertFirstHit(searchResponse, hasId("1"));
     }
 
     public void testQuotedQueryStringWithBoost() throws InterruptedException, ExecutionException {
@@ -1444,7 +1436,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("test").setQuery(
                 spanNearQuery(spanTermQuery("description", "foo"), 3)
-                        .clause(spanTermQuery("description", "other"))).get();
+                        .addClause(spanTermQuery("description", "other"))).get();
         assertHitCount(searchResponse, 3L);
     }
 
@@ -1489,17 +1481,17 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(spanNotQuery(spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1)
-                        .clause(QueryBuilders.spanTermQuery("description", "fox")), spanTermQuery("description", "brown"))).get();
+                        .addClause(QueryBuilders.spanTermQuery("description", "fox")), spanTermQuery("description", "brown"))).get();
         assertHitCount(searchResponse, 1L);
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(spanNotQuery(spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1)
-                        .clause(QueryBuilders.spanTermQuery("description", "fox")), spanTermQuery("description", "sleeping")).dist(5)).get();
+                        .addClause(QueryBuilders.spanTermQuery("description", "fox")), spanTermQuery("description", "sleeping")).dist(5)).get();
         assertHitCount(searchResponse, 1L);
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(spanNotQuery(spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1)
-                        .clause(QueryBuilders.spanTermQuery("description", "fox")), spanTermQuery("description", "jumped")).pre(1).post(1)).get();
+                        .addClause(QueryBuilders.spanTermQuery("description", "fox")), spanTermQuery("description", "jumped")).pre(1).post(1)).get();
         assertHitCount(searchResponse, 1L);
     }
 

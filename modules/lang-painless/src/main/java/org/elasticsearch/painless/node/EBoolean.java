@@ -19,29 +19,28 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a boolean constant.
  */
 public final class EBoolean extends AExpression {
 
-    public EBoolean(final int line, final String location, final boolean constant) {
+    public EBoolean(int line, String location, boolean constant) {
         super(line, location);
 
         this.constant = constant;
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        actual = definition.booleanType;
+    void analyze(Variables variables) {
+        actual = Definition.BOOLEAN_TYPE;
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(MethodWriter adapter) {
         throw new IllegalArgumentException(error("Illegal tree structure."));
     }
 }

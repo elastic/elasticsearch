@@ -52,9 +52,10 @@ public final class Def {
     // TODO: Once Java has a factory for those in java.lang.invoke.MethodHandles, use it:
 
     /** Helper class for isolating MethodHandles and methods to get the length of arrays
-     * (to emulate a "arraystore" byteoode using MethodHandles).
+     * (to emulate a "arraystore" bytecode using MethodHandles).
      * This should really be a method in {@link MethodHandles} class!
      */
+    @SuppressWarnings("unused") // getArrayLength() methods are are actually used, javac just does not know :)
     private static final class ArrayLengthHelper {
         private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
 
@@ -133,37 +134,40 @@ public final class Def {
      * <p>
      * @param receiverClass Class of the object to invoke the method on.
      * @param name Name of the method.
-     * @param definition Whitelist to check.
+     * @param type Callsite signature. Need not match exactly, except the number of parameters.
      * @return pointer to matching method to invoke. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      */
-     static MethodHandle lookupMethod(Class<?> receiverClass, String name, Definition definition) {
-        // check whitelist for matching method
-        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            RuntimeClass struct = definition.runtimeMap.get(clazz);
+     static MethodHandle lookupMethod(Class<?> receiverClass, String name, MethodType type) {
+         // we don't consider receiver an argument/counting towards arity
+         type = type.dropParameterTypes(0, 1);
+         Definition.MethodKey key = new Definition.MethodKey(name, type.parameterCount());
+         // check whitelist for matching method
+         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
+             RuntimeClass struct = Definition.getRuntimeClass(clazz);
 
-            if (struct != null) {
-                Method method = struct.methods.get(name);
-                if (method != null) {
-                    return method.handle;
-                }
-            }
+             if (struct != null) {
+                 Method method = struct.methods.get(key);
+                 if (method != null) {
+                     return method.handle;
+                 }
+             }
 
-            for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.runtimeMap.get(iface);
+             for (final Class<?> iface : clazz.getInterfaces()) {
+                 struct = Definition.getRuntimeClass(iface);
 
-                if (struct != null) {
-                    Method method = struct.methods.get(name);
-                    if (method != null) {
-                        return method.handle;
-                    }
-                }
-            }
-        }
+                 if (struct != null) {
+                     Method method = struct.methods.get(key);
+                     if (method != null) {
+                         return method.handle;
+                     }
+                 }
+             }
+         }
 
-        // no matching methods in whitelist found
-        throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] " +
-                                           "for class [" + receiverClass.getCanonicalName() + "].");
+         // no matching methods in whitelist found
+         throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] with signature [" + type + "] " +
+                 "for class [" + receiverClass.getCanonicalName() + "].");
     }
 
     /**
@@ -188,14 +192,13 @@ public final class Def {
      * <p>
      * @param receiverClass Class of the object to retrieve the field from.
      * @param name Name of the field.
-     * @param definition Whitelist to check.
      * @return pointer to matching field. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted field was found.
      */
-    static MethodHandle lookupGetter(Class<?> receiverClass, String name, Definition definition) {
+    static MethodHandle lookupGetter(Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            RuntimeClass struct = definition.runtimeMap.get(clazz);
+            RuntimeClass struct = Definition.getRuntimeClass(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.getters.get(name);
@@ -205,7 +208,7 @@ public final class Def {
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.runtimeMap.get(iface);
+                struct = Definition.getRuntimeClass(iface);
 
                 if (struct != null) {
                     MethodHandle handle = struct.getters.get(name);
@@ -259,14 +262,13 @@ public final class Def {
      * <p>
      * @param receiverClass Class of the object to retrieve the field from.
      * @param name Name of the field.
-     * @param definition Whitelist to check.
      * @return pointer to matching field. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted field was found.
      */
-    static MethodHandle lookupSetter(Class<?> receiverClass, String name, Definition definition) {
+    static MethodHandle lookupSetter(Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            RuntimeClass struct = definition.runtimeMap.get(clazz);
+            RuntimeClass struct = Definition.getRuntimeClass(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.setters.get(name);
@@ -276,7 +278,7 @@ public final class Def {
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.runtimeMap.get(iface);
+                struct = Definition.getRuntimeClass(iface);
 
                 if (struct != null) {
                     MethodHandle handle = struct.setters.get(name);
@@ -968,176 +970,140 @@ public final class Def {
     // Conversion methods for Def to primitive types.
 
     public static boolean DefToboolean(final Object value) {
-        if (value instanceof Boolean) {
-            return (boolean)value;
-        } else if (value instanceof Character) {
-            return ((char)value) != 0;
+        return (boolean)value;
+    }
+
+    public static byte DefTobyteImplicit(final Object value) {
+        return (byte)value;
+    }
+
+    public static short DefToshortImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (byte)value;
         } else {
-            return ((Number)value).intValue() != 0;
+            return (short)value;
         }
     }
 
-    public static byte DefTobyte(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? (byte)1 : 0;
+    public static char DefTocharImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (char)(byte)value;
+        } else {
+            return (char)value;
+        }
+    }
+
+    public static int DefTointImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (byte)value;
+        } else if (value instanceof Short) {
+            return (short)value;
         } else if (value instanceof Character) {
+            return (char)value;
+        } else {
+            return (int)value;
+        }
+    }
+
+    public static long DefTolongImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (byte)value;
+        } else if (value instanceof Short) {
+            return (short)value;
+        } else if (value instanceof Character) {
+            return (char)value;
+        } else if (value instanceof Integer) {
+            return (int)value;
+        } else {
+            return (long)value;
+        }
+    }
+
+    public static float DefTofloatImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (byte)value;
+        } else if (value instanceof Short) {
+            return (short)value;
+        } else if (value instanceof Character) {
+            return (char)value;
+        } else if (value instanceof Integer) {
+            return (int)value;
+        } else if (value instanceof Long) {
+            return (long)value;
+        } else {
+            return (float)value;
+        }
+    }
+
+    public static double DefTodoubleImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (byte)value;
+        } else if (value instanceof Short) {
+            return (short)value;
+        } else if (value instanceof Character) {
+            return (char)value;
+        } else if (value instanceof Integer) {
+            return (int)value;
+        } else if (value instanceof Long) {
+            return (long)value;
+        } else if (value instanceof Float) {
+            return (float)value;
+        } else {
+            return (double)value;
+        }
+    }
+
+    public static byte DefTobyteExplicit(final Object value) {
+        if (value instanceof Character) {
             return (byte)(char)value;
         } else {
             return ((Number)value).byteValue();
         }
     }
 
-    public static short DefToshort(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? (short)1 : 0;
-        } else if (value instanceof Character) {
+    public static short DefToshortExplicit(final Object value) {
+        if (value instanceof Character) {
             return (short)(char)value;
         } else {
             return ((Number)value).shortValue();
         }
     }
 
-    public static char DefTochar(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? (char)1 : 0;
-        } else if (value instanceof Character) {
+    public static char DefTocharExplicit(final Object value) {
+        if (value instanceof Character) {
             return ((Character)value);
         } else {
             return (char)((Number)value).intValue();
         }
     }
 
-    public static int DefToint(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? 1 : 0;
-        } else if (value instanceof Character) {
+    public static int DefTointExplicit(final Object value) {
+        if (value instanceof Character) {
             return (char)value;
         } else {
             return ((Number)value).intValue();
         }
     }
 
-    public static long DefTolong(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? 1L : 0;
-        } else if (value instanceof Character) {
+    public static long DefTolongExplicit(final Object value) {
+        if (value instanceof Character) {
             return (char)value;
         } else {
             return ((Number)value).longValue();
         }
     }
 
-    public static float DefTofloat(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? (float)1 : 0;
-        } else if (value instanceof Character) {
+    public static float DefTofloatExplicit(final Object value) {
+        if (value instanceof Character) {
             return (char)value;
         } else {
             return ((Number)value).floatValue();
         }
     }
 
-    public static double DefTodouble(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? (double)1 : 0;
-        } else if (value instanceof Character) {
+    public static double DefTodoubleExplicit(final Object value) {
+        if (value instanceof Character) {
             return (char)value;
-        } else {
-            return ((Number)value).doubleValue();
-        }
-    }
-
-    public static Boolean DefToBoolean(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Boolean) {
-            return (boolean)value;
-        } else if (value instanceof Character) {
-            return ((char)value) != 0;
-        } else {
-            return ((Number)value).intValue() != 0;
-        }
-    }
-
-    public static Byte DefToByte(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? (byte)1 : 0;
-        } else if (value instanceof Character) {
-            return (byte)(char)value;
-        } else {
-            return ((Number)value).byteValue();
-        }
-    }
-
-    public static Short DefToShort(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? (short)1 : 0;
-        } else if (value instanceof Character) {
-            return (short)(char)value;
-        } else {
-            return ((Number)value).shortValue();
-        }
-    }
-
-    public static Character DefToCharacter(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? (char)1 : 0;
-        } else if (value instanceof Character) {
-            return ((Character)value);
-        } else {
-            return (char)((Number)value).intValue();
-        }
-    }
-
-    public static Integer DefToInteger(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? 1 : 0;
-        } else if (value instanceof Character) {
-            return (int)(char)value;
-        } else {
-            return ((Number)value).intValue();
-        }
-    }
-
-    public static Long DefToLong(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? 1L : 0;
-        } else if (value instanceof Character) {
-            return (long)(char)value;
-        } else {
-            return ((Number)value).longValue();
-        }
-    }
-
-    public static Float DefToFloat(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? (float)1 : 0;
-        } else if (value instanceof Character) {
-            return (float)(char)value;
-        } else {
-            return ((Number)value).floatValue();
-        }
-    }
-
-    public static Double DefToDouble(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? (double)1 : 0;
-        } else if (value instanceof Character) {
-            return (double)(char)value;
         } else {
             return ((Number)value).doubleValue();
         }

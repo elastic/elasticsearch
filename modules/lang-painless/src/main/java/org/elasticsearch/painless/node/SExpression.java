@@ -19,12 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.WriterUtility;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents the top-level node for an expression as a statement.
@@ -33,16 +31,16 @@ public final class SExpression extends AStatement {
 
     AExpression expression;
 
-    public SExpression(final int line, final String location, final AExpression expression) {
+    public SExpression(int line, String location, AExpression expression) {
         super(line, location);
 
         this.expression = expression;
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Variables variables) {
         expression.read = lastSource;
-        expression.analyze(settings, definition, variables);
+        expression.analyze(variables);
 
         if (!lastSource && !expression.statement) {
             throw new IllegalArgumentException(error("Not a statement."));
@@ -50,8 +48,9 @@ public final class SExpression extends AStatement {
 
         final boolean rtn = lastSource && expression.actual.sort != Sort.VOID;
 
-        expression.expected = rtn ? definition.objectType : expression.actual;
-        expression = expression.cast(settings, definition, variables);
+        expression.expected = rtn ? Definition.OBJECT_TYPE : expression.actual;
+        expression.internal = rtn;
+        expression = expression.cast(variables);
 
         methodEscape = rtn;
         loopEscape = rtn;
@@ -60,14 +59,14 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(MethodWriter adapter) {
         writeDebugInfo(adapter);
-        expression.write(settings, definition, adapter);
+        expression.write(adapter);
 
         if (methodEscape) {
             adapter.returnValue();
         } else {
-            WriterUtility.writePop(adapter, expression.expected.sort.size);
+            adapter.writePop(expression.expected.sort.size);
         }
     }
 }

@@ -181,7 +181,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         this.namedWriteableRegistry = namedWriteableRegistry;
         clusterSettings.addSettingsUpdateConsumer(IndexStoreConfig.INDICES_STORE_THROTTLE_TYPE_SETTING, indexStoreConfig::setRateLimitingType);
         clusterSettings.addSettingsUpdateConsumer(IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING, indexStoreConfig::setRateLimitingThrottle);
-        indexingMemoryController = new IndexingMemoryController(settings, threadPool, Iterables.flatten(this));
+        indexingMemoryController = new IndexingMemoryController(settings, threadPool,
+                                                                // ensure we pull an iter with new shards - flatten makes a copy
+                                                                () -> Iterables.flatten(this).iterator());
         this.indexScopeSetting = indexScopedSettings;
         this.circuitBreakerService = circuitBreakerService;
         this.indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
@@ -278,12 +280,15 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                     if (indexShard.routingEntry() == null) {
                         continue;
                     }
-                    IndexShardStats indexShardStats = new IndexShardStats(indexShard.shardId(),
-                            new ShardStats[] {
-                                    new ShardStats(indexShard.routingEntry(), indexShard.shardPath(),
-                                            new CommonStats(indicesQueryCache, indexService.cache().getPercolatorQueryCache(),
-                                                    indexShard, flags),
-                                            indexShard.commitStats(), indexShard.seqNoStats())});
+                    IndexShardStats indexShardStats =
+                        new IndexShardStats(indexShard.shardId(),
+                            new ShardStats[]{
+                                new ShardStats(
+                                    indexShard.routingEntry(),
+                                    indexShard.shardPath(),
+                                    new CommonStats(indicesQueryCache, indexShard, flags),
+                                    indexShard.commitStats(),
+                                    indexShard.seqNoStats())});
 
                     if (!statsByShard.containsKey(indexService.index())) {
                         statsByShard.put(indexService.index(), arrayAsArrayList(indexShardStats));

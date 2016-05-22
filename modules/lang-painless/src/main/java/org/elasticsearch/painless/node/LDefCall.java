@@ -19,11 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 
@@ -32,12 +31,12 @@ import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 /**
  * Represents a method call made on a def type. (Internal only.)
  */
-final class LDefCall extends ALink {
+final class LDefCall extends ALink implements IDefLink {
 
     final String name;
     final List<AExpression> arguments;
 
-    LDefCall(final int line, final String location, final String name, final List<AExpression> arguments) {
+    LDefCall(int line, String location, String name, List<AExpression> arguments) {
         super(line, location, -1);
 
         this.name = name;
@@ -45,50 +44,51 @@ final class LDefCall extends ALink {
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(Variables variables) {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             final AExpression expression = arguments.get(argument);
 
-            expression.analyze(settings, definition, variables);
+            expression.internal = true;
+            expression.analyze(variables);
             expression.expected = expression.actual;
-            arguments.set(argument, expression.cast(settings, definition, variables));
+            arguments.set(argument, expression.cast(variables));
         }
 
         statement = true;
-        after = definition.defType;
+        after = Definition.DEF_TYPE;
 
         return this;
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(MethodWriter adapter) {
         final StringBuilder signature = new StringBuilder();
 
         signature.append('(');
         // first parameter is the receiver, we never know its type: always Object
-        signature.append(definition.defType.type.getDescriptor());
+        signature.append(Definition.DEF_TYPE.type.getDescriptor());
 
         // TODO: remove our explicit conversions and feed more type information for return value,
         // it can avoid some unnecessary boxing etc.
         for (final AExpression argument : arguments) {
             signature.append(argument.actual.type.getDescriptor());
-            argument.write(settings, definition, adapter);
+            argument.write(adapter);
         }
 
         signature.append(')');
         // return value
         signature.append(after.type.getDescriptor());
 
-        adapter.visitInvokeDynamicInsn(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.METHOD_CALL });
+        adapter.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.METHOD_CALL);
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(MethodWriter adapter) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

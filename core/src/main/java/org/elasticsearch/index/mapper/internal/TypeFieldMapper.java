@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -85,7 +86,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static final class TypeFieldType extends MappedFieldType {
+    static final class TypeFieldType extends StringFieldType {
 
         public TypeFieldType() {
         }

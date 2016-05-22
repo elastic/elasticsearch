@@ -19,13 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 import java.util.Map;
@@ -39,14 +38,14 @@ public final class LField extends ALink {
 
     Field field;
 
-    public LField(final int line, final String location, final String value) {
+    public LField(int line, String location, String value) {
         super(line, location, 1);
 
         this.value = value;
     }
 
     @Override
-    ALink analyze(CompilerSettings settings, Definition definition, Variables variables) {
+    ALink analyze(Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
@@ -54,13 +53,13 @@ public final class LField extends ALink {
         final Sort sort = before.sort;
 
         if (sort == Sort.ARRAY) {
-            return new LArrayLength(line, location, value).copy(this).analyze(settings, definition, variables);
+            return new LArrayLength(line, location, value).copy(this).analyze(variables);
         } else if (sort == Sort.DEF) {
-            return new LDefField(line, location, value).copy(this).analyze(settings, definition, variables);
+            return new LDefField(line, location, value).copy(this).analyze(variables);
         }
 
         final Struct struct = before.struct;
-        field = statik ? struct.statics.get(value) : struct.members.get(value);
+        field = statik ? struct.staticMembers.get(value) : struct.members.get(value);
 
         if (field != null) {
             if (store && java.lang.reflect.Modifier.isFinal(field.reflect.getModifiers())) {
@@ -72,30 +71,25 @@ public final class LField extends ALink {
 
             return this;
         } else {
+            // TODO: improve this: the isXXX case seems missing???
             final boolean shortcut =
-                struct.methods.containsKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1)) ||
-                struct.methods.containsKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1));
+                struct.methods.containsKey(new Definition.MethodKey("get" + 
+                        Character.toUpperCase(value.charAt(0)) + value.substring(1), 0)) ||
+                struct.methods.containsKey(new Definition.MethodKey("set" + 
+                        Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
             if (shortcut) {
-                return new LShortcut(line, location, value).copy(this).analyze(settings, definition, variables);
+                return new LShortcut(line, location, value).copy(this).analyze(variables);
             } else {
                 final EConstant index = new EConstant(line, location, value);
-                index.analyze(settings, definition, variables);
+                index.analyze(variables);
 
-                try {
-                    before.clazz.asSubclass(Map.class);
-
-                    return new LMapShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
-                } catch (final ClassCastException exception) {
-                    // Do nothing.
+                if (Map.class.isAssignableFrom(before.clazz)) {
+                    return new LMapShortcut(line, location, index).copy(this).analyze(variables);
                 }
-
-                try {
-                    before.clazz.asSubclass(List.class);
-
-                    return new LListShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
-                } catch (final ClassCastException exception) {
-                    // Do nothing.
+                
+                if (List.class.isAssignableFrom(before.clazz)) {
+                    return new LListShortcut(line, location, index).copy(this).analyze(variables);
                 }
             }
         }
@@ -104,29 +98,21 @@ public final class LField extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(MethodWriter adapter) {
         if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
             adapter.getStatic(field.owner.type, field.reflect.getName(), field.type.type);
-
-            if (!field.generic.clazz.equals(field.type.clazz)) {
-                adapter.checkCast(field.generic.type);
-            }
         } else {
             adapter.getField(field.owner.type, field.reflect.getName(), field.type.type);
-
-            if (!field.generic.clazz.equals(field.type.clazz)) {
-                adapter.checkCast(field.generic.type);
-            }
         }
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(MethodWriter adapter) {
         if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
             adapter.putStatic(field.owner.type, field.reflect.getName(), field.type.type);
         } else {

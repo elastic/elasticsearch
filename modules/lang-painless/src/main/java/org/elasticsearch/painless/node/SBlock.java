@@ -19,10 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Collections;
 import java.util.List;
@@ -34,17 +32,17 @@ public final class SBlock extends AStatement {
 
     final List<AStatement> statements;
 
-    public SBlock(final int line, final String location, final List<AStatement> statements) {
+    public SBlock(int line, String location, List<AStatement> statements) {
         super(line, location);
 
         this.statements = Collections.unmodifiableList(statements);
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Variables variables) {
         final AStatement last = statements.get(statements.size() - 1);
 
-        for (final AStatement statement : statements) {
+        for (AStatement statement : statements) {
             if (allEscape) {
                 throw new IllegalArgumentException(error("Unreachable statement."));
             }
@@ -53,7 +51,7 @@ public final class SBlock extends AStatement {
             statement.lastSource = lastSource && statement == last;
             statement.lastLoop = (beginLoop || lastLoop) && statement == last;
 
-            statement.analyze(settings, definition, variables);
+            statement.analyze(variables);
 
             methodEscape = statement.methodEscape;
             loopEscape = statement.loopEscape;
@@ -65,11 +63,11 @@ public final class SBlock extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        for (final AStatement statement : statements) {
+    void write(MethodWriter adapter) {
+        for (AStatement statement : statements) {
             statement.continu = continu;
             statement.brake = brake;
-            statement.write(settings, definition, adapter);
+            statement.write(adapter);
         }
     }
 }

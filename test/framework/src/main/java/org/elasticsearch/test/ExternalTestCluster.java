@@ -73,7 +73,6 @@ public final class ExternalTestCluster extends TestCluster {
         Settings clientSettings = Settings.builder()
                 .put(additionalSettings)
                 .put("node.name", InternalTestCluster.TRANSPORT_CLIENT_PREFIX + EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
-                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true) // prevents any settings to be replaced by system properties.
                 .put("client.transport.ignore_cluster_name", true)
                 .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
                 .put(Node.NODE_MODE_SETTING.getKey(), "network").build(); // we require network here!

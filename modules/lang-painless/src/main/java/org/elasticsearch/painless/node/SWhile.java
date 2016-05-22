@@ -19,12 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.WriterUtility;
 import org.objectweb.asm.Label;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a while loop.
@@ -33,21 +31,23 @@ public final class SWhile extends AStatement {
 
     AExpression condition;
     final AStatement block;
+    final int maxLoopCounter;
 
-    public SWhile(final int line, final String location, final AExpression condition, final AStatement block) {
+    public SWhile(int line, String location, AExpression condition, AStatement block, int maxLoopCounter) {
         super(line, location);
 
         this.condition = condition;
         this.block = block;
+        this.maxLoopCounter = maxLoopCounter;
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Variables variables) {
         variables.incrementScope();
 
-        condition.expected = definition.booleanType;
-        condition.analyze(settings, definition, variables);
-        condition = condition.cast(settings, definition, variables);
+        condition.expected = Definition.BOOLEAN_TYPE;
+        condition.analyze(variables);
+        condition = condition.cast(variables);
 
         boolean continuous = false;
 
@@ -69,7 +69,7 @@ public final class SWhile extends AStatement {
             block.beginLoop = true;
             block.inLoop = true;
 
-            block.analyze(settings, definition, variables);
+            block.analyze(variables);
 
             if (block.loopEscape && !block.anyContinue) {
                 throw new IllegalArgumentException(error("Extranous while loop."));
@@ -85,7 +85,7 @@ public final class SWhile extends AStatement {
 
         statementCount = 1;
 
-        if (settings.getMaxLoopCounter() > 0) {
+        if (maxLoopCounter > 0) {
             loopCounterSlot = variables.getVariable(location, "#loop").slot;
         }
 
@@ -93,7 +93,7 @@ public final class SWhile extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(MethodWriter adapter) {
         writeDebugInfo(adapter);
         final Label begin = new Label();
         final Label end = new Label();
@@ -101,16 +101,16 @@ public final class SWhile extends AStatement {
         adapter.mark(begin);
 
         condition.fals = end;
-        condition.write(settings, definition, adapter);
+        condition.write(adapter);
 
         if (block != null) {
-            WriterUtility.writeLoopCounter(adapter, loopCounterSlot, Math.max(1, block.statementCount));
+            adapter.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount));
 
             block.continu = begin;
             block.brake = end;
-            block.write(settings, definition, adapter);
+            block.write(adapter);
         } else {
-            WriterUtility.writeLoopCounter(adapter, loopCounterSlot, 1);
+            adapter.writeLoopCounter(loopCounterSlot, 1);
         }
 
         if (block == null || !block.allEscape) {

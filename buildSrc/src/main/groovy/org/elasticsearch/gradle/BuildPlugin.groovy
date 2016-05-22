@@ -378,7 +378,7 @@ class BuildPlugin implements Plugin<Project> {
                  * -serial because we don't use java serialization.
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
-                options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial' << '-Xdoclint:all' << '-Xdoclint:-missing'
+                options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options' << '-Xdoclint:all' << '-Xdoclint:-missing'
                 // compile with compact 3 profile by default
                 // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
                 if (project.compactProfile != 'full') {
@@ -456,7 +456,7 @@ class BuildPlugin implements Plugin<Project> {
             // default test sysprop values
             systemProperty 'tests.ifNoTests', 'fail'
             // TODO: remove setting logging level via system property
-            systemProperty 'es.logger.level', 'WARN'
+            systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {
                 if (property.getKey().startsWith('tests.') ||
                     property.getKey().startsWith('es.')) {

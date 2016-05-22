@@ -161,8 +161,8 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
         client().prepareIndex("test", "queries", "3")
                 .setSource(jsonBuilder().startObject().field("query",
                         spanNearQuery(spanTermQuery("field1", "quick"), 0)
-                                .clause(spanTermQuery("field1", "brown"))
-                                .clause(spanTermQuery("field1", "fox"))
+                                .addClause(spanTermQuery("field1", "brown"))
+                                .addClause(spanTermQuery("field1", "fox"))
                                 .inOrder(true)
                 ).endObject())
                 .get();
@@ -172,12 +172,12 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                 .setSource(jsonBuilder().startObject().field("query",
                         spanNotQuery(
                                 spanNearQuery(spanTermQuery("field1", "quick"), 0)
-                                        .clause(spanTermQuery("field1", "brown"))
-                                        .clause(spanTermQuery("field1", "fox"))
+                                        .addClause(spanTermQuery("field1", "brown"))
+                                        .addClause(spanTermQuery("field1", "fox"))
                                         .inOrder(true),
                                 spanNearQuery(spanTermQuery("field1", "the"), 0)
-                                        .clause(spanTermQuery("field1", "lazy"))
-                                        .clause(spanTermQuery("field1", "dog"))
+                                        .addClause(spanTermQuery("field1", "lazy"))
+                                        .addClause(spanTermQuery("field1", "dog"))
                                         .inOrder(true)).dist(2)
                 ).endObject())
                 .get();
@@ -187,12 +187,12 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                 .setSource(jsonBuilder().startObject().field("query",
                         spanNotQuery(
                                 spanNearQuery(spanTermQuery("field1", "quick"), 0)
-                                        .clause(spanTermQuery("field1", "brown"))
-                                        .clause(spanTermQuery("field1", "fox"))
+                                        .addClause(spanTermQuery("field1", "brown"))
+                                        .addClause(spanTermQuery("field1", "fox"))
                                         .inOrder(true),
                                 spanNearQuery(spanTermQuery("field1", "the"), 0)
-                                        .clause(spanTermQuery("field1", "lazy"))
-                                        .clause(spanTermQuery("field1", "dog"))
+                                        .addClause(spanTermQuery("field1", "lazy"))
+                                        .addClause(spanTermQuery("field1", "dog"))
                                         .inOrder(true)).dist(3)
                 ).endObject())
                 .get();

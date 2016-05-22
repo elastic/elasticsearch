@@ -22,6 +22,7 @@
  * <p>
  * The following are the types of nodes:
  * A* (abstract) - These are the abstract nodes that are the superclasses for the other types.
+ * I* (interface) -- Thse are marker interfaces to denote a property of the node.
  * S* (statement) - These are nodes that represent a statement in Painless.  These are the highest level nodes.
  * E* (expression) - These are nodess that represent an expression in Painless.  These are the middle level nodes.
  * L* (link) - These are nodes that respresent a piece of a variable/method chain.  The are the lowest level nodes.
@@ -44,6 +45,7 @@
  * {@link org.elasticsearch.painless.node.ENull} - Represents a null constant.
  * {@link org.elasticsearch.painless.node.ENumeric} - Respresents a non-decimal numeric constant.
  * {@link org.elasticsearch.painless.node.EUnary} - Represents a unary math expression.
+ * {@link org.elasticsearch.painless.node.IDefLink} - A marker interface for all LDef* (link) nodes.
  * {@link org.elasticsearch.painless.node.LArrayLength} - Represents an array length field load.
  * {@link org.elasticsearch.painless.node.LBrace} - Represents an array load/store or defers to possible shortcuts.
  * {@link org.elasticsearch.painless.node.LCall} - Represents a method call or deferes to a def call.

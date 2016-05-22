@@ -48,7 +48,7 @@ public abstract class ScriptTestCase extends ESTestCase {
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} */
     public Object exec(String script, Map<String, Object> vars) {
-        return exec(script, vars, Collections.singletonMap(CompilerSettings.NUMERIC_OVERFLOW, Boolean.toString(random().nextBoolean())));
+        return exec(script, vars, Collections.emptyMap());
     }
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} and compile-time parameters */
@@ -56,5 +56,14 @@ public abstract class ScriptTestCase extends ESTestCase {
         Object object = scriptEngine.compile(null, script, compileParams);
         CompiledScript compiled = new CompiledScript(ScriptService.ScriptType.INLINE, getTestName(), "painless", object);
         return scriptEngine.executable(compiled, vars).run();
+    }
+
+    /**
+     * Uses the {@link Debugger} to get the bytecode output for a script and compare
+     * it against an expected bytecode passed in as a String.
+     */
+    public void assertBytecodeExists(String script, String bytecode) {
+        final String asm = Debugger.toString(script);
+        assertTrue("bytecode not found", asm.contains(bytecode));
     }
 }

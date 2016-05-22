@@ -91,14 +91,14 @@ public final class DefBootstrap {
         /**
          * Does a slow lookup against the whitelist.
          */
-        private static MethodHandle lookup(int flavor, Class<?> clazz, String name) {
+        private static MethodHandle lookup(int flavor, Class<?> clazz, String name, MethodType type) {
             switch(flavor) {
                 case METHOD_CALL:
-                    return Def.lookupMethod(clazz, name, Definition.INSTANCE);
+                    return Def.lookupMethod(clazz, name, type);
                 case LOAD:
-                    return Def.lookupGetter(clazz, name, Definition.INSTANCE);
+                    return Def.lookupGetter(clazz, name);
                 case STORE:
-                    return Def.lookupSetter(clazz, name, Definition.INSTANCE);
+                    return Def.lookupSetter(clazz, name);
                 case ARRAY_LOAD:
                     return Def.lookupArrayLoad(clazz);
                 case ARRAY_STORE:
@@ -115,7 +115,7 @@ public final class DefBootstrap {
             final MethodType type = type();
             final Object receiver = args[0];
             final Class<?> receiverClass = receiver.getClass();
-            final MethodHandle target = lookup(flavor, receiverClass, name).asType(type);
+            final MethodHandle target = lookup(flavor, receiverClass, name, type).asType(type);
 
             if (depth >= MAX_DEPTH) {
                 // revert to a vtable call

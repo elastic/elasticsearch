@@ -78,10 +78,7 @@ class ExpressionSearchScript implements SearchScript {
             }
 
             @Override
-            public Object run() { return new Double(evaluate()); }
-
-            @Override
-            public float runAsFloat() { return (float)evaluate();}
+            public Object run() { return Double.valueOf(evaluate()); }
 
             @Override
             public long runAsLong() { return (long)evaluate(); }

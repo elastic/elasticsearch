@@ -78,7 +78,6 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.flush(metrics.contains("flush"));
             indicesStatsRequest.warmer(metrics.contains("warmer"));
             indicesStatsRequest.queryCache(metrics.contains("query_cache"));
-            indicesStatsRequest.percolate(metrics.contains("percolator_cache"));
             indicesStatsRequest.segments(metrics.contains("segments"));
             indicesStatsRequest.fieldData(metrics.contains("fielddata"));
             indicesStatsRequest.completion(metrics.contains("completion"));

@@ -19,13 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.WriterUtility;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a list load/store shortcut.  (Internal only.)
@@ -36,16 +34,16 @@ final class LListShortcut extends ALink {
     Method getter;
     Method setter;
 
-    LListShortcut(final int line, final String location, final AExpression index) {
+    LListShortcut(int line, String location, AExpression index) {
         super(line, location, 2);
 
         this.index = index;
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        getter = before.struct.methods.get("get");
-        setter = before.struct.methods.get("set");
+    ALink analyze(Variables variables) {
+        getter = before.struct.methods.get(new Definition.MethodKey("get", 1));
+        setter = before.struct.methods.get(new Definition.MethodKey("set", 2));
 
         if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1 ||
             getter.arguments.get(0).sort != Sort.INT)) {
@@ -62,9 +60,9 @@ final class LListShortcut extends ALink {
         }
 
         if ((load || store) && (!load || getter != null) && (!store || setter != null)) {
-            index.expected = definition.intType;
-            index.analyze(settings, definition, variables);
-            index = index.cast(settings, definition, variables);
+            index.expected = Definition.INT_TYPE;
+            index.analyze(variables);
+            index = index.cast(variables);
 
             after = setter != null ? setter.arguments.get(1) : getter.rtn;
         } else {
@@ -75,12 +73,12 @@ final class LListShortcut extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        index.write(settings, definition, adapter);
+    void write(MethodWriter adapter) {
+        index.write(adapter);
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(MethodWriter adapter) {
         if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
             adapter.invokeInterface(getter.owner.type, getter.method);
         } else {
@@ -93,13 +91,13 @@ final class LListShortcut extends ALink {
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(MethodWriter adapter) {
         if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {
             adapter.invokeInterface(setter.owner.type, setter.method);
         } else {
             adapter.invokeVirtual(setter.owner.type, setter.method);
         }
 
-        WriterUtility.writePop(adapter, setter.rtn.sort.size);
+        adapter.writePop(setter.rtn.sort.size);
     }
 }

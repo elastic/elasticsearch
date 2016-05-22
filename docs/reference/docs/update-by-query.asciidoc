@@ -23,10 +23,13 @@ That will return something like this:
   "took" : 147,
   "timed_out": false,
   "updated": 120,
-  "batches": 2,
+  "batches": 1,
   "version_conflicts": 0,
   "noops": 0,
-  "retries": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  },
   "throttled_millis": 0,
   "requests_per_second": "unlimited",
   "throttled_until_millis": 0,
@@ -58,7 +61,7 @@ and the time when it attempted to update the document. This is fine because
 that update will have picked up the online mapping update.
 
 Back to the API format, you can limit `_update_by_query` to a single type. This
-will only update `tweet`s from the `twitter` index:
+will only update `tweet` documents from the `twitter` index:
 
 [source,js]
 --------------------------------------------------
@@ -116,7 +119,7 @@ Just as in <<docs-update,Update API>> you can set `ctx.op = "noop"` if
 your script decides that it doesn't have to make any changes. That will cause
 `_update_by_query` to omit that document from its updates. Setting `ctx.op` to
 anything else is an error. If you want to delete by a query you can use the
-{plugins}/plugins-delete-by-query.html[Delete by Query plugin] instead. Setting any
+<<docs-delete-by-query,Delete By Query API>> instead. Setting any
 other field in `ctx` is an error.
 
 Note that we stopped specifying `conflicts=proceed`. In this case we want a
@@ -146,12 +149,12 @@ POST twitter/_update_by_query?routing=1
 // CONSOLE
 // TEST[setup:twitter]
 
-By default `_update_by_query` uses scroll batches of 100. You can change the
+By default `_update_by_query` uses scroll batches of 1000. You can change the
 batch size with the `scroll_size` URL parameter:
 
 [source,js]
 --------------------------------------------------
-POST twitter/_update_by_query?scroll_size=1000
+POST twitter/_update_by_query?scroll_size=100
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -220,7 +223,10 @@ The JSON response looks like this:
   "updated": 0,
   "batches": 1,
   "version_conflicts": 2,
-  "retries": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  }
   "throttled_millis": 0,
   "failures" : [ ]
 }
@@ -244,7 +250,8 @@ The number of version conflicts that the update by query hit.
 
 `retries`::
 
-The number of retries that the update by query did in response to a full queue.
+The number of retries attempted by update-by-query. `bulk` is the number of bulk
+actions retried and `search` is the number of search actions retried.
 
 `throttled_millis`::
 
@@ -296,10 +303,13 @@ The responses looks like:
             "updated" : 3500,
             "created" : 0,
             "deleted" : 0,
-            "batches" : 36,
+            "batches" : 4,
             "version_conflicts" : 0,
             "noops" : 0,
-            "retries": 0,
+            "retries": {
+              "bulk": 0,
+              "search": 0
+            }
             "throttled_millis": 0
           },
           "description" : ""

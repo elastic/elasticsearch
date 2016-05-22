@@ -355,7 +355,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         }
     }
 
-    public static final class StringFieldType extends MappedFieldType {
+    public static final class StringFieldType extends org.elasticsearch.index.mapper.StringFieldType {
 
         private boolean fielddata;
         private double fielddataMinFrequency;
@@ -484,15 +484,6 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                         + name() + "] in order to load fielddata in memory by uninverting the inverted index. Note that this can however "
                         + "use significant memory.");
             }
-        }
-
-        @Override
-        public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
-            RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), flags, maxDeterminizedStates);
-            if (method != null) {
-                query.setRewriteMethod(method);
-            }
-            return query;
         }
     }
 

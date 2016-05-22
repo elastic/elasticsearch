@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import java.io.IOException;
-import java.util.Arrays;
-
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -34,6 +31,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
+import java.io.IOException;
+import java.util.Arrays;
+
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
@@ -42,7 +42,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         extends ActionRequest<Self> {
     public static final int SIZE_ALL_MATCHES = -1;
     private static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
-    private static final int DEFAULT_SCROLL_SIZE = 100;
+    private static final int DEFAULT_SCROLL_SIZE = 1000;
 
     /**
      * The search to be executed.

@@ -23,11 +23,13 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -36,9 +38,11 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
+import org.elasticsearch.index.query.PercolateQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -49,14 +53,17 @@ import java.util.Map;
 
 public class PercolatorFieldMapper extends FieldMapper {
 
+    public final static XContentType QUERY_BUILDER_CONTENT_TYPE = XContentType.SMILE;
+    public final static Setting<Boolean> INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING =
+            Setting.boolSetting("index.percolator.map_unmapped_fields_as_string", false, Setting.Property.IndexScope);
     @Deprecated
     public static final String LEGACY_TYPE_NAME = ".percolator";
     public static final String CONTENT_TYPE = "percolator";
     private static final PercolatorFieldType FIELD_TYPE = new PercolatorFieldType();
 
-    private static final String EXTRACTED_TERMS_FIELD_NAME = "extracted_terms";
-    private static final String UNKNOWN_QUERY_FIELD_NAME = "unknown_query";
-    static final String QUERY_BUILDER_FIELD_NAME = "query_builder_field";
+    public static final String EXTRACTED_TERMS_FIELD_NAME = "extracted_terms";
+    public static final String UNKNOWN_QUERY_FIELD_NAME = "unknown_query";
+    public static final String QUERY_BUILDER_FIELD_NAME = "query_builder_field";
 
     public static class Builder extends FieldMapper.Builder<Builder, PercolatorFieldMapper> {
 
@@ -149,6 +156,11 @@ public class PercolatorFieldMapper extends FieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            throw new QueryShardException(context, "Percolator fields are not searchable directly, use a percolate query instead");
+        }
     }
 
     private final boolean mapUnmappedFieldAsString;
@@ -166,7 +178,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         this.queryTermsField = queryTermsField;
         this.unknownQueryField = unknownQueryField;
         this.queryBuilderField = queryBuilderField;
-        this.mapUnmappedFieldAsString = PercolatorQueryCache.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING.get(indexSettings);
+        this.mapUnmappedFieldAsString = INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING.get(indexSettings);
     }
 
     @Override
@@ -190,7 +202,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
         queryBuilder = queryBuilder.rewrite(queryShardContext);
 
-        try (XContentBuilder builder = XContentFactory.contentBuilder(PercolatorQueryCache.QUERY_BUILDER_CONTENT_TYPE)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(QUERY_BUILDER_CONTENT_TYPE)) {
             queryBuilder.toXContent(builder, new MapParams(Collections.emptyMap()));
             builder.flush();
             byte[] queryBuilderAsBytes = builder.bytes().toBytes();

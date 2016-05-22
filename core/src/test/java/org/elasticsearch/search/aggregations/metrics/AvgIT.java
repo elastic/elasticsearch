@@ -28,7 +28,6 @@ import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.SearchScript;
@@ -370,7 +369,7 @@ public class AvgIT extends AbstractNumericTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractFieldScriptEngine.class, ExtractFieldScriptEngine.NAME, ScriptMode.ON));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractFieldScriptEngine.class, ExtractFieldScriptEngine.NAME, true));
         }
 
     }
@@ -456,11 +455,6 @@ public class AvgIT extends AbstractNumericTestCase {
                         }
 
                         @Override
-                        public float runAsFloat() {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        @Override
                         public double runAsDouble() {
                             throw new UnsupportedOperationException();
                         }
@@ -495,7 +489,7 @@ public class AvgIT extends AbstractNumericTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.NAME, ScriptMode.ON));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.NAME, true));
         }
 
     }
@@ -576,11 +570,6 @@ public class AvgIT extends AbstractNumericTestCase {
                         @Override
                         public long runAsLong() {
                             return ((Number) vars.get("_value")).longValue() + inc;
-                        }
-
-                        @Override
-                        public float runAsFloat() {
-                            throw new UnsupportedOperationException();
                         }
 
                         @Override

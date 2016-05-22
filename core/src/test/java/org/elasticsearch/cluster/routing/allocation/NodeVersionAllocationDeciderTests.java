@@ -337,7 +337,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         AllocationService strategy = new MockAllocationService(Settings.EMPTY,
             allocationDeciders,
             NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
-        RoutingAllocation.Result result = strategy.reroute(state, new AllocationCommands(), true);
+        RoutingAllocation.Result result = strategy.reroute(state, new AllocationCommands(), true, false);
         // the two indices must stay as is, the replicas cannot move to oldNode2 because versions don't match
         state = ClusterState.builder(state).routingResult(result).build();
         assertThat(result.routingTable().index(shard2.getIndex()).shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(0));
@@ -369,7 +369,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         AllocationService strategy = new MockAllocationService(Settings.EMPTY,
             allocationDeciders,
             NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
-        RoutingAllocation.Result result = strategy.reroute(state, new AllocationCommands(), true);
+        RoutingAllocation.Result result = strategy.reroute(state, new AllocationCommands(), true, false);
 
         // Make sure that primary shards are only allocated on the new node
         for (int i = 0; i < numberOfShards; i++) {

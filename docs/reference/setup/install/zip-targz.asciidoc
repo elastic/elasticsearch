@@ -93,7 +93,7 @@ name, as follows:
 
 [source,sh]
 --------------------------------------------
-./bin/elasticsearch -d -E es.cluster.name=my_cluster -E es.node.name=node_1
+./bin/elasticsearch -d -Ecluster.name=my_cluster -Enode.name=node_1
 --------------------------------------------
 
 TIP: Typically, any cluster-wide settings (like `cluster.name`) should be

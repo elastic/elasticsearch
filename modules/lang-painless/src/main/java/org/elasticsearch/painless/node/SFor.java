@@ -19,12 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.WriterUtility;
 import org.objectweb.asm.Label;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a for loop.
@@ -35,31 +33,33 @@ public final class SFor extends AStatement {
     AExpression condition;
     AExpression afterthought;
     final AStatement block;
+    final int maxLoopCounter;
 
-    public SFor(final int line, final String location,
-                final ANode initializer, final AExpression condition, final AExpression afterthought, final AStatement block) {
+    public SFor(int line, String location,
+                ANode initializer, AExpression condition, AExpression afterthought, AStatement block, int maxLoopCounter) {
         super(line, location);
 
         this.initializer = initializer;
         this.condition = condition;
         this.afterthought = afterthought;
         this.block = block;
+        this.maxLoopCounter = maxLoopCounter;
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Variables variables) {
         variables.incrementScope();
 
         boolean continuous = false;
 
         if (initializer != null) {
             if (initializer instanceof SDeclBlock) {
-                ((SDeclBlock)initializer).analyze(settings, definition, variables);
+                ((SDeclBlock)initializer).analyze(variables);
             } else if (initializer instanceof AExpression) {
                 final AExpression initializer = (AExpression)this.initializer;
 
                 initializer.read = false;
-                initializer.analyze(settings, definition, variables);
+                initializer.analyze(variables);
 
                 if (!initializer.statement) {
                     throw new IllegalArgumentException(initializer.error("Not a statement."));
@@ -71,9 +71,9 @@ public final class SFor extends AStatement {
 
         if (condition != null) {
 
-            condition.expected = definition.booleanType;
-            condition.analyze(settings, definition, variables);
-            condition = condition.cast(settings, definition, variables);
+            condition.expected = Definition.BOOLEAN_TYPE;
+            condition.analyze(variables);
+            condition = condition.cast(variables);
 
             if (condition.constant != null) {
                 continuous = (boolean)condition.constant;
@@ -92,7 +92,7 @@ public final class SFor extends AStatement {
 
         if (afterthought != null) {
             afterthought.read = false;
-            afterthought.analyze(settings, definition, variables);
+            afterthought.analyze(variables);
 
             if (!afterthought.statement) {
                 throw new IllegalArgumentException(afterthought.error("Not a statement."));
@@ -105,7 +105,7 @@ public final class SFor extends AStatement {
             block.beginLoop = true;
             block.inLoop = true;
 
-            block.analyze(settings, definition, variables);
+            block.analyze(variables);
 
             if (block.loopEscape && !block.anyContinue) {
                 throw new IllegalArgumentException(error("Extraneous for loop."));
@@ -121,7 +121,7 @@ public final class SFor extends AStatement {
 
         statementCount = 1;
 
-        if (settings.getMaxLoopCounter() > 0) {
+        if (maxLoopCounter > 0) {
             loopCounterSlot = variables.getVariable(location, "#loop").slot;
         }
 
@@ -129,26 +129,26 @@ public final class SFor extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(MethodWriter adapter) {
         writeDebugInfo(adapter);
         final Label start = new Label();
         final Label begin = afterthought == null ? start : new Label();
         final Label end = new Label();
 
         if (initializer instanceof SDeclBlock) {
-            ((SDeclBlock)initializer).write(settings, definition, adapter);
+            ((SDeclBlock)initializer).write(adapter);
         } else if (initializer instanceof AExpression) {
             AExpression initializer = (AExpression)this.initializer;
 
-            initializer.write(settings, definition, adapter);
-            WriterUtility.writePop(adapter, initializer.expected.sort.size);
+            initializer.write(adapter);
+            adapter.writePop(initializer.expected.sort.size);
         }
 
         adapter.mark(start);
 
         if (condition != null) {
             condition.fals = end;
-            condition.write(settings, definition, adapter);
+            condition.write(adapter);
         }
 
         boolean allEscape = false;
@@ -162,15 +162,15 @@ public final class SFor extends AStatement {
                 ++statementCount;
             }
 
-            WriterUtility.writeLoopCounter(adapter, loopCounterSlot, statementCount);
-            block.write(settings, definition, adapter);
+            adapter.writeLoopCounter(loopCounterSlot, statementCount);
+            block.write(adapter);
         } else {
-            WriterUtility.writeLoopCounter(adapter, loopCounterSlot, 1);
+            adapter.writeLoopCounter(loopCounterSlot, 1);
         }
 
         if (afterthought != null) {
             adapter.mark(begin);
-            afterthought.write(settings, definition, adapter);
+            afterthought.write(adapter);
         }
 
         if (afterthought != null || !allEscape) {

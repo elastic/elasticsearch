@@ -130,9 +130,6 @@ public class IndexFieldMapper extends MetadataFieldMapper {
          */
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            if (context == null) {
-                return super.termQuery(value, context);
-            }
             if (isSameIndex(value, context.index().getName())) {
                 return Queries.newMatchAllQuery();
             } else {

@@ -52,7 +52,7 @@ with a timeout defaulting at 20 times the ping timeout.
 
 When the master node stops or has encountered a problem, the cluster nodes
 start pinging again and will elect a new master. This pinging round also
-serves as a protection against (partial) network failures where node may unjustly
+serves as a protection against (partial) network failures where a node may unjustly
 think that the master has failed. In this case the node will simply hear from
 other nodes about the currently active master.
 

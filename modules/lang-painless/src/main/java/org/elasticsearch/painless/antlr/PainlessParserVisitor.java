@@ -275,6 +275,13 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFalse(PainlessParser.FalseContext ctx);
   /**
+   * Visit a parse tree produced by the {@code null}
+   * labeled alternative in {@link PainlessParser#unary}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitNull(PainlessParser.NullContext ctx);
+  /**
    * Visit a parse tree produced by the {@code operator}
    * labeled alternative in {@link PainlessParser#unary}.
    * @param ctx the parse tree
@@ -303,12 +310,12 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitStaticprimary(PainlessParser.StaticprimaryContext ctx);
   /**
-   * Visit a parse tree produced by the {@code arraycreation}
+   * Visit a parse tree produced by the {@code newarray}
    * labeled alternative in {@link PainlessParser#chain}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitArraycreation(PainlessParser.ArraycreationContext ctx);
+  T visitNewarray(PainlessParser.NewarrayContext ctx);
   /**
    * Visit a parse tree produced by the {@code precedence}
    * labeled alternative in {@link PainlessParser#primary}.

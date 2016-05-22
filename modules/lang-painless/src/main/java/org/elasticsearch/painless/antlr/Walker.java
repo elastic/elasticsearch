@@ -59,7 +59,9 @@ import org.elasticsearch.painless.antlr.PainlessParser.StatementBlockContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ThrowStatementContext;
 import org.elasticsearch.painless.antlr.PainlessParser.TryStatementContext;
 import org.elasticsearch.painless.antlr.PainlessParser.TypeContext;
+import org.elasticsearch.painless.antlr.PainlessParser.SingleContext;
 import org.elasticsearch.painless.node.AExpression;
+import org.elasticsearch.painless.node.ALink;
 import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.AStatement;
 import org.elasticsearch.painless.node.SBlock;
@@ -492,8 +494,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
-    public ANode visitSingle(PainlessParser.SingleContext ctx) {
-        return null;
+    public ANode visitSingle(SingleContext ctx) {
+        return visit(ctx.unary());
     }
 
     @Override
@@ -552,6 +554,11 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
+    public ANode visitNull(PainlessParser.NullContext ctx) {
+        return null;
+    }
+
+    @Override
     public ANode visitOperator(PainlessParser.OperatorContext ctx) {
         return null;
     }
@@ -572,7 +579,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
-    public ANode visitArraycreation(PainlessParser.ArraycreationContext ctx) {
+    public ANode visitNewarray(PainlessParser.NewarrayContext ctx) {
         return null;
     }
 

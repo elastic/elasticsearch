@@ -35,8 +35,8 @@ public final class EConditional extends AExpression {
     AExpression left;
     AExpression right;
 
-    public EConditional(int line, String location, AExpression condition, AExpression left, AExpression right) {
-        super(line, location);
+    public EConditional(int line, int offset, String location, AExpression condition, AExpression left, AExpression right) {
+        super(line, offset, location);
 
         this.condition = condition;
         this.left = left;

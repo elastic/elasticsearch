@@ -36,8 +36,8 @@ final class LDefCall extends ALink implements IDefLink {
     final String name;
     final List<AExpression> arguments;
 
-    LDefCall(int line, String location, String name, List<AExpression> arguments) {
-        super(line, location, -1);
+    LDefCall(int line, int offset, String location, String name, List<AExpression> arguments) {
+        super(line, offset, location, -1);
 
         this.name = name;
         this.arguments = arguments;
@@ -84,7 +84,7 @@ final class LDefCall extends ALink implements IDefLink {
         // return value
         signature.append(after.type.getDescriptor());
 
-        adapter.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.METHOD_CALL);
+        adapter.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.METHOD_CALL);
     }
 
     @Override

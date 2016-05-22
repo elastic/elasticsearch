@@ -28,8 +28,8 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class LString extends ALink {
 
-    public LString(int line, String location, String string) {
-        super(line, location, -1);
+    public LString(int line, int offset, String location, String string) {
+        super(line, offset, location, -1);
 
         this.string = string;
     }

@@ -38,8 +38,8 @@ public final class LNewObj extends ALink {
 
     Constructor constructor;
 
-    public LNewObj(int line, String location, String type, List<AExpression> arguments) {
-        super(line, location, -1);
+    public LNewObj(int line, int offset, String location, String type, List<AExpression> arguments) {
+        super(line, offset, location, -1);
 
         this.type = type;
         this.arguments = arguments;

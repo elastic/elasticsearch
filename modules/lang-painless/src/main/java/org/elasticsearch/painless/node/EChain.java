@@ -46,9 +46,9 @@ public final class EChain extends AExpression {
     Cast there = null;
     Cast back = null;
 
-    public EChain(int line, String location, List<ALink> links,
+    public EChain(int line, int offset, String location, List<ALink> links,
                   boolean pre, boolean post, Operation operation, AExpression expression) {
-        super(line, location);
+        super(line, offset, location);
 
         this.links = links;
         this.pre = pre;
@@ -124,25 +124,25 @@ public final class EChain extends AExpression {
 
             if (operation == Operation.INCR) {
                 if (sort == Sort.DOUBLE) {
-                    expression = new EConstant(line, location, 1D);
+                    expression = new EConstant(line, offset, location, 1D);
                 } else if (sort == Sort.FLOAT) {
-                    expression = new EConstant(line, location, 1F);
+                    expression = new EConstant(line, offset, location, 1F);
                 } else if (sort == Sort.LONG) {
-                    expression = new EConstant(line, location, 1L);
+                    expression = new EConstant(line, offset, location, 1L);
                 } else {
-                    expression = new EConstant(line, location, 1);
+                    expression = new EConstant(line, offset, location, 1);
                 }
 
                 operation = Operation.ADD;
             } else if (operation == Operation.DECR) {
                 if (sort == Sort.DOUBLE) {
-                    expression = new EConstant(line, location, 1D);
+                    expression = new EConstant(line, offset, location, 1D);
                 } else if (sort == Sort.FLOAT) {
-                    expression = new EConstant(line, location, 1F);
+                    expression = new EConstant(line, offset, location, 1F);
                 } else if (sort == Sort.LONG) {
-                    expression = new EConstant(line, location, 1L);
+                    expression = new EConstant(line, offset, location, 1L);
                 } else {
-                    expression = new EConstant(line, location, 1);
+                    expression = new EConstant(line, offset, location, 1);
                 }
 
                 operation = Operation.SUB;

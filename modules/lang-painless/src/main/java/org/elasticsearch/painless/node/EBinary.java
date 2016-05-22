@@ -38,8 +38,8 @@ public final class EBinary extends AExpression {
 
     boolean cat = false;
 
-    public EBinary(int line, String location, Operation operation, AExpression left, AExpression right) {
-        super(line, location);
+    public EBinary(int line, int offset, String location, Operation operation, AExpression left, AExpression right) {
+        super(line, offset, location);
 
         this.operation = operation;
         this.left = left;

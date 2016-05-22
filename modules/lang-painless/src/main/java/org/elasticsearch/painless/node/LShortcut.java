@@ -36,8 +36,8 @@ final class LShortcut extends ALink {
     Method getter = null;
     Method setter = null;
 
-    LShortcut(int line, String location, String value) {
-        super(line, location, 1);
+    LShortcut(int line, int offset, String location, String value) {
+        super(line, offset, location, 1);
 
         this.value = value;
     }

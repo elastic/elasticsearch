@@ -34,8 +34,8 @@ public final class LCast extends ALink {
 
     Cast cast = null;
 
-    public LCast(int line, String location, String type) {
-        super(line, location, -1);
+    public LCast(int line, int offset, String location, String type) {
+        super(line, offset, location, -1);
 
         this.type = type;
     }

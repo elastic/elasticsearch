@@ -40,8 +40,8 @@ public final class EUnary extends AExpression {
     Operation operation;
     AExpression child;
 
-    public EUnary(int line, String location, Operation operation, AExpression child) {
-        super(line, location);
+    public EUnary(int line, int offset, String location, Operation operation, AExpression child) {
+        super(line, offset, location);
 
         this.operation = operation;
         this.child = child;

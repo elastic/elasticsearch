@@ -38,8 +38,8 @@ public final class LField extends ALink {
 
     Field field;
 
-    public LField(int line, String location, String value) {
-        super(line, location, 1);
+    public LField(int line, int offset, String location, String value) {
+        super(line, offset, location, 1);
 
         this.value = value;
     }
@@ -53,9 +53,9 @@ public final class LField extends ALink {
         final Sort sort = before.sort;
 
         if (sort == Sort.ARRAY) {
-            return new LArrayLength(line, location, value).copy(this).analyze(variables);
+            return new LArrayLength(line, offset, location, value).copy(this).analyze(variables);
         } else if (sort == Sort.DEF) {
-            return new LDefField(line, location, value).copy(this).analyze(variables);
+            return new LDefField(line, offset, location, value).copy(this).analyze(variables);
         }
 
         final Struct struct = before.struct;
@@ -73,23 +73,23 @@ public final class LField extends ALink {
         } else {
             // TODO: improve this: the isXXX case seems missing???
             final boolean shortcut =
-                struct.methods.containsKey(new Definition.MethodKey("get" + 
+                struct.methods.containsKey(new Definition.MethodKey("get" +
                         Character.toUpperCase(value.charAt(0)) + value.substring(1), 0)) ||
-                struct.methods.containsKey(new Definition.MethodKey("set" + 
+                struct.methods.containsKey(new Definition.MethodKey("set" +
                         Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
             if (shortcut) {
-                return new LShortcut(line, location, value).copy(this).analyze(variables);
+                return new LShortcut(line, offset, location, value).copy(this).analyze(variables);
             } else {
-                final EConstant index = new EConstant(line, location, value);
+                final EConstant index = new EConstant(line, offset, location, value);
                 index.analyze(variables);
 
                 if (Map.class.isAssignableFrom(before.clazz)) {
-                    return new LMapShortcut(line, location, index).copy(this).analyze(variables);
+                    return new LMapShortcut(line, offset, location, index).copy(this).analyze(variables);
                 }
-                
+
                 if (List.class.isAssignableFrom(before.clazz)) {
-                    return new LListShortcut(line, location, index).copy(this).analyze(variables);
+                    return new LListShortcut(line, offset, location, index).copy(this).analyze(variables);
                 }
             }
         }

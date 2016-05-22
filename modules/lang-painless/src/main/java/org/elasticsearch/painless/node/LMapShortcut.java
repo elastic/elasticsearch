@@ -34,8 +34,8 @@ final class LMapShortcut extends ALink {
     Method getter;
     Method setter;
 
-    LMapShortcut(int line, String location, AExpression index) {
-        super(line, location, 2);
+    LMapShortcut(int line, int offset, String location, AExpression index) {
+        super(line, offset, location, 2);
 
         this.index = index;
     }

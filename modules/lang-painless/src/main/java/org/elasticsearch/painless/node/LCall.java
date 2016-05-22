@@ -38,8 +38,8 @@ public final class LCall extends ALink {
 
     Method method = null;
 
-    public LCall(int line, String location, String name, List<AExpression> arguments) {
-        super(line, location, -1);
+    public LCall(int line, int offset, String location, String name, List<AExpression> arguments) {
+        super(line, offset, location, -1);
 
         this.name = name;
         this.arguments = arguments;
@@ -74,7 +74,7 @@ public final class LCall extends ALink {
 
             return this;
         } else if (before.sort == Sort.DEF) {
-            final ALink link = new LDefCall(line, location, name, arguments);
+            final ALink link = new LDefCall(line, offset, location, name, arguments);
             link.copy(this);
 
             return link.analyze(variables);

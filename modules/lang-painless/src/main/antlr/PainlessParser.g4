@@ -159,51 +159,52 @@ delimiter
     | EOF
     ;
 
-expression
-    :               unary                                            # single
-    |               expression ( MUL | DIV | REM ) expression        # binary
-    |               expression ( ADD | SUB ) expression              # binary
-    |               expression ( LSH | RSH | USH ) expression        # binary
-    |               expression ( LT | LTE | GT | GTE ) expression    # comp
-    |               expression ( EQ | EQR | NE | NER ) expression    # comp
-    |               expression BWAND expression                      # binary
-    |               expression XOR expression                        # binary
-    |               expression BWOR expression                       # binary
-    |               expression BOOLAND expression                    # bool
-    |               expression BOOLOR expression                     # bool
-    | <assoc=right> expression COND expression COLON expression      # conditional
+expression returns [boolean s = true]
+    :               u = unary                                             { $s = $u.s; }           # single
+    |               expression ( MUL | DIV | REM ) expression             { $s = false; }          # binary
+    |               expression ( ADD | SUB ) expression                   { $s = false; }          # binary
+    |               expression ( LSH | RSH | USH ) expression             { $s = false; }          # binary
+    |               expression ( LT | LTE | GT | GTE ) expression         { $s = false; }          # comp
+    |               expression ( EQ | EQR | NE | NER ) expression         { $s = false; }          # comp
+    |               expression BWAND expression                           { $s = false; }          # binary
+    |               expression XOR expression                             { $s = false; }          # binary
+    |               expression BWOR expression                            { $s = false; }          # binary
+    |               expression BOOLAND expression                         { $s = false; }          # bool
+    |               expression BOOLOR expression                          { $s = false; }          # bool
+    | <assoc=right> expression COND e0 = expression COLON e1 = expression { $s = $e0.s && $e1.s; } # conditional
     |               chain ( ASSIGN | AADD | ASUB | AMUL |
                             ADIV   | AREM | AAND | AXOR |
-                            AOR    | ALSH | ARSH | AUSH ) expression # assignment
+                            AOR    | ALSH | ARSH | AUSH ) expression                               # assignment
     ;
 
-unary
-    : ( INCR | DECR ) chain                 # pre
-    | chain (INCR | DECR )                  # post
-    | chain                                 # read
-    | ( OCTAL | HEX | INTEGER | DECIMAL )   # numeric
-    | TRUE                                  # true
-    | FALSE                                 # false
-    | ( BOOLNOT | BWNOT | ADD | SUB ) unary # operator
-    | LP declarationType RP unary           # cast
+unary returns [boolean s = true]
+    : ( INCR | DECR ) chain                                 # pre
+    | chain (INCR | DECR )                                  # post
+    | chain                                                 # read
+    | ( OCTAL | HEX | INTEGER | DECIMAL )   { $s = false; } # numeric
+    | TRUE                                  { $s = false; } # true
+    | FALSE                                 { $s = false; } # false
+    | NULL                                  { $s = false; } # null
+    | ( BOOLNOT | BWNOT | ADD | SUB ) unary                 # operator
+    | LP declarationType RP unary                           # cast
     ;
 
 chain
-    : primary secondary*                                  # dynamicprimary
-    | declarationType dotsecondary secondary*             # staticprimary
-    | NEW type bracesecondary+ (dotsecondary secondary*)? # arraycreation
+    : p = primary secondary[$p.s]*                               # dynamicprimary
+    | declarationType dotsecondary secondary[true]*             # staticprimary
+    | NEW type bracesecondary+ (dotsecondary secondary[true]*)? # newarray
     ;
 
-primary
-    : LP expression RP                       # precedence
-    | STRING                                 # string
-    | ID                                     # variable
-    | NEW type arguments                     # newobject
+primary returns [boolean s = true ]
+    : LP e = expression RP { $s = $e.s; } # precedence
+    | STRING                              # string
+    | ID                                  # variable
+    | NEW type arguments                  # newobject
     ;
 
-secondary
-    : dotsecondary
-    | bracesecondary
+secondary [boolean s]
+    : { $s }? dotsecondary
+    | { $s }? bracesecondary
     ;
 
 dotsecondary

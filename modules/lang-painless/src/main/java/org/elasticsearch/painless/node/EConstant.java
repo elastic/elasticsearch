@@ -30,8 +30,8 @@ import org.elasticsearch.painless.MethodWriter;
  */
 final class EConstant extends AExpression {
 
-    EConstant(int line, String location, Object constant) {
-        super(line, location);
+    EConstant(int line, int offset, String location, Object constant) {
+        super(line, offset, location);
 
         this.constant = constant;
     }

@@ -62,9 +62,8 @@ class PrecommitTasks {
     private static Task configureForbiddenApis(Project project) {
         project.pluginManager.apply(ForbiddenApisPlugin.class)
         project.forbiddenApis {
-            internalRuntimeForbidden = true
             failOnUnsupportedJava = false
-            bundledSignatures = ['jdk-unsafe', 'jdk-deprecated', 'jdk-system-out']
+            bundledSignatures = ['jdk-unsafe', 'jdk-deprecated', 'jdk-non-portable', 'jdk-system-out']
             signaturesURLs = [getClass().getResource('/forbidden/jdk-signatures.txt'),
                               getClass().getResource('/forbidden/es-all-signatures.txt')]
             suppressAnnotations = ['**.SuppressForbidden']

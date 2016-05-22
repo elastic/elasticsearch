@@ -190,12 +190,12 @@ unary returns [boolean s = true]
     ;
 
 chain
-    : p = primary secondary[$p.s]*                               # dynamicprimary
+    : p = primary secondary[$p.s]*                              # dynamicprimary
     | declarationType dotsecondary secondary[true]*             # staticprimary
     | NEW type bracesecondary+ (dotsecondary secondary[true]*)? # newarray
     ;
 
-primary returns [boolean s = true ]
+primary returns [boolean s = true]
     : LP e = expression RP { $s = $e.s; } # precedence
     | STRING                              # string
     | ID                                  # variable

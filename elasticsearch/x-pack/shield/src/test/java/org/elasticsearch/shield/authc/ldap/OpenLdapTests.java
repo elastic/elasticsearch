@@ -97,7 +97,6 @@ public class OpenLdapTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/2313")
     public void testUsageStats() throws Exception {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
@@ -120,7 +119,7 @@ public class OpenLdapTests extends ESTestCase {
 
         Map<String, Object> stats = realm.usageStats();
         assertThat(stats, is(notNullValue()));
-        assertThat(stats, hasEntry("size", "small"));
+        assertThat(stats, hasEntry("size", "tiny"));
         assertThat(stats, hasEntry("ssl", true));
         assertThat(stats, hasEntry("user_search", userSearch));
         assertThat(stats, hasEntry("load_balance_type", loadBalanceType));

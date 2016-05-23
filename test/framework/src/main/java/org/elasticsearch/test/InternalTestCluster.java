@@ -80,7 +80,6 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
@@ -256,11 +255,14 @@ public final class InternalTestCluster extends TestCluster {
             this.numSharedMasterNodes = 0;
         } else {
             if (numMasterNodes < 0) {
-                if (random.nextBoolean()) {
-                    this.numSharedMasterNodes = RandomInts.randomIntBetween(random, DEFAULT_MIN_NUM_MASTER_NODES, DEFAULT_MAX_NUM_MASTER_NODES);
-                } else {
+                if (random.nextBoolean() == false) {
                     // data nodes will assume the master role
                     this.numSharedMasterNodes = 0;
+                } else if (random.nextBoolean()) {
+                    // use a dedicated master, but only 1 to reduce overhead to tests
+                    this.numSharedMasterNodes = 1;
+                } else {
+                    this.numSharedMasterNodes = RandomInts.randomIntBetween(random, DEFAULT_MIN_NUM_MASTER_NODES, DEFAULT_MAX_NUM_MASTER_NODES);
                 }
             } else {
                 this.numSharedMasterNodes = numMasterNodes;

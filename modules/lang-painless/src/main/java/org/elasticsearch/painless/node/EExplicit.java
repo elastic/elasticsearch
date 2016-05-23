@@ -42,7 +42,7 @@ public final class EExplicit extends AExpression {
     void analyze(Variables variables) {
         try {
             actual = Definition.getType(this.type);
-        } catch (final IllegalArgumentException exception) {
+        } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
         }
 
@@ -53,7 +53,7 @@ public final class EExplicit extends AExpression {
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         throw new IllegalArgumentException(error("Illegal tree structure."));
     }
 

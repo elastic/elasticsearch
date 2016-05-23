@@ -77,19 +77,19 @@ public final class EConditional extends AExpression {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        final Label localfals = new Label();
-        final Label end = new Label();
+    void write(MethodWriter writer) {
+        Label localfals = new Label();
+        Label end = new Label();
 
         condition.fals = localfals;
         left.tru = right.tru = tru;
         left.fals = right.fals = fals;
 
-        condition.write(adapter);
-        left.write(adapter);
-        adapter.goTo(end);
-        adapter.mark(localfals);
-        right.write(adapter);
-        adapter.mark(end);
+        condition.write(writer);
+        left.write(writer);
+        writer.goTo(end);
+        writer.mark(localfals);
+        right.write(writer);
+        writer.mark(end);
     }
 }

@@ -29,10 +29,15 @@ import org.antlr.v4.runtime.atn.PredictionMode;
 import org.elasticsearch.painless.antlr.PainlessParser.SourceContext;
 import org.elasticsearch.painless.ScriptTestCase;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.text.ParseException;
 
 public class ParserTests extends ScriptTestCase {
+    private static class TestException extends RuntimeException {
+        TestException(String msg) {
+            super(msg);
+        }
+    }
+
     private SourceContext buildAntlrTree(String source) {
         ANTLRInputStream stream = new ANTLRInputStream(source);
         PainlessLexer lexer = new ErrorHandlingLexer(stream);
@@ -47,9 +52,9 @@ public class ParserTests extends ScriptTestCase {
         // a second listener to fail the test when the above happens.
         parser.addErrorListener(new BaseErrorListener() {
             @Override
-            public void syntaxError(final Recognizer<?,?> recognizer, final Object offendingSymbol, final int line,
+            public void syntaxError(final Recognizer<?, ?> recognizer, final Object offendingSymbol, final int line,
                                     final int charPositionInLine, final String msg, final RecognitionException e) {
-                throw new AssertionError("line: " + line + ", offset: " + charPositionInLine +
+                throw new TestException("line: " + line + ", offset: " + charPositionInLine +
                     ", symbol:" + offendingSymbol + " " + msg);
             }
         });
@@ -63,6 +68,14 @@ public class ParserTests extends ScriptTestCase {
     }
 
     public void testIllegalSecondary() {
-        //buildAntlrTree("((x) + 2).x");
+        //TODO: Need way more corner case tests.
+        Exception exception = expectThrows(TestException.class, () -> buildAntlrTree("(x = 5).y"));
+        assertTrue(exception.getMessage().contains("no viable alternative"));
+        exception = expectThrows(TestException.class, () -> buildAntlrTree("((x = 5).y = 2).z;"));
+        assertTrue(exception.getMessage().contains("no viable alternative"));
+        exception = expectThrows(TestException.class, () -> buildAntlrTree("(2 + 2).z"));
+        assertTrue(exception.getMessage().contains("no viable alternative"));
+        exception = expectThrows(RuntimeException.class, () -> buildAntlrTree("((Map)x.-x)"));
+        assertTrue(exception.getMessage().contains("unexpected character"));
     }
 }

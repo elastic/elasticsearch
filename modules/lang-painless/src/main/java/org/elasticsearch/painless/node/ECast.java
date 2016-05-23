@@ -49,9 +49,9 @@ final class ECast extends AExpression {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        child.write(adapter);
-        adapter.writeCast(cast);
-        adapter.writeBranch(tru, fals);
+    void write(MethodWriter writer) {
+        child.write(writer);
+        writer.writeCast(cast);
+        writer.writeBranch(tru, fals);
     }
 }

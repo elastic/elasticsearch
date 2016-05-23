@@ -57,9 +57,9 @@ public abstract class ANode {
      * <p>
      * Currently we emit line number data for for leaf S-nodes
      */
-    void writeDebugInfo(MethodWriter adapter) {
+    void writeDebugInfo(MethodWriter writer) {
         Label label = new Label();
-        adapter.visitLabel(label);
-        adapter.visitLineNumber(line, label);
+        writer.visitLabel(label);
+        writer.visitLineNumber(line, label);
     }
 }

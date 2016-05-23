@@ -83,21 +83,25 @@ delimiter
     ;
 
 expression returns [boolean s = true]
-    :               u = unary[false]                                      { $s = $u.s; }           # single
-    |               expression ( MUL | DIV | REM ) expression             { $s = false; }          # binary
-    |               expression ( ADD | SUB ) expression                   { $s = false; }          # binary
-    |               expression ( LSH | RSH | USH ) expression             { $s = false; }          # binary
-    |               expression ( LT | LTE | GT | GTE ) expression         { $s = false; }          # comp
-    |               expression ( EQ | EQR | NE | NER ) expression         { $s = false; }          # comp
-    |               expression BWAND expression                           { $s = false; }          # binary
-    |               expression XOR expression                             { $s = false; }          # binary
-    |               expression BWOR expression                            { $s = false; }          # binary
-    |               expression BOOLAND expression                         { $s = false; }          # bool
-    |               expression BOOLOR expression                          { $s = false; }          # bool
-    | <assoc=right> expression COND e0 = expression COLON e1 = expression { $s = $e0.s && $e1.s; } # conditional
+    :               u = unary[false]                                       { $s = $u.s; }           # single
+    |               expression ( MUL | DIV | REM ) expression              { $s = false; }          # binary
+    |               expression ( ADD | SUB ) expression                    { $s = false; }          # binary
+    |               expression ( LSH | RSH | USH ) expression              { $s = false; }          # binary
+    |               expression ( LT | LTE | GT | GTE ) expression          { $s = false; }          # comp
+    |               expression ( EQ | EQR | NE | NER ) expression          { $s = false; }          # comp
+    |               expression BWAND expression                            { $s = false; }          # binary
+    |               expression XOR expression                              { $s = false; }          # binary
+    |               expression BWOR expression                             { $s = false; }          # binary
+    |               expression BOOLAND expression                          { $s = false; }          # bool
+    |               expression BOOLOR expression                           { $s = false; }          # bool
+    | <assoc=right> expression COND e0 = expression COLON e1 = expression  { $s = $e0.s && $e1.s; } # conditional
+    // TODO: Should we allow crazy syntax like (x = 5).call()?
+    //       Other crazy syntaxes work, but this one requires
+    //       a complete restructure of the rules as EChain isn't
+    //       designed to handle more postfixes after an assignment.
     | <assoc=right> chain[true] ( ASSIGN | AADD | ASUB | AMUL |
                                   ADIV   | AREM | AAND | AXOR |
-                                  AOR    | ALSH | ARSH | AUSH ) expression                         # assignment
+                                  AOR    | ALSH | ARSH | AUSH ) expression { $s = false; }         # assignment
     ;
 
 unary[boolean c] returns [boolean s = true]

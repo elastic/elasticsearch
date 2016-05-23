@@ -49,7 +49,7 @@ public final class ENull extends AExpression {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        adapter.visitInsn(Opcodes.ACONST_NULL);
+    void write(MethodWriter writer) {
+        writer.visitInsn(Opcodes.ACONST_NULL);
     }
 }

@@ -35,7 +35,6 @@ import java.util.List;
  */
 public final class EChain extends AExpression {
 
-    AExpression head;
     final List<ALink> links;
     final boolean pre;
     final boolean post;
@@ -47,11 +46,10 @@ public final class EChain extends AExpression {
     Cast there = null;
     Cast back = null;
 
-    public EChain(int line, int offset, String location, EChain head, List<ALink> links,
+    public EChain(int line, int offset, String location, List<ALink> links,
                   boolean pre, boolean post, Operation operation, AExpression expression) {
         super(line, offset, location);
 
-        this.head = head;
         this.links = links;
         this.pre = pre;
         this.post = post;
@@ -86,12 +84,6 @@ public final class EChain extends AExpression {
                 if (index == 1) {
                     current.statik = previous.statik;
                 }
-            } else if (head != null) {
-                head.analyze(variables);
-                head.expected = head.actual;
-                head = head.cast(variables);
-
-                current.before = head.actual;
             }
 
             if (index == links.size() - 1) {
@@ -258,10 +250,6 @@ public final class EChain extends AExpression {
     void write(MethodWriter writer) {
         if (cat) {
             writer.writeNewStrings();
-        }
-
-        if (head != null) {
-            head.write(writer);
         }
 
         ALink last = links.get(links.size() - 1);

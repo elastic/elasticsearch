@@ -79,7 +79,7 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply multiply [*] to types " +
@@ -93,7 +93,7 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant * (int)right.constant;
@@ -115,7 +115,7 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply divide [/] to types " +
@@ -129,7 +129,7 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant / (int)right.constant;
@@ -151,7 +151,7 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply remainder [%] to types " +
@@ -165,7 +165,7 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant % (int)right.constant;
@@ -187,14 +187,14 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteAdd(left.actual, right.actual);
+        Type promote = AnalyzerCaster.promoteAdd(left.actual, right.actual);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply add [+] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        final Sort sort = promote.sort;
+        Sort sort = promote.sort;
 
         if (sort == Sort.STRING) {
             left.expected = left.actual;
@@ -239,7 +239,7 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply subtract [-] to types " +
@@ -253,7 +253,7 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant - (int)right.constant;
@@ -275,7 +275,7 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, false);
+        Type promote = AnalyzerCaster.promoteNumeric(left.actual, false);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply left shift [<<] to types " +
@@ -290,7 +290,7 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant << (int)right.constant;
@@ -308,7 +308,7 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, false);
+        Type promote = AnalyzerCaster.promoteNumeric(left.actual, false);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply right shift [>>] to types " +
@@ -323,7 +323,7 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant >> (int)right.constant;
@@ -341,7 +341,7 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, false);
+        Type promote = AnalyzerCaster.promoteNumeric(left.actual, false);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply unsigned shift [>>>] to types " +
@@ -356,7 +356,7 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant >>> (int)right.constant;
@@ -374,7 +374,7 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false);
+        Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply and [&] to types " +
@@ -388,7 +388,7 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant & (int)right.constant;
@@ -406,7 +406,7 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteXor(left.actual, right.actual);
+        Type promote = AnalyzerCaster.promoteXor(left.actual, right.actual);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply xor [^] to types " +
@@ -420,7 +420,7 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
             if (sort == Sort.BOOL) {
                 constant = (boolean)left.constant ^ (boolean)right.constant;
@@ -440,7 +440,7 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false);
+        Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply or [|] to types " +
@@ -454,7 +454,7 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant | (int)right.constant;
@@ -469,34 +469,34 @@ public final class EBinary extends AExpression {
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         if (actual.sort == Sort.STRING && operation == Operation.ADD) {
             if (!cat) {
-                adapter.writeNewStrings();
+                writer.writeNewStrings();
             }
 
-            left.write(adapter);
+            left.write(writer);
 
             if (!(left instanceof EBinary) || ((EBinary)left).operation != Operation.ADD || left.actual.sort != Sort.STRING) {
-                adapter.writeAppendStrings(left.actual);
+                writer.writeAppendStrings(left.actual);
             }
 
-            right.write(adapter);
+            right.write(writer);
 
             if (!(right instanceof EBinary) || ((EBinary)right).operation != Operation.ADD || right.actual.sort != Sort.STRING) {
-                adapter.writeAppendStrings(right.actual);
+                writer.writeAppendStrings(right.actual);
             }
 
             if (!cat) {
-                adapter.writeToStrings();
+                writer.writeToStrings();
             }
         } else {
-            left.write(adapter);
-            right.write(adapter);
+            left.write(writer);
+            right.write(writer);
 
-            adapter.writeBinaryInstruction(location, actual, operation);
+            writer.writeBinaryInstruction(location, actual, operation);
         }
 
-        adapter.writeBranch(tru, fals);
+        writer.writeBranch(tru, fals);
     }
 }

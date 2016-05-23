@@ -417,7 +417,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             @SuppressWarnings("unchecked")
             List<ALink> links = (List<ALink>)expression;
 
-            return new EChain(line(ctx), offset(ctx), location(ctx), null, links, false, false, null, null);
+            return new EChain(line(ctx), offset(ctx), location(ctx), links, false, false, null, null);
         } else {
             return expression;
         }
@@ -554,7 +554,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
         AExpression expression = (AExpression)visitExpression(ctx.expression());
 
-        return new EChain(line(ctx), offset(ctx), location(ctx), null, links, false, false, operation, expression);
+        return new EChain(line(ctx), offset(ctx), location(ctx), links, false, false, operation, expression);
     }
 
     private Object visitUnary(UnaryContext ctx) {
@@ -564,7 +564,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             @SuppressWarnings("unchecked")
             List<ALink> links = (List<ALink>)expression;
 
-            return new EChain(line(ctx), offset(ctx), location(ctx), null, links, false, false, null, null);
+            return new EChain(line(ctx), offset(ctx), location(ctx), links, false, false, null, null);
         } else {
             return expression;
         }
@@ -584,7 +584,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             throw new IllegalStateException("Error " + location(ctx) + ": Illegal tree structure.");
         }
 
-        return new EChain(line(ctx), offset(ctx), location(ctx), null, links, true, false, operation, null);
+        return new EChain(line(ctx), offset(ctx), location(ctx), links, true, false, operation, null);
     }
 
     @Override
@@ -601,7 +601,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             throw new IllegalStateException("Error " + location(ctx) + ": Illegal tree structure.");
         }
 
-        return new EChain(line(ctx), offset(ctx), location(ctx), null, links, false, true, operation, null);
+        return new EChain(line(ctx), offset(ctx), location(ctx), links, false, true, operation, null);
     }
 
     @Override

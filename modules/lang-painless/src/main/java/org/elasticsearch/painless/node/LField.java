@@ -62,7 +62,7 @@ public final class LField extends ALink {
         field = statik ? struct.staticMembers.get(value) : struct.members.get(value);
 
         if (field != null) {
-            if (store && java.lang.reflect.Modifier.isFinal(field.reflect.getModifiers())) {
+            if (store && java.lang.reflect.Modifier.isFinal(field.modifiers)) {
                 throw new IllegalArgumentException(error(
                     "Cannot write to read-only field [" + value + "] for type [" + struct.name + "]."));
             }
@@ -104,19 +104,19 @@ public final class LField extends ALink {
 
     @Override
     void load(MethodWriter adapter) {
-        if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
-            adapter.getStatic(field.owner.type, field.reflect.getName(), field.type.type);
+        if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
+            adapter.getStatic(field.owner.type, field.javaName, field.type.type);
         } else {
-            adapter.getField(field.owner.type, field.reflect.getName(), field.type.type);
+            adapter.getField(field.owner.type, field.javaName, field.type.type);
         }
     }
 
     @Override
     void store(MethodWriter adapter) {
-        if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
-            adapter.putStatic(field.owner.type, field.reflect.getName(), field.type.type);
+        if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
+            adapter.putStatic(field.owner.type, field.javaName, field.type.type);
         } else {
-            adapter.putField(field.owner.type, field.reflect.getName(), field.type.type);
+            adapter.putField(field.owner.type, field.javaName, field.type.type);
         }
     }
 }

@@ -38,8 +38,8 @@ public final class LField extends ALink {
 
     Field field;
 
-    public LField(int line, String location, String value) {
-        super(line, location, 1);
+    public LField(int line, int offset, String location, String value) {
+        super(line, offset, location, 1);
 
         this.value = value;
     }
@@ -47,18 +47,18 @@ public final class LField extends ALink {
     @Override
     ALink analyze(Variables variables) {
         if (before == null) {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw new IllegalArgumentException(error("Illegal field [" + value + "] access made without target."));
         }
 
-        final Sort sort = before.sort;
+        Sort sort = before.sort;
 
         if (sort == Sort.ARRAY) {
-            return new LArrayLength(line, location, value).copy(this).analyze(variables);
+            return new LArrayLength(line, offset, location, value).copy(this).analyze(variables);
         } else if (sort == Sort.DEF) {
-            return new LDefField(line, location, value).copy(this).analyze(variables);
+            return new LDefField(line, offset, location, value).copy(this).analyze(variables);
         }
 
-        final Struct struct = before.struct;
+        Struct struct = before.struct;
         field = statik ? struct.staticMembers.get(value) : struct.members.get(value);
 
         if (field != null) {
@@ -71,25 +71,26 @@ public final class LField extends ALink {
 
             return this;
         } else {
-            // TODO: improve this: the isXXX case seems missing???
-            final boolean shortcut =
-                struct.methods.containsKey(new Definition.MethodKey("get" + 
-                        Character.toUpperCase(value.charAt(0)) + value.substring(1), 0)) ||
-                struct.methods.containsKey(new Definition.MethodKey("set" + 
-                        Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
+            boolean shortcut =
+                struct.methods.containsKey(new Definition.MethodKey("get" +
+                    Character.toUpperCase(value.charAt(0)) + value.substring(1), 0)) ||
+                struct.methods.containsKey(new Definition.MethodKey("is" +
+                    Character.toUpperCase(value.charAt(0)) + value.substring(1), 0)) ||
+                struct.methods.containsKey(new Definition.MethodKey("set" +
+                    Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
             if (shortcut) {
-                return new LShortcut(line, location, value).copy(this).analyze(variables);
+                return new LShortcut(line, offset, location, value).copy(this).analyze(variables);
             } else {
-                final EConstant index = new EConstant(line, location, value);
+                EConstant index = new EConstant(line, offset, location, value);
                 index.analyze(variables);
 
                 if (Map.class.isAssignableFrom(before.clazz)) {
-                    return new LMapShortcut(line, location, index).copy(this).analyze(variables);
+                    return new LMapShortcut(line, offset, location, index).copy(this).analyze(variables);
                 }
-                
+
                 if (List.class.isAssignableFrom(before.clazz)) {
-                    return new LListShortcut(line, location, index).copy(this).analyze(variables);
+                    return new LListShortcut(line, offset, location, index).copy(this).analyze(variables);
                 }
             }
         }
@@ -98,25 +99,25 @@ public final class LField extends ALink {
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter adapter) {
+    void load(MethodWriter writer) {
         if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
-            adapter.getStatic(field.owner.type, field.reflect.getName(), field.type.type);
+            writer.getStatic(field.owner.type, field.reflect.getName(), field.type.type);
         } else {
-            adapter.getField(field.owner.type, field.reflect.getName(), field.type.type);
+            writer.getField(field.owner.type, field.reflect.getName(), field.type.type);
         }
     }
 
     @Override
-    void store(MethodWriter adapter) {
+    void store(MethodWriter writer) {
         if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
-            adapter.putStatic(field.owner.type, field.reflect.getName(), field.type.type);
+            writer.putStatic(field.owner.type, field.reflect.getName(), field.type.type);
         } else {
-            adapter.putField(field.owner.type, field.reflect.getName(), field.type.type);
+            writer.putField(field.owner.type, field.reflect.getName(), field.type.type);
         }
     }
 }

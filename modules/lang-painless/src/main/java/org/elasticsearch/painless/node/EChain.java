@@ -46,9 +46,9 @@ public final class EChain extends AExpression {
     Cast there = null;
     Cast back = null;
 
-    public EChain(int line, String location, List<ALink> links,
+    public EChain(int line, int offset, String location, List<ALink> links,
                   boolean pre, boolean post, Operation operation, AExpression expression) {
-        super(line, location);
+        super(line, offset, location);
 
         this.links = links;
         this.pre = pre;
@@ -76,7 +76,7 @@ public final class EChain extends AExpression {
         int index = 0;
 
         while (index < links.size()) {
-            final ALink current = links.get(index);
+            ALink current = links.get(index);
 
             if (previous != null) {
                 current.before = previous.after;
@@ -91,7 +91,7 @@ public final class EChain extends AExpression {
                 current.store = expression != null || pre || post;
             }
 
-            final ALink analyzed = current.analyze(variables);
+            ALink analyzed = current.analyze(variables);
 
             if (analyzed == null) {
                 links.remove(index);
@@ -111,7 +111,7 @@ public final class EChain extends AExpression {
     }
 
     private void analyzeIncrDecr() {
-        final ALink last = links.get(links.size() - 1);
+        ALink last = links.get(links.size() - 1);
 
         if (pre && post) {
             throw new IllegalStateException(error("Illegal tree structure."));
@@ -120,29 +120,29 @@ public final class EChain extends AExpression {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
 
-            final Sort sort = last.after.sort;
+            Sort sort = last.after.sort;
 
             if (operation == Operation.INCR) {
                 if (sort == Sort.DOUBLE) {
-                    expression = new EConstant(line, location, 1D);
+                    expression = new EConstant(line, offset, location, 1D);
                 } else if (sort == Sort.FLOAT) {
-                    expression = new EConstant(line, location, 1F);
+                    expression = new EConstant(line, offset, location, 1F);
                 } else if (sort == Sort.LONG) {
-                    expression = new EConstant(line, location, 1L);
+                    expression = new EConstant(line, offset, location, 1L);
                 } else {
-                    expression = new EConstant(line, location, 1);
+                    expression = new EConstant(line, offset, location, 1);
                 }
 
                 operation = Operation.ADD;
             } else if (operation == Operation.DECR) {
                 if (sort == Sort.DOUBLE) {
-                    expression = new EConstant(line, location, 1D);
+                    expression = new EConstant(line, offset, location, 1D);
                 } else if (sort == Sort.FLOAT) {
-                    expression = new EConstant(line, location, 1F);
+                    expression = new EConstant(line, offset, location, 1F);
                 } else if (sort == Sort.LONG) {
-                    expression = new EConstant(line, location, 1L);
+                    expression = new EConstant(line, offset, location, 1L);
                 } else {
-                    expression = new EConstant(line, location, 1);
+                    expression = new EConstant(line, offset, location, 1);
                 }
 
                 operation = Operation.SUB;
@@ -153,7 +153,7 @@ public final class EChain extends AExpression {
     }
 
     private void analyzeCompound(Variables variables) {
-        final ALink last = links.get(links.size() - 1);
+        ALink last = links.get(links.size() - 1);
 
         expression.analyze(variables);
 
@@ -214,9 +214,9 @@ public final class EChain extends AExpression {
     }
 
     private void analyzeWrite(Variables variables) {
-        final ALink last = links.get(links.size() - 1);
+        ALink last = links.get(links.size() - 1);
 
-        // If the store node is a DEF node, we remove the cast to DEF from the expression
+        // If the store node is a def node, we remove the cast to def from the expression
         // and promote the real type to it:
         if (last instanceof IDefLink) {
             expression.analyze(variables);
@@ -234,9 +234,9 @@ public final class EChain extends AExpression {
     }
 
     private void analyzeRead() {
-        final ALink last = links.get(links.size() - 1);
+        ALink last = links.get(links.size() - 1);
 
-        // If the load node is a DEF node, we adapt its after type to use _this_ expected output type:
+        // If the load node is a def node, we adapt its after type to use _this_ expected output type:
         if (last instanceof IDefLink && this.expected != null) {
             last.after = this.expected;
         }
@@ -247,70 +247,70 @@ public final class EChain extends AExpression {
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         if (cat) {
-            adapter.writeNewStrings();
+            writer.writeNewStrings();
         }
 
-        final ALink last = links.get(links.size() - 1);
+        ALink last = links.get(links.size() - 1);
 
-        for (final ALink link : links) {
-            link.write(adapter);
+        for (ALink link : links) {
+            link.write(writer);
 
             if (link == last && link.store) {
                 if (cat) {
-                    adapter.writeDup(link.size, 1);
-                    link.load(adapter);
-                    adapter.writeAppendStrings(link.after);
+                    writer.writeDup(link.size, 1);
+                    link.load(writer);
+                    writer.writeAppendStrings(link.after);
 
-                    expression.write(adapter);
+                    expression.write(writer);
 
                     if (!(expression instanceof EBinary) ||
                         ((EBinary)expression).operation != Operation.ADD || expression.actual.sort != Sort.STRING) {
-                        adapter.writeAppendStrings(expression.actual);
+                        writer.writeAppendStrings(expression.actual);
                     }
 
-                    adapter.writeToStrings();
-                    adapter.writeCast(back);
+                    writer.writeToStrings();
+                    writer.writeCast(back);
 
                     if (link.load) {
-                        adapter.writeDup(link.after.sort.size, link.size);
+                        writer.writeDup(link.after.sort.size, link.size);
                     }
 
-                    link.store(adapter);
+                    link.store(writer);
                 } else if (operation != null) {
-                    adapter.writeDup(link.size, 0);
-                    link.load(adapter);
+                    writer.writeDup(link.size, 0);
+                    link.load(writer);
 
                     if (link.load && post) {
-                        adapter.writeDup(link.after.sort.size, link.size);
+                        writer.writeDup(link.after.sort.size, link.size);
                     }
 
-                    adapter.writeCast(there);
-                    expression.write(adapter);
-                    adapter.writeBinaryInstruction(location, promote, operation);
+                    writer.writeCast(there);
+                    expression.write(writer);
+                    writer.writeBinaryInstruction(location, promote, operation);
 
-                    adapter.writeCast(back);
+                    writer.writeCast(back);
 
                     if (link.load && !post) {
-                        adapter.writeDup(link.after.sort.size, link.size);
+                        writer.writeDup(link.after.sort.size, link.size);
                     }
 
-                    link.store(adapter);
+                    link.store(writer);
                 } else {
-                    expression.write(adapter);
+                    expression.write(writer);
 
                     if (link.load) {
-                        adapter.writeDup(link.after.sort.size, link.size);
+                        writer.writeDup(link.after.sort.size, link.size);
                     }
 
-                    link.store(adapter);
+                    link.store(writer);
                 }
             } else {
-                link.load(adapter);
+                link.load(writer);
             }
         }
 
-        adapter.writeBranch(tru, fals);
+        writer.writeBranch(tru, fals);
     }
 }

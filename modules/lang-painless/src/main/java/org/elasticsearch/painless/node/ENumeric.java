@@ -32,8 +32,8 @@ public final class ENumeric extends AExpression {
     final String value;
     int radix;
 
-    public ENumeric(int line, String location, String value, int radix) {
-        super(line, location);
+    public ENumeric(int line, int offset, String location, String value, int radix) {
+        super(line, offset, location);
 
         this.value = value;
         this.radix = radix;
@@ -49,7 +49,7 @@ public final class ENumeric extends AExpression {
             try {
                 constant = Double.parseDouble(value.substring(0, value.length() - 1));
                 actual = Definition.DOUBLE_TYPE;
-            } catch (final NumberFormatException exception) {
+            } catch (NumberFormatException exception) {
                 throw new IllegalArgumentException(error("Invalid double constant [" + value + "]."));
             }
         } else if (value.endsWith("f") || value.endsWith("F")) {
@@ -60,20 +60,20 @@ public final class ENumeric extends AExpression {
             try {
                 constant = Float.parseFloat(value.substring(0, value.length() - 1));
                 actual = Definition.FLOAT_TYPE;
-            } catch (final NumberFormatException exception) {
+            } catch (NumberFormatException exception) {
                 throw new IllegalArgumentException(error("Invalid float constant [" + value + "]."));
             }
         } else if (value.endsWith("l") || value.endsWith("L")) {
             try {
                 constant = Long.parseLong(value.substring(0, value.length() - 1), radix);
                 actual = Definition.LONG_TYPE;
-            } catch (final NumberFormatException exception) {
+            } catch (NumberFormatException exception) {
                 throw new IllegalArgumentException(error("Invalid long constant [" + value + "]."));
             }
         } else {
             try {
-                final Sort sort = expected == null ? Sort.INT : expected.sort;
-                final int integer = Integer.parseInt(value, radix);
+                Sort sort = expected == null ? Sort.INT : expected.sort;
+                int integer = Integer.parseInt(value, radix);
 
                 if (sort == Sort.BYTE && integer >= Byte.MIN_VALUE && integer <= Byte.MAX_VALUE) {
                     constant = (byte)integer;
@@ -88,14 +88,14 @@ public final class ENumeric extends AExpression {
                     constant = integer;
                     actual = Definition.INT_TYPE;
                 }
-            } catch (final NumberFormatException exception) {
+            } catch (NumberFormatException exception) {
                 throw new IllegalArgumentException(error("Invalid int constant [" + value + "]."));
             }
         }
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         throw new IllegalArgumentException(error("Illegal tree structure."));
     }
 }

@@ -34,8 +34,8 @@ public final class LNewArray extends ALink {
     final String type;
     final List<AExpression> arguments;
 
-    public LNewArray(int line, String location, String type, List<AExpression> arguments) {
-        super(line, location, -1);
+    public LNewArray(int line, int offset, String location, String type, List<AExpression> arguments) {
+        super(line, offset, location, -1);
 
         this.type = type;
         this.arguments = arguments;
@@ -44,23 +44,23 @@ public final class LNewArray extends ALink {
     @Override
     ALink analyze(Variables variables) {
         if (before != null) {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw new IllegalArgumentException(error("Cannot create a new array with a target already defined."));
         } else if (store) {
             throw new IllegalArgumentException(error("Cannot assign a value to a new array."));
         } else if (!load) {
-            throw new IllegalArgumentException(error("A newly created array must be assigned."));
+            throw new IllegalArgumentException(error("A newly created array must be read."));
         }
 
         final Type type;
 
         try {
             type = Definition.getType(this.type);
-        } catch (final IllegalArgumentException exception) {
+        } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
         }
 
         for (int argument = 0; argument < arguments.size(); ++argument) {
-            final AExpression expression = arguments.get(argument);
+            AExpression expression = arguments.get(argument);
 
             expression.expected = Definition.INT_TYPE;
             expression.analyze(variables);
@@ -73,25 +73,25 @@ public final class LNewArray extends ALink {
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter adapter) {
-        for (final AExpression argument : arguments) {
-            argument.write(adapter);
+    void load(MethodWriter writer) {
+        for (AExpression argument : arguments) {
+            argument.write(writer);
         }
 
         if (arguments.size() > 1) {
-            adapter.visitMultiANewArrayInsn(after.type.getDescriptor(), after.type.getDimensions());
+            writer.visitMultiANewArrayInsn(after.type.getDescriptor(), after.type.getDimensions());
         } else {
-            adapter.newArray(Definition.getType(after.struct, 0).type);
+            writer.newArray(Definition.getType(after.struct, 0).type);
         }
     }
 
     @Override
-    void store(MethodWriter adapter) {
+    void store(MethodWriter writer) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

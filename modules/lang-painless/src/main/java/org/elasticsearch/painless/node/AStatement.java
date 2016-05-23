@@ -107,8 +107,8 @@ public abstract class AStatement extends ANode {
      */
     Label brake = null;
 
-    AStatement(int line, String location) {
-        super(line, location);
+    AStatement(int line, int offset, String location) {
+        super(line, offset, location);
     }
 
     /**
@@ -119,5 +119,5 @@ public abstract class AStatement extends ANode {
     /**
      * Writes ASM based on the data collected during the analysis phase.
      */
-    abstract void write(MethodWriter adapter);
+    abstract void write(MethodWriter writer);
 }

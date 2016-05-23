@@ -27,8 +27,8 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class SBreak extends AStatement {
 
-    public SBreak(int line, String location) {
-        super(line, location);
+    public SBreak(int line, int offset, String location) {
+        super(line, offset, location);
     }
 
     @Override
@@ -44,8 +44,9 @@ public final class SBreak extends AStatement {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        adapter.goTo(brake);
+    void write(MethodWriter writer) {
+        writeDebugInfo(writer);
+
+        writer.goTo(brake);
     }
 }

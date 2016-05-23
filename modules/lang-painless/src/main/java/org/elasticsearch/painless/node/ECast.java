@@ -34,8 +34,8 @@ final class ECast extends AExpression {
 
     Cast cast = null;
 
-    ECast(int line, String location, AExpression child, Cast cast) {
-        super(line, location);
+    ECast(int line, int offset, String location, AExpression child, Cast cast) {
+        super(line, offset, location);
 
         this.type = null;
         this.child = child;
@@ -49,9 +49,9 @@ final class ECast extends AExpression {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        child.write(adapter);
-        adapter.writeCast(cast);
-        adapter.writeBranch(tru, fals);
+    void write(MethodWriter writer) {
+        child.write(writer);
+        writer.writeCast(cast);
+        writer.writeBranch(tru, fals);
     }
 }

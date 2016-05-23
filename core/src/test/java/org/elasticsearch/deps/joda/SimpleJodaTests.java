@@ -289,16 +289,18 @@ public class SimpleJodaTests extends ESTestCase {
             formatter.parser().parseDateTime("-100000000");
             formatter.parser().parseDateTime("-999999999999");
             formatter.parser().parseDateTime("-1234567890123");
+            formatter.parser().parseDateTime("-1234567890123456789");
         } else {
             formatter.parser().parseDateTime("-100000000");
             formatter.parser().parseDateTime("-1234567890");
+            formatter.parser().parseDateTime("-1234567890123456");
         }
     }
 
     public void testForInvalidDatesInEpochSecond() {
         FormatDateTimeFormatter formatter = Joda.forPattern("epoch_second");
         try {
-            formatter.parser().parseDateTime(randomFrom("invalid date", "12345678901", "12345678901234"));
+            formatter.parser().parseDateTime(randomFrom("invalid date", "12345678901234567", "12345678901234567890"));
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Invalid format"));
@@ -308,7 +310,7 @@ public class SimpleJodaTests extends ESTestCase {
     public void testForInvalidDatesInEpochMillis() {
         FormatDateTimeFormatter formatter = Joda.forPattern("epoch_millis");
         try {
-            formatter.parser().parseDateTime(randomFrom("invalid date", "12345678901234"));
+            formatter.parser().parseDateTime(randomFrom("invalid date", "12345678901234567890"));
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Invalid format"));
@@ -350,6 +352,8 @@ public class SimpleJodaTests extends ESTestCase {
         assertThat(dateTime.getMillis(), is(1234567890456L));
         dateTime = formatter.parser().parseDateTime("1234567890789");
         assertThat(dateTime.getMillis(), is(1234567890789L));
+        dateTime = formatter.parser().parseDateTime("1234567890123456789");
+        assertThat(dateTime.getMillis(), is(1234567890123456789L));
 
         FormatDateTimeFormatter secondsFormatter = Joda.forPattern("epoch_second");
         DateTime secondsDateTime = secondsFormatter.parser().parseDateTime("1234567890");
@@ -358,6 +362,8 @@ public class SimpleJodaTests extends ESTestCase {
         assertThat(secondsDateTime.getMillis(), is(1234567890000L));
         secondsDateTime = secondsFormatter.parser().parseDateTime("1234567890");
         assertThat(secondsDateTime.getMillis(), is(1234567890000L));
+        secondsDateTime = secondsFormatter.parser().parseDateTime("1234567890123456");
+        assertThat(secondsDateTime.getMillis(), is(1234567890123456000L));
     }
 
     public void testThatDefaultFormatterChecksForCorrectYearLength() throws Exception {

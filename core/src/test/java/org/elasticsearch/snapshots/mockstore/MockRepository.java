@@ -231,7 +231,7 @@ public class MockRepository extends FsRepository {
 
             private boolean shouldFail(String blobName, double probability) {
                 if (probability > 0.0) {
-                    String path = path().add(blobName).buildAsString("/") + "/" + randomPrefix;
+                    String path = path().add(blobName).buildAsString() + randomPrefix;
                     path += "/" + incrementAndGet(path);
                     logger.info("checking [{}] [{}]", path, Math.abs(hashCode(path)) < Integer.MAX_VALUE * probability);
                     return Math.abs(hashCode(path)) < Integer.MAX_VALUE * probability;

@@ -62,14 +62,12 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testReplacePropertiesPlaceholderByEnvironmentVariables() {
-        final Map.Entry<String, String> entry = randomSubsetOf(1, System.getenv().entrySet()).get(0);
-        assertNotNull(entry.getValue());
-
+        final String hostname = randomAsciiOfLength(16);
         final Settings implicitEnvSettings = Settings.builder()
-            .put("setting1", "${" + entry.getKey() + "}")
-            .replacePropertyPlaceholders()
+            .put("setting1", "${HOSTNAME}")
+            .replacePropertyPlaceholders(name -> "HOSTNAME".equals(name) ? hostname : null)
             .build();
-        assertThat(implicitEnvSettings.get("setting1"), equalTo(entry.getValue()));
+        assertThat(implicitEnvSettings.get("setting1"), equalTo(hostname));
     }
 
     public void testReplacePropertiesPlaceholderIgnoresPrompt() {

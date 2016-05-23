@@ -868,7 +868,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         }
         commands.add(new MoveAllocationCommand("test", 0, primaryNode, "A-4"));
 
-        routingTable = strategy.reroute(clusterState, commands).routingTable();
+        routingTable = strategy.reroute(clusterState, commands, false, false).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(0));

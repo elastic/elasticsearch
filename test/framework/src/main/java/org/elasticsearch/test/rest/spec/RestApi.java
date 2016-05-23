@@ -32,6 +32,7 @@ import java.util.Set;
  */
 public class RestApi {
 
+    private final String location;
     private final String name;
     private List<String> methods = new ArrayList<>();
     private List<String> paths = new ArrayList<>();
@@ -43,12 +44,17 @@ public class RestApi {
         NOT_SUPPORTED, OPTIONAL, REQUIRED
     }
 
-    RestApi(String name) {
+    RestApi(String location, String name) {
+        this.location = location;
         this.name = name;
     }
 
     public String getName() {
         return name;
+    }
+
+    public String getLocation() {
+        return location;
     }
 
     public List<String> getMethods() {

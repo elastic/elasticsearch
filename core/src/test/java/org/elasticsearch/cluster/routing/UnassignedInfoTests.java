@@ -64,7 +64,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 UnassignedInfo.Reason.NODE_LEFT,
                 UnassignedInfo.Reason.REROUTE_CANCELLED,
                 UnassignedInfo.Reason.REINITIALIZED,
-                UnassignedInfo.Reason.REALLOCATED_REPLICA};
+                UnassignedInfo.Reason.REALLOCATED_REPLICA,
+                UnassignedInfo.Reason.PRIMARY_FAILED};
         for (int i = 0; i < order.length; i++) {
             assertThat(order[i].ordinal(), equalTo(i));
         }
@@ -72,7 +73,10 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     }
 
     public void testSerialization() throws Exception {
-        UnassignedInfo meta = new UnassignedInfo(RandomPicks.randomFrom(random(), UnassignedInfo.Reason.values()), randomBoolean() ? randomAsciiOfLength(4) : null);
+        UnassignedInfo.Reason reason = RandomPicks.randomFrom(random(), UnassignedInfo.Reason.values());
+        UnassignedInfo meta = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ?
+            new UnassignedInfo(reason, randomBoolean() ? randomAsciiOfLength(4) : null, null, randomIntBetween(1, 100), System.nanoTime(), System.currentTimeMillis()):
+            new UnassignedInfo(reason, randomBoolean() ? randomAsciiOfLength(4) : null);
         BytesStreamOutput out = new BytesStreamOutput();
         meta.writeTo(out);
         out.close();
@@ -82,6 +86,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         assertThat(read.getUnassignedTimeInMillis(), equalTo(meta.getUnassignedTimeInMillis()));
         assertThat(read.getMessage(), equalTo(meta.getMessage()));
         assertThat(read.getDetails(), equalTo(meta.getDetails()));
+        assertThat(read.getNumFailedAllocations(), equalTo(meta.getNumFailedAllocations()));
     }
 
     public void testIndexCreated() {
@@ -273,7 +278,10 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     public void testUnassignedDelayOnlyNodeLeftNonNodeLeftReason() throws Exception {
         EnumSet<UnassignedInfo.Reason> reasons = EnumSet.allOf(UnassignedInfo.Reason.class);
         reasons.remove(UnassignedInfo.Reason.NODE_LEFT);
-        UnassignedInfo unassignedInfo = new UnassignedInfo(RandomPicks.randomFrom(random(), reasons), null);
+        UnassignedInfo.Reason reason = RandomPicks.randomFrom(random(), reasons);
+        UnassignedInfo unassignedInfo = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ?
+            new UnassignedInfo(reason, null, null, 1, System.nanoTime(), System.currentTimeMillis()):
+            new UnassignedInfo(reason, null);
         unassignedInfo = unassignedInfo.updateDelay(unassignedInfo.getUnassignedTimeInNanos() + 1, // add 1 tick delay
                 Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "10h").build(), Settings.EMPTY);
         long delay = unassignedInfo.getLastComputedLeftDelayNanos();
@@ -287,7 +295,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      */
     public void testLeftDelayCalculation() throws Exception {
         final long baseTime = System.nanoTime();
-        UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "test", null, baseTime, System.currentTimeMillis());
+        UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "test", null, 0, baseTime, System.currentTimeMillis());
         final long totalDelayNanos = TimeValue.timeValueMillis(10).nanos();
         final Settings settings = Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueNanos(totalDelayNanos)).build();
         unassignedInfo = unassignedInfo.updateDelay(baseTime, settings, Settings.EMPTY);

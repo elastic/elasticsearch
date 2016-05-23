@@ -37,19 +37,16 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
-import org.apache.lucene.search.spans.SpanContainingQuery;
 import org.apache.lucene.search.spans.SpanFirstQuery;
-import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
-import org.apache.lucene.search.spans.SpanWithinQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
@@ -72,11 +69,11 @@ public final class ExtractQueryTermsService {
 
     /**
      * Extracts all terms from the specified query and adds it to the specified document.
-     *  @param query The query to extract terms from
-     * @param document The document to add the extracted terms to
-     * @param queryTermsFieldField The field in the document holding the extracted terms
-     * @param unknownQueryField The field used to mark a document that not all query terms could be extracted. For example
-     *                          the query contained an unsupported query (e.g. WildcardQuery).
+     * @param query                 The query to extract terms from
+     * @param document              The document to add the extracted terms to
+     * @param queryTermsFieldField  The field in the document holding the extracted terms
+     * @param unknownQueryField     The field used to mark a document that not all query terms could be extracted.
+     *                              For example the query contained an unsupported query (e.g. WildcardQuery).
      * @param fieldType The field type for the query metadata field
      */
     public static void extractQueryTerms(Query query, ParseContext.Document document, String queryTermsFieldField, String unknownQueryField, FieldType fieldType) {
@@ -106,7 +103,10 @@ public final class ExtractQueryTermsService {
      * an UnsupportedQueryException is thrown.
      */
     static Set<Term> extractQueryTerms(Query query) {
-        if (query instanceof TermQuery) {
+        if (query instanceof MatchNoDocsQuery) {
+            // no terms to extract as this query matches no docs
+            return Collections.emptySet();
+        } else if (query instanceof TermQuery) {
             return Collections.singleton(((TermQuery) query).getTerm());
         } else if (query instanceof TermsQuery) {
             Set<Term> terms = new HashSet<>();

@@ -960,33 +960,38 @@ public final class Settings implements ToXContent {
          * another setting already set on this builder.
          */
         public Builder replacePropertyPlaceholders() {
+            return replacePropertyPlaceholders(System::getenv);
+        }
+
+        // visible for testing
+        Builder replacePropertyPlaceholders(Function<String, String> getenv) {
             PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
             PropertyPlaceholder.PlaceholderResolver placeholderResolver = new PropertyPlaceholder.PlaceholderResolver() {
-                    @Override
-                    public String resolvePlaceholder(String placeholderName) {
-                        final String value = System.getenv(placeholderName);
-                        if (value != null) {
-                            return value;
-                        }
-                        return map.get(placeholderName);
+                @Override
+                public String resolvePlaceholder(String placeholderName) {
+                    final String value = getenv.apply(placeholderName);
+                    if (value != null) {
+                        return value;
                     }
+                    return map.get(placeholderName);
+                }
 
-                    @Override
-                    public boolean shouldIgnoreMissing(String placeholderName) {
-                        if (placeholderName.startsWith("prompt.")) {
-                            return true;
-                        }
-                        return false;
-                    }
-
-                    @Override
-                    public boolean shouldRemoveMissingPlaceholder(String placeholderName) {
-                        if (placeholderName.startsWith("prompt.")) {
-                            return false;
-                        }
+                @Override
+                public boolean shouldIgnoreMissing(String placeholderName) {
+                    if (placeholderName.startsWith("prompt.")) {
                         return true;
                     }
-                };
+                    return false;
+                }
+
+                @Override
+                public boolean shouldRemoveMissingPlaceholder(String placeholderName) {
+                    if (placeholderName.startsWith("prompt.")) {
+                        return false;
+                    }
+                    return true;
+                }
+            };
             for (Map.Entry<String, String> entry : new HashMap<>(map).entrySet()) {
                 String value = propertyPlaceholder.replacePlaceholders(entry.getKey(), entry.getValue(), placeholderResolver);
                 // if the values exists and has length, we should maintain it  in the map

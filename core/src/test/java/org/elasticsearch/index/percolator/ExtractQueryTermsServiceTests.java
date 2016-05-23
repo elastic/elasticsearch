@@ -41,6 +41,7 @@ import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.test.ESTestCase;
 
@@ -294,6 +295,23 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         SpanNotQuery spanNotQuery = new SpanNotQuery(spanTermQuery1, spanTermQuery2);
         Set<Term> terms = ExtractQueryTermsService.extractQueryTerms(spanNotQuery);
         assertTermsEqual(terms, spanTermQuery1.getTerm());
+    }
+
+    public void testExtractQueryMetadata_matchNoDocsQuery() {
+        Set<Term> terms = ExtractQueryTermsService.extractQueryTerms(new MatchNoDocsQuery("sometimes there is no reason at all"));
+        assertEquals(0, terms.size());
+
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
+        bq.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.MUST);
+        bq.add(new MatchNoDocsQuery("sometimes there is no reason at all"), BooleanClause.Occur.MUST);
+        terms = ExtractQueryTermsService.extractQueryTerms(bq.build());
+        assertEquals(0, terms.size());
+
+        bq = new BooleanQuery.Builder();
+        bq.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.SHOULD);
+        bq.add(new MatchNoDocsQuery("sometimes there is no reason at all"), BooleanClause.Occur.SHOULD);
+        terms = ExtractQueryTermsService.extractQueryTerms(bq.build());
+        assertTermsEqual(terms, new Term("field", "value"));
     }
 
     public void testExtractQueryMetadata_unsupportedQuery() {

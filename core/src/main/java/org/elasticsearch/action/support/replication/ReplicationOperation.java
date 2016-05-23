@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -47,11 +46,9 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class ReplicationOperation<
-            Request extends ReplicationRequest<Request>,
-            AsyncStash,
-            ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
-            Response extends ReplicationResponse
-        > {
+    Request extends ReplicationRequest<Request>,
+    ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
+    PrimaryResultT extends ReplicationOperation.PrimaryResult<ReplicaRequest>> {
     final private ESLogger logger;
     final private Request request;
     final private Supplier<ClusterState> clusterStateSupplier;
@@ -71,17 +68,17 @@ public class ReplicationOperation<
     final private AtomicInteger successfulShards = new AtomicInteger();
     final private boolean executeOnReplicas;
     final private boolean checkWriteConsistency;
-    final private Primary<Request, AsyncStash, ReplicaRequest, Response> primary;
+    final private Primary<Request, ReplicaRequest, PrimaryResultT> primary;
     final private Replicas<ReplicaRequest> replicasProxy;
     final private AtomicBoolean finished = new AtomicBoolean();
-    final protected ActionListener<Response> finalResponseListener;
+    final protected ActionListener<PrimaryResultT> resultListener;
 
-    private volatile Response finalResponse = null;
+    private volatile PrimaryResultT primaryResult = null;
 
     private final List<ReplicationResponse.ShardInfo.Failure> shardReplicaFailures = Collections.synchronizedList(new ArrayList<>());
 
-    ReplicationOperation(Request request, Primary<Request, AsyncStash, ReplicaRequest, Response> primary,
-                         ActionListener<Response> listener,
+    ReplicationOperation(Request request, Primary<Request, ReplicaRequest, PrimaryResultT> primary,
+                         ActionListener<PrimaryResultT> listener,
                          boolean executeOnReplicas, boolean checkWriteConsistency,
                          Replicas<ReplicaRequest> replicas,
                          Supplier<ClusterState> clusterStateSupplier, ESLogger logger, String opType) {
@@ -89,7 +86,7 @@ public class ReplicationOperation<
         this.executeOnReplicas = executeOnReplicas;
         this.replicasProxy = replicas;
         this.primary = primary;
-        this.finalResponseListener = listener;
+        this.resultListener = listener;
         this.logger = logger;
         this.request = request;
         this.clusterStateSupplier = clusterStateSupplier;
@@ -108,9 +105,8 @@ public class ReplicationOperation<
 
         totalShards.incrementAndGet();
         pendingShards.incrementAndGet();
-        Tuple<ReplicaRequest, AsyncStash> primaryResult = primary.perform(request);
-        ReplicaRequest replicaRequest = primaryResult.v1();
-        AsyncStash asyncStash = primaryResult.v2();
+        primaryResult = primary.perform(request);
+        ReplicaRequest replicaRequest = primaryResult.replicaRequest();
         assert replicaRequest.primaryTerm() > 0 : "replicaRequest doesn't have a primary term";
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] op [{}] completed on primary for request [{}]", primaryId, opType, request);
@@ -137,31 +133,9 @@ public class ReplicationOperation<
                 performOnReplica(shard.buildTargetRelocatingShard(), replicaRequest);
             }
         }
-        /*
-         * Wait until after we've started the replica requests before we start any asyn actions on the primary so we don't have a race
-         * between the replica returning and the primary starting.
-         */
-        primary.performAsync(asyncStash, request, new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                finalResponse = response;
-                successfulShards.incrementAndGet();
-                decPendingAndFinishIfNeeded();
-            }
 
-            @Override
-            public void onFailure(Throwable primaryException) {
-                try {
-                    RestStatus restStatus = ExceptionsHelper.status(primaryException);
-                    shardReplicaFailures.add(new ReplicationResponse.ShardInfo.Failure(primaryRouting.shardId(), primaryRouting.currentNodeId(),
-                            primaryException, restStatus, false));
-                    String message = String.format(Locale.ROOT, "failed to perform %s on primary %s", opType, primaryRouting);
-                    logger.warn("[{}] {}", primaryException, primaryRouting.shardId(), message);
-                } finally {
-                    decPendingAndFinishIfNeeded();
-                }
-            }
-        });
+        successfulShards.incrementAndGet();
+        decPendingAndFinishIfNeeded();
     }
 
     private void performOnReplica(final ShardRouting shard, final ReplicaRequest replicaRequest) {
@@ -276,19 +250,19 @@ public class ReplicationOperation<
                 failuresArray = new ReplicationResponse.ShardInfo.Failure[shardReplicaFailures.size()];
                 shardReplicaFailures.toArray(failuresArray);
             }
-            finalResponse.setShardInfo(new ReplicationResponse.ShardInfo(
+            primaryResult.setShardInfo(new ReplicationResponse.ShardInfo(
                     totalShards.get(),
                     successfulShards.get(),
                     failuresArray
                 )
             );
-            finalResponseListener.onResponse(finalResponse);
+            resultListener.onResponse(primaryResult);
         }
     }
 
     private void finishAsFailed(Throwable throwable) {
         if (finished.compareAndSet(false, true)) {
-            finalResponseListener.onFailure(throwable);
+            resultListener.onFailure(throwable);
         }
     }
 
@@ -320,16 +294,19 @@ public class ReplicationOperation<
 
 
     interface Primary<
-                Request extends ReplicationRequest<Request>,
-                AsyncStash,
-                ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
-                Response extends ReplicationResponse
-            > {
+        Request extends ReplicationRequest<Request>,
+        ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
+        PrimaryResultT extends PrimaryResult<ReplicaRequest>
+        > {
 
-        /** routing entry for this primary */
+        /**
+         * routing entry for this primary
+         */
         ShardRouting routingEntry();
 
-        /** fail the primary, typically due to the fact that the operation has learned the primary has been demoted by the master */
+        /**
+         * fail the primary, typically due to the fact that the operation has learned the primary has been demoted by the master
+         */
         void failShard(String message, Throwable throwable);
 
         /**
@@ -340,13 +317,8 @@ public class ReplicationOperation<
          * @param request the request to perform
          * @return the request to send to the repicas
          */
-        Tuple<ReplicaRequest, AsyncStash> perform(Request request) throws Exception;
+        PrimaryResultT perform(Request request) throws Exception;
 
-        /**
-         * Start and listen for the completion of any asynchronous actions taken on the primary as part of this request. If there are no
-         * such actions then this will call the listener directly.
-         */
-        void performAsync(AsyncStash stash, Request request, ActionListener<Response> listener) throws Exception;
     }
 
     interface Replicas<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> {
@@ -354,19 +326,20 @@ public class ReplicationOperation<
         /**
          * performs the the given request on the specified replica
          *
-         * @param replica {@link ShardRouting} of the shard this request should be executed on
+         * @param replica        {@link ShardRouting} of the shard this request should be executed on
          * @param replicaRequest operation to peform
-         * @param listener a callback to call once the operation has been complicated, either successfully or with an error.
+         * @param listener       a callback to call once the operation has been complicated, either successfully or with an error.
          */
         void performOn(ShardRouting replica, ReplicaRequest replicaRequest, ActionListener<TransportResponse.Empty> listener);
 
         /**
          * Fail the specified shard, removing it from the current set of active shards
-         * @param replica shard to fail
-         * @param primary the primary shard that requested the failure
-         * @param message a (short) description of the reason
-         * @param throwable the original exception which caused the ReplicationOperation to request the shard to be failed
-         * @param onSuccess a callback to call when the shard has been successfully removed from the active set.
+         *
+         * @param replica          shard to fail
+         * @param primary          the primary shard that requested the failure
+         * @param message          a (short) description of the reason
+         * @param throwable        the original exception which caused the ReplicationOperation to request the shard to be failed
+         * @param onSuccess        a callback to call when the shard has been successfully removed from the active set.
          * @param onPrimaryDemoted a callback to call when the shard can not be failed because the current primary has been demoted
          *                         by the master.
          * @param onIgnoredFailure a callback to call when failing a shard has failed, but it that failure can be safely ignored and the
@@ -390,5 +363,12 @@ public class ReplicationOperation<
         public RetryOnPrimaryException(StreamInput in) throws IOException {
             super(in);
         }
+    }
+
+    interface PrimaryResult<R extends ReplicationRequest<R>> {
+
+        R replicaRequest();
+
+        void setShardInfo(ReplicationResponse.ShardInfo shardInfo);
     }
 }

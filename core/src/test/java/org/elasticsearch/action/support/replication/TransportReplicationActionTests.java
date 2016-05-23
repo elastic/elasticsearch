@@ -624,7 +624,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                         if (throwExceptionOnRun) {
                             throw new ElasticsearchException("simulated exception, during performOnPrimary");
                         } else if (respondWithError) {
-                            this.finalResponseListener.onFailure(new ElasticsearchException("simulated exception, as a response"));
+                            this.resultListener.onFailure(new ElasticsearchException("simulated exception, as a response"));
                         } else {
                             super.execute();
                         }
@@ -837,7 +837,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         @Override
         public void execute() throws Exception {
-            this.finalResponseListener.onResponse(new Response());
+            this.resultListener.onResponse(new Response());
         }
     }
 

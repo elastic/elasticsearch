@@ -40,7 +40,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
@@ -52,6 +51,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -83,7 +83,6 @@ import java.util.function.Supplier;
  */
 public abstract class TransportReplicationAction<
             Request extends ReplicationRequest<Request>,
-            AsyncStash,
             ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
             Response extends ReplicationResponse
         > extends TransportAction<Request, Response> {
@@ -155,18 +154,18 @@ public abstract class TransportReplicationAction<
      *
      * @param shardRequest the request to the primary shard
      * @return Tuple of the request to send to the replicas and the information needed by the {
-     *         {@link #asyncShardOperationOnPrimary(Object, ReplicationRequest, ActionListener)} to do its job
+    //*         {@link #asyncShardOperationOnPrimary(Object, ReplicationRequest, ActionListener)} to do its job
      */
-    protected abstract Tuple<ReplicaRequest, AsyncStash> shardOperationOnPrimary(Request shardRequest) throws Exception;
+    protected abstract PrimaryResult shardOperationOnPrimary(Request shardRequest) throws Exception;
 
-    /**
-     * Asynchronous portion of primary operation on node with primary copy
-     *
-     * @param stash information saved from the synchronous phase of the operation for use in the async phase of the operation
-     * @param shardRequest the request to the primary shard
-     * @param listener implementers call this success or failure when the asynchronous operations are complete.
-     */
-    protected abstract void asyncShardOperationOnPrimary(AsyncStash stash, Request shardRequest, ActionListener<Response> listener);
+//    /**
+//     * Asynchronous portion of primary operation on node with primary copy
+//     *
+//     * @param stash information saved from the synchronous phase of the operation for use in the async phase of the operation
+//     * @param shardRequest the request to the primary shard
+//     * @param listener implementers call this success or failure when the asynchronous operations are complete.
+//     */
+//    protected abstract void asyncShardOperationOnPrimary(AsyncStash stash, Request shardRequest, ActionListener<Response> listener);
 
     /**
      * Replica operation on nodes with replica copies. While this does take a listener it should not return until it has completed any
@@ -282,7 +281,17 @@ public abstract class TransportReplicationAction<
                     final IndexMetaData indexMetaData = clusterService.state().getMetaData().index(request.shardId().getIndex());
                     final boolean executeOnReplicas = (indexMetaData == null) || shouldExecuteReplication(indexMetaData.getSettings());
                     final ActionListener<Response> listener = createResponseListener(channel, replicationTask, primaryShardReference);
-                    createReplicatedOperation(request, listener, primaryShardReference, executeOnReplicas).execute();
+                    createReplicatedOperation(request, new ActionListener<PrimaryResult>() {
+                        @Override
+                        public void onResponse(PrimaryResult result) {
+                            result.respond(listener);
+                        }
+
+                        @Override
+                        public void onFailure(Throwable e) {
+                            listener.onFailure(e);
+                        }
+                    }, primaryShardReference, executeOnReplicas).execute();
                     success = true;
                 }
             } finally {
@@ -292,8 +301,9 @@ public abstract class TransportReplicationAction<
             }
         }
 
-        protected ReplicationOperation<Request, AsyncStash, ReplicaRequest, Response> createReplicatedOperation(Request request,
-                ActionListener<Response> listener, PrimaryShardReference primaryShardReference, boolean executeOnReplicas) {
+        protected ReplicationOperation<Request, ReplicaRequest, PrimaryResult> createReplicatedOperation(
+            Request request, ActionListener<PrimaryResult> listener,
+            PrimaryShardReference primaryShardReference, boolean executeOnReplicas) {
             return new ReplicationOperation<>(request, primaryShardReference, listener,
                 executeOnReplicas, checkWriteConsistency(), replicasProxy, clusterService::state, logger, actionName
             );
@@ -328,6 +338,82 @@ public abstract class TransportReplicationAction<
                     }
                 }
             };
+        }
+    }
+
+    protected class PrimaryResult implements ReplicationOperation.PrimaryResult<ReplicaRequest> {
+        final ReplicaRequest replicaRequest;
+        final Response finalResponse;
+
+        public PrimaryResult(ReplicaRequest replicaRequest, Response finalResponse) {
+            this.replicaRequest = replicaRequest;
+            this.finalResponse = finalResponse;
+        }
+
+        @Override
+        public ReplicaRequest replicaRequest() {
+            return replicaRequest;
+        }
+
+        @Override
+        public void setShardInfo(ReplicationResponse.ShardInfo shardInfo) {
+            finalResponse.setShardInfo(shardInfo);
+        }
+
+        public void respond(ActionListener<Response> listener) {
+            listener.onResponse(finalResponse);
+        }
+    }
+
+    protected class WritePrimaryResult extends PrimaryResult {
+        boolean refreshNeeded;
+        boolean forcedRefresh;
+        ActionListener<Response> listener = null;
+
+        public WritePrimaryResult(ReplicaRequest replicaRequest, Response finalResponse,
+                                  Translog.Location location,
+                                  boolean fsyncTranslog,
+                                  ReplicatedMutationRequest.RefreshPolicy refreshPolicy,
+                                  IndexShard indexShard) {
+            super(replicaRequest, finalResponse);
+            switch (refreshPolicy) {
+                case IMMEDIATE:
+                    indexShard.refresh("bla");
+                    synchronized (this) {
+                        forcedRefresh = true;
+                        refreshNeeded = false;
+                    }
+                    break;
+                case WAIT_UNTIL:
+                    refreshNeeded = true;
+                    indexShard.addRefreshListener(location, forcedRefresh -> {
+                        synchronized (WritePrimaryResult.this) {
+                            WritePrimaryResult.this.forcedRefresh = forcedRefresh;
+                            if (forcedRefresh) {
+                                // TODO:: logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
+                            }
+                            refreshNeeded = false;
+                            respondIfNeeded();
+                        }
+                    });
+
+                    break;
+            }
+            if (fsyncTranslog) {
+                indexShard.sync(location);
+            }
+        }
+
+        @Override
+        public void respond(ActionListener<Response> listener) {
+            this.listener = listener;
+            respondIfNeeded();
+        }
+
+        protected synchronized void respondIfNeeded() {
+            if (refreshNeeded == false && listener != null) {
+                super.respond(listener);
+            }
         }
     }
 
@@ -748,7 +834,7 @@ public abstract class TransportReplicationAction<
         return IndexMetaData.isIndexUsingShadowReplicas(settings) == false;
     }
 
-    class PrimaryShardReference implements ReplicationOperation.Primary<Request, AsyncStash, ReplicaRequest, Response>, Releasable {
+    class PrimaryShardReference implements ReplicationOperation.Primary<Request, ReplicaRequest, PrimaryResult>, Releasable {
 
         private final IndexShard indexShard;
         private final Releasable operationLock;
@@ -777,16 +863,16 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public Tuple<ReplicaRequest, AsyncStash> perform(Request request) throws Exception {
-            Tuple<ReplicaRequest, AsyncStash> result = shardOperationOnPrimary(request);
-            result.v1().primaryTerm(indexShard.getPrimaryTerm());
+        public PrimaryResult perform(Request request) throws Exception {
+            PrimaryResult result = shardOperationOnPrimary(request);
+            result.replicaRequest().primaryTerm(indexShard.getPrimaryTerm());
             return result;
         }
 
-        @Override
-        public void performAsync(AsyncStash stash, Request request, ActionListener<Response> listener) throws Exception {
-            asyncShardOperationOnPrimary(stash, request, listener);
-        }
+//        @Override
+//        public void performAsync(AsyncStash stash, Request request, ActionListener<Response> listener) throws Exception {
+//            asyncShardOperationOnPrimary(stash, request, listener);
+//        }
 
         @Override
         public ShardRouting routingEntry() {

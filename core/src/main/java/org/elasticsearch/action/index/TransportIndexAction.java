@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
-import org.elasticsearch.action.support.replication.TransportReplicatedMutationAction;
+import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
@@ -61,7 +62,7 @@ import org.elasticsearch.transport.TransportService;
  * <li><b>allowIdGeneration</b>: If the id is set not, should it be generated. Defaults to <tt>true</tt>.
  * </ul>
  */
-public class TransportIndexAction extends TransportReplicatedMutationAction<IndexRequest, IndexResponse> {
+public class TransportIndexAction extends TransportReplicationAction<IndexRequest, IndexResponse> {
 
     private final AutoCreateIndex autoCreateIndex;
     private final boolean allowIdGeneration;
@@ -77,7 +78,7 @@ public class TransportIndexAction extends TransportReplicatedMutationAction<Inde
                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                 AutoCreateIndex autoCreateIndex) {
         super(settings, IndexAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction,
-            actionFilters, indexNameExpressionResolver, IndexRequest::new, ThreadPool.Names.INDEX);
+            actionFilters, indexNameExpressionResolver, IndexRequest::new, IndexResponse::new, ThreadPool.Names.INDEX);
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.createIndexAction = createIndexAction;
         this.autoCreateIndex = autoCreateIndex;
@@ -140,9 +141,38 @@ public class TransportIndexAction extends TransportReplicatedMutationAction<Inde
     }
 
     @Override
-    protected WriteResult<IndexResponse> onPrimaryShard(IndexService indexService, IndexShard indexShard, IndexRequest request)
-            throws Exception {
-        return executeIndexRequestOnPrimary(request, indexShard, mappingUpdatedAction);
+    protected PrimaryResult shardOperationOnPrimary(IndexRequest request) throws Exception {
+        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        IndexShard indexShard = indexService.getShard(request.shardId().id());
+        Engine.Index operation = prepareIndexOperationOnPrimary(request, indexShard);
+        Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
+        final ShardId shardId = indexShard.shardId();
+        if (update != null) {
+            mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), request.type(), update);
+            operation = prepareIndexOperationOnPrimary(request, indexShard);
+            update = operation.parsedDoc().dynamicMappingsUpdate();
+            if (update != null) {
+                throw new ReplicationOperation.RetryOnPrimaryException(shardId,
+                    "Dynamic mappings are not available on the node that holds the primary yet");
+            }
+        }
+        final boolean created = indexShard.index(operation);
+
+        // update the version on request so it will happen on the replicas
+        final long version = operation.version();
+        request.version(version);
+        request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
+
+        assert request.versionType().validateVersionForWrites(request.version());
+
+        final Location location = operation.getTranslogLocation();
+        return new WritePrimaryResult(
+            request,
+            new IndexResponse(shardId, request.type(), request.id(), request.version(), created),
+            location,
+            indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null,
+            request.refreshPolicy(), indexShard
+        );
     }
 
     @Override
@@ -173,35 +203,6 @@ public class TransportIndexAction extends TransportReplicatedMutationAction<Inde
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, request.source()).index(request.index()).type(request.type()).id(request.id())
             .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
         return indexShard.prepareIndexOnPrimary(sourceToParse, request.version(), request.versionType());
-    }
-
-    /**
-     * Execute the given {@link IndexRequest} on a primary shard, throwing a
-     * {@link ReplicationOperation.RetryOnPrimaryException} if the operation needs to be re-tried.
-     */
-    public static WriteResult<IndexResponse> executeIndexRequestOnPrimary(IndexRequest request, IndexShard indexShard, MappingUpdatedAction mappingUpdatedAction) throws Exception {
-        Engine.Index operation = prepareIndexOperationOnPrimary(request, indexShard);
-        Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
-        final ShardId shardId = indexShard.shardId();
-        if (update != null) {
-            mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), request.type(), update);
-            operation = prepareIndexOperationOnPrimary(request, indexShard);
-            update = operation.parsedDoc().dynamicMappingsUpdate();
-            if (update != null) {
-                throw new ReplicationOperation.RetryOnPrimaryException(shardId,
-                    "Dynamic mappings are not available on the node that holds the primary yet");
-            }
-        }
-        final boolean created = indexShard.index(operation);
-
-        // update the version on request so it will happen on the replicas
-        final long version = operation.version();
-        request.version(version);
-        request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
-
-        assert request.versionType().validateVersionForWrites(request.version());
-
-        return new WriteResult<>(new IndexResponse(shardId, request.type(), request.id(), request.version(), created), operation.getTranslogLocation());
     }
 
 }

@@ -26,11 +26,14 @@ import org.antlr.v4.runtime.DiagnosticErrorListener;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
-import org.elasticsearch.painless.antlr.PainlessParser.SourceBlockContext;
+import org.elasticsearch.painless.antlr.PainlessParser.SourceContext;
 import org.elasticsearch.painless.ScriptTestCase;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class ParserTests extends ScriptTestCase {
-    private SourceBlockContext buildAntlrTree(String source) {
+    private SourceContext buildAntlrTree(String source) {
         ANTLRInputStream stream = new ANTLRInputStream(source);
         PainlessLexer lexer = new ErrorHandlingLexer(stream);
         PainlessParser parser = new PainlessParser(new CommonTokenStream(lexer));
@@ -56,10 +59,10 @@ public class ParserTests extends ScriptTestCase {
         parser.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION);
         parser.setErrorHandler(strategy);
 
-        return parser.sourceBlock();
+        return parser.source();
     }
 
     public void testIllegalSecondary() {
-        buildAntlrTree("((2+2)((Map.Entry)x).y).z");
+        buildAntlrTree("(2 + 2)");
     }
 }

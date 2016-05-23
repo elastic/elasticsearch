@@ -21,124 +21,51 @@ parser grammar PainlessParser;
 
 options { tokenVocab=PainlessLexer; }
 
-sourceBlock
-    : shortStatement* EOF
+source
+    : statement* EOF
     ;
 
-shortStatementBlock
-    : statementBlock
-    | shortStatement
+statement
+    : IF LP expression RP trailer ( ELSE trailer | { _input.LA(1) != ELSE }? )                 # if
+    | WHILE LP expression RP ( trailer | empty )                                               # while
+    | DO block WHILE LP expression RP delimiter                                                # do
+    | FOR LP initializer? SEMICOLON expression? SEMICOLON afterthought? RP ( trailer | empty ) # for
+    | declaration delimiter                                                                    # decl
+    | CONTINUE delimiter                                                                       # continue
+    | BREAK delimiter                                                                          # break
+    | RETURN expression delimiter                                                              # return
+    | TRY block trap+                                                                          # try
+    | THROW expression delimiter                                                               # throw
+    | expression delimiter                                                                     # expr
     ;
 
-longStatementBlock
-    : statementBlock
-    | longStatement
+trailer
+    : block
+    | statement
     ;
 
-statementBlock
-    : LBRACK shortStatement* RBRACK
+block
+    : LBRACK statement* RBRACK
     ;
 
-emptyStatement
+empty
     : SEMICOLON
     ;
 
-shortStatement
-    : noTrailingStatement
-    | shortIfStatement
-    | longIfShortElseStatement
-    | shortWhileStatement
-    | shortForStatement
-    ;
-
-longStatement
-    : noTrailingStatement
-    | longIfStatement
-    | longWhileStatement
-    | longForStatement
-    ;
-
-noTrailingStatement
-    : declarationStatement delimiter
-    | doStatement delimiter
-    | continueStatement delimiter
-    | breakStatement delimiter
-    | returnStatement delimiter
-    | tryStatement
-    | throwStatement
-    | expressionStatement delimiter
-    ;
-
-shortIfStatement
-    : IF LP expression RP shortStatementBlock
-    ;
-
-longIfShortElseStatement
-    : IF LP expression RP longStatementBlock ELSE shortStatementBlock
-    ;
-
-longIfStatement
-    : IF LP expression RP longStatementBlock ELSE longStatementBlock
-    ;
-
-shortWhileStatement
-    : WHILE LP expression RP ( shortStatementBlock | emptyStatement )
-    ;
-
-longWhileStatement
-    : WHILE LP expression RP ( longStatementBlock | emptyStatement )
-    ;
-
-shortForStatement
-    : FOR LP forInitializer? SEMICOLON expression? SEMICOLON forAfterthought? RP ( shortStatementBlock | emptyStatement )
-    ;
-
-longForStatement
-    : FOR LP forInitializer? SEMICOLON expression? SEMICOLON forAfterthought? RP ( longStatementBlock | emptyStatement )
-    ;
-
-doStatement
-    : DO statementBlock WHILE LP expression RP
-    ;
-
-declarationStatement
-    : declarationType declarationVariable ( COMMA declarationVariable )*
-    ;
-
-continueStatement
-    : CONTINUE
-    ;
-
-breakStatement
-    : BREAK
-    ;
-
-returnStatement
-    : RETURN expression
-    ;
-
-tryStatement
-    : TRY statementBlock catchBlock+
-    ;
-
-throwStatement
-    : THROW expression
-    ;
-
-expressionStatement
-    : expression
-    ;
-
-forInitializer
-    : declarationStatement
+initializer
+    : declaration
     | expression
     ;
 
-forAfterthought
+afterthought
     : expression
     ;
 
-declarationType
+declaration
+    : decltype declvar+
+    ;
+
+decltype
     : type (LBRACE RBRACE)*
     ;
 
@@ -146,12 +73,12 @@ type
     : TYPE (DOT DOTTYPE)*
     ;
 
-declarationVariable
+declvar
     : ID ( ASSIGN expression )?
     ;
 
-catchBlock
-    : CATCH LP ( type ID ) RP ( statementBlock )
+trap
+    : CATCH LP ( type ID ) RP ( block )
     ;
 
 delimiter
@@ -160,7 +87,7 @@ delimiter
     ;
 
 expression returns [boolean s = true]
-    :               u = unary                                             { $s = $u.s; }           # single
+    :               u = unary[false]                                      { $s = $u.s; }           # single
     |               expression ( MUL | DIV | REM ) expression             { $s = false; }          # binary
     |               expression ( ADD | SUB ) expression                   { $s = false; }          # binary
     |               expression ( LSH | RSH | USH ) expression             { $s = false; }          # binary
@@ -172,47 +99,48 @@ expression returns [boolean s = true]
     |               expression BOOLAND expression                         { $s = false; }          # bool
     |               expression BOOLOR expression                          { $s = false; }          # bool
     | <assoc=right> expression COND e0 = expression COLON e1 = expression { $s = $e0.s && $e1.s; } # conditional
-    |               chain ( ASSIGN | AADD | ASUB | AMUL |
-                            ADIV   | AREM | AAND | AXOR |
-                            AOR    | ALSH | ARSH | AUSH ) expression                               # assignment
+    | <assoc=right> chain[true] ( ASSIGN | AADD | ASUB | AMUL |
+                                  ADIV   | AREM | AAND | AXOR |
+                                  AOR    | ALSH | ARSH | AUSH ) expression                         # assignment
     ;
 
-unary returns [boolean s = true]
-    : ( INCR | DECR ) chain                                 # pre
-    | chain (INCR | DECR )                                  # post
-    | chain                                                 # read
-    | ( OCTAL | HEX | INTEGER | DECIMAL )   { $s = false; } # numeric
-    | TRUE                                  { $s = false; } # true
-    | FALSE                                 { $s = false; } # false
-    | NULL                                  { $s = false; } # null
-    | ( BOOLNOT | BWNOT | ADD | SUB ) unary                 # operator
-    | LP declarationType RP unary                           # cast
+unary[boolean c] returns [boolean s = true]
+    : { !$c }? ( INCR | DECR ) chain[true]                                  # pre
+    | { !$c }? chain[true] (INCR | DECR )                                   # post
+    | { !$c }? chain[false]                                                 # read
+    | { !$c }? ( OCTAL | HEX | INTEGER | DECIMAL )          { $s = false; } # numeric
+    | { !$c }? TRUE                                         { $s = false; } # true
+    | { !$c }? FALSE                                        { $s = false; } # false
+    | { !$c }? NULL                                         { $s = false; } # null
+    | { !$c }? ( BOOLNOT | BWNOT | ADD | SUB ) unary[false]                 # operator
+    |          LP decltype RP unary[$c]                                     # cast
     ;
 
-chain
-    : p = primary secondary[$p.s]*                              # dynamicprimary
-    | declarationType dotsecondary secondary[true]*             # staticprimary
-    | NEW type bracesecondary+ (dotsecondary secondary[true]*)? # newarray
+chain[boolean c]
+    : p = primary[$c] secondary[$p.s]*        # dynamic
+    | decltype dot secondary[true]*           # static
+    | NEW type brace+ (dot secondary[true]*)? # newarray
     ;
 
-primary returns [boolean s = true]
-    : LP e = expression RP { $s = $e.s; } # precedence
-    | STRING                              # string
-    | ID                                  # variable
-    | NEW type arguments                  # newobject
+primary[boolean c] returns [boolean s = true]
+    : { !$c }? LP e = expression RP { $s = $e.s; } # exprprec
+    | { $c }?  LP unary[true] RP                   # chainprec
+    |          STRING                              # string
+    |          ID                                  # variable
+    |          NEW type arguments                  # newobject
     ;
 
 secondary [boolean s]
-    : { $s }? dotsecondary
-    | { $s }? bracesecondary
+    : { $s }? dot
+    | { $s }? brace
     ;
 
-dotsecondary
+dot
     : DOT DOTID arguments        # callinvoke
     | DOT ( DOTID | DOTINTEGER ) # fieldaccess
     ;
 
-bracesecondary
+brace
     : LBRACE expression RBRACE # braceaccess
     ;
 

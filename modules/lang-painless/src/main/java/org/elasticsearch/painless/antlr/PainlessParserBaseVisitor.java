@@ -17,182 +17,133 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitSourceBlock(PainlessParser.SourceBlockContext ctx) { return visitChildren(ctx); }
+  @Override public T visitSource(PainlessParser.SourceContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitShortStatementBlock(PainlessParser.ShortStatementBlockContext ctx) { return visitChildren(ctx); }
+  @Override public T visitIf(PainlessParser.IfContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitLongStatementBlock(PainlessParser.LongStatementBlockContext ctx) { return visitChildren(ctx); }
+  @Override public T visitWhile(PainlessParser.WhileContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitStatementBlock(PainlessParser.StatementBlockContext ctx) { return visitChildren(ctx); }
+  @Override public T visitDo(PainlessParser.DoContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitEmptyStatement(PainlessParser.EmptyStatementContext ctx) { return visitChildren(ctx); }
+  @Override public T visitFor(PainlessParser.ForContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitShortStatement(PainlessParser.ShortStatementContext ctx) { return visitChildren(ctx); }
+  @Override public T visitDecl(PainlessParser.DeclContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitLongStatement(PainlessParser.LongStatementContext ctx) { return visitChildren(ctx); }
+  @Override public T visitContinue(PainlessParser.ContinueContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitNoTrailingStatement(PainlessParser.NoTrailingStatementContext ctx) { return visitChildren(ctx); }
+  @Override public T visitBreak(PainlessParser.BreakContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitShortIfStatement(PainlessParser.ShortIfStatementContext ctx) { return visitChildren(ctx); }
+  @Override public T visitReturn(PainlessParser.ReturnContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitLongIfShortElseStatement(PainlessParser.LongIfShortElseStatementContext ctx) { return visitChildren(ctx); }
+  @Override public T visitTry(PainlessParser.TryContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitLongIfStatement(PainlessParser.LongIfStatementContext ctx) { return visitChildren(ctx); }
+  @Override public T visitThrow(PainlessParser.ThrowContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitShortWhileStatement(PainlessParser.ShortWhileStatementContext ctx) { return visitChildren(ctx); }
+  @Override public T visitExpr(PainlessParser.ExprContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitLongWhileStatement(PainlessParser.LongWhileStatementContext ctx) { return visitChildren(ctx); }
+  @Override public T visitTrailer(PainlessParser.TrailerContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitShortForStatement(PainlessParser.ShortForStatementContext ctx) { return visitChildren(ctx); }
+  @Override public T visitBlock(PainlessParser.BlockContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitLongForStatement(PainlessParser.LongForStatementContext ctx) { return visitChildren(ctx); }
+  @Override public T visitEmpty(PainlessParser.EmptyContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitDoStatement(PainlessParser.DoStatementContext ctx) { return visitChildren(ctx); }
+  @Override public T visitInitializer(PainlessParser.InitializerContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitDeclarationStatement(PainlessParser.DeclarationStatementContext ctx) { return visitChildren(ctx); }
+  @Override public T visitAfterthought(PainlessParser.AfterthoughtContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitContinueStatement(PainlessParser.ContinueStatementContext ctx) { return visitChildren(ctx); }
+  @Override public T visitDeclaration(PainlessParser.DeclarationContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitBreakStatement(PainlessParser.BreakStatementContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitReturnStatement(PainlessParser.ReturnStatementContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitTryStatement(PainlessParser.TryStatementContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitThrowStatement(PainlessParser.ThrowStatementContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitExpressionStatement(PainlessParser.ExpressionStatementContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitForInitializer(PainlessParser.ForInitializerContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitForAfterthought(PainlessParser.ForAfterthoughtContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitDeclarationType(PainlessParser.DeclarationTypeContext ctx) { return visitChildren(ctx); }
+  @Override public T visitDecltype(PainlessParser.DecltypeContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -206,14 +157,14 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitDeclarationVariable(PainlessParser.DeclarationVariableContext ctx) { return visitChildren(ctx); }
+  @Override public T visitDeclvar(PainlessParser.DeclvarContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitCatchBlock(PainlessParser.CatchBlockContext ctx) { return visitChildren(ctx); }
+  @Override public T visitTrap(PainlessParser.TrapContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -332,14 +283,14 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitDynamicprimary(PainlessParser.DynamicprimaryContext ctx) { return visitChildren(ctx); }
+  @Override public T visitDynamic(PainlessParser.DynamicContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitStaticprimary(PainlessParser.StaticprimaryContext ctx) { return visitChildren(ctx); }
+  @Override public T visitStatic(PainlessParser.StaticContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -353,7 +304,14 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitPrecedence(PainlessParser.PrecedenceContext ctx) { return visitChildren(ctx); }
+  @Override public T visitExprprec(PainlessParser.ExprprecContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitChainprec(PainlessParser.ChainprecContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

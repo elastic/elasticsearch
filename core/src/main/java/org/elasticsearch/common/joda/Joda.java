@@ -321,20 +321,15 @@ public class Joda {
 
     public static class EpochTimeParser implements DateTimeParser {
 
-        private static final Pattern MILLI_SECOND_PRECISION_PATTERN = Pattern.compile("^-?\\d{1,13}$");
-        private static final Pattern SECOND_PRECISION_PATTERN = Pattern.compile("^-?\\d{1,10}$");
-
         private final boolean hasMilliSecondPrecision;
-        private final Pattern pattern;
 
         public EpochTimeParser(boolean hasMilliSecondPrecision) {
             this.hasMilliSecondPrecision = hasMilliSecondPrecision;
-            this.pattern = hasMilliSecondPrecision ? MILLI_SECOND_PRECISION_PATTERN : SECOND_PRECISION_PATTERN;
         }
 
         @Override
         public int estimateParsedLength() {
-            return hasMilliSecondPrecision ? 13 : 10;
+            return hasMilliSecondPrecision ? 19 : 16;
         }
 
         @Override
@@ -344,8 +339,7 @@ public class Joda {
 
             if ((isPositive && isTooLong) ||
                 // timestamps have to have UTC timezone
-                bucket.getZone() != DateTimeZone.UTC ||
-                pattern.matcher(text).matches() == false) {
+                bucket.getZone() != DateTimeZone.UTC) {
                 return -1;
             }
 
@@ -378,7 +372,7 @@ public class Joda {
 
         @Override
         public int estimatePrintedLength() {
-            return hasMilliSecondPrecision ? 13 : 10;
+            return hasMilliSecondPrecision ? 19 : 16;
         }
 
         @Override

@@ -44,6 +44,7 @@ public interface BlobContainer {
      * @param   blobName
      *          The name of the blob whose existence is to be determined.
      * @return  {@code true} if a blob exists in the {@link BlobContainer} with the given name, and {@code false} otherwise.
+     * @throws  IOException if any error occurred while attempting to ascertain if the blob exists
      */
     boolean blobExists(String blobName);
 
@@ -79,6 +80,9 @@ public interface BlobContainer {
      * container does not already contain a blob of the same blobName.  If a blob by the same name already
      * exists, the operation will fail and an {@link IOException} will be thrown.
      *
+     * TODO: Remove this in favor of a single {@link #writeBlob(String, InputStream, long)} method.
+     *       See https://github.com/elastic/elasticsearch/issues/18528
+     *
      * @param   blobName
      *          The name of the blob to write the contents of the input stream to.
      * @param   bytes
@@ -98,10 +102,12 @@ public interface BlobContainer {
 
     /**
      * Deletes blobs with the given names.  If any subset of the names do not exist in the container, this method has no
-     * affect for those names, and will delete the blobs for those names that do exist.  If any of the blobs failed
+     * effect for those names, and will delete the blobs for those names that do exist.  If any of the blobs failed
      * to delete, those blobs that were processed before it and successfully deleted will remain deleted.  An exception
      * is thrown at the first blob entry that fails to delete (TODO: is this the right behavior?  Should we collect
      * all the failed deletes into a single IOException instead?)
+     *
+     * TODO: remove, see https://github.com/elastic/elasticsearch/issues/18529
      *
      * @param   blobNames
      *          The collection of blob names to delete from the container.
@@ -114,6 +120,8 @@ public interface BlobContainer {
      * those blobs that were processed before it and successfully deleted will remain deleted.  An exception is
      * thrown at the first blob entry that fails to delete (TODO: is this the right behavior?  Should we collect
      * all the failed deletes into a single IOException instead?)
+     *
+     * TODO: remove, see: https://github.com/elastic/elasticsearch/issues/18529
      *
      * @param   blobNamePrefix
      *          The prefix to match against blob names in the container.  Any blob whose name has the prefix will be deleted.

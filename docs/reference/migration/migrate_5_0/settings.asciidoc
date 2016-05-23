@@ -258,3 +258,9 @@ Previously script mode settings (e.g., "script.inline: true",
 Prior to 5.0 a third option could be specified for the `script.inline` and
 `script.stored` settings ("sandbox"). This has been removed, You can now only
 set `script.line: true` or `script.stored: true`.
+
+==== Search settings
+
+The setting `index.query.bool.max_clause_count` has been removed. In order to
+set the maximum number of boolean clauses `indices.query.bool.max_clause_count`
+should be used instead.

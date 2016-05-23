@@ -144,6 +144,14 @@ subprojects {
       // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
       javadoc.options.encoding='UTF8'
       javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
+      /*
+      TODO: building javadocs with java 9 b118 is currently broken with weird errors, so
+      for now this is commented out...try again with the next ea build...
+      javadoc.executable = new File(project.javaHome, 'bin/javadoc')
+      if (project.javaVersion == JavaVersion.VERSION_1_9) {
+        // TODO: remove this hack! gradle should be passing this...
+        javadoc.options.addStringOption('source', '8')
+      }*/
     }
   }
 

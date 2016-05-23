@@ -143,7 +143,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             project.rootProject.ext.javaHome = javaHome
-            project.rootProject.ext.javaVersion = javaVersion
+            project.rootProject.ext.javaVersion = javaVersionEnum
             project.rootProject.ext.buildChecksDone = true
         }
         project.targetCompatibility = minimumJava
@@ -387,10 +387,13 @@ class BuildPlugin implements Plugin<Project> {
                 options.encoding = 'UTF-8'
                 //options.incremental = true
 
-                // gradle ignores target/source compatibility when it is "unnecessary", but since to compile with
-                // java 9, gradle is running in java 8, it incorrectly thinks it is unnecessary
-                assert minimumJava == JavaVersion.VERSION_1_8
-                options.compilerArgs << '-target' << '1.8' << '-source' << '1.8'
+                if (project.javaVersion == JavaVersion.VERSION_1_9) {
+                    // hack until gradle supports java 9's new "-release" arg
+                    assert minimumJava == JavaVersion.VERSION_1_8
+                    options.compilerArgs << '-release' << '8'
+                    project.sourceCompatibility = null
+                    project.targetCompatibility = null
+                }
             }
         }
     }

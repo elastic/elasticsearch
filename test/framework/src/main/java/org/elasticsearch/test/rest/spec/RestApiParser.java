@@ -27,113 +27,107 @@ import java.io.IOException;
  */
 public class RestApiParser {
 
-    public RestApi parse(XContentParser parser) throws IOException {
+    public RestApi parse(String location, XContentParser parser) throws IOException {
 
-        try {
-            while ( parser.nextToken() != XContentParser.Token.FIELD_NAME ) {
-                //move to first field name
-            }
-
-            RestApi restApi = new RestApi(parser.currentName());
-
-            int level = -1;
-            while (parser.nextToken() != XContentParser.Token.END_OBJECT || level >= 0) {
-
-                if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                    if ("methods".equals(parser.currentName())) {
-                        parser.nextToken();
-                        while (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
-                            restApi.addMethod(parser.text());
-                        }
-                    }
-
-                    if ("url".equals(parser.currentName())) {
-                        String currentFieldName = "url";
-                        int innerLevel = -1;
-                        while(parser.nextToken() != XContentParser.Token.END_OBJECT || innerLevel >= 0) {
-                            if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                                currentFieldName = parser.currentName();
-                            }
-
-                            if (parser.currentToken() == XContentParser.Token.START_ARRAY && "paths".equals(currentFieldName)) {
-                                while (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
-                                    restApi.addPath(parser.text());
-                                }
-                            }
-
-                            if (parser.currentToken() == XContentParser.Token.START_OBJECT && "parts".equals(currentFieldName)) {
-                                while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                                    restApi.addPathPart(parser.currentName());
-                                    parser.nextToken();
-                                    if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-                                        throw new IOException("Expected parts field in rest api definition to contain an object");
-                                    }
-                                    parser.skipChildren();
-                                }
-                            }
-
-                            if (parser.currentToken() == XContentParser.Token.START_OBJECT && "params".equals(currentFieldName)) {
-                                while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                                    restApi.addParam(parser.currentName());
-                                    parser.nextToken();
-                                    if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-                                        throw new IOException("Expected params field in rest api definition to contain an object");
-                                    }
-                                    parser.skipChildren();
-                                }
-                            }
-
-                            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                                innerLevel++;
-                            }
-                            if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
-                                innerLevel--;
-                            }
-                        }
-                    }
-
-                    if ("body".equals(parser.currentName())) {
-                        parser.nextToken();
-                        if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                            boolean requiredFound = false;
-                            while(parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                                if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                                    if ("required".equals(parser.currentName())) {
-                                        requiredFound = true;
-                                        parser.nextToken();
-                                        if (parser.booleanValue()) {
-                                            restApi.setBodyRequired();
-                                        } else {
-                                            restApi.setBodyOptional();
-                                        }
-                                    }
-                                }
-                            }
-                            if (!requiredFound) {
-                                restApi.setBodyOptional();
-                            }
-                        }
-                    }
-                }
-
-                if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                    level++;
-                }
-                if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
-                    level--;
-                }
-
-            }
-
-            parser.nextToken();
-            assert parser.currentToken() == XContentParser.Token.END_OBJECT : "Expected [END_OBJECT] but was ["  + parser.currentToken() +"]";
-            parser.nextToken();
-
-            return restApi;
-
-        } finally {
-            parser.close();
+        while ( parser.nextToken() != XContentParser.Token.FIELD_NAME ) {
+            //move to first field name
         }
-    }
 
+        RestApi restApi = new RestApi(location, parser.currentName());
+
+        int level = -1;
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT || level >= 0) {
+
+            if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                if ("methods".equals(parser.currentName())) {
+                    parser.nextToken();
+                    while (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
+                        restApi.addMethod(parser.text());
+                    }
+                }
+
+                if ("url".equals(parser.currentName())) {
+                    String currentFieldName = "url";
+                    int innerLevel = -1;
+                    while(parser.nextToken() != XContentParser.Token.END_OBJECT || innerLevel >= 0) {
+                        if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        }
+
+                        if (parser.currentToken() == XContentParser.Token.START_ARRAY && "paths".equals(currentFieldName)) {
+                            while (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
+                                restApi.addPath(parser.text());
+                            }
+                        }
+
+                        if (parser.currentToken() == XContentParser.Token.START_OBJECT && "parts".equals(currentFieldName)) {
+                            while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                                restApi.addPathPart(parser.currentName());
+                                parser.nextToken();
+                                if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+                                    throw new IOException("Expected parts field in rest api definition to contain an object");
+                                }
+                                parser.skipChildren();
+                            }
+                        }
+
+                        if (parser.currentToken() == XContentParser.Token.START_OBJECT && "params".equals(currentFieldName)) {
+                            while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                                restApi.addParam(parser.currentName());
+                                parser.nextToken();
+                                if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+                                    throw new IOException("Expected params field in rest api definition to contain an object");
+                                }
+                                parser.skipChildren();
+                            }
+                        }
+
+                        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                            innerLevel++;
+                        }
+                        if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
+                            innerLevel--;
+                        }
+                    }
+                }
+
+                if ("body".equals(parser.currentName())) {
+                    parser.nextToken();
+                    if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                        boolean requiredFound = false;
+                        while(parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                            if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                                if ("required".equals(parser.currentName())) {
+                                    requiredFound = true;
+                                    parser.nextToken();
+                                    if (parser.booleanValue()) {
+                                        restApi.setBodyRequired();
+                                    } else {
+                                        restApi.setBodyOptional();
+                                    }
+                                }
+                            }
+                        }
+                        if (!requiredFound) {
+                            restApi.setBodyOptional();
+                        }
+                    }
+                }
+            }
+
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                level++;
+            }
+            if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
+                level--;
+            }
+
+        }
+
+        parser.nextToken();
+        assert parser.currentToken() == XContentParser.Token.END_OBJECT : "Expected [END_OBJECT] but was ["  + parser.currentToken() +"]";
+        parser.nextToken();
+
+        return restApi;
+    }
 }

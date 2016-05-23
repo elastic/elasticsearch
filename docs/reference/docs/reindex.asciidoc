@@ -285,6 +285,20 @@ POST /_reindex
 By default `_reindex` uses scroll batches of 100. You can change the
 batch size with the `size` field in the `source` element:
 
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "source": {
+    "index": "source",
+    "size": 1500
+  },
+  "dest": {
+    "index": "dest"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
 
 [float]
 === URL Parameters

@@ -200,7 +200,11 @@ public class Environment {
 
     /**
      * The data location with the cluster name as a sub directory.
+     *
+     * @deprecated Used to upgrade old data paths to new ones that do not include the cluster name, should not be used to write files to and
+     * will be removed in ES 6.0
      */
+    @Deprecated
     public Path[] dataWithClusterFiles() {
         return dataWithClusterFiles;
     }

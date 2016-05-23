@@ -32,12 +32,6 @@ Use local transport (default since 1.3):
 -Des.node.mode=local
 -------------------------------------
 
-Alternatively, you can set the `ES_TEST_LOCAL` environment variable:
-
--------------------------------------
-export ES_TEST_LOCAL=true && gradle test
--------------------------------------
-
 === Running Elasticsearch from a checkout
 
 In order to run Elasticsearch from source without building a package, you can

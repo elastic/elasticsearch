@@ -1427,7 +1427,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     /**
-     * Acquires operation lock. If the given primary term is lower then the one in {@link #shardRouting}
+     * acquires operation log. If the given primary term is lower then the one in {@link #shardRouting}
      * an {@link IllegalArgumentException} is thrown.
      */
     public Releasable acquireReplicaOperationLock(long opPrimaryTerm) {

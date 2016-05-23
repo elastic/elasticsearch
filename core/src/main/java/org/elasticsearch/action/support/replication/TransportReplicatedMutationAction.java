@@ -35,7 +35,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportResponse.Empty;
 
 import java.util.function.Supplier;
 
@@ -45,7 +44,7 @@ import java.util.function.Supplier;
 public abstract class TransportReplicatedMutationAction<
             Request extends ReplicatedMutationRequest<Request>,
             Response extends ReplicatedMutationResponse
-        > extends TransportReplicationAction<Request, WriteResult<Response>, Request, Translog.Location, Response> {
+        > extends TransportReplicationAction<Request, WriteResult<Response>, Request, Response> {
 
     protected TransportReplicatedMutationAction(Settings settings, String actionName, TransportService transportService,
             ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
@@ -86,9 +85,9 @@ public abstract class TransportReplicatedMutationAction<
 
     @Override
     protected void asyncShardOperationOnPrimary(WriteResult<Response> result, Request request, ActionListener<Response> listener) {
+        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        IndexShard indexShard = indexService.getShard(request.shardId().id());
         if (request.shouldBlockUntilRefresh() && false == request.isRefresh()) {
-            IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-            IndexShard indexShard = indexService.getShard(request.shardId().id());
             indexShard.addRefreshListener(result.location, forcedRefresh -> {
                 if (forcedRefresh) {
                     logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
@@ -102,24 +101,16 @@ public abstract class TransportReplicatedMutationAction<
     }
 
     @Override
-    protected final Translog.Location shardOperationOnReplica(Request request) {
-        ShardId shardId = request.shardId();
+    protected final void shardOperationOnReplica(Request request, ActionListener<TransportResponse.Empty> listener) {
+        final ShardId shardId = request.shardId();
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         Translog.Location location = onReplicaShard(request, indexShard);
-        // NOCOMMIT should this move into the asyncShardOperationOnReplica? It'd be outside of the lock.
         processAfterWrite(request.isRefresh(), indexShard, location);
-        return location;
-    }
-
-    @Override
-    protected void asyncShardOperationOnReplica(Translog.Location location, Request request, ActionListener<Empty> listener) {
         if (request.shouldBlockUntilRefresh() && false == request.isRefresh() && location != null) {
-            ShardId shardId = request.shardId();
-            IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-            IndexShard indexShard = indexService.getShard(shardId.id());
             indexShard.addRefreshListener(location, forcedRefresh -> {
                 logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
+                // TODO mark the response?!?
                 listener.onResponse(TransportResponse.Empty.INSTANCE);
             });
         } else {

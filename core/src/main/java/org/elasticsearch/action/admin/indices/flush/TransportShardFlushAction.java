@@ -36,8 +36,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportShardFlushAction
-        extends TransportReplicationAction<ShardFlushRequest, Void, ShardFlushRequest, Void, ReplicationResponse> {
+/**
+ *
+ */
+public class TransportShardFlushAction extends TransportReplicationAction<ShardFlushRequest, Void, ShardFlushRequest, ReplicationResponse> {
 
     public static final String NAME = FlushAction.NAME + "[s]";
 
@@ -68,11 +70,11 @@ public class TransportShardFlushAction
     }
 
     @Override
-    protected Void shardOperationOnReplica(ShardFlushRequest request) {
+    protected void shardOperationOnReplica(ShardFlushRequest request, ActionListener<TransportResponse.Empty> listener) {
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
         indexShard.flush(request.getRequest());
         logger.trace("{} flush request executed on replica", indexShard.shardId());
-        return null;
+        listener.onResponse(TransportResponse.Empty.INSTANCE);
     }
 
     @Override

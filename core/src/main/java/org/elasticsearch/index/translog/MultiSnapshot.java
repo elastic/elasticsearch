@@ -47,12 +47,12 @@ final class MultiSnapshot implements Translog.Snapshot {
     }
 
     @Override
-    public Translog.Operation next() throws IOException {
+    public Translog.Position next() throws IOException {
         for (; index < translogs.length; index++) {
             final Translog.Snapshot current = translogs[index];
-            Translog.Operation op = current.next();
-            if (op != null) { // if we are null we move to the next snapshot
-                return op;
+            Translog.Position position = current.next();
+            if (position != null) { // if we are null we move to the next snapshot
+                return position;
             }
         }
         return null;

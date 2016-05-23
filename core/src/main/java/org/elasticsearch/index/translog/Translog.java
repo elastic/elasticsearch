@@ -30,6 +30,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -704,7 +705,27 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         /**
          * Returns the next operation in the snapshot or <code>null</code> if we reached the end.
          */
-        Translog.Operation next() throws IOException;
+        Position next() throws IOException;
+
+    }
+
+    public static class Position {
+
+        private final Translog.Operation operation;
+        private final Translog.Location location;
+
+        public Position(Operation operation, Location location) {
+            this.operation = operation;
+            this.location = location;
+        }
+
+        public Operation operation() {
+            return operation;
+        }
+
+        public Location location() {
+            return location;
+        }
 
     }
 

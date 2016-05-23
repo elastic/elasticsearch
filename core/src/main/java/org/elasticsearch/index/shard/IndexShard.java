@@ -1011,7 +1011,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (writeAllowedStatesForPrimary.contains(state) == false) {
                 throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when shard state is one of " + writeAllowedStatesForPrimary + ", origin [" + origin + "]");
             }
-        } else if (origin == Engine.Operation.Origin.RECOVERY) {
+        } else if (origin.isRecovery()) {
             if (state != IndexShardState.RECOVERING) {
                 throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when recovering, origin [" + origin + "]");
             }

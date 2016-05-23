@@ -773,10 +773,15 @@ public abstract class Engine implements Closeable {
             this.startTime = startTime;
         }
 
-        public static enum Origin {
+        public enum Origin {
             PRIMARY,
             REPLICA,
-            RECOVERY
+            PEER_RECOVERY,
+            LOCAL_RECOVERY;
+
+            public boolean isRecovery() {
+                return this == PEER_RECOVERY || this == LOCAL_RECOVERY;
+            }
         }
 
         public Origin origin() {

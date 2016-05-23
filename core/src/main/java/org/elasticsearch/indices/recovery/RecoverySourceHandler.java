@@ -399,22 +399,23 @@ public class RecoverySourceHandler {
         long size = 0;
         int totalOperations = 0;
         final List<Translog.Operation> operations = new ArrayList<>();
-        Translog.Operation operation;
+        Translog.Position position = null;
         try {
-            operation = snapshot.next(); // this ex should bubble up
+            position = snapshot.next(); // this ex should bubble up
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to get next operation from translog", ex);
         }
 
-        if (operation == null) {
+        if (position == null) {
             logger.trace("[{}][{}] no translog operations to send to {}",
                     indexName, shardId, request.targetNode());
         }
-        while (operation != null) {
+        while (position != null) {
             if (shard.state() == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(request.shardId());
             }
             cancellableThreads.checkForCancel();
+            final Translog.Operation operation = position.operation();
             operations.add(operation);
             ops += 1;
             size += operation.estimateSize();
@@ -442,7 +443,7 @@ public class RecoverySourceHandler {
                 operations.clear();
             }
             try {
-                operation = snapshot.next(); // this ex should bubble up
+                position = snapshot.next(); // this ex should bubble up
             } catch (IOException ex) {
                 throw new ElasticsearchException("failed to get next operation from translog", ex);
             }

@@ -19,7 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Sort;
+import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.Variables.Variable;
 import org.objectweb.asm.Opcodes;
@@ -46,13 +47,21 @@ public final class SDeclaration extends AStatement {
 
     @Override
     void analyze(Variables variables) {
-        variable = variables.addVariable(location, type, name, false, false);
+        final Type decltype;
+
+        try {
+            decltype = Definition.getType(type);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException(error("Not a type [" + type + "]."));
+        }
 
         if (expression != null) {
-            expression.expected = variable.type;
+            expression.expected = decltype;
             expression.analyze(variables);
             expression = expression.cast(variables);
         }
+
+        variable = variables.addVariable(location, decltype, name, false, false);
     }
 
     @Override

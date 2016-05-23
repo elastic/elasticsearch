@@ -99,35 +99,35 @@ public final class Variables {
         // Method variables.
 
         // This reference.  Internal use only.
-        addVariable("[" + Reserved.THIS + "]"  , "Executable", Reserved.THIS  , true, true);
+        addVariable("[" + Reserved.THIS + "]", Definition.getType("Executable"), Reserved.THIS, true, true);
 
         // Input map of variables passed to the script.
-        addVariable("[" + Reserved.PARAMS + "]", "Map", Reserved.PARAMS, true, true);
+        addVariable("[" + Reserved.PARAMS + "]", Definition.getType("Map"), Reserved.PARAMS, true, true);
 
         // Scorer parameter passed to the script.  Internal use only.
-        addVariable("[" + Reserved.SCORER + "]", "def", Reserved.SCORER, true, true);
+        addVariable("[" + Reserved.SCORER + "]", Definition.DEF_TYPE, Reserved.SCORER, true, true);
 
         // Doc parameter passed to the script. TODO: Currently working as a Map, we can do better?
-        addVariable("[" + Reserved.DOC + "]"   , "Map", Reserved.DOC   , true, true);
+        addVariable("[" + Reserved.DOC + "]", Definition.getType("Map"), Reserved.DOC, true, true);
 
         // Aggregation _value parameter passed to the script.
-        addVariable("[" + Reserved.VALUE + "]" , "def", Reserved.VALUE , true, true);
+        addVariable("[" + Reserved.VALUE + "]", Definition.DEF_TYPE, Reserved.VALUE, true, true);
 
         // Shortcut variables.
 
         // Document's score as a read-only double.
         if (reserved.score) {
-            addVariable("[" + Reserved.SCORE + "]", "double", Reserved.SCORE, true, true);
+            addVariable("[" + Reserved.SCORE + "]", Definition.DOUBLE_TYPE, Reserved.SCORE, true, true);
         }
 
         // The ctx map set by executable scripts as a read-only map.
         if (reserved.ctx) {
-            addVariable("[" + Reserved.CTX + "]", "Map", Reserved.CTX, true, true);
+            addVariable("[" + Reserved.CTX + "]", Definition.getType("Map"), Reserved.CTX, true, true);
         }
 
         // Loop counter to catch infinite loops.  Internal use only.
         if (reserved.loop) {
-            addVariable("[" + Reserved.LOOP + "]", "int", Reserved.LOOP, true, true);
+            addVariable("[" + Reserved.LOOP + "]", Definition.INT_TYPE, Reserved.LOOP, true, true);
         }
     }
 
@@ -167,21 +167,13 @@ public final class Variables {
         return null;
     }
 
-    public Variable addVariable(String location, String typestr, String name, boolean readonly, boolean reserved) {
+    public Variable addVariable(String location, Type type, String name, boolean readonly, boolean reserved) {
         if (!reserved && this.reserved.isReserved(name)) {
             throw new IllegalArgumentException("Error " + location + ": Variable name [" + name + "] is reserved.");
         }
 
         if (getVariable(null, name) != null) {
             throw new IllegalArgumentException("Error " + location + ": Variable name [" + name + "] already defined.");
-        }
-
-        final Type type;
-
-        try {
-            type = Definition.getType(typestr);
-        } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException("Error " + location + ": Not a type [" + typestr + "].");
         }
 
         try {

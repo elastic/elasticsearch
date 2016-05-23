@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.Variables.Variable;
 import org.objectweb.asm.Label;
@@ -50,11 +52,19 @@ public final class SCatch extends AStatement {
 
     @Override
     void analyze(Variables variables) {
-        variable = variables.addVariable(location, type, name, true, false);
+        final Type decltype;
 
-        if (!Exception.class.isAssignableFrom(variable.type.clazz)) {
-            throw new ClassCastException(error("Not an exception type [" + variable.type.name + "]."));
+        try {
+            decltype = Definition.getType(type);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException(error("Not a type [" + type + "]."));
         }
+
+        if (!Exception.class.isAssignableFrom(decltype.clazz)) {
+            throw new ClassCastException(error("Not an exception type [" + type + "]."));
+        }
+
+        variable = variables.addVariable(location, decltype, name, true, false);
 
         if (block != null) {
             block.lastSource = lastSource;
@@ -73,24 +83,24 @@ public final class SCatch extends AStatement {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        writeDebugInfo(adapter);
+    void write(MethodWriter writer) {
+        writeDebugInfo(writer);
 
         Label jump = new Label();
 
-        adapter.mark(jump);
-        adapter.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.slot);
+        writer.mark(jump);
+        writer.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.slot);
 
         if (block != null) {
             block.continu = continu;
             block.brake = brake;
-            block.write(adapter);
+            block.write(writer);
         }
 
-        adapter.visitTryCatchBlock(begin, end, jump, variable.type.type.getInternalName());
+        writer.visitTryCatchBlock(begin, end, jump, variable.type.type.getInternalName());
 
         if (exception != null && !block.allEscape) {
-            adapter.goTo(exception);
+            writer.goTo(exception);
         }
     }
 }

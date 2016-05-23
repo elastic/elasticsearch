@@ -63,6 +63,6 @@ public class ParserTests extends ScriptTestCase {
     }
 
     public void testIllegalSecondary() {
-        buildAntlrTree("(2 + 2)");
+        //buildAntlrTree("((x) + 2).x");
     }
 }

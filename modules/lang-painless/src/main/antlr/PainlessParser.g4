@@ -130,7 +130,7 @@ primary[boolean c] returns [boolean s = true]
     |          NEW type arguments                  # newobject
     ;
 
-secondary [boolean s]
+secondary[boolean s]
     : { $s }? dot
     | { $s }? brace
     ;

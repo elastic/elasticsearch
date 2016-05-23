@@ -37,11 +37,11 @@ import java.util.Objects;
  * methods and fields during at both compile-time and runtime.
  */
 public final class Definition {
-    
+
     private static final String DEFINITION_FILE = "definition.txt";
 
     private static final Definition INSTANCE = new Definition();
-    
+
     /** Some native types as constants: */
     public static final Type VOID_TYPE = getType("void");
     public static final Type BOOLEAN_TYPE = getType("boolean");
@@ -290,7 +290,7 @@ public final class Definition {
             staticMembers = new HashMap<>();
             members = new HashMap<>();
         }
-        
+
         private Struct(final Struct struct) {
             name = struct.name;
             clazz = struct.clazz;
@@ -374,6 +374,22 @@ public final class Definition {
         }
     }
 
+    /** Returns whether or not a non-array type exists. */
+    public static boolean isSimpleType(final String name) {
+        return INSTANCE.structsMap.containsKey(name);
+    }
+
+    /** Returns whether or not a type exists without an exception. */
+    public static boolean isType(final String name) {
+        try {
+            INSTANCE.getTypeInternal(name);
+
+            return true;
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
+    }
+
     /** Gets the type given by its name */
     public static Type getType(final String name) {
         return INSTANCE.getTypeInternal(name);
@@ -383,13 +399,13 @@ public final class Definition {
     public static Type getType(final Struct struct, final int dimensions) {
         return INSTANCE.getTypeInternal(struct, dimensions);
     }
-    
+
     public static RuntimeClass getRuntimeClass(Class<?> clazz) {
         return INSTANCE.runtimeMap.get(clazz);
     }
-    
+
     // INTERNAL IMPLEMENTATION:
-    
+
     private final Map<Class<?>, RuntimeClass> runtimeMap;
     private final Map<String, Struct> structsMap;
     private final Map<String, Type> simpleTypesMap;
@@ -898,15 +914,17 @@ public final class Definition {
         runtimeMap.put(struct.clazz, new RuntimeClass(methods, getters, setters));
     }
 
-    private Type getTypeInternal(final String name) {
+    private Type getTypeInternal(String name) {
         // simple types (e.g. 0 array dimensions) are a simple hash lookup for speed
         Type simple = simpleTypesMap.get(name);
+
         if (simple != null) {
             return simple;
         }
-        final int dimensions = getDimensions(name);
-        final String structstr = dimensions == 0 ? name : name.substring(0, name.indexOf('['));
-        final Struct struct = structsMap.get(structstr);
+
+        int dimensions = getDimensions(name);
+        String structstr = dimensions == 0 ? name : name.substring(0, name.indexOf('['));
+        Struct struct = structsMap.get(structstr);
 
         if (struct == null) {
             throw new IllegalArgumentException("The struct with name [" + name + "] has not been defined.");
@@ -915,29 +933,29 @@ public final class Definition {
         return getTypeInternal(struct, dimensions);
     }
 
-    private Type getTypeInternal(final Struct struct, final int dimensions) {
+    private Type getTypeInternal(Struct struct, int dimensions) {
         String name = struct.name;
         org.objectweb.asm.Type type = struct.type;
         Class<?> clazz = struct.clazz;
         Sort sort;
 
         if (dimensions > 0) {
-            final StringBuilder builder = new StringBuilder(name);
-            final char[] brackets = new char[dimensions];
+            StringBuilder builder = new StringBuilder(name);
+            char[] brackets = new char[dimensions];
 
             for (int count = 0; count < dimensions; ++count) {
                 builder.append("[]");
                 brackets[count] = '[';
             }
 
-            final String descriptor = new String(brackets) + struct.type.getDescriptor();
+            String descriptor = new String(brackets) + struct.type.getDescriptor();
 
             name = builder.toString();
             type = org.objectweb.asm.Type.getType(descriptor);
 
             try {
                 clazz = Class.forName(type.getInternalName().replace('/', '.'));
-            } catch (final ClassNotFoundException exception) {
+            } catch (ClassNotFoundException exception) {
                 throw new IllegalArgumentException("The class [" + type.getInternalName() + "]" +
                     " could not be found to create type [" + name + "].");
             }
@@ -948,7 +966,7 @@ public final class Definition {
         } else {
             sort = Sort.OBJECT;
 
-            for (final Sort value : Sort.values()) {
+            for (Sort value : Sort.values()) {
                 if (value.clazz == null) {
                     continue;
                 }
@@ -964,12 +982,12 @@ public final class Definition {
         return new Type(name, dimensions, struct, clazz, type, sort);
     }
 
-    private int getDimensions(final String name) {
+    private int getDimensions(String name) {
         int dimensions = 0;
         int index = name.indexOf('[');
 
         if (index != -1) {
-            final int length = name.length();
+            int length = name.length();
 
             while (index < length) {
                 if (name.charAt(index) == '[' && ++index < length && name.charAt(index++) == ']') {

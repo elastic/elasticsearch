@@ -19,6 +19,10 @@
 
 lexer grammar PainlessLexer;
 
+@header {
+import org.elasticsearch.painless.Definition;
+}
+
 WS: [ \t\n\r]+ -> skip;
 COMMENT: ( '//' .*? [\n\r] | '/*' .*? '*/' ) -> skip;
 
@@ -88,7 +92,7 @@ AUSH:   '>>>=';
 OCTAL: '0' [0-7]+ [lL]?;
 HEX: '0' [xX] [0-9a-fA-F]+ [lL]?;
 INTEGER: ( '0' | [1-9] [0-9]* ) [lLfFdD]?;
-DECIMAL: ( '0' | [1-9] [0-9]* ) DOT [0-9]* ( [eE] [+\-]? [0-9]+ )? [fF]?;
+DECIMAL: ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? ( [eE] [+\-]? [0-9]+ )? [fF]?;
 
 STRING: ( '"' ( '\\"' | '\\\\' | ~[\\"] )*? '"' ) | ( '\'' ( '\\\'' | '\\\\' | ~[\\"] )*? '\'' );
 
@@ -97,10 +101,10 @@ FALSE: 'false';
 
 NULL: 'null';
 
-TYPE: 'void' | 'boolean' | 'byte' | 'short' | 'char' | 'int' | 'long' | 'float' | 'double' | [A-Z] [_a-zA-Z0-9]*;
-ID: [_a-z] [_a-zA-Z0-9]*;
+TYPE: ID ( DOT ID )* { Definition.isSimpleType(getText()) }?;
+ID: [_a-zA-Z] [_a-zA-Z0-9]*;
 
 mode AFTER_DOT;
-DOTINTEGER: ( '0' | [1-9] [0-9]* ) -> mode(DEFAULT_MODE);
-DOTTYPE: ('void' | 'boolean' | 'byte' | 'short' | 'char' | 'int' | 'long' | 'float' | 'double' | [A-Z] [_a-zA-Z0-9]*) -> mode(DEFAULT_MODE);
-DOTID: [_a-z] [_a-zA-Z0-9]* -> mode(DEFAULT_MODE);
+
+DOTINTEGER: ( '0' | [1-9] [0-9]* )                        -> mode(DEFAULT_MODE);
+DOTID: [_a-z] [_a-zA-Z0-9]*                               -> mode(DEFAULT_MODE);

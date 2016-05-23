@@ -62,15 +62,11 @@ afterthought
     ;
 
 declaration
-    : decltype declvar+
+    : decltype declvar (COMMA declvar)*
     ;
 
 decltype
-    : type (LBRACE RBRACE)*
-    ;
-
-type
-    : TYPE (DOT DOTTYPE)*
+    : TYPE (LBRACE RBRACE)*
     ;
 
 declvar
@@ -78,7 +74,7 @@ declvar
     ;
 
 trap
-    : CATCH LP ( type ID ) RP ( block )
+    : CATCH LP TYPE ID RP block
     ;
 
 delimiter
@@ -117,9 +113,9 @@ unary[boolean c] returns [boolean s = true]
     ;
 
 chain[boolean c]
-    : p = primary[$c] secondary[$p.s]*        # dynamic
-    | decltype dot secondary[true]*           # static
-    | NEW type brace+ (dot secondary[true]*)? # newarray
+    : p = primary[$c] secondary[$p.s]*                             # dynamic
+    | decltype dot secondary[true]*                                # static
+    | NEW TYPE (LBRACE expression RBRACE)+ (dot secondary[true]*)? # newarray
     ;
 
 primary[boolean c] returns [boolean s = true]
@@ -127,7 +123,7 @@ primary[boolean c] returns [boolean s = true]
     | { $c }?  LP unary[true] RP                   # chainprec
     |          STRING                              # string
     |          ID                                  # variable
-    |          NEW type arguments                  # newobject
+    |          NEW TYPE arguments                  # newobject
     ;
 
 secondary[boolean s]

@@ -47,21 +47,21 @@ public final class SDeclaration extends AStatement {
 
     @Override
     void analyze(Variables variables) {
-        final Type decltype;
+        final Type type;
 
         try {
-            decltype = Definition.getType(type);
+            type = Definition.getType(this.type);
         } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException(error("Not a type [" + type + "]."));
+            throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
         }
 
         if (expression != null) {
-            expression.expected = decltype;
+            expression.expected = type;
             expression.analyze(variables);
             expression = expression.cast(variables);
         }
 
-        variable = variables.addVariable(location, decltype, name, false, false);
+        variable = variables.addVariable(location, type, name, false, false);
     }
 
     @Override

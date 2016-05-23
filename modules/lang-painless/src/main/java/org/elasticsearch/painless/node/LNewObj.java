@@ -48,7 +48,7 @@ public final class LNewObj extends ALink {
     @Override
     ALink analyze(Variables variables) {
         if (before != null) {
-            throw new IllegalStateException(error("Illegal tree structure"));
+            throw new IllegalArgumentException(error("Illegal new call with a target already defined."));
         } else if (store) {
             throw new IllegalArgumentException(error("Cannot assign a value to a new call."));
         }
@@ -57,15 +57,15 @@ public final class LNewObj extends ALink {
 
         try {
             type = Definition.getType(this.type);
-        } catch (final IllegalArgumentException exception) {
+        } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
         }
 
-        final Struct struct = type.struct;
+        Struct struct = type.struct;
         constructor = struct.constructors.get(new Definition.MethodKey("new", arguments.size()));
 
         if (constructor != null) {
-            final Type[] types = new Type[constructor.arguments.size()];
+            Type[] types = new Type[constructor.arguments.size()];
             constructor.arguments.toArray(types);
 
             if (constructor.arguments.size() != arguments.size()) {
@@ -74,7 +74,7 @@ public final class LNewObj extends ALink {
             }
 
             for (int argument = 0; argument < arguments.size(); ++argument) {
-                final AExpression expression = arguments.get(argument);
+                AExpression expression = arguments.get(argument);
 
                 expression.expected = types[argument];
                 expression.internal = true;
@@ -92,27 +92,27 @@ public final class LNewObj extends ALink {
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter adapter) {
-        adapter.newInstance(after.type);
+    void load(MethodWriter writer) {
+        writer.newInstance(after.type);
 
         if (load) {
-            adapter.dup();
+            writer.dup();
         }
 
         for (AExpression argument : arguments) {
-            argument.write(adapter);
+            argument.write(writer);
         }
 
-        adapter.invokeConstructor(constructor.owner.type, constructor.method);
+        writer.invokeConstructor(constructor.owner.type, constructor.method);
     }
 
     @Override
-    void store(MethodWriter adapter) {
+    void store(MethodWriter writer) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

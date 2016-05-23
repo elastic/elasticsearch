@@ -48,7 +48,7 @@ public final class LCall extends ALink {
     @Override
     ALink analyze(Variables variables) {
         if (before == null) {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw new IllegalArgumentException(error("Illegal call [" + name + "] made without target."));
         } else if (before.sort == Sort.ARRAY) {
             throw new IllegalArgumentException(error("Illegal call [" + name + "] on array type."));
         } else if (store) {
@@ -56,12 +56,12 @@ public final class LCall extends ALink {
         }
 
         Definition.MethodKey methodKey = new Definition.MethodKey(name, arguments.size());
-        final Struct struct = before.struct;
+        Struct struct = before.struct;
         method = statik ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
 
         if (method != null) {
             for (int argument = 0; argument < arguments.size(); ++argument) {
-                final AExpression expression = arguments.get(argument);
+                AExpression expression = arguments.get(argument);
 
                 expression.expected = method.arguments.get(argument);
                 expression.internal = true;
@@ -74,7 +74,7 @@ public final class LCall extends ALink {
 
             return this;
         } else if (before.sort == Sort.DEF) {
-            final ALink link = new LDefCall(line, offset, location, name, arguments);
+            ALink link = new LDefCall(line, offset, location, name, arguments);
             link.copy(this);
 
             return link.analyze(variables);
@@ -85,31 +85,31 @@ public final class LCall extends ALink {
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter adapter) {
-        for (final AExpression argument : arguments) {
-            argument.write(adapter);
+    void load(MethodWriter writer) {
+        for (AExpression argument : arguments) {
+            argument.write(writer);
         }
 
         if (java.lang.reflect.Modifier.isStatic(method.reflect.getModifiers())) {
-            adapter.invokeStatic(method.owner.type, method.method);
+            writer.invokeStatic(method.owner.type, method.method);
         } else if (java.lang.reflect.Modifier.isInterface(method.owner.clazz.getModifiers())) {
-            adapter.invokeInterface(method.owner.type, method.method);
+            writer.invokeInterface(method.owner.type, method.method);
         } else {
-            adapter.invokeVirtual(method.owner.type, method.method);
+            writer.invokeVirtual(method.owner.type, method.method);
         }
 
         if (!method.rtn.clazz.equals(method.handle.type().returnType())) {
-            adapter.checkCast(method.rtn.type);
+            writer.checkCast(method.rtn.type);
         }
     }
 
     @Override
-    void store(MethodWriter adapter) {
+    void store(MethodWriter writer) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

@@ -31,7 +31,10 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Variables.Reserved;
 import org.elasticsearch.painless.antlr.PainlessParser.AfterthoughtContext;
 import org.elasticsearch.painless.antlr.PainlessParser.BlockContext;
+import org.elasticsearch.painless.antlr.PainlessParser.BraceaccessContext;
 import org.elasticsearch.painless.antlr.PainlessParser.BreakContext;
+import org.elasticsearch.painless.antlr.PainlessParser.CallinvokeContext;
+import org.elasticsearch.painless.antlr.PainlessParser.ChainprecContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ContinueContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DeclContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DeclarationContext;
@@ -39,22 +42,38 @@ import org.elasticsearch.painless.antlr.PainlessParser.DecltypeContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DeclvarContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DelimiterContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DoContext;
+import org.elasticsearch.painless.antlr.PainlessParser.DynamicContext;
 import org.elasticsearch.painless.antlr.PainlessParser.EmptyContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ExprContext;
+import org.elasticsearch.painless.antlr.PainlessParser.ExpressionContext;
+import org.elasticsearch.painless.antlr.PainlessParser.ExprprecContext;
+import org.elasticsearch.painless.antlr.PainlessParser.FieldaccessContext;
+import org.elasticsearch.painless.antlr.PainlessParser.ForContext;
 import org.elasticsearch.painless.antlr.PainlessParser.IfContext;
 import org.elasticsearch.painless.antlr.PainlessParser.InitializerContext;
+import org.elasticsearch.painless.antlr.PainlessParser.NewobjectContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ReturnContext;
+import org.elasticsearch.painless.antlr.PainlessParser.SecondaryContext;
 import org.elasticsearch.painless.antlr.PainlessParser.SourceContext;
 import org.elasticsearch.painless.antlr.PainlessParser.StatementContext;
+import org.elasticsearch.painless.antlr.PainlessParser.StringContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ThrowContext;
 import org.elasticsearch.painless.antlr.PainlessParser.TrailerContext;
 import org.elasticsearch.painless.antlr.PainlessParser.TrapContext;
 import org.elasticsearch.painless.antlr.PainlessParser.TryContext;
 import org.elasticsearch.painless.antlr.PainlessParser.TypeContext;
+import org.elasticsearch.painless.antlr.PainlessParser.VariableContext;
 import org.elasticsearch.painless.antlr.PainlessParser.WhileContext;
 import org.elasticsearch.painless.node.AExpression;
+import org.elasticsearch.painless.node.ALink;
 import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.AStatement;
+import org.elasticsearch.painless.node.LBrace;
+import org.elasticsearch.painless.node.LCall;
+import org.elasticsearch.painless.node.LField;
+import org.elasticsearch.painless.node.LNewObj;
+import org.elasticsearch.painless.node.LString;
+import org.elasticsearch.painless.node.LVariable;
 import org.elasticsearch.painless.node.SBlock;
 import org.elasticsearch.painless.node.SBreak;
 import org.elasticsearch.painless.node.SCatch;
@@ -199,7 +218,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
-    public ANode visitFor(PainlessParser.ForContext ctx) {
+    public ANode visitFor(ForContext ctx) {
         if (settings.getMaxLoopCounter() > 0) {
             reserved.usesLoop();
         }
@@ -439,8 +458,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
-    public ANode visitDynamic(PainlessParser.DynamicContext ctx) {
-        return null;
+    public ANode visitDynamic(DynamicContext ctx) {
+
     }
 
     @Override
@@ -454,52 +473,88 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
-    public ANode visitExprprec(PainlessParser.ExprprecContext ctx) {
-        return null;
+    public ANode visitExprprec(ExprprecContext ctx) {
+        return visit(ctx.expression());
     }
 
     @Override
-    public ANode visitChainprec(PainlessParser.ChainprecContext ctx) {
-        return null;
+    public ANode visitChainprec(ChainprecContext ctx) {
+        return visit(ctx.unary());
     }
 
     @Override
-    public ANode visitString(PainlessParser.StringContext ctx) {
-        return null;
+    public ANode visitString(StringContext ctx) {
+        String string = ctx.STRING().getText();
+
+        return new LString(line(ctx), offset(ctx), location(ctx), string);
     }
 
     @Override
-    public ANode visitVariable(PainlessParser.VariableContext ctx) {
-        return null;
+    public ANode visitVariable(VariableContext ctx) {
+        String name = ctx.ID().getText();
+
+        return new LVariable(line(ctx), offset(ctx), location(ctx), name);
     }
 
     @Override
-    public ANode visitNewobject(PainlessParser.NewobjectContext ctx) {
-        return null;
+    public ANode visitNewobject(NewobjectContext ctx) {
+        String type = ctx.type().getText();
+        List<AExpression> arguments = new ArrayList<>();
+
+        for (ExpressionContext expression : ctx.arguments().expression()) {
+            arguments.add((AExpression)visit(expression));
+        }
+
+        return new LNewObj(line(ctx), offset(ctx), location(ctx), type, arguments);
     }
 
     @Override
-    public ANode visitSecondary(PainlessParser.SecondaryContext ctx) {
-        return null;
+    public ANode visitSecondary(SecondaryContext ctx) {
+        if (ctx.dot() != null) {
+            return visit(ctx.dot());
+        } else if (ctx.brace() != null) {
+            return visit(ctx.brace());
+        } else {
+            throw new IllegalStateException("Error " + location(ctx) + " Illegal tree structure.");
+        }
     }
 
     @Override
-    public ANode visitCallinvoke(PainlessParser.CallinvokeContext ctx) {
-        return null;
+    public ANode visitCallinvoke(CallinvokeContext ctx) {
+        String name = ctx.DOTID().getText();
+        List<AExpression> arguments = new ArrayList<>();
+
+        for (ExpressionContext expression : ctx.arguments().expression()) {
+            arguments.add((AExpression)visit(expression));
+        }
+
+        return new LCall(line(ctx), offset(ctx), location(ctx), name, arguments);
     }
 
     @Override
-    public ANode visitFieldaccess(PainlessParser.FieldaccessContext ctx) {
-        return null;
+    public ANode visitFieldaccess(FieldaccessContext ctx) {
+        final String value;
+
+        if (ctx.DOTID() != null) {
+            value = ctx.DOTID().getText();
+        } else if (ctx.DOTINTEGER() != null) {
+            value = ctx.DOTINTEGER().getText();
+        } else {
+            throw new IllegalStateException("Error " + location(ctx) + " Illegal tree structure.");
+        }
+
+        return new LField(line(ctx), offset(ctx), location(ctx), value);
     }
 
     @Override
-    public ANode visitBraceaccess(PainlessParser.BraceaccessContext ctx) {
-        return null;
+    public ANode visitBraceaccess(BraceaccessContext ctx) {
+        AExpression expression = (AExpression)visit(ctx.expression());
+
+        return new LBrace(line(ctx), offset(ctx), location(ctx), expression);
     }
 
     @Override
     public ANode visitArguments(PainlessParser.ArgumentsContext ctx) {
-        return null;
+        throw new IllegalStateException("Error " + location(ctx) + " Illegal tree structure.");
     }
 }

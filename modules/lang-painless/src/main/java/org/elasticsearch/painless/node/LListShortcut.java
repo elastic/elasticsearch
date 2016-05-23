@@ -73,31 +73,31 @@ final class LListShortcut extends ALink {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        index.write(adapter);
+    void write(MethodWriter writer) {
+        index.write(writer);
     }
 
     @Override
-    void load(MethodWriter adapter) {
+    void load(MethodWriter writer) {
         if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
-            adapter.invokeInterface(getter.owner.type, getter.method);
+            writer.invokeInterface(getter.owner.type, getter.method);
         } else {
-            adapter.invokeVirtual(getter.owner.type, getter.method);
+            writer.invokeVirtual(getter.owner.type, getter.method);
         }
 
         if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
-            adapter.checkCast(getter.rtn.type);
+            writer.checkCast(getter.rtn.type);
         }
     }
 
     @Override
-    void store(MethodWriter adapter) {
+    void store(MethodWriter writer) {
         if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {
-            adapter.invokeInterface(setter.owner.type, setter.method);
+            writer.invokeInterface(setter.owner.type, setter.method);
         } else {
-            adapter.invokeVirtual(setter.owner.type, setter.method);
+            writer.invokeVirtual(setter.owner.type, setter.method);
         }
 
-        adapter.writePop(setter.rtn.sort.size);
+        writer.writePop(setter.rtn.sort.size);
     }
 }

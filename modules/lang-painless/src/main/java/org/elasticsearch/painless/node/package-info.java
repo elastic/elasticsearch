@@ -59,6 +59,7 @@
  * {@link org.elasticsearch.painless.node.LNewArray} - Represents an array instantiation.
  * {@link org.elasticsearch.painless.node.LNewObj} - Respresents and object instantiation.
  * {@link org.elasticsearch.painless.node.LShortcut} - Represents a field load/store shortcut.  (Internal only.)
+ * {@link org.elasticsearch.painless.node.LStatic} - Represents a static type target.
  * {@link org.elasticsearch.painless.node.LString} - Represents a string constant.
  * {@link org.elasticsearch.painless.node.LVariable} - Represents a variable load/store.
  * {@link org.elasticsearch.painless.node.SBlock} - Represents a set of statements as a branch of control-flow.

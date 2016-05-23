@@ -43,7 +43,7 @@ public final class LBrace extends ALink {
     @Override
     ALink analyze(Variables variables) {
         if (before == null) {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw new IllegalArgumentException(error("Illegal array access made without target."));
         }
 
         final Sort sort = before.sort;
@@ -68,18 +68,18 @@ public final class LBrace extends ALink {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        index.write(adapter);
+    void write(MethodWriter writer) {
+        index.write(writer);
     }
 
     @Override
-    void load(MethodWriter adapter) {
-        adapter.arrayLoad(after.type);
+    void load(MethodWriter writer) {
+        writer.arrayLoad(after.type);
     }
 
     @Override
-    void store(MethodWriter adapter) {
-        adapter.arrayStore(after.type);
+    void store(MethodWriter writer) {
+        writer.arrayStore(after.type);
     }
 
 }

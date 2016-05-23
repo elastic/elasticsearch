@@ -37,7 +37,7 @@ public final class LString extends ALink {
     @Override
     ALink analyze(Variables variables) {
         if (before != null) {
-            throw new IllegalStateException("Illegal tree structure.");
+            throw new IllegalArgumentException(error("Illegal String constant [" + string + "]."));
         } else if (store) {
             throw new IllegalArgumentException(error("Cannot write to read-only String constant [" + string + "]."));
         } else if (!load) {
@@ -50,17 +50,17 @@ public final class LString extends ALink {
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter adapter) {
-        adapter.push(string);
+    void load(MethodWriter writer) {
+        writer.push(string);
     }
 
     @Override
-    void store(MethodWriter adapter) {
+    void store(MethodWriter writer) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

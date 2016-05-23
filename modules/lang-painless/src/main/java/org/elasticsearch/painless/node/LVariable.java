@@ -44,46 +44,33 @@ public final class LVariable extends ALink {
     @Override
     ALink analyze(Variables variables) {
         if (before != null) {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw new IllegalArgumentException(error("Illegal variable [" + name + "] access with target already defined."));
         }
 
-        Type type = null;
+        Variable variable = variables.getVariable(location, name);
 
-        try {
-            type = Definition.getType(name);
-        } catch (final IllegalArgumentException exception) {
-            // Do nothing.
+        if (store && variable.readonly) {
+            throw new IllegalArgumentException(error("Variable [" + variable.name + "] is read-only."));
         }
 
-        if (type != null) {
-            statik = true;
-            after = type;
-        } else {
-            final Variable variable = variables.getVariable(location, name);
-
-            if (store && variable.readonly) {
-                throw new IllegalArgumentException(error("Variable [" + variable.name + "] is read-only."));
-            }
-
-            slot = variable.slot;
-            after = variable.type;
-        }
+        slot = variable.slot;
+        after = variable.type;
 
         return this;
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter adapter) {
-        adapter.visitVarInsn(after.type.getOpcode(Opcodes.ILOAD), slot);
+    void load(MethodWriter writer) {
+        writer.visitVarInsn(after.type.getOpcode(Opcodes.ILOAD), slot);
     }
 
     @Override
-    void store(MethodWriter adapter) {
-        adapter.visitVarInsn(after.type.getOpcode(Opcodes.ISTORE), slot);
+    void store(MethodWriter writer) {
+        writer.visitVarInsn(after.type.getOpcode(Opcodes.ISTORE), slot);
     }
 }

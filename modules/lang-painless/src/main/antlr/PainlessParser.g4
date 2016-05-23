@@ -25,6 +25,9 @@ source
     : statement* EOF
     ;
 
+// Note we use a predicate on the if/else case here to prevent the
+// "dangling-else" ambiguity by forcing the 'else' token to be consumed
+// as soon as one is found.  See (https://en.wikipedia.org/wiki/Dangling_else).
 statement
     : IF LP expression RP trailer ( ELSE trailer | { _input.LA(1) != ELSE }? )                 # if
     | WHILE LP expression RP ( trailer | empty )                                               # while
@@ -82,6 +85,10 @@ delimiter
     | EOF
     ;
 
+// Note we return the boolean s.  This is returned as true
+// if secondaries (postfixes) are allowed, otherwise, false.
+// This prevents illegal secondaries from being appended to
+// expressions using precedence that aren't variable/method chains.
 expression returns [boolean s = true]
     :               u = unary[false]                                       { $s = $u.s; }           # single
     |               expression ( MUL | DIV | REM ) expression              { $s = false; }          # binary
@@ -104,6 +111,10 @@ expression returns [boolean s = true]
                                   AOR    | ALSH | ARSH | AUSH ) expression { $s = false; }         # assignment
     ;
 
+// Note we take in the boolean c.  This is used to indicate
+// whether or not this rule was called when we are already
+// processing a variable/method chain.  This prevents the chain
+// from being applied to rules where it wouldn't be allowed.
 unary[boolean c] returns [boolean s = true]
     : { !$c }? ( INCR | DECR ) chain[true]                                  # pre
     | { !$c }? chain[true] (INCR | DECR )                                   # post

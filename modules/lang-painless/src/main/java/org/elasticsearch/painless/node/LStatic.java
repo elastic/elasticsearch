@@ -20,14 +20,11 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.Variables.Variable;
-import org.objectweb.asm.Opcodes;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Variables;
 
 /**
- * Represents a variable load/store.
+ * Represents a static type target.
  */
 public final class LStatic extends ALink {
 

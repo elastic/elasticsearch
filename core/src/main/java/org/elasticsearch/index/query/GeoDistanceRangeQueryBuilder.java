@@ -340,7 +340,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                 fromValue = geoDistance.normalize(fromValue, DistanceUnit.DEFAULT);
             }
         } else {
-            fromValue = new Double(0);
+            fromValue = 0.0;
         }
 
         if (to != null) {

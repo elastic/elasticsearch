@@ -57,3 +57,8 @@ removed in Elasticsearch 6.0.0.
 
 The deprecated `filters`/`token_filters`/`char_filters` parameter has been
 renamed `filter`/`token_filter`/`char_filter`.
+
+==== `DELETE /_query` endpoint removed
+
+The `DELETE /_query` endpoint provided by the Delete-By-Query plugin has been
+removed and replaced by the <<docs-delete-by-query,Delete By Query API>>.

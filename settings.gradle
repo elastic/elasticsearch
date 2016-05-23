@@ -26,7 +26,6 @@ List projects = [
   'plugins:analysis-phonetic',
   'plugins:analysis-smartcn',
   'plugins:analysis-stempel',
-  'plugins:delete-by-query',
   'plugins:discovery-azure',
   'plugins:discovery-ec2',
   'plugins:discovery-gce',

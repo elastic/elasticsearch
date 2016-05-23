@@ -103,7 +103,7 @@ fi
         echo "CONF_FILE=$CONF_FILE" >> /etc/sysconfig/elasticsearch;
     fi
 
-    run_elasticsearch_service 1 -Edefault.config="$CONF_FILE"
+    run_elasticsearch_service 1 -Ees.default.config="$CONF_FILE"
 
     # remove settings again otherwise cleaning up before next testrun will fail
     if is_dpkg ; then
@@ -206,10 +206,6 @@ fi
 
 @test "[$GROUP] install gce plugin" {
     install_and_check_plugin discovery gce google-api-client-*.jar
-}
-
-@test "[$GROUP] install delete by query plugin" {
-    install_and_check_plugin - delete-by-query
 }
 
 @test "[$GROUP] install discovery-azure plugin" {
@@ -345,10 +341,6 @@ fi
 
 @test "[$GROUP] remove gce plugin" {
     remove_plugin discovery-gce
-}
-
-@test "[$GROUP] remove delete by query plugin" {
-    remove_plugin delete-by-query
 }
 
 @test "[$GROUP] remove discovery-azure plugin" {

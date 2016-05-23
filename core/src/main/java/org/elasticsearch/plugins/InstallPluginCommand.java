@@ -118,7 +118,6 @@ class InstallPluginCommand extends SettingCommand {
             "analysis-phonetic",
             "analysis-smartcn",
             "analysis-stempel",
-            "delete-by-query",
             "discovery-azure",
             "discovery-ec2",
             "discovery-gce",

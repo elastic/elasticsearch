@@ -117,7 +117,7 @@ public class NestedMappingTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("nested1").field("type", "nested").startObject("properties")
                 .startObject("nested2").field("type", "nested")
-                .endObject().endObject()
+                .endObject().endObject().endObject()
                 .endObject().endObject().endObject().string();
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
@@ -168,7 +168,7 @@ public class NestedMappingTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("nested1").field("type", "nested").startObject("properties")
                 .startObject("nested2").field("type", "nested").field("include_in_parent", true)
-                .endObject().endObject()
+                .endObject().endObject().endObject()
                 .endObject().endObject().endObject().string();
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
@@ -219,7 +219,7 @@ public class NestedMappingTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("nested1").field("type", "nested").field("include_in_parent", true).startObject("properties")
                 .startObject("nested2").field("type", "nested").field("include_in_parent", true)
-                .endObject().endObject()
+                .endObject().endObject().endObject()
                 .endObject().endObject().endObject().string();
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
@@ -270,7 +270,7 @@ public class NestedMappingTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("nested1").field("type", "nested").startObject("properties")
                 .startObject("nested2").field("type", "nested").field("include_in_root", true)
-                .endObject().endObject()
+                .endObject().endObject().endObject()
                 .endObject().endObject().endObject().string();
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
@@ -321,7 +321,7 @@ public class NestedMappingTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("nested1").field("type", "nested").field("dynamic", "strict").startObject("properties")
                 .startObject("field1").field("type", "text")
-                .endObject().endObject()
+                .endObject().endObject().endObject()
                 .endObject().endObject().endObject().string();
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
@@ -355,7 +355,7 @@ public class NestedMappingTests extends ESSingleNodeTestCase {
                 return XContentFactory.jsonBuilder().startObject().startObject(type).startObject("properties")
                     .startObject("nested1").field("type", "nested").startObject("properties")
                     .startObject("nested2").field("type", "nested")
-                    .endObject().endObject()
+                    .endObject().endObject().endObject()
                     .endObject().endObject().endObject().string();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -390,7 +390,7 @@ public class NestedMappingTests extends ESSingleNodeTestCase {
         mapperService.merge("type2", new CompressedXContent(mapping.apply("type2")), MergeReason.MAPPING_UPDATE, false);
         // adding new fields from different type is not ok
         String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type3").startObject("properties").startObject("nested3")
-            .field("type", "nested").startObject("properties").endObject().endObject().endObject().endObject().string();
+            .field("type", "nested").startObject("properties").endObject().endObject().endObject().endObject().endObject().string();
         try {
             mapperService.merge("type3", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, false);
             fail("Expected IllegalArgumentException");

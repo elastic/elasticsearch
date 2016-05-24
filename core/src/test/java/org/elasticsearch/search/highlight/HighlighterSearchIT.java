@@ -199,6 +199,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .field("type", "text")
                         .endObject()
                         .endObject()
+                        .endObject()
                         .endObject())
                 .setSettings(Settings.builder()
                         .put(indexSettings())
@@ -828,7 +829,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                             .endObject()
                         .endObject()
                     .endObject()
-                .endObject()));
+                .endObject().endObject().endObject()));
         ensureGreen();
 
         index("test", "type1", "1",

@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class TTLMappingTests extends ESSingleNodeTestCase {
     public void testSimpleDisabled() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
@@ -74,7 +74,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaultValues() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         assertThat(docMapper.TTLFieldMapper().enabled(), equalTo(TTLFieldMapper.Defaults.ENABLED_STATE.enabled));
         assertThat(docMapper.TTLFieldMapper().fieldType().stored(), equalTo(TTLFieldMapper.Defaults.TTL_FIELD_TYPE.stored()));

@@ -241,6 +241,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
+                .endObject()
                 .endObject();
 
         MapperService mapperService = createIndex("test").mapperService();

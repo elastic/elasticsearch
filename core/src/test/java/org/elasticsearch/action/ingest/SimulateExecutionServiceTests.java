@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestProcessor;
@@ -167,7 +168,8 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         SimulateDocumentBaseResult simulateDocumentBaseResult = (SimulateDocumentBaseResult) actualItemResponse;
         assertThat(simulateDocumentBaseResult.getIngestDocument(), nullValue());
         assertThat(simulateDocumentBaseResult.getFailure(), instanceOf(RuntimeException.class));
-        RuntimeException runtimeException = (RuntimeException) simulateDocumentBaseResult.getFailure();
-        assertThat(runtimeException.getMessage(), equalTo("processor failed"));
+        Exception exception = simulateDocumentBaseResult.getFailure();
+        assertThat(exception, instanceOf(ElasticsearchException.class));
+        assertThat(exception.getMessage(), equalTo("java.lang.IllegalArgumentException: java.lang.RuntimeException: processor failed"));
     }
 }

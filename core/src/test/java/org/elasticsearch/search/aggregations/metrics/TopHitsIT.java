@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -853,7 +854,7 @@ public class TopHitsIT extends ESIntegTestCase {
                         nested("to-comments", "comments").subAggregation(
                                 topHits("top-comments").size(1).highlighter(new HighlightBuilder().field(hlField)).explain(true)
                                                 .fieldDataField("comments.user")
-                                        .scriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap())).fetchSource("message", null)
+                                        .scriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap())).fetchSource("comments.message", null)
                                         .version(true).sort("comments.date", SortOrder.ASC))).get();
         assertHitCount(searchResponse, 2);
         Nested nested = searchResponse.getAggregations().get("to-comments");
@@ -888,7 +889,7 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(field.getValue().toString(), equalTo("5"));
 
         assertThat(searchHit.sourceAsMap().size(), equalTo(1));
-        assertThat(searchHit.sourceAsMap().get("message").toString(), equalTo("some comment"));
+        assertThat(XContentMapValues.extractValue("comments.message", searchHit.sourceAsMap()), equalTo("some comment"));
     }
 
     public void testTopHitsInNested() throws Exception {

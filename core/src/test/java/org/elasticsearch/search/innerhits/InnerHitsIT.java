@@ -26,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -34,6 +35,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -47,6 +49,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
@@ -926,6 +929,34 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
+    }
+
+    public void testNestedSourceFiltering() throws Exception {
+        assertAcked(prepareCreate("index1").addMapping("message", "comments", "type=nested"));
+        client().prepareIndex("index1", "message", "1").setSource(jsonBuilder().startObject()
+                .field("message", "quick brown fox")
+                .startArray("comments")
+                .startObject().field("message", "fox eat quick").endObject()
+                .startObject().field("message", "fox ate rabbit x y z").endObject()
+                .startObject().field("message", "rabbit got away").endObject()
+                .endArray()
+                .endObject()).get();
+        refresh();
+
+        // the field name (comments.message) used for source filtering should be the same as when using that field for
+        // other features (like in the query dsl or aggs) in order for consistency:
+        SearchResponse response = client().prepareSearch()
+                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.None)
+                .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext("comments.message"))))
+                .get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").totalHits(), equalTo(2L));
+        assertThat(extractValue("comments.message", response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).sourceAsMap()),
+                equalTo("fox eat quick"));
+        assertThat(extractValue("comments.message", response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).sourceAsMap()),
+                equalTo("fox ate rabbit x y z"));
     }
 
 }

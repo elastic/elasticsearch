@@ -21,9 +21,11 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -61,7 +63,7 @@ public abstract class TransportWriteAction<
     /**
      * Called once per replica with a reference to the {@linkplain IndexShard} to modify.
      *
-     * @return the translog location of the {@linkplain IndexShard} after the write was completed
+     * @return the translog location of the {@linkplain IndexShard} after the write was completed or null if no write occurred
      */
     protected abstract Translog.Location onReplicaShard(Request request, IndexShard indexShard);
 
@@ -87,13 +89,15 @@ public abstract class TransportWriteAction<
             indexShard.refresh("refresh_flag_index");
             break;
         case WAIT_UNTIL:
-            forked = true;
-            indexShard.addRefreshListener(location, forcedRefresh -> {
-                if (forcedRefresh) {
-                    logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
-                }
-                listener.onResponse(null);
-            });
+            if (location != null) {
+                forked = true;
+                indexShard.addRefreshListener(location, forcedRefresh -> {
+                    if (forcedRefresh) {
+                        logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
+                    }
+                    listener.onResponse(null);
+                });
+            }
             break;
         case NONE:
             break;
@@ -112,9 +116,12 @@ public abstract class TransportWriteAction<
         private final Response response;
         private final Translog.Location location;
 
-        public WriteResult(Response response, Location location) {
+        public WriteResult(Response response, @Nullable Location location) {
             this.response = response;
             this.location = location;
+            // Set the ShardInfo to 0 so we can safely send it to the replicas
+            // NOCOMMIT this seems wrong
+            response.setShardInfo(new ShardInfo());
         }
 
         public Response getResponse() {
@@ -127,33 +134,32 @@ public abstract class TransportWriteAction<
     }
 
     protected class WritePrimaryResult extends PrimaryResult {
-        boolean refreshNeeded;
+        volatile boolean refreshPending;
         volatile ActionListener<Response> listener = null;
 
         public WritePrimaryResult(Request request, Response finalResponse,
-                                  Translog.Location location,
+                                  @Nullable Translog.Location location,
                                   IndexShard indexShard) {
             super(request, finalResponse);
             switch (request.getRefreshPolicy()) {
             case IMMEDIATE:
                 indexShard.refresh("refresh_flag_index");
                 finalResponse.setForcedRefresh(true);
-                synchronized (this) {
-                    refreshNeeded = false;
-                }
                 break;
             case WAIT_UNTIL:
-                refreshNeeded = true;
-                indexShard.addRefreshListener(location, forcedRefresh -> {
-                    synchronized (WritePrimaryResult.this) {
-                        if (forcedRefresh) {
-                            finalResponse.setForcedRefresh(true);
-                            logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
+                if (location != null) {
+                    refreshPending = true;
+                    indexShard.addRefreshListener(location, forcedRefresh -> {
+                        synchronized (WritePrimaryResult.this) {
+                            if (forcedRefresh) {
+                                finalResponse.setForcedRefresh(true);
+                                logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
+                            }
+                            refreshPending = false;
+                            respondIfPossible();
                         }
-                        refreshNeeded = false;
-                        respondIfNeeded();
-                    }
-                });
+                    });
+                }
                 break;
             case NONE:
                 break;
@@ -166,13 +172,16 @@ public abstract class TransportWriteAction<
         }
 
         @Override
-        public void respond(ActionListener<Response> listener) {
+        public synchronized void respond(ActionListener<Response> listener) {
             this.listener = listener;
-            respondIfNeeded();
+            respondIfPossible();
         }
 
-        protected synchronized void respondIfNeeded() {
-            if (refreshNeeded == false && listener != null) {
+        /**
+         * Respond if the refresh has occurred and the listener is ready. Always called while synchronized on {@code this}.
+         */
+        protected void respondIfPossible() {
+            if (refreshPending == false && listener != null) {
                 super.respond(listener);
             }
         }

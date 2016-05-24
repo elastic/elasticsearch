@@ -111,11 +111,18 @@ public class BlockUntilRefreshIT extends ESIntegTestCase {
         assertBulkSuccess(bulk.get());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "baz")).get(), "1");
 
-        // Update by bulk with block_until_refresh
+        // Delete by bulk with block_until_refresh
         bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         bulk.add(client().prepareDelete("test", "test", "1"));
         assertBulkSuccess(bulk.get());
         assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get());
+        // NOCOMMIT figure out why this sort of noop doesn't trigger
+//
+//        // Update makes a noop
+//        bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+//        bulk.add(client().prepareDelete("test", "test", "1"));
+//        assertBulkSuccess(bulk.get());
+//        assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get());
     }
 
     /**

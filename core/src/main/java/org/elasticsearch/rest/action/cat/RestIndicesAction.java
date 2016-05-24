@@ -86,9 +86,19 @@ public class RestIndicesAction extends AbstractCatAction {
                 final ClusterState state = clusterStateResponse.getState();
                 final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, strictExpandIndicesOptions, indices);
                 // concreteIndices should contain exactly the indices in state.metaData() that were selected by clusterStateRequest using
-                // IndicesOptions.strictExpand(). We select the indices again here so that they come in the requested order.
+                // IndicesOptions.strictExpand(). We select the indices again here so that they can be displayed in the resulting table
+                // in the requesting order.
                 assert concreteIndices.length == state.metaData().getIndices().size();
 
+                // Indices that were successfully resolved during the cluster state request might be deleted when the subsequent cluster
+                // health and indices stats requests execute. We have to distinguish two cases:
+                // 1) the deleted index was explicitly passed as parameter to the /_cat/indices request. In this case we want the subsequent
+                //    requests to fail.
+                // 2) the deleted index was resolved as part of a wildcard or _all. In this case, we want the subsequent requests not to
+                //    fail on the deleted index (as we want to ignore wildcards that cannot be resolved).
+                // This behavior can be ensured by letting the cluster health and indices stats requests re-resolve the index names with the
+                // same indices options that we used for the initial cluster state request (strictExpand). Unfortunately cluster health
+                // requests hard-code their indices options and the best we can do is apply strictExpand to the indices stats request.
                 ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest(indices);
                 clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
                 client.admin().cluster().health(clusterHealthRequest, new RestActionListener<ClusterHealthResponse>(channel) {

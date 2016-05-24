@@ -90,7 +90,7 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (snapshotInfo != null) {
             builder.field(Fields.SNAPSHOT);
-            snapshotInfo.toExternalXContent(builder, params);
+            snapshotInfo.toXContent(builder, params);
         } else {
             builder.field(Fields.ACCEPTED, true);
         }

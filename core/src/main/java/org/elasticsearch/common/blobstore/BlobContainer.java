@@ -92,11 +92,11 @@ public interface BlobContainer {
     void writeBlob(String blobName, BytesReference bytes) throws IOException;
 
     /**
-     * Deletes a blob with giving name, if the blob exists.  If the blob does not exist, this method has no affect.
+     * Deletes a blob with giving name, if the blob exists.  If the blob does not exist, this method throws an IOException.
      *
      * @param   blobName
      *          The name of the blob to delete.
-     * @throws  IOException if the blob exists but could not be deleted.
+     * @throws  IOException if the blob does not exist, or if the blob exists but could not be deleted.
      */
     void deleteBlob(String blobName) throws IOException;
 

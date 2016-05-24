@@ -10,8 +10,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.percolate.PercolateResponse;
-import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
@@ -1120,49 +1118,6 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         assertThat(response.getResponses()[0].getResponse().getFields().size(), equalTo(2));
         assertThat(response.getResponses()[0].getResponse().getFields().terms("field1").size(), equalTo(1L));
         assertThat(response.getResponses()[0].getResponse().getFields().terms("field2").size(), equalTo(1L));
-    }
-
-    public void testPercolateApi() {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("query", "query", "type=percolator", "field1", "type=text", "field2", "type=text")
-        );
-        client().prepareIndex("test", "query", "1")
-                .setSource("{\"query\" : { \"match_all\" : {} }, \"field1\" : \"value1\"}")
-                .setRefresh(true)
-                .get();
-
-        // Percolator without a query just evaluates all percolator queries that are loaded, so we have a match:
-        PercolateResponse response = client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-                .preparePercolate()
-                .setDocumentType("query")
-                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
-                .get();
-        assertThat(response.getCount(), equalTo(1L));
-        assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
-
-        // Percolator with a query on a field that the current user can't see. Percolator will not have queries to evaluate, so there is
-        // no match:
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-                .preparePercolate()
-                .setDocumentType("query")
-                .setPercolateQuery(termQuery("field1", "value1"))
-                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
-                .get();
-        assertThat(response.getCount(), equalTo(0L));
-
-        assertAcked(client().admin().indices().prepareClose("test"));
-        assertAcked(client().admin().indices().prepareOpen("test"));
-        ensureGreen("test");
-
-        // Ensure that the query loading that happens at startup has permissions to load the percolator queries:
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-                .preparePercolate()
-                .setDocumentType("query")
-                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
-                .get();
-        assertThat(response.getCount(), equalTo(1L));
-        assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
     }
 
     public void testParentChild() {

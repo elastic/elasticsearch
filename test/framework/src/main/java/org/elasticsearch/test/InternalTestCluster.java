@@ -207,7 +207,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private final int numSharedDataNodes;
 
-    private final int numShareCoordOnlyNodes;
+    private final int numSharedCoordOnlyNodes;
 
     private final NodeConfigurationSource nodeConfigurationSource;
 
@@ -251,7 +251,7 @@ public final class InternalTestCluster extends TestCluster {
         assert this.numSharedDataNodes >= 0;
 
         if (numSharedDataNodes == 0) {
-            this.numShareCoordOnlyNodes = 0;
+            this.numSharedCoordOnlyNodes = 0;
             this.numSharedMasterNodes = 0;
         } else {
             if (numMasterNodes < 0) {
@@ -268,27 +268,27 @@ public final class InternalTestCluster extends TestCluster {
                 this.numSharedMasterNodes = numMasterNodes;
             }
             if (numClientNodes < 0) {
-                this.numShareCoordOnlyNodes = RandomInts.randomIntBetween(random, DEFAULT_MIN_NUM_CLIENT_NODES, DEFAULT_MAX_NUM_CLIENT_NODES);
+                this.numSharedCoordOnlyNodes = RandomInts.randomIntBetween(random, DEFAULT_MIN_NUM_CLIENT_NODES, DEFAULT_MAX_NUM_CLIENT_NODES);
             } else {
-                this.numShareCoordOnlyNodes = numClientNodes;
+                this.numSharedCoordOnlyNodes = numClientNodes;
             }
         }
-        assert this.numShareCoordOnlyNodes >= 0;
+        assert this.numSharedCoordOnlyNodes >= 0;
 
         this.nodePrefix = nodePrefix;
 
         assert nodePrefix != null;
         this.mockPlugins = mockPlugins;
 
-        sharedNodesSeeds = new long[numSharedMasterNodes + numSharedDataNodes + numShareCoordOnlyNodes];
+        sharedNodesSeeds = new long[numSharedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes];
         for (int i = 0; i < sharedNodesSeeds.length; i++) {
             sharedNodesSeeds[i] = random.nextLong();
         }
 
         logger.info("Setup InternalTestCluster [{}] with seed [{}] using [{}] dedicated masters, " +
-                "[{}] (data) nodes and [{}] coord nodes",
+                "[{}] (data) nodes and [{}] coord only nodes",
             clusterName, SeedUtils.formatSeed(clusterSeed),
-            numSharedMasterNodes, numSharedDataNodes, numShareCoordOnlyNodes);
+            numSharedMasterNodes, numSharedDataNodes, numSharedCoordOnlyNodes);
         this.nodeConfigurationSource = nodeConfigurationSource;
         Builder builder = Settings.builder();
         if (random.nextInt(5) == 0) { // sometimes set this
@@ -369,6 +369,8 @@ public final class InternalTestCluster extends TestCluster {
         Settings interimSettings = builder.build();
         final String dataSuffix = getRoleSuffix(interimSettings);
         if (dataSuffix.isEmpty() == false) {
+            // to make sure that a master node will not pick up on the data folder of a data only node
+            // once restarted we append the role suffix to each path.
             String[] dataPath = Environment.PATH_DATA_SETTING.get(interimSettings).stream()
                 .map(path -> path+dataSuffix).toArray(String[]::new);
             builder.putArray(Environment.PATH_DATA_SETTING.getKey(), dataPath);
@@ -566,7 +568,7 @@ public final class InternalTestCluster extends TestCluster {
                 n == 0 ? nodes.values().stream() : nodes.values().stream().filter(new DataNodePredicate().and(new MasterNodePredicate(getMasterName()).negate()));
         final Iterator<NodeAndClient> values = collection.iterator();
 
-        logger.info("changing cluster size from {} to {}, {} data nodes", size(), n + numShareCoordOnlyNodes, n);
+        logger.info("changing cluster size from {} to {}, {} data nodes", size(), n + numSharedCoordOnlyNodes, n);
         Set<NodeAndClient> nodesToRemove = new HashSet<>();
         int numNodesAndClients = 0;
         while (values.hasNext() && numNodesAndClients++ < size - n) {
@@ -625,10 +627,10 @@ public final class InternalTestCluster extends TestCluster {
     private String getRoleSuffix(Settings settings) {
         String suffix = "";
         if (Node.NODE_MASTER_SETTING.exists(settings) && Node.NODE_MASTER_SETTING.get(settings)) {
-            suffix = suffix + "m";
+            suffix = suffix + DiscoveryNode.Role.MASTER.getAbbreviation();
         }
         if (Node.NODE_DATA_SETTING.exists(settings) && Node.NODE_DATA_SETTING.get(settings)) {
-            suffix = suffix + "d";
+            suffix = suffix + DiscoveryNode.Role.DATA.getAbbreviation();
         }
         if (Node.NODE_MASTER_SETTING.exists(settings) && Node.NODE_MASTER_SETTING.get(settings) == false &&
             Node.NODE_DATA_SETTING.exists(settings) && Node.NODE_DATA_SETTING.get(settings) == false
@@ -976,7 +978,7 @@ public final class InternalTestCluster extends TestCluster {
 
 
         Set<NodeAndClient> sharedNodes = new HashSet<>();
-        assert sharedNodesSeeds.length == numSharedMasterNodes + numSharedDataNodes + numShareCoordOnlyNodes;
+        assert sharedNodesSeeds.length == numSharedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes;
         for (int i = 0; i < numSharedMasterNodes; i++) {
             final Settings.Builder settings = Settings.builder();
             settings.put(Node.NODE_MASTER_SETTING.getKey(), true).build();
@@ -997,7 +999,7 @@ public final class InternalTestCluster extends TestCluster {
             sharedNodes.add(nodeAndClient);
         }
         for (int i = numSharedMasterNodes + numSharedDataNodes;
-             i < numSharedMasterNodes + numSharedDataNodes + numShareCoordOnlyNodes; i++) {
+             i < numSharedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {
             final Builder settings = Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_INGEST_SETTING.getKey(), false);
             NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), Version.CURRENT, true);

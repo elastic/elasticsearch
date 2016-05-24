@@ -86,9 +86,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -566,7 +564,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
             for (IndicesShardStoresResponse.StoreStatus store : shards.value) {
                 final ShardId shardId = new ShardId(index, shards.key);
                 if (store.getAllocationStatus().equals(IndicesShardStoresResponse.StoreStatus.AllocationStatus.UNUSED)) {
-                    for (Path path : findFilesToCorruptForReplica(store.getNode().getName(), shardId)) {
+                    for (Path path : findFilesToCorruptOnNode(store.getNode().getName(), shardId)) {
                         try (OutputStream os = Files.newOutputStream(path)) {
                             os.write(0);
                         }
@@ -590,7 +588,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         return shardIterators.size();
     }
 
-    private List<Path> findFilesToCorruptForReplica(final String nodeName, final ShardId shardId) throws IOException {
+    private List<Path> findFilesToCorruptOnNode(final String nodeName, final ShardId shardId) throws IOException {
         List<Path> files = new ArrayList<>();
         for (Path path : internalCluster().getInstance(NodeEnvironment.class, nodeName).availableShardPaths(shardId)) {
             path = path.resolve("index");

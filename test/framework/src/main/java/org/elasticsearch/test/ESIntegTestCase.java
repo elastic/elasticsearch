@@ -1490,7 +1490,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         int maxNumDataNodes() default -1;
 
         /**
-         * Returns the number of master nodes in the cluster. <tt>0</tt> means data nodes will sever as master nodes
+         * Returns the number of master nodes in the cluster. <tt>0</tt> means data nodes will serve as master nodes
          * and there will be no dedicated master (and data) nodes. Default is <tt>-1</tt> which means
          * a random number of nodes is used, potentially 0 (meaning data nodes will assume master role)
          */

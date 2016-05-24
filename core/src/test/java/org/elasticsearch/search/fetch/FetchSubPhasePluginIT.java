@@ -58,7 +58,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 /**
  *
  */
-@ClusterScope(scope = Scope.SUITE, numMasterNodes = 0, numDataNodes = 1)
+@ClusterScope(scope = Scope.SUITE, numDedicatedMasterNodes = 0, numDataNodes = 1)
 public class FetchSubPhasePluginIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

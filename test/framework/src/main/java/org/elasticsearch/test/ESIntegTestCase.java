@@ -1494,7 +1494,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
          * and there will be no dedicated master (and data) nodes. Default is <tt>-1</tt> which means
          * a random number of nodes is used, potentially 0 (meaning data nodes will assume master role)
          */
-        int numMasterNodes() default -1;
+        int numDedicatedMasterNodes() default -1;
 
         /**
          * Returns the number of client nodes in the cluster. Default is {@link InternalTestCluster#DEFAULT_NUM_CLIENT_NODES}, a
@@ -1588,9 +1588,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return annotation == null ? Scope.SUITE : annotation.scope();
     }
 
-    private int getNumMasterNodes() {
+    private int getNumDedicatedMasterNodes() {
         ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
-        return annotation == null ? -1 : annotation.numMasterNodes();
+        return annotation == null ? -1 : annotation.numDedicatedMasterNodes();
     }
 
     private int getNumDataNodes() {
@@ -1728,7 +1728,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         };
 
-        int numMasterNodes = getNumMasterNodes();
+        int numDedicatedMasterNodes = getNumDedicatedMasterNodes();
         int numDataNodes = getNumDataNodes();
         int minNumDataNodes;
         int maxNumDataNodes;
@@ -1751,7 +1751,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         Collection<Class<? extends Plugin>> mockPlugins = getMockPlugins();
 
-        return new InternalTestCluster(nodeMode, seed, createTempDir(), numMasterNodes, minNumDataNodes, maxNumDataNodes,
+        return new InternalTestCluster(nodeMode, seed, createTempDir(), numDedicatedMasterNodes, minNumDataNodes, maxNumDataNodes,
                 InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
                 InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, mockPlugins, getClientWrapper());
     }

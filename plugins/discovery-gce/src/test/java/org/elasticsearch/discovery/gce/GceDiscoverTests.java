@@ -57,7 +57,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
 
 
 @ESIntegTestCase.SuppressLocalMode
-@ESIntegTestCase.ClusterScope(numMasterNodes = 0, numDataNodes = 2, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(numDedicatedMasterNodes = 0, numDataNodes = 2, numClientNodes = 0)
 @SuppressForbidden(reason = "use http server")
 // TODO this should be a IT but currently all ITs in this project run against a real cluster
 public class GceDiscoverTests extends ESIntegTestCase {

@@ -37,7 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(scope = SUITE, numMasterNodes = 0, numDataNodes = 1)
+@ClusterScope(scope = SUITE, numDedicatedMasterNodes = 0, numDataNodes = 1)
 public class SettingsFilteringIT extends ESIntegTestCase {
 
     @Override

@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Test a rest action that sets special response headers
  */
-@ClusterScope(scope = Scope.SUITE, numMasterNodes = 0, numDataNodes = 1)
+@ClusterScope(scope = Scope.SUITE, numDedicatedMasterNodes = 0, numDataNodes = 1)
 public class ResponseHeaderPluginIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

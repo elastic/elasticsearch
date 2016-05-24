@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Test CORS where the allow origin value is a regular expression.
  */
-@ClusterScope(scope = Scope.SUITE, numMasterNodes = 0, numDataNodes = 1)
+@ClusterScope(scope = Scope.SUITE, numDedicatedMasterNodes = 0, numDataNodes = 1)
 public class CorsRegexIT extends ESIntegTestCase {
 
     protected static final ESLogger logger = Loggers.getLogger(CorsRegexIT.class);

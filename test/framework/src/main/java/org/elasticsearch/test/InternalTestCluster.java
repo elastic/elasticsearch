@@ -203,7 +203,7 @@ public final class InternalTestCluster extends TestCluster {
 
 
     // if set to 0, data nodes will also assume the master role
-    private final int numSharedMasterNodes;
+    private final int numSharedDedicatedMasterNodes;
 
     private final int numSharedDataNodes;
 
@@ -226,7 +226,7 @@ public final class InternalTestCluster extends TestCluster {
     private Function<Client, Client> clientWrapper;
 
     public InternalTestCluster(String nodeMode, long clusterSeed, Path baseDir,
-                               int numMasterNodes,
+                               int numDedicatedMasterNodes,
                                int minNumDataNodes, int maxNumDataNodes, String clusterName, NodeConfigurationSource nodeConfigurationSource, int numClientNodes,
                                boolean enableHttpPipelining, String nodePrefix, Collection<Class<? extends Plugin>> mockPlugins, Function<Client, Client> clientWrapper) {
         super(clusterSeed);
@@ -252,20 +252,20 @@ public final class InternalTestCluster extends TestCluster {
 
         if (numSharedDataNodes == 0) {
             this.numSharedCoordOnlyNodes = 0;
-            this.numSharedMasterNodes = 0;
+            this.numSharedDedicatedMasterNodes = 0;
         } else {
-            if (numMasterNodes < 0) {
+            if (numDedicatedMasterNodes < 0) {
                 if (random.nextBoolean() == false) {
                     // data nodes will assume the master role
-                    this.numSharedMasterNodes = 0;
+                    this.numSharedDedicatedMasterNodes = 0;
                 } else if (random.nextBoolean()) {
                     // use a dedicated master, but only low number to reduce overhead to tests
-                    this.numSharedMasterNodes = DEFAULT_LOW_NUM_MASTER_NODES;
+                    this.numSharedDedicatedMasterNodes = DEFAULT_LOW_NUM_MASTER_NODES;
                 } else {
-                    this.numSharedMasterNodes = DEFAULT_HIGH_NUM_MASTER_NODES;
+                    this.numSharedDedicatedMasterNodes = DEFAULT_HIGH_NUM_MASTER_NODES;
                 }
             } else {
-                this.numSharedMasterNodes = numMasterNodes;
+                this.numSharedDedicatedMasterNodes = numDedicatedMasterNodes;
             }
             if (numClientNodes < 0) {
                 this.numSharedCoordOnlyNodes = RandomInts.randomIntBetween(random, DEFAULT_MIN_NUM_CLIENT_NODES, DEFAULT_MAX_NUM_CLIENT_NODES);
@@ -280,7 +280,7 @@ public final class InternalTestCluster extends TestCluster {
         assert nodePrefix != null;
         this.mockPlugins = mockPlugins;
 
-        sharedNodesSeeds = new long[numSharedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes];
+        sharedNodesSeeds = new long[numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes];
         for (int i = 0; i < sharedNodesSeeds.length; i++) {
             sharedNodesSeeds[i] = random.nextLong();
         }
@@ -288,7 +288,7 @@ public final class InternalTestCluster extends TestCluster {
         logger.info("Setup InternalTestCluster [{}] with seed [{}] using [{}] dedicated masters, " +
                 "[{}] (data) nodes and [{}] coord only nodes",
             clusterName, SeedUtils.formatSeed(clusterSeed),
-            numSharedMasterNodes, numSharedDataNodes, numSharedCoordOnlyNodes);
+            numSharedDedicatedMasterNodes, numSharedDataNodes, numSharedCoordOnlyNodes);
         this.nodeConfigurationSource = nodeConfigurationSource;
         Builder builder = Settings.builder();
         if (random.nextInt(5) == 0) { // sometimes set this
@@ -532,7 +532,7 @@ public final class InternalTestCluster extends TestCluster {
             int size = numDataNodes();
             for (int i = size; i < n; i++) {
                 logger.info("increasing cluster size from {} to {}", size, n);
-                if (numSharedMasterNodes > 0) {
+                if (numSharedDedicatedMasterNodes > 0) {
                     asyncs.add(startDataOnlyNodeAsync());
                 } else {
                     asyncs.add(startNodeAsync());
@@ -978,8 +978,8 @@ public final class InternalTestCluster extends TestCluster {
 
 
         Set<NodeAndClient> sharedNodes = new HashSet<>();
-        assert sharedNodesSeeds.length == numSharedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes;
-        for (int i = 0; i < numSharedMasterNodes; i++) {
+        assert sharedNodesSeeds.length == numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes;
+        for (int i = 0; i < numSharedDedicatedMasterNodes; i++) {
             final Settings.Builder settings = Settings.builder();
             settings.put(Node.NODE_MASTER_SETTING.getKey(), true).build();
             settings.put(Node.NODE_DATA_SETTING.getKey(), false).build();
@@ -987,9 +987,9 @@ public final class InternalTestCluster extends TestCluster {
             nodeAndClient.node().start();
             sharedNodes.add(nodeAndClient);
         }
-        for (int i = numSharedMasterNodes; i < numSharedMasterNodes + numSharedDataNodes; i++) {
+        for (int i = numSharedDedicatedMasterNodes; i < numSharedDedicatedMasterNodes + numSharedDataNodes; i++) {
             final Settings.Builder settings = Settings.builder();
-            if (numSharedMasterNodes > 0) {
+            if (numSharedDedicatedMasterNodes > 0) {
                 // if we don't have dedicated master nodes, keep things default
                 settings.put(Node.NODE_MASTER_SETTING.getKey(), false).build();
                 settings.put(Node.NODE_DATA_SETTING.getKey(), true).build();
@@ -998,8 +998,8 @@ public final class InternalTestCluster extends TestCluster {
             nodeAndClient.node().start();
             sharedNodes.add(nodeAndClient);
         }
-        for (int i = numSharedMasterNodes + numSharedDataNodes;
-             i < numSharedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {
+        for (int i = numSharedDedicatedMasterNodes + numSharedDataNodes;
+             i < numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {
             final Builder settings = Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_INGEST_SETTING.getKey(), false);
             NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), Version.CURRENT, true);

@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Tests that when disabling detailed errors, a request with the error_trace parameter returns a HTTP 400
  */
-@ClusterScope(scope = Scope.TEST, numMasterNodes = 0, numDataNodes = 1)
+@ClusterScope(scope = Scope.TEST, numDedicatedMasterNodes = 0, numDataNodes = 1)
 public class DetailedErrorsDisabledIT extends ESIntegTestCase {
     // Build our cluster settings
     @Override

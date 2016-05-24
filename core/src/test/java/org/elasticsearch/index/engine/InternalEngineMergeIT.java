@@ -37,7 +37,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
-@ClusterScope(numMasterNodes = 0, numDataNodes = 1, scope = Scope.SUITE)
+@ClusterScope(numDedicatedMasterNodes = 0, numDataNodes = 1, scope = Scope.SUITE)
 public class InternalEngineMergeIT extends ESIntegTestCase {
 
     @TestLogging("_root:DEBUG")

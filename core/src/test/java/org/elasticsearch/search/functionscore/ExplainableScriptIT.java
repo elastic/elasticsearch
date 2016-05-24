@@ -56,7 +56,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = Scope.SUITE, numMasterNodes = 0, numDataNodes = 1)
+@ClusterScope(scope = Scope.SUITE, numDedicatedMasterNodes = 0, numDataNodes = 1)
 public class ExplainableScriptIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

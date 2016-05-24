@@ -83,6 +83,9 @@ public class TimeValueTests extends ESTestCase {
         assertEquals(new TimeValue(10, TimeUnit.SECONDS),
                      TimeValue.parseTimeValue("10S", null, "test"));
 
+        assertEquals(new TimeValue(100, TimeUnit.MILLISECONDS),
+                    TimeValue.parseTimeValue("0.1s", null, "test"));
+
         assertEquals(new TimeValue(10, TimeUnit.MINUTES),
                      TimeValue.parseTimeValue("10 m", null, "test"));
         assertEquals(new TimeValue(10, TimeUnit.MINUTES),

@@ -51,7 +51,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -157,15 +156,6 @@ public abstract class TransportReplicationAction<
     //*         {@link #asyncShardOperationOnPrimary(Object, ReplicationRequest, ActionListener)} to do its job
      */
     protected abstract PrimaryResult shardOperationOnPrimary(Request shardRequest) throws Exception;
-
-//    /**
-//     * Asynchronous portion of primary operation on node with primary copy
-//     *
-//     * @param stash information saved from the synchronous phase of the operation for use in the async phase of the operation
-//     * @param shardRequest the request to the primary shard
-//     * @param listener implementers call this success or failure when the asynchronous operations are complete.
-//     */
-//    protected abstract void asyncShardOperationOnPrimary(AsyncStash stash, Request shardRequest, ActionListener<Response> listener);
 
     /**
      * Replica operation on nodes with replica copies. While this does take a listener it should not return until it has completed any
@@ -302,8 +292,8 @@ public abstract class TransportReplicationAction<
         }
 
         protected ReplicationOperation<Request, ReplicaRequest, PrimaryResult> createReplicatedOperation(
-            Request request, ActionListener<PrimaryResult> listener,
-            PrimaryShardReference primaryShardReference, boolean executeOnReplicas) {
+                Request request, ActionListener<PrimaryResult> listener,
+                PrimaryShardReference primaryShardReference, boolean executeOnReplicas) {
             return new ReplicationOperation<>(request, primaryShardReference, listener,
                 executeOnReplicas, checkWriteConsistency(), replicasProxy, clusterService::state, logger, actionName
             );
@@ -362,58 +352,6 @@ public abstract class TransportReplicationAction<
 
         public void respond(ActionListener<Response> listener) {
             listener.onResponse(finalResponse);
-        }
-    }
-
-    protected class WritePrimaryResult extends PrimaryResult {
-        boolean refreshNeeded;
-        boolean forcedRefresh;
-        ActionListener<Response> listener = null;
-
-        public WritePrimaryResult(ReplicaRequest replicaRequest, Response finalResponse,
-                                  Translog.Location location,
-                                  boolean fsyncTranslog,
-                                  ReplicatedMutationRequest.RefreshPolicy refreshPolicy,
-                                  IndexShard indexShard) {
-            super(replicaRequest, finalResponse);
-            switch (refreshPolicy) {
-                case IMMEDIATE:
-                    indexShard.refresh("bla");
-                    synchronized (this) {
-                        forcedRefresh = true;
-                        refreshNeeded = false;
-                    }
-                    break;
-                case WAIT_UNTIL:
-                    refreshNeeded = true;
-                    indexShard.addRefreshListener(location, forcedRefresh -> {
-                        synchronized (WritePrimaryResult.this) {
-                            WritePrimaryResult.this.forcedRefresh = forcedRefresh;
-                            if (forcedRefresh) {
-                                // TODO:: logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
-                            }
-                            refreshNeeded = false;
-                            respondIfNeeded();
-                        }
-                    });
-
-                    break;
-            }
-            if (fsyncTranslog) {
-                indexShard.sync(location);
-            }
-        }
-
-        @Override
-        public void respond(ActionListener<Response> listener) {
-            this.listener = listener;
-            respondIfNeeded();
-        }
-
-        protected synchronized void respondIfNeeded() {
-            if (refreshNeeded == false && listener != null) {
-                super.respond(listener);
-            }
         }
     }
 

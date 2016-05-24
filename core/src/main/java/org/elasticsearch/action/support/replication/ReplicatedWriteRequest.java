@@ -19,65 +19,47 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-/**
- * Base class for requests that modify data in some shard like delete, index, and shardBulk.
- */
-public class ReplicatedMutationRequest<R extends ReplicatedMutationRequest<R>> extends ReplicationRequest<R> {
-
-    public enum RefreshPolicy {
-        NONE,
-        IMMEDIATE,
-        WAIT_UNTIL
-    }
-
+public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>> extends ReplicationRequest<R> implements WriteRequest<R> {
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
     /**
-     * Create an empty request.
+     * Constructor for deserialization.
      */
-    public ReplicatedMutationRequest() {
+    public ReplicatedWriteRequest() {
     }
 
-    /**
-     * Creates a new request with resolved shard id.
-     */
-    public ReplicatedMutationRequest(ShardId shardId) {
+    public ReplicatedWriteRequest(ShardId shardId) {
         super(shardId);
     }
 
-    /**
-     * Should a refresh be executed post this index operation causing the operation to
-     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
+    @Override
     @SuppressWarnings("unchecked")
-    public R setRefresh(RefreshPolicy refreshPolicy) {
+    public R setRefreshPolicy(RefreshPolicy refreshPolicy) {
         this.refreshPolicy = refreshPolicy;
         return (R) this;
     }
 
-    public RefreshPolicy refreshPolicy() {
-
+    @Override
+    public RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
     }
-
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        refresh = in.readBoolean();
-        blockUntilRefresh = in.readBoolean();
+        refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(refresh);
-        out.writeBoolean(blockUntilRefresh);
+        refreshPolicy.writeTo(out);
     }
 }

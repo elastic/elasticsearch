@@ -19,17 +19,18 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.index.IndexSettings;
 
 /**
- * Base class for responses that modify data in some shard like delete, index, and shardBulk.
+ * Interface for responses that modify data in some shard like delete, index, and shardBulk.
  */
-public abstract class ReplicatedMutationResponse extends ReplicationResponse {
+public interface ReplicatedWriteResponse {
     /**
      * Mark the request with if it was forced to refresh the index. All implementations by default assume that the request didn't force a
      * refresh unless set otherwise so it mostly only makes sense to call this with {@code true}. Requests that set
-     * {@link ReplicatedMutationRequest#setRefresh(boolean)} to true should always set this to true. Requests that set
-     * {@link ReplicatedMutationRequest#setBlockUntilRefresh(boolean)} to true should only set this to true if they run out of refresh
+     * {@link WriteRequest#setRefresh(boolean)} to true should always set this to true. Requests that set
+     * {@link WriteRequest#setBlockUntilRefresh(boolean)} to true should only set this to true if they run out of refresh
      * listener slots (see {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}).
      */
     public abstract void setForcedRefresh(boolean forcedRefresh);

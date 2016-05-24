@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.action;
 
-import org.elasticsearch.action.support.replication.ReplicatedMutationRequest;
-import org.elasticsearch.action.support.replication.ReplicatedMutationResponse;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.replication.ReplicatedWriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,7 +35,7 @@ import java.io.IOException;
 /**
  * A base class for the response of a write operation that involves a single doc
  */
-public abstract class DocWriteResponse extends ReplicatedMutationResponse implements StatusToXContent {
+public abstract class DocWriteResponse extends ReplicationResponse implements ReplicatedWriteResponse, StatusToXContent {
 
     private ShardId shardId;
     private String id;
@@ -91,8 +91,8 @@ public abstract class DocWriteResponse extends ReplicatedMutationResponse implem
     }
 
     /**
-     * Did this request force a refresh? Requests that set {@link ReplicatedMutationRequest#setRefresh(boolean)} to true should always
-     * return true for this. Requests that set {@link ReplicatedMutationRequest#setBlockUntilRefresh(boolean)} to true should only return
+     * Did this request force a refresh? Requests that set {@link WriteRequest#setRefresh(boolean)} to true should always
+     * return true for this. Requests that set {@link WriteRequest#setBlockUntilRefresh(boolean)} to true should only return
      * this if they run out of refresh listener slots (see {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}).
      */
     public boolean forcedRefresh() {

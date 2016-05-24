@@ -46,9 +46,10 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class ReplicationOperation<
-    Request extends ReplicationRequest<Request>,
-    ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
-    PrimaryResultT extends ReplicationOperation.PrimaryResult<ReplicaRequest>> {
+            Request extends ReplicationRequest<Request>,
+            ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
+            PrimaryResultT extends ReplicationOperation.PrimaryResult<ReplicaRequest>
+        > {
     final private ESLogger logger;
     final private Request request;
     final private Supplier<ClusterState> clusterStateSupplier;
@@ -294,10 +295,10 @@ public class ReplicationOperation<
 
 
     interface Primary<
-        Request extends ReplicationRequest<Request>,
-        ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
-        PrimaryResultT extends PrimaryResult<ReplicaRequest>
-        > {
+                Request extends ReplicationRequest<Request>,
+                ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
+                PrimaryResultT extends PrimaryResult<ReplicaRequest>
+            > {
 
         /**
          * routing entry for this primary

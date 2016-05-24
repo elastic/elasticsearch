@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
-import org.elasticsearch.action.support.replication.TransportReplicatedMutationAction;
+import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -50,7 +49,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Performs the delete operation.
  */
-public class TransportDeleteAction extends TransportReplicatedMutationAction<DeleteRequest, DeleteResponse> {
+public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, DeleteResponse> {
 
     private final AutoCreateIndex autoCreateIndex;
     private final TransportCreateIndexAction createIndexAction;
@@ -119,7 +118,7 @@ public class TransportDeleteAction extends TransportReplicatedMutationAction<Del
     }
 
     @Override
-    protected WriteResult<DeleteResponse> onPrimaryShard(IndexService indexService, IndexShard indexShard, DeleteRequest request) {
+    protected WriteResult<DeleteResponse> onPrimaryShard(DeleteRequest request, IndexShard indexShard) {
         return executeDeleteRequestOnPrimary(request, indexShard);
     }
 
@@ -136,9 +135,8 @@ public class TransportDeleteAction extends TransportReplicatedMutationAction<Del
         request.version(delete.version());
 
         assert request.versionType().validateVersionForWrites(request.version());
-        return new WriteResult<>(
-            new DeleteResponse(indexShard.shardId(), request.type(), request.id(), delete.version(), delete.found()),
-            delete.getTranslogLocation());
+        DeleteResponse response = new DeleteResponse(indexShard.shardId(), request.type(), request.id(), delete.version(), delete.found());
+        return new WriteResult<>(response, delete.getTranslogLocation());
     }
 
     public static Engine.Delete executeDeleteRequestOnReplica(DeleteRequest request, IndexShard indexShard) {

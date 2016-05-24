@@ -29,6 +29,7 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
@@ -286,8 +287,8 @@ public class PercolatorIT extends ESIntegTestCase {
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
                         .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+                .get();
 
         cluster().wipeIndices("test");
         createIndex("test");
@@ -300,8 +301,8 @@ public class PercolatorIT extends ESIntegTestCase {
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
                         .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+                .get();
     }
 
     // see #2814
@@ -330,8 +331,8 @@ public class PercolatorIT extends ESIntegTestCase {
                         .field("source", "productizer")
                         .field("query", QueryBuilders.constantScoreQuery(QueryBuilders.queryStringQuery("filingcategory:s")))
                         .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+                .get();
         refresh();
 
         PercolateResponse percolate = client().preparePercolate()
@@ -409,8 +410,8 @@ public class PercolatorIT extends ESIntegTestCase {
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
                         .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+                .get();
 
         logger.info("--> register a query 2");
         client().prepareIndex(INDEX_NAME, TYPE_NAME, "bubu")
@@ -418,8 +419,8 @@ public class PercolatorIT extends ESIntegTestCase {
                         .field("color", "green")
                         .field("query", termQuery("field1", "value2"))
                         .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+                .get();
 
         PercolateResponse percolate = client().preparePercolate()
                 .setIndices(INDEX_NAME).setDocumentType("type1")
@@ -453,8 +454,8 @@ public class PercolatorIT extends ESIntegTestCase {
                         .field("color", "blue")
                         .field("query", termQuery("field1", "value1"))
                         .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+                .get();
 
         PercolateResponse percolate = client().preparePercolate()
                 .setIndices(INDEX_NAME).setDocumentType("type1")
@@ -470,8 +471,8 @@ public class PercolatorIT extends ESIntegTestCase {
                         .field("color", "green")
                         .field("query", termQuery("field1", "value2"))
                         .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+                .get();
 
         percolate = client().preparePercolate()
                 .setIndices(INDEX_NAME).setDocumentType("type1")
@@ -487,8 +488,8 @@ public class PercolatorIT extends ESIntegTestCase {
                         .field("color", "red")
                         .field("query", termQuery("field1", "value2"))
                         .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+                .get();
 
         PercolateSourceBuilder sourceBuilder = new PercolateSourceBuilder()
                 .setDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "value2").endObject()))
@@ -502,7 +503,7 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(convertFromTextArray(percolate.getMatches(), INDEX_NAME), arrayContaining("susu"));
 
         logger.info("--> deleting query 1");
-        client().prepareDelete(INDEX_NAME, TYPE_NAME, "kuku").setRefresh(true).execute().actionGet();
+        client().prepareDelete(INDEX_NAME, TYPE_NAME, "kuku").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         percolate = client().preparePercolate()
                 .setIndices(INDEX_NAME).setDocumentType("type1")
@@ -1485,8 +1486,8 @@ public class PercolatorIT extends ESIntegTestCase {
                                 .must(QueryBuilders.queryStringQuery("root"))
                                 .must(QueryBuilders.termQuery("message", "tree"))))
                         .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+                .get();
         refresh();
 
         PercolateResponse percolate = client().preparePercolate()

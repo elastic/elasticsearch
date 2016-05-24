@@ -176,7 +176,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         switch (result.operation()) {
             case UPSERT:
                 IndexRequest upsertRequest = result.action();
-                upsertRequest.setBlockUntilRefresh(request.shouldBlockUntilRefresh());
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
                 indexAction.execute(upsertRequest, new ActionListener<IndexResponse>() {
@@ -215,7 +214,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 break;
             case INDEX:
                 IndexRequest indexRequest = result.action();
-                indexRequest.setBlockUntilRefresh(request.shouldBlockUntilRefresh());
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
                 indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
@@ -247,7 +245,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 break;
             case DELETE:
                 DeleteRequest deleteRequest = result.action();
-                deleteRequest.setBlockUntilRefresh(request.shouldBlockUntilRefresh());
                 deleteAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
                     @Override
                     public void onResponse(DeleteResponse response) {

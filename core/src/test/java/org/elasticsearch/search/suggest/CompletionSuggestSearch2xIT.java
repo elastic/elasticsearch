@@ -32,6 +32,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -509,7 +510,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
             .addMapping(TYPE, mapping));
         client().prepareIndex(INDEX, TYPE, "1")
-            .setRefresh(true)
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
         ensureGreen(INDEX);
 
@@ -532,7 +533,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
         ).execute().actionGet();
         assertSuggestions(suggestResponse, "suggs");
 
-        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true)
+        client().prepareIndex(INDEX, TYPE, "1").setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
         ensureGreen(INDEX);
 
@@ -558,7 +559,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
             .addMapping(TYPE, mapping)
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)));
         client().prepareIndex(INDEX, TYPE, "1")
-            .setRefresh(true)
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
         ensureGreen(INDEX);
 
@@ -581,7 +582,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
         ).execute().actionGet();
         assertSuggestions(suggestResponse, "suggs");
 
-        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true)
+        client().prepareIndex(INDEX, TYPE, "1").setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
         ensureGreen(INDEX);
 
@@ -767,10 +768,10 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
         assertThat(putMappingResponse.isAcknowledged(), is(true));
 
         // Index two entities
-        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true)
+        client().prepareIndex(INDEX, TYPE, "1").setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").field(otherField, "WHATEVER").endObject())
             .get();
-        client().prepareIndex(INDEX, TYPE, "2").setRefresh(true)
+        client().prepareIndex(INDEX, TYPE, "2").setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(jsonBuilder().startObject().field(FIELD, "Bar Fighters").field(otherField, "WHATEVER2").endObject())
             .get();
 
@@ -1076,7 +1077,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
                 .startArray("input").value(str).endArray()
                 .field("output", "foobar")
                 .endObject().endObject()
-            ).setRefresh(true).get();
+            ).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
             // need to flush and refresh, because we keep changing the same document
             // we have to make sure that segments without any live documents are deleted
             flushAndRefresh();
@@ -1110,7 +1111,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
             .startArray("input").value(longString).endArray()
             .field("output", "foobar")
             .endObject().endObject()
-        ).setRefresh(true).get();
+        ).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
     }
 
@@ -1132,7 +1133,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
                 .startArray("input").value(string).endArray()
                 .field("output", "foobar")
                 .endObject().endObject()
-            ).setRefresh(true).get();
+            ).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
             fail("expected MapperParsingException");
         } catch (MapperParsingException expected) {}
     }
@@ -1152,7 +1153,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
             .startObject()
             .field(FIELD, string)
             .endObject()
-        ).setRefresh(true).get();
+        ).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         try {
             client().prepareSearch(INDEX).addAggregation(AggregationBuilders.terms("suggest_agg").field(FIELD)
@@ -1184,11 +1185,11 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
         ensureGreen();
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "strings make me happy", FIELD + "_1", "nulls make me sad")
-            .setRefresh(true).get();
+        .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         try {
             client().prepareIndex(INDEX, TYPE, "2").setSource(FIELD, null, FIELD + "_1", "nulls make me sad")
-                .setRefresh(true).get();
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
             fail("Expected MapperParsingException for null value");
         } catch (MapperParsingException e) {
             // make sure that the exception has the name of the field causing the error

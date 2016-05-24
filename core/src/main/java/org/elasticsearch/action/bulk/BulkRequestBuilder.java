@@ -25,18 +25,19 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.IndexSettings;
 
 /**
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
  * it in a single batch.
  */
-public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse, BulkRequestBuilder> {
+public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse, BulkRequestBuilder>
+        implements WriteRequestBuilder<BulkRequestBuilder> {
 
     public BulkRequestBuilder(ElasticsearchClient client, BulkAction action) {
         super(client, action, new BulkRequest());
@@ -118,16 +119,6 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     }
 
     /**
-     * Should a refresh be executed post this bulk operation causing the operations to
-     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
-    public BulkRequestBuilder setRefresh(boolean refresh) {
-        request.refresh(refresh);
-        return this;
-    }
-
-    /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     public final BulkRequestBuilder setTimeout(TimeValue timeout) {
@@ -140,16 +131,6 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      */
     public final BulkRequestBuilder setTimeout(String timeout) {
         request.timeout(timeout);
-        return this;
-    }
-
-    /**
-     * Should this request block until it has been made visible for search by a refresh? Unlike {@link #setRefresh(boolean)} this is quite
-     * safe to use under heavy indexing so long as few total operations use it. See {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}
-     * for the limit. A bulk request counts as one request on each shard that it touches. Defaults to false.
-     */
-    public final BulkRequestBuilder setBlockUntilRefresh(boolean blockUntilRefresh) {
-        request.setBlockUntilRefresh(blockUntilRefresh);
         return this;
     }
 

@@ -26,6 +26,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -38,7 +39,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
@@ -54,7 +54,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Note that we only support refresh on the bulk request not per item.
  * @see org.elasticsearch.client.Client#bulk(BulkRequest)
  */
-public class BulkRequest extends ActionRequest<BulkRequest> implements CompositeIndicesRequest {
+public class BulkRequest extends ActionRequest<BulkRequest> implements CompositeIndicesRequest, WriteRequest<BulkRequest> {
 
     private static final int REQUEST_OVERHEAD = 50;
 
@@ -63,11 +63,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
-    private boolean refresh = false;
-    /**
-     * Should this request block until all of its results are visible for search?
-     */
-    private boolean blockUntilRefresh = false;
+    private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
     private long sizeInBytes = 0;
 
@@ -438,18 +434,15 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         return this.consistencyLevel;
     }
 
-    /**
-     * Should a refresh be executed post this bulk operation causing the operations to
-     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
-    public BulkRequest refresh(boolean refresh) {
-        this.refresh = refresh;
+    @Override
+    public BulkRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
+        this.refreshPolicy = refreshPolicy;
         return this;
     }
 
-    public boolean refresh() {
-        return this.refresh;
+    @Override
+    public RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
     }
 
     /**
@@ -469,20 +462,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
 
     public TimeValue timeout() {
         return timeout;
-    }
-
-    /**
-     * Should this request block until it has been made visible for search by a refresh? Unlike {@link #refresh(boolean)} this is quite safe
-     * to use under heavy indexing so long as few total operations use it. See {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD} for
-     * the limit. A bulk request counts as one request on each shard that it touches.
-     */
-    public BulkRequest setBlockUntilRefresh(boolean blockUntilRefresh) {
-        this.blockUntilRefresh = blockUntilRefresh;
-        return this;
-    }
-
-    public boolean shouldBlockUntilRefresh() {
-        return blockUntilRefresh;
     }
 
     private int findNextMarker(byte marker, int from, BytesReference data, int length) {
@@ -518,10 +497,10 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         }
         for (ActionRequest<?> request : requests) {
             // We first check if refresh has been set
-            if ((request instanceof DeleteRequest && ((DeleteRequest)request).isRefresh()) ||
-                    (request instanceof UpdateRequest && ((UpdateRequest)request).isRefresh()) ||
-                    (request instanceof IndexRequest && ((IndexRequest)request).isRefresh())) {
-                    validationException = addValidationError("Refresh is not supported on an item request, set the refresh flag on the BulkRequest instead.", validationException);
+            if (request instanceof WriteRequest<?>
+                    && ((WriteRequest<?>) request).getRefreshPolicy() != RefreshPolicy.NONE) {
+                validationException = addValidationError(
+                        "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.", validationException);
             }
             ActionRequestValidationException ex = request.validate();
             if (ex != null) {
@@ -556,8 +535,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                 requests.add(request);
             }
         }
-        refresh = in.readBoolean();
-        blockUntilRefresh = in.readBoolean();
+        refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = TimeValue.readTimeValue(in);
     }
 
@@ -576,8 +554,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
             }
             request.writeTo(out);
         }
-        out.writeBoolean(refresh);
-        out.writeBoolean(blockUntilRefresh);
+        refreshPolicy.writeTo(out);
         timeout.writeTo(out);
     }
 }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.support.replication.ReplicatedMutationRequest;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -31,17 +31,17 @@ import java.util.List;
 /**
  *
  */
-public class BulkShardRequest extends ReplicatedMutationRequest<BulkShardRequest> {
+public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
     private BulkItemRequest[] items;
 
     public BulkShardRequest() {
     }
 
-    BulkShardRequest(BulkRequest bulkRequest, ShardId shardId, boolean refresh, BulkItemRequest[] items) {
+    BulkShardRequest(BulkRequest bulkRequest, ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
         super(shardId);
         this.items = items;
-        this.setRefresh(refresh);
+        setRefreshPolicy(refreshPolicy);
     }
 
     BulkItemRequest[] items() {
@@ -89,8 +89,15 @@ public class BulkShardRequest extends ReplicatedMutationRequest<BulkShardRequest
         // This is included in error messages so we'll try to make it somewhat user friendly.
         StringBuilder b = new StringBuilder("BulkShardRequest to [");
         b.append(index).append("] containing [").append(items.length).append("] requests");
-        if (isRefresh()) {
+        switch (getRefreshPolicy()) {
+        case IMMEDIATE:
             b.append(" and a refresh");
+            break;
+        case WAIT_UNTIL:
+            b.append(" blocking until refresh");
+            break;
+        case NONE:
+            break;
         }
         return b.toString();
     }

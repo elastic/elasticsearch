@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
@@ -39,7 +38,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportShardRefreshAction
-        extends TransportReplicationAction<BasicReplicationRequest, Void, BasicReplicationRequest, ReplicationResponse> {
+        extends TransportReplicationAction<BasicReplicationRequest, BasicReplicationRequest, ReplicationResponse> {
 
     public static final String NAME = RefreshAction.NAME + "[s]";
 
@@ -57,17 +56,11 @@ public class TransportShardRefreshAction
     }
 
     @Override
-    protected Tuple<BasicReplicationRequest, Void> shardOperationOnPrimary(BasicReplicationRequest shardRequest) {
+    protected PrimaryResult shardOperationOnPrimary(BasicReplicationRequest shardRequest) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId().getIndex()).getShard(shardRequest.shardId().id());
         indexShard.refresh("api");
         logger.trace("{} refresh request executed on primary", indexShard.shardId());
-        return new Tuple<>(shardRequest, null);
-    }
-
-    @Override
-    protected void asyncShardOperationOnPrimary(Void stash, BasicReplicationRequest shardRequest,
-            ActionListener<ReplicationResponse> listener) {
-        listener.onResponse(new ReplicationResponse());
+        return new PrimaryResult(shardRequest, new ReplicationResponse());
     }
 
     @Override

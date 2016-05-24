@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -141,7 +142,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> aliasing index [test] with [alias1] and filter [user:kimchy]");
-        QueryBuilder filter = termQuery("user", "kimchy");
+        QueryBuilder<?> filter = termQuery("user", "kimchy");
         assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1", filter));
 
         // For now just making sure that filter was stored with the alias
@@ -175,10 +176,15 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked(admin().indices().prepareAliases().addAlias("test", "tests", termQuery("name", "test")));
 
         logger.info("--> indexing against [test]");
-        client().index(indexRequest("test").type("type1").id("1").source(source("1", "foo test")).setRefresh(true)).actionGet();
-        client().index(indexRequest("test").type("type1").id("2").source(source("2", "bar test")).setRefresh(true)).actionGet();
-        client().index(indexRequest("test").type("type1").id("3").source(source("3", "baz test")).setRefresh(true)).actionGet();
-        client().index(indexRequest("test").type("type1").id("4").source(source("4", "something else")).setRefresh(true)).actionGet();
+        client().index(indexRequest("test").type("type1").id("1").source(source("1", "foo test")).setRefreshPolicy(RefreshPolicy.IMMEDIATE))
+                .actionGet();
+        client().index(indexRequest("test").type("type1").id("2").source(source("2", "bar test")).setRefreshPolicy(RefreshPolicy.IMMEDIATE))
+                .actionGet();
+        client().index(indexRequest("test").type("type1").id("3").source(source("3", "baz test")).setRefreshPolicy(RefreshPolicy.IMMEDIATE))
+                .actionGet();
+        client().index(
+                indexRequest("test").type("type1").id("4").source(source("4", "something else")).setRefreshPolicy(RefreshPolicy.IMMEDIATE))
+                .actionGet();
 
         logger.info("--> checking single filtering alias search");
         SearchResponse searchResponse = client().prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()).get();

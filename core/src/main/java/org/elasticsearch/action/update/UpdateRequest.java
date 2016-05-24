@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
@@ -54,7 +54,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> implements DocumentRequest<UpdateRequest> {
+public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
+        implements DocumentRequest<UpdateRequest>, WriteRequest<UpdateRequest> {
 
     private String type;
     private String id;
@@ -73,7 +74,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     private VersionType versionType = VersionType.INTERNAL;
     private int retryOnConflict = 0;
 
-    private boolean refresh = false;
+    private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
@@ -85,12 +86,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     @Nullable
     private IndexRequest doc;
-
-    /**
-     * Should this request block until all of its results are visible for search?
-     */
-    private boolean blockUntilRefresh = false;
-
 
     public UpdateRequest() {
 
@@ -429,18 +424,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this.versionType;
     }
 
-    /**
-     * Should a refresh be executed post this update operation causing the operation to
-     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
-    public UpdateRequest setRefresh(boolean refresh) {
-        this.refresh = refresh;
+    @Override
+    public UpdateRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
+        this.refreshPolicy = refreshPolicy;
         return this;
     }
 
-    public boolean isRefresh() {
-        return this.refresh;
+    @Override
+    public RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
     }
 
     public WriteConsistencyLevel consistencyLevel() {
@@ -725,20 +717,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this;
     }
 
-    /**
-     * Should this request block until it has been made visible for search by a refresh? Unlike {@link #setRefresh(boolean)} this is quite safe
-     * to use under heavy indexing so long as few total operations use it. See {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD} for
-     * the limit. Defaults to false.
-     */
-    public UpdateRequest setBlockUntilRefresh(boolean blockUntilRefresh) {
-        this.blockUntilRefresh = blockUntilRefresh;
-        return this;
-    }
-
-    public boolean shouldBlockUntilRefresh() {
-        return blockUntilRefresh;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -751,7 +729,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             script = new Script(in);
         }
         retryOnConflict = in.readVInt();
-        refresh = in.readBoolean();
+        refreshPolicy = RefreshPolicy.readFrom(in);
         if (in.readBoolean()) {
             doc = new IndexRequest();
             doc.readFrom(in);
@@ -772,7 +750,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         versionType = VersionType.fromValue(in.readByte());
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
-        blockUntilRefresh = in.readBoolean();
     }
 
     @Override
@@ -789,7 +766,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             script.writeTo(out);
         }
         out.writeVInt(retryOnConflict);
-        out.writeBoolean(refresh);
+        refreshPolicy.writeTo(out);
         if (doc == null) {
             out.writeBoolean(false);
         } else {
@@ -823,7 +800,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         out.writeByte(versionType.getValue());
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
-        out.writeBoolean(blockUntilRefresh);
     }
 
 }

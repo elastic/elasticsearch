@@ -25,6 +25,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -51,7 +52,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
  */
 public class BlockUntilRefreshIT extends ESIntegTestCase {
     public void testIndex() {
-        IndexResponse index = client().prepareIndex("test", "index", "1").setSource("foo", "bar").setBlockUntilRefresh(true).get();
+        IndexResponse index = client().prepareIndex("test", "index", "1").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
+                .get();
         assertEquals(RestStatus.CREATED, index.status());
         assertFalse("request shouldn't have forced a refresh", index.forcedRefresh());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
@@ -63,7 +65,7 @@ public class BlockUntilRefreshIT extends ESIntegTestCase {
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
 
         // Now delete with blockUntilRefresh
-        DeleteResponse delete = client().prepareDelete("test", "test", "1").setBlockUntilRefresh(true).get();
+        DeleteResponse delete = client().prepareDelete("test", "test", "1").setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
         assertTrue("document was deleted", delete.isFound());
         assertFalse("request shouldn't have forced a refresh", delete.forcedRefresh());
         assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get());
@@ -75,20 +77,22 @@ public class BlockUntilRefreshIT extends ESIntegTestCase {
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
 
         // Update with block_until_refresh
-        UpdateResponse update = client().prepareUpdate("test", "test", "1").setDoc("foo", "baz").setBlockUntilRefresh(true).get();
+        UpdateResponse update = client().prepareUpdate("test", "test", "1").setDoc("foo", "baz").setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
+                .get();
         assertEquals(2, update.getVersion());
         assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "baz")).get(), "1");
 
         // Upsert with block_until_refresh
-        update = client().prepareUpdate("test", "test", "2").setDocAsUpsert(true).setDoc("foo", "cat").setBlockUntilRefresh(true).get();
+        update = client().prepareUpdate("test", "test", "2").setDocAsUpsert(true).setDoc("foo", "cat")
+                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
         assertEquals(1, update.getVersion());
         assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "cat")).get(), "2");
 
         // Update-becomes-delete with block_until_refresh
         update = client().prepareUpdate("test", "test", "2").setScript(new Script("delete_plz", ScriptType.INLINE, "native", emptyMap()))
-                .setBlockUntilRefresh(true).get();
+                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
         assertEquals(2, update.getVersion());
         assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
         assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "cat")).get());
@@ -96,19 +100,19 @@ public class BlockUntilRefreshIT extends ESIntegTestCase {
 
     public void testBulk() {
         // Index by bulk with block_until_refresh
-        BulkRequestBuilder bulk = client().prepareBulk().setBlockUntilRefresh(true);
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         bulk.add(client().prepareIndex("test", "test", "1").setSource("foo", "bar"));
         assertBulkSuccess(bulk.get());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
 
         // Update by bulk with block_until_refresh
-        bulk = client().prepareBulk().setBlockUntilRefresh(true);
+        bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         bulk.add(client().prepareUpdate("test", "test", "1").setDoc("foo", "baz"));
         assertBulkSuccess(bulk.get());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "baz")).get(), "1");
 
         // Update by bulk with block_until_refresh
-        bulk = client().prepareBulk().setBlockUntilRefresh(true);
+        bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         bulk.add(client().prepareDelete("test", "test", "1"));
         assertBulkSuccess(bulk.get());
         assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get());
@@ -121,7 +125,7 @@ public class BlockUntilRefreshIT extends ESIntegTestCase {
     public void testNoRefreshInterval() throws InterruptedException, ExecutionException {
         client().admin().indices().prepareCreate("test").setSettings("index.refresh_interval", -1).get();
         ListenableActionFuture<IndexResponse> index = client().prepareIndex("test", "index", "1").setSource("foo", "bar")
-                .setBlockUntilRefresh(true).execute();
+                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).execute();
         while (false == index.isDone()) {
             client().admin().indices().prepareRefresh("test").get();
         }

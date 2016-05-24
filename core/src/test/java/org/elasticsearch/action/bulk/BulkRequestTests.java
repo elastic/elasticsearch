@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
@@ -180,22 +181,22 @@ public class BulkRequestTests extends ESTestCase {
     public void testBulkRequestWithRefresh() throws Exception {
         BulkRequest bulkRequest = new BulkRequest();
         // We force here a "id is missing" validation error
-        bulkRequest.add(new DeleteRequest("index", "type", null).setRefresh(true));
+        bulkRequest.add(new DeleteRequest("index", "type", null).setRefreshPolicy(RefreshPolicy.IMMEDIATE));
         // We force here a "type is missing" validation error
         bulkRequest.add(new DeleteRequest("index", null, "id"));
-        bulkRequest.add(new DeleteRequest("index", "type", "id").setRefresh(true));
-        bulkRequest.add(new UpdateRequest("index", "type", "id").doc("{}").setRefresh(true));
-        bulkRequest.add(new IndexRequest("index", "type", "id").source("{}").setRefresh(true));
+        bulkRequest.add(new DeleteRequest("index", "type", "id").setRefreshPolicy(RefreshPolicy.IMMEDIATE));
+        bulkRequest.add(new UpdateRequest("index", "type", "id").doc("{}").setRefreshPolicy(RefreshPolicy.IMMEDIATE));
+        bulkRequest.add(new IndexRequest("index", "type", "id").source("{}").setRefreshPolicy(RefreshPolicy.IMMEDIATE));
         ActionRequestValidationException validate = bulkRequest.validate();
         assertThat(validate, notNullValue());
         assertThat(validate.validationErrors(), not(empty()));
         assertThat(validate.validationErrors(), contains(
-                "Refresh is not supported on an item request, set the refresh flag on the BulkRequest instead.",
+                "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.",
                 "id is missing",
                 "type is missing",
-                "Refresh is not supported on an item request, set the refresh flag on the BulkRequest instead.",
-                "Refresh is not supported on an item request, set the refresh flag on the BulkRequest instead.",
-                "Refresh is not supported on an item request, set the refresh flag on the BulkRequest instead."));
+                "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.",
+                "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.",
+                "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead."));
     }
 
     // issue 15120

@@ -59,10 +59,8 @@ indices:data/read/field_stats
 indices:data/read/get
 indices:data/read/xpack/graph/explore
 indices:data/read/mget
-indices:data/read/mpercolate
 indices:data/read/msearch
 indices:data/read/mtv
-indices:data/read/percolate
 cluster:admin/script/get
 indices:data/read/scroll
 indices:data/read/scroll/clear

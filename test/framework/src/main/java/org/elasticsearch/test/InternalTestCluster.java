@@ -171,8 +171,8 @@ public final class InternalTestCluster extends TestCluster {
     public final int HTTP_BASE_PORT = GLOBAL_HTTP_BASE_PORT + CLUSTER_BASE_PORT_OFFSET;
 
 
-    static final int DEFAULT_MIN_NUM_MASTER_NODES = 1;
-    static final int DEFAULT_MAX_NUM_MASTER_NODES = 3;
+    static final int DEFAULT_LOW_NUM_MASTER_NODES = 1;
+    static final int DEFAULT_HIGH_NUM_MASTER_NODES = 3;
 
     static final int DEFAULT_MIN_NUM_DATA_NODES = 1;
     static final int DEFAULT_MAX_NUM_DATA_NODES = TEST_NIGHTLY ? 6 : 3;
@@ -259,10 +259,10 @@ public final class InternalTestCluster extends TestCluster {
                     // data nodes will assume the master role
                     this.numSharedMasterNodes = 0;
                 } else if (random.nextBoolean()) {
-                    // use a dedicated master, but only 1 to reduce overhead to tests
-                    this.numSharedMasterNodes = 1;
+                    // use a dedicated master, but only low number to reduce overhead to tests
+                    this.numSharedMasterNodes = DEFAULT_LOW_NUM_MASTER_NODES;
                 } else {
-                    this.numSharedMasterNodes = RandomInts.randomIntBetween(random, DEFAULT_MIN_NUM_MASTER_NODES, DEFAULT_MAX_NUM_MASTER_NODES);
+                    this.numSharedMasterNodes = DEFAULT_HIGH_NUM_MASTER_NODES;
                 }
             } else {
                 this.numSharedMasterNodes = numMasterNodes;

@@ -1056,6 +1056,7 @@ class ReflectiveOperationException -> java.lang.ReflectiveOperationException ext
 
 class RuntimeException -> java.lang.RuntimeException extends Exception,Object {
   RuntimeException <init>()
+  RuntimeException <init>(String)
 }
 
 class SecurityException -> java.lang.SecurityException extends RuntimeException,Exception,Object {

@@ -27,6 +27,7 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
@@ -37,7 +38,7 @@ import static java.util.Objects.requireNonNull;
  * Allows for the registration of listeners that are called when a change becomes visible for search. This functionality is exposed from
  * {@link IndexShard} but kept here so it can be tested without standing up the entire thing. 
  */
-class RefreshListeners {
+final class RefreshListeners {
     /**
      * Refresh listeners. While they are not stored in sorted order they are processed as though they are.
      */
@@ -45,7 +46,7 @@ class RefreshListeners {
 
     private final IntSupplier getMaxRefreshListeners;
     private final Runnable forceRefresh;
-    private final Consumer<Runnable> fireListener;
+    private final Executor listenerExecutor;
 
     /**
      * The estimated size of refreshListenersEstimatedSize used for triggering refresh when the size gets over
@@ -58,10 +59,10 @@ class RefreshListeners {
      */
     private volatile Translog.Location lastRefreshedLocation;
 
-    public RefreshListeners(IntSupplier getMaxRefreshListeners, Runnable forceRefresh, Consumer<Runnable> fireListener) {
+    public RefreshListeners(IntSupplier getMaxRefreshListeners, Runnable forceRefresh, Executor listenerExecutor) {
         this.getMaxRefreshListeners = getMaxRefreshListeners;
         this.forceRefresh = forceRefresh;
-        this.fireListener = fireListener;
+        this.listenerExecutor = listenerExecutor;
     }
 
     /**
@@ -148,7 +149,7 @@ class RefreshListeners {
                 }
                 itr.remove();
                 refreshListenersEstimatedSize--;
-                fireListener.accept(() -> listener.v2().accept(false));
+                listenerExecutor.execute(() -> listener.v2().accept(false));
             }
             refreshListenersEstimatedSize = 0;
         }

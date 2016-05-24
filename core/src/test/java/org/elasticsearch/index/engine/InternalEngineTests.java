@@ -43,6 +43,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -2111,6 +2112,50 @@ public class InternalEngineTests extends ESTestCase {
                         assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
                     }
                 }
+            }
+        }
+    }
+
+    public void testCreationListener() throws IOException {
+        AtomicReference<Engine> listener = new AtomicReference<>();
+        try (Store store = createStore()) {
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy());
+            config.addEngineCreationListener(listener::set);
+            try (Engine created = new InternalEngine(config)) {
+                assertSame(created, listener.get());
+            }
+        }
+    }
+
+    public void testRefreshListener() throws IOException {
+        class TestRefreshListener implements ReferenceManager.RefreshListener {
+            boolean beforeRefreshed = false;
+            boolean afterRefreshed = false;
+
+            @Override
+            public void beforeRefresh() throws IOException {
+                assertFalse(beforeRefreshed);
+                assertFalse(afterRefreshed);
+                beforeRefreshed = true;
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) throws IOException {
+                assertTrue(beforeRefreshed);
+                assertFalse(afterRefreshed);
+                afterRefreshed = true;
+            }
+        }
+        TestRefreshListener listener = new TestRefreshListener();
+        try (Store store = createStore()) {
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy());
+            config.addRefreshListener(listener);
+            try (Engine engine = new InternalEngine(config)) {
+                assertFalse(listener.beforeRefreshed);
+                assertFalse(listener.afterRefreshed);
+                engine.refresh("test");
+                assertTrue(listener.beforeRefreshed);
+                assertTrue(listener.afterRefreshed);
             }
         }
     }

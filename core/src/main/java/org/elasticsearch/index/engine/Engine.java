@@ -33,7 +33,6 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.ReferenceManager.RefreshListener;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
@@ -602,13 +601,6 @@ public abstract class Engine implements Closeable {
             }
         }
         return false;
-    }
-
-    /**
-     * Register a listener that is called whenever the searcher is refreshed. See {@link SearcherManager#addListener(RefreshListener)}.
-     */
-    public final void registerSearchRefreshListener(RefreshListener listener) {
-        getSearcherManager().addListener(listener);
     }
 
     /**

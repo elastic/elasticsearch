@@ -22,6 +22,7 @@ package org.elasticsearch.index.shard;
 import org.apache.lucene.search.ReferenceManager;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig.EngineCreationListener;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
@@ -37,7 +38,7 @@ import static java.util.Objects.requireNonNull;
  * Allows for the registration of listeners that are called when a change becomes visible for search. This functionality is exposed from
  * {@link IndexShard} but kept here so it can be tested without standing up the entire thing. 
  */
-final class RefreshListeners {
+final class RefreshListeners implements EngineCreationListener, ReferenceManager.RefreshListener {
     private final IntSupplier getMaxRefreshListeners;
     private final Runnable forceRefresh;
     private final Executor listenerExecutor;
@@ -87,68 +88,57 @@ final class RefreshListeners {
         listener.accept(true);
     }
 
-    /**
-     * Start listening to an engine.
-     */
-    public void listenTo(Engine engine) {
-        engine.registerSearchRefreshListener(new RefreshListenerCallingRefreshListener(engine.getTranslog()));
+    @Override
+    public void engineCreated(Engine engine) {
+        translog = engine.getTranslog();
     }
 
+    // Implementation of ReferenceManager.RefreshListener that adapts Lucene's RefreshListener into Elasticsearch's refresh listeners.
+    private Translog translog;
     /**
-     * Listens to Lucene's {@linkplain ReferenceManager.RefreshListener} and fires off listeners added by
-     * {@linkplain IndexShard#addRefreshListener(Translog.Location, Consumer)}.
+     * Snapshot of the translog location before the current refresh if there is a refresh going on or null. Doesn't have to be volatile
+     * because when it is used by the refreshing thread.
      */
-    private class RefreshListenerCallingRefreshListener implements ReferenceManager.RefreshListener {
-        private final Translog translog;
-        /**
-         * Snapshot of the translog location before the current refresh if there is a refresh going on or null. Doesn't have to be volatile
-         * because when it is used by the refreshing thread.
+    private Translog.Location currentRefreshLocation;
+
+    @Override
+    public void beforeRefresh() throws IOException {
+        currentRefreshLocation = translog.getLastWriteLocation();
+    }
+
+    @Override
+    public void afterRefresh(boolean didRefresh) throws IOException {
+        // This intentionally ignores didRefresh so a refresh call over the API can force rechecking the refreshListeners.
+        if (null == currentRefreshLocation) {
+            /*
+             * The translog had an empty last write location at the start of the refresh so we can't alert anyone to anything. This
+             * usually happens during recovery. The next refresh cycle out to pick up this refresh.
+             */
+            return;
+        }
+        /*
+         * First set the lastRefreshedLocation so listeners that come in locations before that will just execute inline without messing
+         * around with refreshListeners at all.
          */
-        private Translog.Location currentRefreshLocation;
-
-        public RefreshListenerCallingRefreshListener(Translog translog) {
-            this.translog = translog;
-        }
-
-        @Override
-        public void beforeRefresh() throws IOException {
-            currentRefreshLocation = translog.getLastWriteLocation();
-        }
-
-        @Override
-        public void afterRefresh(boolean didRefresh) throws IOException {
-            // This intentionally ignores didRefresh so a refresh call over the API can force rechecking the refreshListeners.
-            if (null == currentRefreshLocation) {
-                /*
-                 * The translog had an empty last write location at the start of the refresh so we can't alert anyone to anything. This
-                 * usually happens during recovery. The next refresh cycle out to pick up this refresh.
-                 */
-                return;
-            }
-            /*
-             * First set the lastRefreshedLocation so listeners that come in locations before that will just execute inline without messing
-             * around with refreshListeners at all.
-             */
-            lastRefreshedLocation = currentRefreshLocation;
-            /*
-             * Now pop all listeners off the front of refreshListeners that are ready to be called. The listeners won't always be in order
-             * but they should be pretty close because you don't listen to times super far in the future. This prevents us from having to
-             * iterate over the whole queue on every refresh at the cost of some requests having to wait an extra cycle if they get stuck
-             * behind a request that missed the refresh cycle.
-             */
-            List<Tuple<Translog.Location, Consumer<Boolean>>> newRefreshListeners = new ArrayList<>();
-            synchronized (this) {
-                for (Tuple<Translog.Location, Consumer<Boolean>> tuple : refreshListeners) {
-                    Translog.Location location = tuple.v1();
-                    if (location.compareTo(currentRefreshLocation) > 0) {
-                        newRefreshListeners.add(tuple);
-                    } else {
-                        Consumer<Boolean> listener = tuple.v2();
-                        listenerExecutor.execute(() -> listener.accept(false));
-                    }
+        lastRefreshedLocation = currentRefreshLocation;
+        /*
+         * Now pop all listeners off the front of refreshListeners that are ready to be called. The listeners won't always be in order
+         * but they should be pretty close because you don't listen to times super far in the future. This prevents us from having to
+         * iterate over the whole queue on every refresh at the cost of some requests having to wait an extra cycle if they get stuck
+         * behind a request that missed the refresh cycle.
+         */
+        List<Tuple<Translog.Location, Consumer<Boolean>>> newRefreshListeners = new ArrayList<>();
+        synchronized (this) {
+            for (Tuple<Translog.Location, Consumer<Boolean>> tuple : refreshListeners) {
+                Translog.Location location = tuple.v1();
+                if (location.compareTo(currentRefreshLocation) > 0) {
+                    newRefreshListeners.add(tuple);
+                } else {
+                    Consumer<Boolean> listener = tuple.v2();
+                    listenerExecutor.execute(() -> listener.accept(false));
                 }
-                refreshListeners = newRefreshListeners;
             }
+            refreshListeners = newRefreshListeners;
         }
     }
 }

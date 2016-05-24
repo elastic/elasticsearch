@@ -32,6 +32,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
@@ -74,6 +75,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -978,6 +980,46 @@ public class ShadowEngineTests extends ESTestCase {
             fail("shadow engine has no translog");
         } catch (UnsupportedOperationException ex) {
             // all good
+        }
+    }
+
+    public void testCreationListener() throws IOException {
+        AtomicReference<Engine> listener = new AtomicReference<>();
+        EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy());
+        config.addEngineCreationListener(listener::set);
+        try (Engine created = new ShadowEngine(config)) {
+            assertSame(created, listener.get());
+        }
+    }
+
+    public void testRefreshListener() throws IOException {
+        class TestRefreshListener implements ReferenceManager.RefreshListener {
+            boolean beforeRefreshed = false;
+            boolean afterRefreshed = false;
+
+            @Override
+            public void beforeRefresh() throws IOException {
+                assertFalse(beforeRefreshed);
+                assertFalse(afterRefreshed);
+                beforeRefreshed = true;
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) throws IOException {
+                assertTrue(beforeRefreshed);
+                assertFalse(afterRefreshed);
+                afterRefreshed = true;
+            }
+        }
+        TestRefreshListener listener = new TestRefreshListener();
+        EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy());
+        config.addRefreshListener(listener);
+        try (Engine engine = new ShadowEngine(config)) {
+            assertFalse(listener.beforeRefreshed);
+            assertFalse(listener.afterRefreshed);
+            engine.refresh("test");
+            assertTrue(listener.beforeRefreshed);
+            assertTrue(listener.afterRefreshed);
         }
     }
 }

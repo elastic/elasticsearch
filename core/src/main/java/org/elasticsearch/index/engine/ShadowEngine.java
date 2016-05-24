@@ -22,6 +22,7 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -97,6 +98,12 @@ public class ShadowEngine extends Engine {
             }
         } catch (IOException ex) {
             throw new EngineCreationFailureException(shardId, "failed to open index reader", ex);
+        }
+        for (EngineConfig.EngineCreationListener listener : engineConfig.getEngineCreationListeners()) {
+            listener.engineCreated(this);
+        }
+        for (ReferenceManager.RefreshListener listener : engineConfig.getRefreshListeners()) {
+            searcherManager.addListener(listener);
         }
         logger.trace("created new ShadowEngine");
     }

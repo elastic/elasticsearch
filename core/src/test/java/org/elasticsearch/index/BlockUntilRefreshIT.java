@@ -27,6 +27,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ExecutableScript;
@@ -51,6 +52,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
  * Tests that requests with RefreshPolicy.WAIT_UNTIL will be visible when they return.
  */
 public class BlockUntilRefreshIT extends ESIntegTestCase {
+    @Override
+    public Settings indexSettings() {
+        // Use a shorter refresh interval to speed up the tests. We'll be waiting on this interval several times.
+        return Settings.builder().put(super.indexSettings()).put("index.refresh_interval", "100ms").build();
+    }
+
     public void testIndex() {
         IndexResponse index = client().prepareIndex("test", "index", "1").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                 .get();

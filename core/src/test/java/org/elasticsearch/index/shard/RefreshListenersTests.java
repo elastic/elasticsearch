@@ -122,10 +122,9 @@ public class RefreshListenersTests extends ESTestCase {
                 iwc.getSimilarity(), new CodecService(null, logger), eventListener, new TranslogHandler(shardId.getIndexName(), logger),
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
                 TimeValue.timeValueMinutes(5));
+        config.addEngineCreationListener(listeners);
+        config.addRefreshListener(listeners);
         engine = new InternalEngine(config);
-
-        // Finally, we can listen to the engine
-        listeners.listenTo(engine);
     }
 
     @After

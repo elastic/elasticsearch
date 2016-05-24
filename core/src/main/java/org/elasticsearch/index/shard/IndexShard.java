@@ -920,6 +920,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
         config.setEnableGcDeletes(false);
+        setupRefreshListeners(config);
         Engine newEngine = createNewEngine(config);
         verifyNotClosed();
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
@@ -1370,9 +1371,12 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     protected Engine newEngine(EngineConfig config) {
-        Engine engine = engineFactory.newReadWriteEngine(config);
-        refreshListeners.listenTo(engine);
-        return engine;
+        return engineFactory.newReadWriteEngine(config);
+    }
+
+    protected void setupRefreshListeners(EngineConfig config) {
+        config.addEngineCreationListener(refreshListeners);
+        config.addRefreshListener(refreshListeners);
     }
 
     /**

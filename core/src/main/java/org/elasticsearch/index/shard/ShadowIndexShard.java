@@ -89,6 +89,11 @@ public final class ShadowIndexShard extends IndexShard {
     }
 
     @Override
+    protected void setupRefreshListeners(EngineConfig config) {
+        // Intentionally not setting them up because the shadow replica doesn't have a Translog so it can't support RefreshListeners.
+    }
+
+    @Override
     public boolean shouldFlush() {
         // we don't need to flush since we don't write - all dominated by the primary
         return false;

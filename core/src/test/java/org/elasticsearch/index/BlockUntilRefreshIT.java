@@ -48,7 +48,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSe
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 
 /**
- * Tests that requests with block_until_refresh set to true will be visible when they return.
+ * Tests that requests with RefreshPolicy.WAIT_UNTIL will be visible when they return.
  */
 public class BlockUntilRefreshIT extends ESIntegTestCase {
     public void testIndex() {

@@ -434,6 +434,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             try (ReleasableLock lock = readLock.acquire()) {
                 ensureOpen();
                 Location location = current.add(bytes);
+                operation.location(location);
                 assert assertBytesAtLocation(location, bytes);
                 return location;
             }
@@ -705,27 +706,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         /**
          * Returns the next operation in the snapshot or <code>null</code> if we reached the end.
          */
-        Position next() throws IOException;
-
-    }
-
-    public static class Position {
-
-        private final Translog.Operation operation;
-        private final Translog.Location location;
-
-        public Position(Operation operation, Location location) {
-            this.operation = operation;
-            this.location = location;
-        }
-
-        public Operation operation() {
-            return operation;
-        }
-
-        public Location location() {
-            return location;
-        }
+        Operation next() throws IOException;
 
     }
 
@@ -770,6 +751,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         Source getSource();
 
+        void location(Location location);
+
+        Location location();
+
     }
 
     public static class Source {
@@ -800,6 +785,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         private String parent;
         private long timestamp;
         private long ttl;
+        private Location location;
 
         public Index() {
         }
@@ -830,6 +816,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         @Override
         public long estimateSize() {
             return ((id.length() + type.length()) * 2) + source.length() + 12;
+        }
+
+        @Override
+        public void location(Location location) {
+            this.location = location;
+        }
+
+        @Override
+        public Location location() {
+            return location;
         }
 
         public String type() {
@@ -989,6 +985,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         private Term uid;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
+        private Location location;
 
         public Delete() {
         }
@@ -1017,6 +1014,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         @Override
         public long estimateSize() {
             return ((uid.field().length() + uid.text().length()) * 2) + 20;
+        }
+
+        @Override
+        public void location(Location location) {
+            this.location = location;
+        }
+
+        @Override
+        public Location location() {
+            return location;
         }
 
         public Term uid() {

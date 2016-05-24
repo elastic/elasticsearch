@@ -93,11 +93,11 @@ public final class SnapshotMatchers {
         @Override
         protected boolean matchesSafely(Translog.Snapshot snapshot) {
             try {
-                Translog.Position pos;
+                Translog.Operation op;
                 int i;
-                for (i = 0, pos = snapshot.next(); pos != null && i < expectedOps.length; i++, pos = snapshot.next()) {
-                    if (expectedOps[i].equals(pos.operation()) == false) {
-                        failureMsg = "position [" + i + "] expected [" + expectedOps[i] + "] but found [" + pos.operation() + "]";
+                for (i = 0, op = snapshot.next(); op != null && i < expectedOps.length; i++, op = snapshot.next()) {
+                    if (expectedOps[i].equals(op) == false) {
+                        failureMsg = "position [" + i + "] expected [" + expectedOps[i] + "] but found [" + op + "]";
                         return false;
                     }
                 }
@@ -107,7 +107,7 @@ public final class SnapshotMatchers {
                     return false;
                 }
 
-                if (pos != null) {
+                if (op != null) {
                     int count = 1; // to account for the op we already read
                     while (snapshot.next() != null) {
                         count++;

@@ -56,7 +56,7 @@ public class TranslogSnapshot extends BaseTranslogReader implements Translog.Sna
     }
 
     @Override
-    public Translog.Position next() throws IOException {
+    public Translog.Operation next() throws IOException {
         if (readOperations < totalOperations) {
             return readOperation();
         } else {
@@ -64,14 +64,14 @@ public class TranslogSnapshot extends BaseTranslogReader implements Translog.Sna
         }
     }
 
-    protected final Translog.Position readOperation() throws IOException {
+    protected final Translog.Operation readOperation() throws IOException {
         final int opSize = readSize(reusableBuffer, position);
         reuse = checksummedStream(reusableBuffer, position, opSize, reuse);
         Translog.Operation op = read(reuse);
-        Translog.Position pos = new Translog.Position(op, new Translog.Location(generation, position, opSize));
+        op.location(new Translog.Location(getGeneration(), position, opSize));
         position += opSize;
         readOperations++;
-        return pos;
+        return op;
     }
 
 

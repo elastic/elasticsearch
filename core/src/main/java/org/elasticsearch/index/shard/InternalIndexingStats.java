@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.indexOfSubList;
 
 /**
  * Internal class that maintains relevant indexing statistics / metrics.

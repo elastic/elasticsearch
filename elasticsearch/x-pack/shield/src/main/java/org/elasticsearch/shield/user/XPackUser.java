@@ -12,9 +12,9 @@ import org.elasticsearch.shield.user.User.ReservedUser;
  * XPack internal user that manages xpack. Has all cluster/indices permissions for watcher,
  * shield and monitoring to operate.
  */
-public class XPackUser extends ReservedUser {
+public class XPackUser extends User {
 
-    public static final String NAME = "elastic";
+    public static final String NAME = "_xpack";
     public static final String ROLE_NAME = SuperuserRole.NAME;
     public static final XPackUser INSTANCE = new XPackUser();
 

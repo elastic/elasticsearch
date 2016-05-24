@@ -9,6 +9,9 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.shield.user.User;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * An authentication mechanism to which the default authentication {@link org.elasticsearch.shield.authc.AuthenticationService service}
  * delegates the authentication process. Different realms may be defined, each may be based on different
@@ -83,6 +86,14 @@ public abstract class Realm<T extends AuthenticationToken> implements Comparable
      * @return         the {@link User} or {@code null} if lookup failed
      */
     public abstract User lookupUser(String username);
+
+    public Map<String, Object> usageStats() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("type", type);
+        stats.put("name", name());
+        stats.put("order", order());
+        return stats;
+    }
 
     /**
      * Indicates whether this realm supports user lookup.

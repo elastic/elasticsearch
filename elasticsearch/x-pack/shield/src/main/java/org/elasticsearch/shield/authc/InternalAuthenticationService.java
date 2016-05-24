@@ -7,7 +7,6 @@ package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -29,6 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 
 import java.io.IOException;
+import java.util.Base64;
 
 import static org.elasticsearch.shield.Security.setting;
 import static org.elasticsearch.shield.support.Exceptions.authenticationError;
@@ -157,7 +157,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
 
     static User decodeUser(String text) {
         try {
-            byte[] bytes = Base64.decode(text);
+            byte[] bytes = Base64.getDecoder().decode(text);
             StreamInput input = StreamInput.wrap(bytes);
             Version version = Version.readVersion(input);
             input.setVersion(version);
@@ -173,7 +173,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
             Version.writeVersion(Version.CURRENT, output);
             User.writeTo(user, output);
             byte[] bytes = output.bytes().toBytes();
-            return Base64.encodeBytes(bytes);
+            return Base64.getEncoder().encodeToString(bytes);
         } catch (IOException ioe) {
             if (logger != null) {
                 logger.error("could not encode authenticated user in message header... falling back to token headers", ioe);

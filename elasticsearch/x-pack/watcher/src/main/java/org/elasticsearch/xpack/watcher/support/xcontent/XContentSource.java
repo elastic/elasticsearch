@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+
 /**
  * Encapsulates the xcontent source
  */
@@ -46,6 +48,10 @@ public class XContentSource implements ToXContent {
      */
     public XContentSource(XContentBuilder builder) {
         this(builder.bytes(), builder.contentType());
+    }
+
+    public XContentSource(ToXContent content) throws IOException {
+        this(content.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
     }
 
     /**

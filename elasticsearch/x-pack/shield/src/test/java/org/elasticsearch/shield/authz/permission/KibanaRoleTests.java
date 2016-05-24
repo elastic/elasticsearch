@@ -22,6 +22,8 @@ import org.elasticsearch.shield.user.User;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 
+import java.util.Arrays;
+
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -45,17 +47,27 @@ public class KibanaRoleTests extends ESTestCase {
         assertThat(KibanaRole.INSTANCE.runAs().isEmpty(), is(true));
     }
 
-    public void testIndices() {
-        final String kibanaIndex = ".kibana";
-        assertThat(KibanaRole.INSTANCE.indices().allowedIndicesMatcher("indices:foo").test(kibanaIndex), is(true));
-        assertThat(KibanaRole.INSTANCE.indices().allowedIndicesMatcher("indices:bar").test(kibanaIndex), is(true));
-        assertThat(KibanaRole.INSTANCE.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(kibanaIndex), is(true));
-        assertThat(KibanaRole.INSTANCE.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(kibanaIndex), is(true));
-        assertThat(KibanaRole.INSTANCE.indices().allowedIndicesMatcher(IndexAction.NAME).test(kibanaIndex), is(true));
-        assertThat(KibanaRole.INSTANCE.indices().allowedIndicesMatcher(DeleteAction.NAME).test(kibanaIndex), is(true));
-        assertThat(KibanaRole.INSTANCE.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(kibanaIndex), is(true));
-
+    public void testUnauthorizedIndices() {
         assertThat(KibanaRole.INSTANCE.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
+        assertThat(KibanaRole.INSTANCE.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
         assertThat(KibanaRole.INSTANCE.indices().allowedIndicesMatcher("indices:foo").test(randomAsciiOfLengthBetween(8, 24)), is(false));
+    }
+
+    public void testKibanaIndices() {
+        Arrays.asList(".kibana", ".kibana-devnull").forEach(this::testAllIndexAccess);
+    }
+
+    public void testReportingIndices() {
+        testAllIndexAccess(".reporting-" + randomAsciiOfLength(randomIntBetween(0, 13)));
+    }
+
+    private void testAllIndexAccess(String index) {
+        assertThat(KibanaRole.INSTANCE.indices().allowedIndicesMatcher("indices:foo").test(index), is(true));
+        assertThat(KibanaRole.INSTANCE.indices().allowedIndicesMatcher("indices:bar").test(index), is(true));
+        assertThat(KibanaRole.INSTANCE.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(true));
+        assertThat(KibanaRole.INSTANCE.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
+        assertThat(KibanaRole.INSTANCE.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
+        assertThat(KibanaRole.INSTANCE.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));
+        assertThat(KibanaRole.INSTANCE.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(true));
     }
 }

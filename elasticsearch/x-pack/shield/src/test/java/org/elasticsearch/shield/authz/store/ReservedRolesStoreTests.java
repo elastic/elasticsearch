@@ -9,10 +9,10 @@ import org.elasticsearch.shield.SecurityContext;
 import org.elasticsearch.shield.authz.permission.KibanaRole;
 import org.elasticsearch.shield.authz.permission.SuperuserRole;
 import org.elasticsearch.shield.authz.permission.TransportClientRole;
+import org.elasticsearch.shield.user.ElasticUser;
 import org.elasticsearch.shield.user.KibanaUser;
 import org.elasticsearch.shield.user.SystemUser;
 import org.elasticsearch.shield.user.User;
-import org.elasticsearch.shield.user.XPackUser;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -41,7 +41,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testRetrievingReservedRolesNonKibanaUser() {
         if (randomBoolean()) {
-            when(securityContext.getUser()).thenReturn(XPackUser.INSTANCE);
+            when(securityContext.getUser()).thenReturn(ElasticUser.INSTANCE);
         }
 
         assertThat(reservedRolesStore.role(SuperuserRole.NAME), sameInstance(SuperuserRole.INSTANCE));

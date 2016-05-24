@@ -73,8 +73,8 @@ import org.elasticsearch.shield.rest.action.user.RestChangePasswordAction;
 import org.elasticsearch.shield.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.shield.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.shield.rest.action.user.RestPutUserAction;
-import org.elasticsearch.shield.ssl.SSLModule;
 import org.elasticsearch.shield.ssl.SSLConfiguration;
+import org.elasticsearch.shield.ssl.SSLModule;
 import org.elasticsearch.shield.support.OptionalSettings;
 import org.elasticsearch.shield.transport.ShieldClientTransportService;
 import org.elasticsearch.shield.transport.ShieldServerTransportService;
@@ -125,27 +125,28 @@ public class Security {
     public Collection<Module> nodeModules() {
         List<Module> modules = new ArrayList<>();
 
-        // we can't load that at construction time since the license plugin might not have been loaded at that point
-        // which might not be the case during Plugin class instantiation. Once nodeModules are pulled
-        // everything should have been loaded
-        if (enabled && transportClientMode == false) {
-            securityLicenseState = new SecurityLicenseState();
-        }
-
-        modules.add(new SecurityModule(settings, securityLicenseState));
-
-        if (enabled == false) {
-            return modules;
-        }
-
-        if (transportClientMode == true) {
+        if (transportClientMode) {
+            if (enabled == false) {
+                return modules;
+            }
+            modules.add(new SecurityModule(settings, securityLicenseState));
             modules.add(new ShieldTransportModule(settings));
             modules.add(new SSLModule(settings));
             return modules;
         }
 
-        modules.add(new CryptoModule(settings));
         modules.add(new AuthenticationModule(settings));
+        if (enabled == false) {
+            modules.add(new SecurityModule(settings, securityLicenseState));
+            return modules;
+        }
+
+        // we can't load that at construction time since the license plugin might not have been loaded at that point
+        // which might not be the case during Plugin class instantiation. Once nodeModules are pulled
+        // everything should have been loaded
+        securityLicenseState = new SecurityLicenseState();
+        modules.add(new SecurityModule(settings, securityLicenseState));
+        modules.add(new CryptoModule(settings));
         modules.add(new AuthorizationModule(settings));
         modules.add(new AuditTrailModule(settings));
         modules.add(new ShieldRestModule(settings));

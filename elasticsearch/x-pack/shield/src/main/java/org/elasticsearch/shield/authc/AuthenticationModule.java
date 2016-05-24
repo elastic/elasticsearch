@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.activedirectory.ActiveDirectoryRealm;
 import org.elasticsearch.shield.authc.esnative.NativeRealm;
@@ -42,6 +43,11 @@ public class AuthenticationModule extends AbstractShieldModule.Node {
 
     @Override
     protected void configureNode() {
+        if (!shieldEnabled) {
+            bind(Realms.class).toProvider(Providers.of(null));
+            return;
+        }
+
         AnonymousUser.initialize(settings);
         MapBinder<String, Realm.Factory> mapBinder = MapBinder.newMapBinder(binder(), String.class, Realm.Factory.class);
         mapBinder.addBinding(FileRealm.TYPE).to(FileRealm.Factory.class).asEagerSingleton();

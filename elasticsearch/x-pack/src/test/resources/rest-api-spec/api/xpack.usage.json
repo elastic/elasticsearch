@@ -1,0 +1,14 @@
+{
+  "xpack.usage": {
+    "documentation": "Retrieve information about xpack features usage",
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_xpack/usage",
+      "paths": [ "/_xpack/usage" ],
+      "parts": {},
+      "params": {
+      }
+    },
+    "body": null
+  }
+}

@@ -7,8 +7,8 @@ package org.elasticsearch.shield.authc.esnative;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.shield.user.ElasticUser;
 import org.elasticsearch.shield.user.KibanaUser;
-import org.elasticsearch.shield.user.XPackUser;
 import org.elasticsearch.shield.action.user.ChangePasswordResponse;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
@@ -29,7 +29,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
     private static final SecuredString DEFAULT_PASSWORD = new SecuredString("changeme".toCharArray());
 
     public void testAuthenticate() {
-        for (String username : Arrays.asList(XPackUser.NAME, KibanaUser.NAME)) {
+        for (String username : Arrays.asList(ElasticUser.NAME, KibanaUser.NAME)) {
             ClusterHealthResponse response = client()
                     .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, DEFAULT_PASSWORD)))
                     .admin()
@@ -42,7 +42,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testChangingPassword() {
-        String username = randomFrom(XPackUser.NAME, KibanaUser.NAME);
+        String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
         final char[] newPassword = "supersecretvalue".toCharArray();
 
         if (randomBoolean()) {

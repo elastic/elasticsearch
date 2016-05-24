@@ -1,6 +1,6 @@
-# Integration tests xpack info API
+# Integration tests xpack info and usage API
 #
-"X-Pack Info":
+"X-Pack Info and Usage":
 
   - do:
       cluster.health:
@@ -82,6 +82,17 @@
   - is_true:    features.monitoring.available
   - is_true:    features.monitoring.description
   - is_true:    tagline
+
+  - do:
+    xpack.usage: {}
+  - is_true:    watcher.enabled
+  - is_true:    watcher.available
+  - is_true:    security.enabled
+  - is_true:    security.available
+  - is_true:    graph.enabled
+  - is_true:    graph.available
+  - is_true:    monitoring.enabled
+  - is_true:    monitoring.available
 
   - do:
     xpack.info:

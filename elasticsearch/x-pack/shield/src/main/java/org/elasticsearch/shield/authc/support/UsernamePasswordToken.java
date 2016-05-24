@@ -5,13 +5,12 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 
-import java.io.IOException;
 import java.nio.CharBuffer;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Objects;
 
 import static org.elasticsearch.shield.support.Exceptions.authenticationError;
@@ -85,8 +84,8 @@ public class UsernamePasswordToken implements AuthenticationToken {
 
         char[] userpasswd;
         try {
-            userpasswd = CharArrays.utf8BytesToChars(Base64.decode(headerValue.substring(BASIC_AUTH_PREFIX.length()).trim()));
-        } catch (IllegalArgumentException | IOException e) {
+            userpasswd = CharArrays.utf8BytesToChars(Base64.getDecoder().decode(headerValue.substring(BASIC_AUTH_PREFIX.length()).trim()));
+        } catch (IllegalArgumentException e) {
             throw authenticationError("invalid basic authentication header encoding", e);
         }
 
@@ -109,7 +108,7 @@ public class UsernamePasswordToken implements AuthenticationToken {
         chars.put(username).put(':').put(passwd.internalChars());
 
         //TODO we still have passwords in Strings in headers
-        String basicToken = Base64.encodeBytes(CharArrays.toUtf8Bytes(chars.array()));
+        String basicToken = Base64.getEncoder().encodeToString(CharArrays.toUtf8Bytes(chars.array()));
         return "Basic " + basicToken;
     }
 }

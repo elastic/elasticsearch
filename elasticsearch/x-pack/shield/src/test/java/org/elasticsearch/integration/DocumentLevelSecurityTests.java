@@ -9,8 +9,6 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.percolate.PercolateResponse;
-import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
@@ -603,86 +601,6 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         assertHitCount(searchResponse, 2L);
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c1"));
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("c2"));
-    }
-
-    public void testPercolateApi() {
-        assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("query", "query", "type=percolator", "field1", "type=text", "field2", "type=text", "field3", "type=text")
-        );
-        client().prepareIndex("test", "query", "1")
-                .setSource("{\"query\" : { \"match_all\" : {} }, \"field1\" : \"value1\"}")
-                .setRefresh(true)
-                .get();
-
-        // Percolator without a query just evaluates all percolator queries that are loaded, so we have a match:
-        PercolateResponse response = client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .preparePercolate()
-                .setDocumentType("query")
-                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
-                .get();
-        assertThat(response.getCount(), equalTo(1L));
-        assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
-
-        response = client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-                .preparePercolate()
-                .setDocumentType("query")
-                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
-                .get();
-        assertThat(response.getCount(), equalTo(0L));
-
-        response = client()
-                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-                .preparePercolate()
-                .setDocumentType("query")
-                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
-                .get();
-        assertThat(response.getCount(), equalTo(1L));
-        assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
-
-        // Percolator with a query on a document that the current user can see. Percolator will have one query to evaluate, so there is a
-        // match:
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .preparePercolate()
-                .setDocumentType("query")
-                .setPercolateQuery(termQuery("field1", "value1"))
-                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
-                .get();
-        assertThat(response.getCount(), equalTo(1L));
-        assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
-
-        // Percolator with a query on a document that the current user can't see. Percolator will not have queries to evaluate, so there
-        // is no match:
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-                .preparePercolate()
-                .setDocumentType("query")
-                .setPercolateQuery(termQuery("field1", "value1"))
-                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
-                .get();
-        assertThat(response.getCount(), equalTo(0L));
-
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-                .preparePercolate()
-                .setDocumentType("query")
-                .setPercolateQuery(termQuery("field1", "value1"))
-                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
-                .get();
-        assertThat(response.getCount(), equalTo(1L));
-        assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
-
-        assertAcked(client().admin().indices().prepareClose("test"));
-        assertAcked(client().admin().indices().prepareOpen("test"));
-        ensureGreen("test");
-
-        // Ensure that the query loading that happens at startup has permissions to load the percolator queries:
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .preparePercolate()
-                .setDocumentType("query")
-                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
-                .get();
-        assertThat(response.getCount(), equalTo(1L));
-        assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
     }
 
     public void testScroll() throws Exception {

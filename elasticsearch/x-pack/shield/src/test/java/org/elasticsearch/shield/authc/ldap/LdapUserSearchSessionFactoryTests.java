@@ -59,6 +59,7 @@ import static org.hamcrest.Matchers.nullValue;
         LdapUserSearchSessionFactoryTests.BackgroundConnectThreadLeakFilter.class
 })
 public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
+
     private ClientSSLService clientSSLService;
     private Settings globalSettings;
 

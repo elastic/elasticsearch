@@ -7,8 +7,12 @@ package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.XPackFeatureSet;
+
+import java.io.IOException;
 
 /**
  *
@@ -19,9 +23,10 @@ public class WatcherFeatureSet implements XPackFeatureSet {
     private final WatcherLicensee licensee;
 
     @Inject
-    public WatcherFeatureSet(Settings settings, @Nullable WatcherLicensee licensee) {
+    public WatcherFeatureSet(Settings settings, @Nullable WatcherLicensee licensee, NamedWriteableRegistry namedWriteableRegistry) {
         this.enabled = Watcher.enabled(settings);
         this.licensee = licensee;
+        namedWriteableRegistry.register(Usage.class, Usage.writeableName(Watcher.NAME), Usage::new);
     }
 
     @Override
@@ -42,5 +47,22 @@ public class WatcherFeatureSet implements XPackFeatureSet {
     @Override
     public boolean enabled() {
         return enabled;
+    }
+
+    @Override
+    public XPackFeatureSet.Usage usage() {
+        return new Usage(available(), enabled());
+    }
+
+    static class Usage extends XPackFeatureSet.Usage {
+
+        public Usage(StreamInput input) throws IOException {
+            super(input);
+        }
+
+        public Usage(boolean available, boolean enabled) {
+            super(Watcher.NAME, available, enabled);
+        }
+
     }
 }

@@ -13,9 +13,9 @@ import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.user.AnonymousUser;
+import org.elasticsearch.shield.user.ElasticUser;
 import org.elasticsearch.shield.user.KibanaUser;
 import org.elasticsearch.shield.user.User;
-import org.elasticsearch.shield.user.XPackUser;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -49,7 +49,7 @@ public class ReservedRealmTests extends ESTestCase {
     public void testUserStoreNotStarted() {
         when(usersStore.started()).thenReturn(false);
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore);
-        final String principal = randomFrom(XPackUser.NAME, KibanaUser.NAME);
+        final String principal = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
 
         ElasticsearchSecurityException expected = expectThrows(ElasticsearchSecurityException.class,
                 () -> reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, DEFAULT_PASSWORD)));
@@ -65,7 +65,7 @@ public class ReservedRealmTests extends ESTestCase {
             when(usersStore.shieldIndexExists()).thenReturn(true);
         }
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore);
-        final User expected = randomFrom((User) XPackUser.INSTANCE, (User) KibanaUser.INSTANCE);
+        final User expected = randomFrom((User) ElasticUser.INSTANCE, KibanaUser.INSTANCE);
         final String principal = expected.principal();
 
         final User authenticated = reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, DEFAULT_PASSWORD));
@@ -81,7 +81,7 @@ public class ReservedRealmTests extends ESTestCase {
 
     public void testAuthenticationWithStoredPassword() throws Throwable {
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore);
-        final User expectedUser = randomFrom((User) XPackUser.INSTANCE, (User) KibanaUser.INSTANCE);
+        final User expectedUser = randomFrom((User) ElasticUser.INSTANCE, KibanaUser.INSTANCE);
         final String principal = expectedUser.principal();
         final SecuredString newPassword = new SecuredString("foobar".toCharArray());
         when(usersStore.shieldIndexExists()).thenReturn(true);
@@ -107,7 +107,7 @@ public class ReservedRealmTests extends ESTestCase {
 
     public void testLookup() {
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore);
-        final User expectedUser = randomFrom((User) XPackUser.INSTANCE, (User) KibanaUser.INSTANCE);
+        final User expectedUser = randomFrom((User) ElasticUser.INSTANCE, KibanaUser.INSTANCE);
         final String principal = expectedUser.principal();
 
         final User user = reservedRealm.doLookupUser(principal);
@@ -120,7 +120,7 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     public void testHelperMethods() {
-        final User expectedUser = randomFrom((User) XPackUser.INSTANCE, (User) KibanaUser.INSTANCE);
+        final User expectedUser = randomFrom((User) ElasticUser.INSTANCE, KibanaUser.INSTANCE);
         final String principal = expectedUser.principal();
         assertThat(ReservedRealm.isReserved(principal), is(true));
         assertThat(ReservedRealm.getUser(principal), sameInstance(expectedUser));
@@ -129,19 +129,20 @@ public class ReservedRealmTests extends ESTestCase {
         assertThat(ReservedRealm.isReserved(notExpected), is(false));
         assertThat(ReservedRealm.getUser(notExpected), nullValue());
 
-        assertThat(ReservedRealm.users(), containsInAnyOrder((User) XPackUser.INSTANCE, KibanaUser.INSTANCE));
+        assertThat(ReservedRealm.users(), containsInAnyOrder((User) ElasticUser.INSTANCE, KibanaUser.INSTANCE));
     }
 
     public void testFailedAuthentication() {
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore);
         // maybe cache a successful auth
         if (randomBoolean()) {
-            User user = reservedRealm.authenticate(new UsernamePasswordToken(XPackUser.NAME, new SecuredString("changeme".toCharArray())));
-            assertThat(user, sameInstance(XPackUser.INSTANCE));
+            User user = reservedRealm.authenticate(
+                    new UsernamePasswordToken(ElasticUser.NAME, new SecuredString("changeme".toCharArray())));
+            assertThat(user, sameInstance(ElasticUser.INSTANCE));
         }
 
         try {
-            reservedRealm.authenticate(new UsernamePasswordToken(XPackUser.NAME, new SecuredString("foobar".toCharArray())));
+            reservedRealm.authenticate(new UsernamePasswordToken(ElasticUser.NAME, new SecuredString("foobar".toCharArray())));
             fail("authentication should throw an exception otherwise we may allow others to impersonate reserved users...");
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.getMessage(), containsString("failed to authenticate"));

@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.crypto;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -39,6 +38,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -138,11 +138,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         keyFile = resolveSystemKey(settings, env);
         systemKey = readSystemKey(keyFile);
         randomKey = generateSecretKey(RANDOM_KEY_SIZE);
-        try {
-            randomKeyBase64 = Base64.encodeBytes(randomKey.getEncoded(), 0, randomKey.getEncoded().length, Base64.URL_SAFE);
-        } catch (IOException e) {
-            throw new ElasticsearchException("failed to encode key data as base64", e);
-        }
+        randomKeyBase64 = Base64.getUrlEncoder().encodeToString(randomKey.getEncoded());
 
         signingKey = createSigningKey(systemKey, randomKey);
 
@@ -256,17 +252,17 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         } else {
             byte[] randomKeyBytes;
             try {
-                randomKeyBytes = Base64.decode(base64RandomKey, Base64.URL_SAFE);
-                if (randomKeyBytes.length * 8 != RANDOM_KEY_SIZE) {
-                    logger.debug("incorrect random key data length. received [{}] bytes", randomKeyBytes.length);
-                    throw new IllegalArgumentException("tampered signed text");
-                }
-                SecretKey randomKey = new SecretKeySpec(randomKeyBytes, KEY_ALGO);
-                signingKey = createSigningKey(systemKey, randomKey);
-            } catch (IOException e) {
+                randomKeyBytes = Base64.getUrlDecoder().decode(base64RandomKey);
+            } catch (IllegalArgumentException e) {
                 logger.error("error occurred while decoding key data", e);
                 throw new IllegalStateException("error while verifying the signed text");
             }
+            if (randomKeyBytes.length * 8 != RANDOM_KEY_SIZE) {
+                logger.debug("incorrect random key data length. received [{}] bytes", randomKeyBytes.length);
+                throw new IllegalArgumentException("tampered signed text");
+            }
+            SecretKey randomKey = new SecretKeySpec(randomKeyBytes, KEY_ALGO);
+            signingKey = createSigningKey(systemKey, randomKey);
         }
 
         try {
@@ -297,7 +293,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         }
 
         byte[] charBytes = CharArrays.toUtf8Bytes(chars);
-        String base64 = Base64.encodeBytes(encryptInternal(charBytes, key));
+        String base64 = Base64.getEncoder().encodeToString(encryptInternal(charBytes, key));
         return ENCRYPTED_TEXT_PREFIX.concat(base64).toCharArray();
     }
 
@@ -335,8 +331,8 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         String encrypted = new String(chars, ENCRYPTED_TEXT_PREFIX.length(), chars.length - ENCRYPTED_TEXT_PREFIX.length());
         byte[] bytes;
         try {
-            bytes = Base64.decode(encrypted);
-        } catch (IOException e) {
+            bytes = Base64.getDecoder().decode(encrypted);
+        } catch (IllegalArgumentException e) {
             throw new ElasticsearchException("unable to decode encrypted data", e);
         }
 
@@ -430,7 +426,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
     private static String signInternal(String text, SecretKey key) throws IOException {
         Mac mac = createMac(key);
         byte[] sig = mac.doFinal(text.getBytes(StandardCharsets.UTF_8));
-        return Base64.encodeBytes(sig, 0, sig.length, Base64.URL_SAFE);
+        return Base64.getUrlEncoder().encodeToString(sig);
     }
 
 

@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.xpack.XPackBuild;
-import org.elasticsearch.xpack.XPackFeatureSet;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -219,7 +218,7 @@ public class XPackInfoResponse extends ActionResponse {
             }
         }
 
-        public static class FeatureSet implements XPackFeatureSet, ToXContent, Writeable {
+        public static class FeatureSet implements ToXContent, Writeable {
 
             private final String name;
             private final @Nullable String description;
@@ -237,23 +236,19 @@ public class XPackInfoResponse extends ActionResponse {
                 this.enabled = enabled;
             }
 
-            @Override
             public String name() {
                 return name;
             }
 
-            @Override
             @Nullable
             public String description() {
                 return description;
             }
 
-            @Override
             public boolean available() {
                 return available;
             }
 
-            @Override
             public boolean enabled() {
                 return enabled;
             }

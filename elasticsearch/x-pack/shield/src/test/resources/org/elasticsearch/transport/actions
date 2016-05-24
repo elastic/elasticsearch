@@ -59,10 +59,8 @@ indices:data/read/field_stats
 indices:data/read/get
 indices:data/read/xpack/graph/explore
 indices:data/read/mget
-indices:data/read/mpercolate
 indices:data/read/msearch
 indices:data/read/mtv
-indices:data/read/percolate
 cluster:admin/script/get
 indices:data/read/scroll
 indices:data/read/scroll/clear
@@ -75,6 +73,7 @@ cluster:admin/script/delete
 cluster:admin/script/put
 indices:data/write/update
 cluster:monitor/xpack/info
+cluster:monitor/xpack/usage
 cluster:monitor/xpack/license/get
 cluster:admin/xpack/license/delete
 cluster:admin/xpack/license/put

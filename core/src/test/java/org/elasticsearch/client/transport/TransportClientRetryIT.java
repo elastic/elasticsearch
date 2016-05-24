@@ -40,7 +40,7 @@ import java.util.concurrent.ExecutionException;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@ClusterScope(scope = Scope.TEST, numClientNodes = 0, numDedicatedMasterNodes = 0)
+@ClusterScope(scope = Scope.TEST, numClientNodes = 0, supportsDedicatedMasters = false)
 public class TransportClientRetryIT extends ESIntegTestCase {
     public void testRetry() throws IOException, ExecutionException, InterruptedException {
         Iterable<TransportService> instances = internalCluster().getInstances(TransportService.class);

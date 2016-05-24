@@ -49,7 +49,7 @@ public class InternalTestClusterTests extends ESTestCase {
 
     public void testInitializiationIsConsistent() {
         long clusterSeed = randomLong();
-        int masterNodes = randomIntBetween(0, 3);
+        boolean masterNodes = randomBoolean();
         int minNumDataNodes = randomIntBetween(0, 9);
         int maxNumDataNodes = randomIntBetween(minNumDataNodes, 10);
         String clusterName = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
@@ -106,7 +106,7 @@ public class InternalTestClusterTests extends ESTestCase {
 
     public void testBeforeTest() throws Exception {
         long clusterSeed = randomLong();
-        int masterNodes = randomIntBetween(0, 3);
+        boolean masterNodes = randomBoolean();
         int minNumDataNodes = randomIntBetween(0, 3);
         int maxNumDataNodes = randomIntBetween(minNumDataNodes, 4);
         final String clusterName1 = "shared1";//clusterName("shared1", clusterSeed);

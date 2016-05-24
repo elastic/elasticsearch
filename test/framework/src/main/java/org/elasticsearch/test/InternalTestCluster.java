@@ -161,7 +161,9 @@ public final class InternalTestCluster extends TestCluster {
 
     private static final int JVM_ORDINAL = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
 
-    /** a per-JVM unique offset to be used for calculating unique port ranges. */
+    /**
+     * a per-JVM unique offset to be used for calculating unique port ranges.
+     */
     public static final int JVM_BASE_PORT_OFFSET = PORTS_PER_JVM * (JVM_ORDINAL + 1);
 
     private static final AtomicInteger clusterOrdinal = new AtomicInteger();
@@ -226,7 +228,7 @@ public final class InternalTestCluster extends TestCluster {
     private Function<Client, Client> clientWrapper;
 
     public InternalTestCluster(String nodeMode, long clusterSeed, Path baseDir,
-                               int numDedicatedMasterNodes,
+                               boolean randomlyAddDedicatedMasters,
                                int minNumDataNodes, int maxNumDataNodes, String clusterName, NodeConfigurationSource nodeConfigurationSource, int numClientNodes,
                                boolean enableHttpPipelining, String nodePrefix, Collection<Class<? extends Plugin>> mockPlugins, Function<Client, Client> clientWrapper) {
         super(clusterSeed);
@@ -247,6 +249,8 @@ public final class InternalTestCluster extends TestCluster {
 
         Random random = new Random(clusterSeed);
 
+        boolean useDedicatedMasterNodes = randomlyAddDedicatedMasters ? random.nextBoolean() : false;
+
         this.numSharedDataNodes = RandomInts.randomIntBetween(random, minNumDataNodes, maxNumDataNodes);
         assert this.numSharedDataNodes >= 0;
 
@@ -254,18 +258,15 @@ public final class InternalTestCluster extends TestCluster {
             this.numSharedCoordOnlyNodes = 0;
             this.numSharedDedicatedMasterNodes = 0;
         } else {
-            if (numDedicatedMasterNodes < 0) {
-                if (random.nextBoolean() == false) {
-                    // data nodes will assume the master role
-                    this.numSharedDedicatedMasterNodes = 0;
-                } else if (random.nextBoolean()) {
+            if (useDedicatedMasterNodes) {
+                if (random.nextBoolean()) {
                     // use a dedicated master, but only low number to reduce overhead to tests
                     this.numSharedDedicatedMasterNodes = DEFAULT_LOW_NUM_MASTER_NODES;
                 } else {
                     this.numSharedDedicatedMasterNodes = DEFAULT_HIGH_NUM_MASTER_NODES;
                 }
             } else {
-                this.numSharedDedicatedMasterNodes = numDedicatedMasterNodes;
+                this.numSharedDedicatedMasterNodes = 0;
             }
             if (numClientNodes < 0) {
                 this.numSharedCoordOnlyNodes = RandomInts.randomIntBetween(random, DEFAULT_MIN_NUM_CLIENT_NODES, DEFAULT_MAX_NUM_CLIENT_NODES);
@@ -365,14 +366,14 @@ public final class InternalTestCluster extends TestCluster {
 
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
         Builder builder = Settings.builder().put(defaultSettings)
-                .put(getRandomNodeSettings(nodeSeed));
+            .put(getRandomNodeSettings(nodeSeed));
         Settings interimSettings = builder.build();
         final String dataSuffix = getRoleSuffix(interimSettings);
         if (dataSuffix.isEmpty() == false) {
             // to make sure that a master node will not pick up on the data folder of a data only node
             // once restarted we append the role suffix to each path.
             String[] dataPath = Environment.PATH_DATA_SETTING.get(interimSettings).stream()
-                .map(path -> path+dataSuffix).toArray(String[]::new);
+                .map(path -> path + dataSuffix).toArray(String[]::new);
             builder.putArray(Environment.PATH_DATA_SETTING.getKey(), dataPath);
         }
         Settings settings = nodeConfigurationSource.nodeSettings(nodeOrdinal);
@@ -565,7 +566,7 @@ public final class InternalTestCluster extends TestCluster {
         }
         // prevent killing the master if possible and client nodes
         final Stream<NodeAndClient> collection =
-                n == 0 ? nodes.values().stream() : nodes.values().stream().filter(new DataNodePredicate().and(new MasterNodePredicate(getMasterName()).negate()));
+            n == 0 ? nodes.values().stream() : nodes.values().stream().filter(new DataNodePredicate().and(new MasterNodePredicate(getMasterName()).negate()));
         final Iterator<NodeAndClient> values = collection.iterator();
 
         logger.info("changing cluster size from {} to {}, {} data nodes", size(), n + numSharedCoordOnlyNodes, n);
@@ -608,11 +609,11 @@ public final class InternalTestCluster extends TestCluster {
                 "node name [" + name + "] already exists but not allowed to use it";
         }
         Settings finalSettings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), baseDir) // allow overriding path.home
-                .put(settings)
-                .put("node.name", name)
-                .put(DiscoveryNodeService.NODE_ID_SEED_SETTING.getKey(), seed)
-                .build();
+            .put(Environment.PATH_HOME_SETTING.getKey(), baseDir) // allow overriding path.home
+            .put(settings)
+            .put("node.name", name)
+            .put(DiscoveryNodeService.NODE_ID_SEED_SETTING.getKey(), seed)
+            .build();
         MockNode node = new MockNode(finalSettings, version, plugins);
         return new NodeAndClient(name, node);
     }
@@ -623,7 +624,9 @@ public final class InternalTestCluster extends TestCluster {
         return prefix + id;
     }
 
-    /** returns a suffix string based on the node role. If no explicit role is defined, the suffix will be empty */
+    /**
+     * returns a suffix string based on the node role. If no explicit role is defined, the suffix will be empty
+     */
     private String getRoleSuffix(Settings settings) {
         String suffix = "";
         if (Node.NODE_MASTER_SETTING.exists(settings) && Node.NODE_MASTER_SETTING.get(settings)) {
@@ -927,14 +930,14 @@ public final class InternalTestCluster extends TestCluster {
             TransportAddress addr = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
             Settings nodeSettings = node.settings();
             Builder builder = Settings.builder()
-                    .put("client.transport.nodes_sampler_interval", "1s")
-                    .put(Environment.PATH_HOME_SETTING.getKey(), baseDir)
-                    .put("node.name", TRANSPORT_CLIENT_PREFIX + node.settings().get("node.name"))
-                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).put("client.transport.sniff", sniff)
-                    .put(Node.NODE_MODE_SETTING.getKey(), Node.NODE_MODE_SETTING.exists(nodeSettings) ? Node.NODE_MODE_SETTING.get(nodeSettings) : nodeMode)
-                    .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
-                    .put("logger.level", nodeSettings.get("logger.level", "INFO"))
-                    .put(settings);
+                .put("client.transport.nodes_sampler_interval", "1s")
+                .put(Environment.PATH_HOME_SETTING.getKey(), baseDir)
+                .put("node.name", TRANSPORT_CLIENT_PREFIX + node.settings().get("node.name"))
+                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).put("client.transport.sniff", sniff)
+                .put(Node.NODE_MODE_SETTING.getKey(), Node.NODE_MODE_SETTING.exists(nodeSettings) ? Node.NODE_MODE_SETTING.get(nodeSettings) : nodeMode)
+                .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
+                .put("logger.level", nodeSettings.get("logger.level", "INFO"))
+                .put(settings);
 
             if (Node.NODE_LOCAL_SETTING.exists(nodeSettings)) {
                 builder.put(Node.NODE_LOCAL_SETTING.getKey(), Node.NODE_LOCAL_SETTING.get(nodeSettings));
@@ -1446,11 +1449,11 @@ public final class InternalTestCluster extends TestCluster {
     private synchronized Set<String> nRandomDataNodes(int numNodes) {
         assert size() >= numNodes;
         Map<String, NodeAndClient> dataNodes =
-                nodes
-                        .entrySet()
-                        .stream()
-                        .filter(new EntryNodePredicate(new DataNodePredicate()))
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            nodes
+                .entrySet()
+                .stream()
+                .filter(new EntryNodePredicate(new DataNodePredicate()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         final HashSet<String> set = new HashSet<>();
         final Iterator<String> iterator = dataNodes.keySet().iterator();
         for (int i = 0; i < numNodes; i++) {
@@ -1703,10 +1706,10 @@ public final class InternalTestCluster extends TestCluster {
 
     private synchronized Collection<NodeAndClient> filterNodes(Map<String, InternalTestCluster.NodeAndClient> map, Predicate<NodeAndClient> predicate) {
         return map
-                .values()
-                .stream()
-                .filter(predicate)
-                .collect(Collectors.toCollection(ArrayList::new));
+            .values()
+            .stream()
+            .filter(predicate)
+            .collect(Collectors.toCollection(ArrayList::new));
     }
 
     private static final class DataNodePredicate implements Predicate<NodeAndClient> {
@@ -1720,7 +1723,7 @@ public final class InternalTestCluster extends TestCluster {
         @Override
         public boolean test(NodeAndClient nodeAndClient) {
             return DiscoveryNode.isDataNode(nodeAndClient.node.settings()) ||
-                    DiscoveryNode.isMasterNode(nodeAndClient.node.settings());
+                DiscoveryNode.isMasterNode(nodeAndClient.node.settings());
         }
     }
 
@@ -1958,6 +1961,7 @@ public final class InternalTestCluster extends TestCluster {
 
     /**
      * Simple interface that allows to wait for an async operation to finish
+     *
      * @param <T> the result of the async execution
      */
     public interface Async<T> {

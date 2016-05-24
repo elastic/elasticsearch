@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests that by default the error_trace parameter can be used to show stacktraces
  */
-@ClusterScope(scope = Scope.TEST, numDedicatedMasterNodes = 0, numDataNodes = 1)
+@ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
 public class DetailedErrorsEnabledIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

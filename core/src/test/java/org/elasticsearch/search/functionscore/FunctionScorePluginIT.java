@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-@ClusterScope(scope = Scope.SUITE, numDedicatedMasterNodes = 0, numDataNodes = 1)
+@ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class FunctionScorePluginIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.node;
 
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
@@ -168,7 +169,20 @@ public class Node implements Closeable {
 
         ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(tmpSettings));
         final String displayVersion = version + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
-        logger.info("version[{}], pid[{}], build[{}/{}]", displayVersion, JvmInfo.jvmInfo().pid(), Build.CURRENT.shortHash(), Build.CURRENT.date());
+        final JvmInfo jvmInfo = JvmInfo.jvmInfo();
+        logger.info(
+            "version[{}], pid[{}], build[{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
+            displayVersion,
+            jvmInfo.pid(),
+            Build.CURRENT.shortHash(),
+            Build.CURRENT.date(),
+            Constants.OS_NAME,
+            Constants.OS_VERSION,
+            Constants.OS_ARCH,
+            Constants.JVM_VENDOR,
+            Constants.JVM_NAME,
+            Constants.JAVA_VERSION,
+            Constants.JVM_VERSION);
 
         logger.info("initializing ...");
 

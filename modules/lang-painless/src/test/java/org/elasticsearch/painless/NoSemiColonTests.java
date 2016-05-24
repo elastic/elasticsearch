@@ -59,7 +59,7 @@ public class NoSemiColonTests extends ScriptTestCase {
         assertEquals(String[][].class, exec("String[][] a = new String[1][2]; return a").getClass());
         assertEquals(Map[][][].class, exec("Map[][][] a = new Map[1][2][3]; return a").getClass());
     }
-    
+
     public void testExpression() {
         assertEquals(10, exec("10"));
         assertEquals(10, exec("5 + 5"));

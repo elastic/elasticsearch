@@ -34,8 +34,8 @@ public final class LBrace extends ALink {
 
     AExpression index;
 
-    public LBrace(int line, String location, AExpression index) {
-        super(line, location, 2);
+    public LBrace(int line, int offset, String location, AExpression index) {
+        super(line, offset, location, 2);
 
         this.index = index;
     }
@@ -43,7 +43,7 @@ public final class LBrace extends ALink {
     @Override
     ALink analyze(Variables variables) {
         if (before == null) {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw new IllegalArgumentException(error("Illegal array access made without target."));
         }
 
         final Sort sort = before.sort;
@@ -57,29 +57,29 @@ public final class LBrace extends ALink {
 
             return this;
         } else if (sort == Sort.DEF) {
-            return new LDefArray(line, location, index).copy(this).analyze(variables);
+            return new LDefArray(line, offset, location, index).copy(this).analyze(variables);
         } else if (Map.class.isAssignableFrom(before.clazz)) {
-            return new LMapShortcut(line, location, index).copy(this).analyze(variables);
+            return new LMapShortcut(line, offset, location, index).copy(this).analyze(variables);
         } else if (List.class.isAssignableFrom(before.clazz)) {
-            return new LListShortcut(line, location, index).copy(this).analyze(variables);
+            return new LListShortcut(line, offset, location, index).copy(this).analyze(variables);
         }
 
         throw new IllegalArgumentException(error("Illegal array access on type [" + before.name + "]."));
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        index.write(adapter);
+    void write(MethodWriter writer) {
+        index.write(writer);
     }
 
     @Override
-    void load(MethodWriter adapter) {
-        adapter.arrayLoad(after.type);
+    void load(MethodWriter writer) {
+        writer.arrayLoad(after.type);
     }
 
     @Override
-    void store(MethodWriter adapter) {
-        adapter.arrayStore(after.type);
+    void store(MethodWriter writer) {
+        writer.arrayStore(after.type);
     }
 
 }

@@ -34,8 +34,8 @@ final class LDefField extends ALink implements IDefLink {
 
     final String value;
 
-    LDefField(int line, String location, String value) {
-        super(line, location, 1);
+    LDefField(int line, int offset, String location, String value) {
+        super(line, offset, location, 1);
 
         this.value = value;
     }
@@ -49,19 +49,19 @@ final class LDefField extends ALink implements IDefLink {
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter adapter) {
-        final String desc = Type.getMethodDescriptor(after.type, Definition.DEF_TYPE.type);
-        adapter.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.LOAD);
+    void load(MethodWriter writer) {
+        String desc = Type.getMethodDescriptor(after.type, Definition.DEF_TYPE.type);
+        writer.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.LOAD);
     }
 
     @Override
-    void store(MethodWriter adapter) {
-        final String desc = Type.getMethodDescriptor(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, after.type);
-        adapter.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.STORE);
+    void store(MethodWriter writer) {
+        String desc = Type.getMethodDescriptor(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, after.type);
+        writer.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.STORE);
     }
 }

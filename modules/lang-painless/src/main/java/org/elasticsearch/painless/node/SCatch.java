@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.Variables.Variable;
 import org.objectweb.asm.Label;
@@ -28,11 +30,11 @@ import org.elasticsearch.painless.MethodWriter;
 /**
  * Represents a catch block as part of a try-catch block.
  */
-public final class STrap extends AStatement {
+public final class SCatch extends AStatement {
 
     final String type;
     final String name;
-    final AStatement block;
+    final SBlock block;
 
     Variable variable;
 
@@ -40,8 +42,8 @@ public final class STrap extends AStatement {
     Label end;
     Label exception;
 
-    public STrap(int line, String location, String type, String name, AStatement block) {
-        super(line, location);
+    public SCatch(int line, int offset, String location, String type, String name, SBlock block) {
+        super(line, offset, location);
 
         this.type = type;
         this.name = name;
@@ -50,11 +52,19 @@ public final class STrap extends AStatement {
 
     @Override
     void analyze(Variables variables) {
-        variable = variables.addVariable(location, type, name, true, false);
+        final Type type;
 
-        if (!Exception.class.isAssignableFrom(variable.type.clazz)) {
-            throw new ClassCastException(error("Not an exception type [" + variable.type.name + "]."));
+        try {
+            type = Definition.getType(this.type);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
         }
+
+        if (!Exception.class.isAssignableFrom(type.clazz)) {
+            throw new ClassCastException(error("Not an exception type [" + this.type + "]."));
+        }
+
+        variable = variables.addVariable(location, type, name, true, false);
 
         if (block != null) {
             block.lastSource = lastSource;
@@ -73,23 +83,24 @@ public final class STrap extends AStatement {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        final Label jump = new Label();
+    void write(MethodWriter writer) {
+        writeDebugInfo(writer);
 
-        adapter.mark(jump);
-        adapter.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.slot);
+        Label jump = new Label();
+
+        writer.mark(jump);
+        writer.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.slot);
 
         if (block != null) {
             block.continu = continu;
             block.brake = brake;
-            block.write(adapter);
+            block.write(writer);
         }
 
-        adapter.visitTryCatchBlock(begin, end, jump, variable.type.type.getInternalName());
+        writer.visitTryCatchBlock(begin, end, jump, variable.type.type.getInternalName());
 
         if (exception != null && !block.allEscape) {
-            adapter.goTo(exception);
+            writer.goTo(exception);
         }
     }
 }

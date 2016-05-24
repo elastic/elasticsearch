@@ -25,20 +25,18 @@ import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
- * Represents an if/else block.
+ * Represents an if block.
  */
-public final class SIfElse extends AStatement {
+public final class SIf extends AStatement {
 
     AExpression condition;
     final SBlock ifblock;
-    final SBlock elseblock;
 
-    public SIfElse(int line, int offset, String location, AExpression condition, SBlock ifblock, SBlock elseblock) {
+    public SIf(int line, int offset, String location, AExpression condition, SBlock ifblock) {
         super(line, offset, location);
 
         this.condition = condition;
         this.ifblock = ifblock;
-        this.elseblock = elseblock;
     }
 
     @Override
@@ -66,33 +64,13 @@ public final class SIfElse extends AStatement {
         anyContinue = ifblock.anyContinue;
         anyBreak = ifblock.anyBreak;
         statementCount = ifblock.statementCount;
-
-        if (elseblock == null) {
-            throw new IllegalArgumentException(error("Extraneous else statement."));
-        }
-
-        elseblock.lastSource = lastSource;
-        elseblock.inLoop = inLoop;
-        elseblock.lastLoop = lastLoop;
-
-        variables.incrementScope();
-        elseblock.analyze(variables);
-        variables.decrementScope();
-
-        methodEscape = ifblock.methodEscape && elseblock.methodEscape;
-        loopEscape = ifblock.loopEscape && elseblock.loopEscape;
-        allEscape = ifblock.allEscape && elseblock.allEscape;
-        anyContinue |= elseblock.anyContinue;
-        anyBreak |= elseblock.anyBreak;
-        statementCount = Math.max(ifblock.statementCount, elseblock.statementCount);
     }
 
     @Override
     void write(MethodWriter writer) {
         writeDebugInfo(writer);
 
-        Label end = new Label();
-        Label fals = elseblock != null ? new Label() : end;
+        Label fals = new Label();
 
         condition.fals = fals;
         condition.write(writer);
@@ -101,16 +79,6 @@ public final class SIfElse extends AStatement {
         ifblock.brake = brake;
         ifblock.write(writer);
 
-        if (!ifblock.allEscape) {
-            writer.goTo(end);
-        }
-
         writer.mark(fals);
-
-        elseblock.continu = continu;
-        elseblock.brake = brake;
-        elseblock.write(writer);
-
-        writer.mark(end);
     }
 }

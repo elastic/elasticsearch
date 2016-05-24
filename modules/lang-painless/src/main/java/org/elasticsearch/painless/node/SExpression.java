@@ -31,8 +31,8 @@ public final class SExpression extends AStatement {
 
     AExpression expression;
 
-    public SExpression(int line, String location, AExpression expression) {
-        super(line, location);
+    public SExpression(int line, int offset, String location, AExpression expression) {
+        super(line, offset, location);
 
         this.expression = expression;
     }
@@ -59,14 +59,15 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        expression.write(adapter);
+    void write(MethodWriter writer) {
+        writeDebugInfo(writer);
+
+        expression.write(writer);
 
         if (methodEscape) {
-            adapter.returnValue();
+            writer.returnValue();
         } else {
-            adapter.writePop(expression.expected.sort.size);
+            writer.writePop(expression.expected.sort.size);
         }
     }
 }

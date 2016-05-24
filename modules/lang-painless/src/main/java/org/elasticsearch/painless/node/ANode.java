@@ -28,32 +28,38 @@ import org.objectweb.asm.Label;
 public abstract class ANode {
 
     /**
-     * The line number in the original source used for debug messages.
+     * The line number in the original source used for debugging and errors.
      */
     final int line;
+
+    /**
+     * The character offset in the original source used for debugging and errors.
+     */
+    final int offset;
 
     /**
      * The location in the original source to be printed in error messages.
      */
     final String location;
 
-    ANode(final int line, final String location) {
+    ANode(int line, int offset, String location) {
         this.line = line;
+        this.offset = offset;
         this.location = location;
     }
 
     public String error(final String message) {
         return "Error " + location  + ": " + message;
     }
-    
-    /** 
+
+    /**
      * Writes line number information
      * <p>
      * Currently we emit line number data for for leaf S-nodes
      */
-    void writeDebugInfo(MethodWriter adapter) {
+    void writeDebugInfo(MethodWriter writer) {
         Label label = new Label();
-        adapter.visitLabel(label);
-        adapter.visitLineNumber(line, label);
+        writer.visitLabel(label);
+        writer.visitLineNumber(line, label);
     }
 }

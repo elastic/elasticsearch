@@ -20,53 +20,46 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Variables;
 
 /**
- * Represents a cast made in a variable/method chain.
+ * Represents a static type target.
  */
-public final class LCast extends ALink {
+public final class LStatic extends ALink {
 
     final String type;
 
-    Cast cast = null;
-
-    public LCast(int line, int offset, String location, String type) {
-        super(line, offset, location, -1);
+    public LStatic(int line, int offset, String location, String type) {
+        super(line, offset, location, 0);
 
         this.type = type;
     }
 
     @Override
     ALink analyze(Variables variables) {
-        if (before == null) {
-            throw new IllegalStateException(error("Illegal cast without a target."));
-        } else if (store) {
-            throw new IllegalArgumentException(error("Cannot assign a value to a cast."));
+        if (before != null) {
+            throw new IllegalArgumentException(error("Illegal static type [" + type + "] after target already defined."));
         }
 
         try {
             after = Definition.getType(type);
+            statik = true;
         } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException(error("Not a type [" + type + "]."));
         }
 
-        cast = AnalyzerCaster.getLegalCast(location, before, after, true, false);
-
-        return cast != null ? this : null;
+        return this;
     }
 
     @Override
     void write(MethodWriter writer) {
-        writer.writeCast(cast);
+        throw new IllegalStateException(error("Illegal tree structure."));
     }
 
     @Override
     void load(MethodWriter writer) {
-        // Do nothing.
+        throw new IllegalStateException(error("Illegal tree structure."));
     }
 
     @Override

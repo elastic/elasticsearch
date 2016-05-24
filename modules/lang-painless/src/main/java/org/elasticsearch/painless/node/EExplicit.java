@@ -31,8 +31,8 @@ public final class EExplicit extends AExpression {
     final String type;
     AExpression child;
 
-    public EExplicit(int line, String location, String type, AExpression child) {
-        super(line, location);
+    public EExplicit(int line, int offset, String location, String type, AExpression child) {
+        super(line, offset, location);
 
         this.type = type;
         this.child = child;
@@ -42,7 +42,7 @@ public final class EExplicit extends AExpression {
     void analyze(Variables variables) {
         try {
             actual = Definition.getType(this.type);
-        } catch (final IllegalArgumentException exception) {
+        } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
         }
 
@@ -53,7 +53,7 @@ public final class EExplicit extends AExpression {
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         throw new IllegalArgumentException(error("Illegal tree structure."));
     }
 

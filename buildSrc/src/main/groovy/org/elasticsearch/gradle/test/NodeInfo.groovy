@@ -130,17 +130,13 @@ class NodeInfo {
 
         env = [ 'JAVA_HOME' : project.javaHome ]
         args.addAll("-E", "node.portsfile=true")
-        String loggerLevel = System.getProperty("tests.logger.level")
-        if (loggerLevel != null) {
-            args.addAll("-E", "logger.level=${loggerLevel}")
-        }
         String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
         String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs
         env.put('ES_JAVA_OPTS', esJavaOpts)
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
-            if (property.getKey().startsWith('es.')) {
+            if (property.key.startsWith('tests.es.')) {
                 args.add("-E")
-                args.add("${property.getKey()}=${property.getValue()}")
+                args.add("${property.key.substring('tests.es.'.size())}=${property.value}")
             }
         }
         env.put('ES_JVM_OPTIONS', new File(confDir, 'jvm.options'))

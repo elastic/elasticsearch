@@ -34,7 +34,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponse.Empty;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.function.Supplier;
@@ -117,6 +117,11 @@ public abstract class TransportWriteAction<
                                   @Nullable Translog.Location location,
                                   IndexShard indexShard) {
             super(request, finalResponse);
+            boolean fsyncTranslog = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null;
+            if (fsyncTranslog) {
+                indexShard.sync(location);
+            }
+            indexShard.maybeFlush();
             switch (request.getRefreshPolicy()) {
             case IMMEDIATE:
                 indexShard.refresh("refresh_flag_index");
@@ -140,11 +145,6 @@ public abstract class TransportWriteAction<
             case NONE:
                 break;
             }
-            boolean fsyncTranslog = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null;
-            if (fsyncTranslog) {
-                indexShard.sync(location);
-            }
-            indexShard.maybeFlush();
         }
 
         @Override
@@ -175,8 +175,13 @@ public abstract class TransportWriteAction<
         }
 
         @Override
-        public void respond(ActionListener<Empty> listener) {
+        public void respond(ActionListener<TransportResponse.Empty> listener) {
             // NOCOMMIT deduplicate with the WritePrimaryResult
+            boolean fsyncTranslog = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null;
+            if (fsyncTranslog) {
+                indexShard.sync(location);
+            }
+            indexShard.maybeFlush();
             boolean forked = false;
             switch (request.getRefreshPolicy()) {
             case IMMEDIATE:
@@ -189,20 +194,15 @@ public abstract class TransportWriteAction<
                         if (forcedRefresh) {
                             logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
                         }
-                        listener.onResponse(null);
+                        listener.onResponse(TransportResponse.Empty.INSTANCE);
                     });
                 }
                 break;
             case NONE:
                 break;
             }
-            boolean fsyncTranslog = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null;
-            if (fsyncTranslog) {
-                indexShard.sync(location);
-            }
-            indexShard.maybeFlush();
             if (false == forked) {
-                listener.onResponse(null);
+                listener.onResponse(TransportResponse.Empty.INSTANCE);
             }
         }
     }

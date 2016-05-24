@@ -77,27 +77,31 @@ public class RestIndicesAction extends AbstractCatAction {
         clusterStateRequest.clear().indices(indices).metaData(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        final IndicesOptions strictExpandIndicesOptions = IndicesOptions.strictExpand();
+        clusterStateRequest.indicesOptions(strictExpandIndicesOptions);
 
         client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                ClusterState state = clusterStateResponse.getState();
-                final IndicesOptions concreteIndicesOptions = IndicesOptions.fromOptions(false, true, true, true);
-                final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, concreteIndicesOptions, indices);
-                final String[] openIndices = indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), indices);
-                ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest(openIndices);
+                final ClusterState state = clusterStateResponse.getState();
+                final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, strictExpandIndicesOptions, indices);
+                // concreteIndices should contain exactly the indices in state.metaData() that were selected by clusterStateRequest using
+                // IndicesOptions.strictExpand(). We select the indices again here so that they come in the requested order.
+                assert concreteIndices.length == state.metaData().getIndices().size();
+
+                ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest(indices);
                 clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
                 client.admin().cluster().health(clusterHealthRequest, new RestActionListener<ClusterHealthResponse>(channel) {
                     @Override
                     public void processResponse(final ClusterHealthResponse clusterHealthResponse) {
                         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
-                        indicesStatsRequest.indices(concreteIndices);
-                        indicesStatsRequest.indicesOptions(concreteIndicesOptions);
+                        indicesStatsRequest.indices(indices);
+                        indicesStatsRequest.indicesOptions(strictExpandIndicesOptions);
                         indicesStatsRequest.all();
                         client.admin().indices().stats(indicesStatsRequest, new RestResponseListener<IndicesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(IndicesStatsResponse indicesStatsResponse) throws Exception {
-                                Table tab = buildTable(request, concreteIndices, clusterHealthResponse, indicesStatsResponse, clusterStateResponse.getState().metaData());
+                                Table tab = buildTable(request, concreteIndices, clusterHealthResponse, indicesStatsResponse, state.metaData());
                                 return RestTable.buildResponse(tab, channel);
                             }
                         });

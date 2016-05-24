@@ -1556,7 +1556,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      *        false otherwise.
      */
     public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
-        refreshListeners.add(location, listener);
+        refreshListeners.addOrNotify(location, listener);
     }
 
     private class IndexShardRecoveryPerformer extends TranslogRecoveryPerformer {

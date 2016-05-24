@@ -66,13 +66,14 @@ final class RefreshListeners {
     }
 
     /**
-     * Add a listener for refreshes.
+     * Add a listener for refreshes, calling it immediately if the location is already visible. If this runs out of listener slots then it
+     * forces a refresh and calls the listener immediately as well.
      *
      * @param location the location to listen for
      * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
      *        false otherwise.
      */
-    public void add(Translog.Location location, Consumer<Boolean> listener) {
+    public void addOrNotify(Translog.Location location, Consumer<Boolean> listener) {
         requireNonNull(listener, "listener cannot be null");
         Translog.Location listenerLocation = requireNonNull(location, "location cannot be null");
 
@@ -88,10 +89,7 @@ final class RefreshListeners {
             refreshListenersEstimatedSize++;
             return;
         }
-        /*
-         * No free slot so force a refresh and call the listener in this thread. Do so outside of the synchronized block so any other
-         * attempts to add a listener can continue.
-         */
+        // No free slot so force a refresh and call the listener in this thread
         forceRefresh.run();
         listener.accept(true);
     }
@@ -100,7 +98,7 @@ final class RefreshListeners {
      * Start listening to an engine.
      */
     public void listenTo(Engine engine) {
-        engine.registerSearchRefreshListener(new RefreshListenerCallingRefreshListener(engine));
+        engine.registerSearchRefreshListener(new RefreshListenerCallingRefreshListener(engine.getTranslog()));
     }
 
     /**
@@ -108,16 +106,20 @@ final class RefreshListeners {
      * {@linkplain IndexShard#addRefreshListener(Translog.Location, Consumer)}.
      */
     private class RefreshListenerCallingRefreshListener implements ReferenceManager.RefreshListener {
-        private final Engine engine;
+        private final Translog translog;
+        /**
+         * Snapshot of the translog location before the current refresh if there is a refresh going on or null. Doesn't have to be volatile
+         * because when it is used by the refreshing thread.
+         */
         private Translog.Location currentRefreshLocation;
 
-        public RefreshListenerCallingRefreshListener(Engine engine) {
-            this.engine = engine;
+        public RefreshListenerCallingRefreshListener(Translog translog) {
+            this.translog = translog;
         }
 
         @Override
         public void beforeRefresh() throws IOException {
-            currentRefreshLocation = engine.getTranslog().getLastWriteLocation();
+            currentRefreshLocation = translog.getLastWriteLocation();
         }
 
         @Override

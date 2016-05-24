@@ -112,6 +112,9 @@ public abstract class TransportWriteAction<
         }
     }
 
+    /**
+     * Simple result from a write action. Write actions have static method to return these so they can integrate with bulk.
+     */
     public static class WriteResult<Response extends ReplicationResponse> {
         private final Response response;
         private final Translog.Location location;

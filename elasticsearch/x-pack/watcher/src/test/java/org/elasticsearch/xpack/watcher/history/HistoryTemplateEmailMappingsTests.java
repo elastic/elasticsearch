@@ -6,6 +6,9 @@
 package org.elasticsearch.xpack.watcher.history;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -15,6 +18,9 @@ import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -32,14 +38,17 @@ import static org.hamcrest.Matchers.notNullValue;
  * not analyzed so they can be used in aggregations
  */
 public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegrationTestCase {
+    private static final ESLogger logger = Loggers.getLogger(HistoryTemplateEmailMappingsTests.class);
     static final String USERNAME = "_user";
     static final String PASSWORD = "_passwd";
 
-    private EmailServer server;
+    private static EmailServer server;
 
-    @After
-    public void cleanup() throws Exception {
-        server.stop();
+    @AfterClass
+    public static void cleanup() throws Exception {
+        if (server != null) {
+            server.stop();
+        }
     }
 
     @Override
@@ -52,12 +61,16 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
         return false; // remove shield noise from this test
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    @BeforeClass
+    public static void setupEmailServer() {
         if(server == null) {
             //Need to construct the Email Server here as this happens before init()
             server = EmailServer.localhost("2500-2600", USERNAME, PASSWORD, logger);
         }
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
 

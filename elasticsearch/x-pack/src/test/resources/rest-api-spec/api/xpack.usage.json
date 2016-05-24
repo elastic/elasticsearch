@@ -1,5 +1,5 @@
 {
-  "xpack.info": {
+  "xpack.usage": {
     "documentation": "Retrieve information about xpack features usage",
     "methods": [ "GET" ],
     "url": {

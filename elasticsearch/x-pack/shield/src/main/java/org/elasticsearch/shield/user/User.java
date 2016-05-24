@@ -187,12 +187,14 @@ public class User implements ToXContent {
     public static User readFrom(StreamInput input) throws IOException {
         if (input.readBoolean()) {
             String name = input.readString();
-            if (SystemUser.NAME.equals(name)) {
+            if (SystemUser.is(name)) {
                 return SystemUser.INSTANCE;
+            } else if (XPackUser.is(name)) {
+                return XPackUser.INSTANCE;
             }
             User user = ReservedRealm.getUser(name);
             if (user == null) {
-                throw new IllegalStateException("invalid internal user");
+                throw new IllegalStateException("invalid reserved user");
             }
             return user;
         }
@@ -217,6 +219,9 @@ public class User implements ToXContent {
         if (SystemUser.is(user)) {
             output.writeBoolean(true);
             output.writeString(SystemUser.NAME);
+        } else if (XPackUser.is(user)) {
+            output.writeBoolean(true);
+            output.writeString(XPackUser.NAME);
         } else if (ReservedRealm.isReserved(user.principal())) {
             output.writeBoolean(true);
             output.writeString(user.principal());

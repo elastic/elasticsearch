@@ -14,10 +14,10 @@ import org.elasticsearch.shield.authc.esnative.NativeUsersStore;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.user.AnonymousUser;
+import org.elasticsearch.shield.user.ElasticUser;
 import org.elasticsearch.shield.user.KibanaUser;
 import org.elasticsearch.shield.user.SystemUser;
 import org.elasticsearch.shield.user.User;
-import org.elasticsearch.shield.user.XPackUser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -109,7 +109,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
     }
 
     public void testValidUser() {
-        final User user = randomFrom(XPackUser.INSTANCE, KibanaUser.INSTANCE, new User("joe"));
+        final User user = randomFrom(ElasticUser.INSTANCE, KibanaUser.INSTANCE, new User("joe"));
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(user.principal());
@@ -147,7 +147,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
     }
 
     public void testException() {
-        final User user = randomFrom(XPackUser.INSTANCE, KibanaUser.INSTANCE, new User("joe"));
+        final User user = randomFrom(ElasticUser.INSTANCE, KibanaUser.INSTANCE, new User("joe"));
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(user.principal());

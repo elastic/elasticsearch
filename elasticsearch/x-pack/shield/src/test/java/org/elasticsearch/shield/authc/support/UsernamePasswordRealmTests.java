@@ -20,7 +20,7 @@ public class UsernamePasswordRealmTests extends ESTestCase {
         int count = randomIntBetween(0, 1000);
         UsernamePasswordRealm.UserbaseSize size = UsernamePasswordRealm.UserbaseSize.resolve(count);
         if (count < 10) {
-            assertThat(size, is(UsernamePasswordRealm.UserbaseSize.SMALL));
+            assertThat(size, is(UsernamePasswordRealm.UserbaseSize.TINY));
         } else if (count < 100) {
             assertThat(size, is(UsernamePasswordRealm.UserbaseSize.SMALL));
         } else if (count < 500) {

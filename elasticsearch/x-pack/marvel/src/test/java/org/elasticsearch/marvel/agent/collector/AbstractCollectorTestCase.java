@@ -161,7 +161,7 @@ public abstract class AbstractCollectorTestCase extends MarvelIntegTestCase {
             public void run() {
                 for (String nodeId : internalCluster().getNodeNames()) {
                     try {
-                        assertTrue(waitForNoBlocksOnNode(nodeId));
+                        waitForNoBlocksOnNode(nodeId);
                     } catch (Exception e) {
                         fail("failed to wait for no blocks on node [" + nodeId + "]: " + e.getMessage());
                     }
@@ -170,13 +170,12 @@ public abstract class AbstractCollectorTestCase extends MarvelIntegTestCase {
         });
     }
 
-    public boolean waitForNoBlocksOnNode(final String nodeId) throws Exception {
-        return assertBusy(() -> {
+    public void waitForNoBlocksOnNode(final String nodeId) throws Exception {
+        assertBusy(() -> {
             ClusterBlocks clusterBlocks =
                     client(nodeId).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState().blocks();
             assertTrue(clusterBlocks.global().isEmpty());
             assertTrue(clusterBlocks.indices().values().isEmpty());
-            return true;
         }, 30L, TimeUnit.SECONDS);
     }
 

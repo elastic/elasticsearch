@@ -93,7 +93,8 @@ public class HttpExporterTemplateTests extends AbstractExporterTemplateTestCase 
 
     @Override
     protected void awaitIndexExists(String index) throws Exception {
-        assertBusy(() -> assertThat("could not find index " + index, dispatcher.hasIndex(index), is(true)), 10, TimeUnit.SECONDS);
+        Runnable busy = () -> assertThat("could not find index " + index, dispatcher.hasIndex(index), is(true));
+        assertBusy(busy, 10, TimeUnit.SECONDS);
     }
 
     class MockServerDispatcher extends Dispatcher {

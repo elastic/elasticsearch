@@ -37,6 +37,8 @@ import org.elasticsearch.xpack.common.secret.SecretModule;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
 import org.elasticsearch.xpack.notification.Notification;
+import org.elasticsearch.xpack.notification.email.Account;
+import org.elasticsearch.xpack.notification.email.support.BodyPartSource;
 import org.elasticsearch.xpack.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.common.text.TextTemplateModule;
 import org.elasticsearch.xpack.rest.action.RestXPackUsageAction;
@@ -84,6 +86,9 @@ public class XPackPlugin extends Plugin {
                 throw bogus; // some other bug
             }
         }
+        // some classes need to have their own clinit blocks
+        BodyPartSource.init();
+        Account.init();
     }
 
     protected final Settings settings;

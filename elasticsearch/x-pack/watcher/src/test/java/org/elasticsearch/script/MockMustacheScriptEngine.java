@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.script;
 
-import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.xpack.common.text.DefaultTextTemplateEngine;
 
 import java.util.Collections;
@@ -29,8 +28,7 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MockMustacheScriptEngine.class,
-                            NAME, ScriptMode.ON));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MockMustacheScriptEngine.class, NAME, true));
         }
 
     }

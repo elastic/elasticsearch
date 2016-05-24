@@ -6,8 +6,6 @@
 package org.elasticsearch.license.core;
 
 
-import org.elasticsearch.common.Base64;
-
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -27,6 +25,7 @@ import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
 
 public class CryptUtils {
     private static final int minimumPadding = 20;
@@ -251,6 +250,6 @@ public class CryptUtils {
     private static char[] hashPassPhrase(String passPhrase) throws NoSuchAlgorithmException {
         final byte[] passBytes = passPhrase.getBytes(StandardCharsets.UTF_8);
         final byte[] digest = MessageDigest.getInstance(passHashAlgorithm).digest(passBytes);
-        return new String(Base64.encodeBytesToBytes(digest), StandardCharsets.UTF_8).toCharArray();
+        return Base64.getEncoder().encodeToString(digest).toCharArray();
     }
 }

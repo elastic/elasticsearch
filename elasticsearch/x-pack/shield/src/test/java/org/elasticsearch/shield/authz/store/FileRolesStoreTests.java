@@ -358,7 +358,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(messages, notNullValue());
         assertThat(messages, hasSize(4));
         // the system role will always be checked first
-        assertThat(messages.get(0).text, containsString("role [__es_system_role] is reserved"));
+        assertThat(messages.get(0).text, containsString("role [_system] is reserved"));
         assertThat(messages.get(1).text, containsString("role [superuser] is reserved"));
         assertThat(messages.get(2).text, containsString("role [kibana] is reserved"));
         assertThat(messages.get(3).text, containsString("role [transport_client] is reserved"));

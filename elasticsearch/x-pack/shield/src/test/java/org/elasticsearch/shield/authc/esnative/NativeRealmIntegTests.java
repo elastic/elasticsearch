@@ -16,25 +16,25 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.ShieldTemplateService;
+import org.elasticsearch.shield.action.role.DeleteRoleResponse;
+import org.elasticsearch.shield.action.role.GetRolesResponse;
 import org.elasticsearch.shield.action.user.AuthenticateAction;
 import org.elasticsearch.shield.action.user.AuthenticateRequest;
 import org.elasticsearch.shield.action.user.AuthenticateResponse;
 import org.elasticsearch.shield.action.user.ChangePasswordResponse;
-import org.elasticsearch.shield.authz.permission.KibanaRole;
-import org.elasticsearch.shield.authz.permission.SuperuserRole;
-import org.elasticsearch.shield.user.AnonymousUser;
-import org.elasticsearch.shield.user.KibanaUser;
-import org.elasticsearch.shield.user.SystemUser;
-import org.elasticsearch.shield.user.User;
-import org.elasticsearch.shield.action.role.DeleteRoleResponse;
-import org.elasticsearch.shield.action.role.GetRolesResponse;
 import org.elasticsearch.shield.action.user.DeleteUserResponse;
 import org.elasticsearch.shield.action.user.GetUsersResponse;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authz.RoleDescriptor;
+import org.elasticsearch.shield.authz.permission.KibanaRole;
 import org.elasticsearch.shield.authz.permission.Role;
+import org.elasticsearch.shield.authz.permission.SuperuserRole;
 import org.elasticsearch.shield.client.SecurityClient;
-import org.elasticsearch.shield.user.XPackUser;
+import org.elasticsearch.shield.user.AnonymousUser;
+import org.elasticsearch.shield.user.ElasticUser;
+import org.elasticsearch.shield.user.KibanaUser;
+import org.elasticsearch.shield.user.SystemUser;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.junit.BeforeClass;
@@ -457,7 +457,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testOperationsOnReservedUsers() throws Exception {
-        final String username = randomFrom(XPackUser.NAME, KibanaUser.NAME);
+        final String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> securityClient().preparePutUser(username, randomBoolean() ? "changeme".toCharArray() : null, "admin").get());
         assertThat(exception.getMessage(), containsString("user [" + username + "] is reserved"));

@@ -9,7 +9,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -21,6 +20,7 @@ import org.elasticsearch.license.core.License;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -114,7 +114,7 @@ public class LicensesMetaData extends AbstractDiffable<MetaData.Custom> implemen
                             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                                 if (parser.currentToken().isValue()) {
                                     // trial license
-                                    byte[] data = decrypt(Base64.decode(parser.text()));
+                                    byte[] data = decrypt(Base64.getDecoder().decode(parser.text()));
                                     try (XContentParser trialLicenseParser =
                                                  XContentFactory.xContent(XContentType.JSON).createParser(data)) {
                                         trialLicenseParser.nextToken();
@@ -186,7 +186,7 @@ public class LicensesMetaData extends AbstractDiffable<MetaData.Custom> implemen
                 XContentBuilder contentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
                 license.toXContent(contentBuilder,
                         new ToXContent.MapParams(Collections.singletonMap(License.LICENSE_SPEC_VIEW_MODE, "true")));
-                streamOutput.writeString(Base64.encodeBytes(encrypt(contentBuilder.bytes().toBytes())));
+                streamOutput.writeString(Base64.getEncoder().encodeToString(encrypt(contentBuilder.bytes().toBytes())));
             }
         } else {
             if (license == LICENSE_TOMBSTONE) {
@@ -209,7 +209,7 @@ public class LicensesMetaData extends AbstractDiffable<MetaData.Custom> implemen
             }
             int numTrialLicenses = streamInput.readVInt();
             for (int i = 0; i < numTrialLicenses; i++) {
-                byte[] data = decrypt(Base64.decode(streamInput.readString()));
+                byte[] data = decrypt(Base64.getDecoder().decode(streamInput.readString()));
                 try (XContentParser trialLicenseParser = XContentFactory.xContent(XContentType.JSON).createParser(data)) {
                     trialLicenseParser.nextToken();
                     License pre20TrialLicense = License.fromXContent(trialLicenseParser);

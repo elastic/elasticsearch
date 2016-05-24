@@ -3,8 +3,8 @@
     "documentation": "https://www.elastic.co/guide/en/shield/current/license-management.html",
     "methods": ["DELETE"],
     "url": {
-      "path": "/_license",
-      "paths": ["/_license"],
+      "path": "/_xpack/license",
+      "paths": ["/_xpack/license"],
       "parts" : {}
     },
     "body": null

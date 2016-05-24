@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license.plugin;
 
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -17,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.UUID;
 
@@ -102,7 +102,7 @@ public class TrialLicenseTests extends ESTestCase {
             byteBuffer.putInt(-spec.version())
                     .putInt(encrypt.length)
                     .put(encrypt);
-            signature = Base64.encodeBytes(bytes);
+            signature = Base64.getEncoder().encodeToString(bytes);
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }

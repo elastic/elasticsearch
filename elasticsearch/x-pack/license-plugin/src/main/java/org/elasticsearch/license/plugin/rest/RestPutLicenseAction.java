@@ -30,8 +30,8 @@ public class RestPutLicenseAction extends BaseRestHandler {
     @Inject
     public RestPutLicenseAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
-        controller.registerHandler(PUT, "/_license", this);
-        controller.registerHandler(POST, "/_license", this);
+        controller.registerHandler(PUT, "/_xpack/license", this);
+        controller.registerHandler(POST, "/_xpack/license", this);
     }
 
     @Override

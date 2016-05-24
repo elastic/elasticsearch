@@ -8,7 +8,6 @@ package org.elasticsearch.shield.authc;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +36,7 @@ import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 
 import static org.elasticsearch.shield.support.Exceptions.authenticationError;
@@ -751,7 +751,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         User user = new User("username", "r1", "r2", "r3");
         String text = InternalAuthenticationService.encodeUser(user, null);
 
-        StreamInput input = StreamInput.wrap(Base64.decode(text));
+        StreamInput input = StreamInput.wrap(Base64.getDecoder().decode(text));
         Version version = Version.readVersion(input);
         assertThat(version, is(Version.CURRENT));
     }

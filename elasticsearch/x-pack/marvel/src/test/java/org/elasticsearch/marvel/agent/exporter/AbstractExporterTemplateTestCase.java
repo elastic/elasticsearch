@@ -121,7 +121,8 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
         assertNotNull(exporters);
 
         // Wait for exporting bulks to be ready to export
-        assertBusy(() -> assertThat(exporters.openBulk(), notNullValue()));
+        Runnable busy = () -> assertThat(exporters.openBulk(), notNullValue());
+        assertBusy(busy);
         exporters.export(collector.collect());
     }
 

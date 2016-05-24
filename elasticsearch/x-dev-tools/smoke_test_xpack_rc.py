@@ -140,12 +140,12 @@ def smoke_test_release(release, files, expected_hash):
 
         # put the supplied license to ensure that system was built with 
         license = read_fully(os.path.join(os.path.dirname(__file__), 'license.json'))
-        conn.request('PUT', '/_license?acknowledge=true', license, headers=headers)
+        conn.request('PUT', '/_xpack/license?acknowledge=true', license, headers=headers)
         res = conn.getresponse()
         # reading the result, so we can execute the next request on the same connection
         license_resp = json.loads(res.read().decode('utf-8'))
         if res.status != 200:
-          raise RuntimeError('Could not PUT _license, got status %s' % res.status)
+          raise RuntimeError('Could not PUT _xpack/license, got status %s' % res.status)
         if license_resp['license_status'] != 'valid':
           raise RuntimeError('Expected license to be valid, but was %s' % license_resp['license_status'])
         

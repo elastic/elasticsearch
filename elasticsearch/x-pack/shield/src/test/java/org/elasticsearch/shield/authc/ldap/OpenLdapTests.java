@@ -119,7 +119,7 @@ public class OpenLdapTests extends ESTestCase {
 
         Map<String, Object> stats = realm.usageStats();
         assertThat(stats, is(notNullValue()));
-        assertThat(stats, hasEntry("size", "small"));
+        assertThat(stats, hasEntry("size", "tiny"));
         assertThat(stats, hasEntry("ssl", true));
         assertThat(stats, hasEntry("user_search", userSearch));
         assertThat(stats, hasEntry("load_balance_type", loadBalanceType));

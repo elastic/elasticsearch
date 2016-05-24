@@ -20,6 +20,7 @@ List projects = [
   'modules:lang-mustache',
   'modules:lang-painless',
   'modules:reindex',
+  'modules:percolator',
   'plugins:analysis-icu',
   'plugins:analysis-kuromoji',
   'plugins:analysis-phonetic',

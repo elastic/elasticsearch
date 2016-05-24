@@ -99,7 +99,7 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         newAsyncAction(delete, listener).executeScroll("123");
         waitForCompletion("scroll request should fail on malformed scroll id", listener);
 
-        assertFailure(listener, "Failed to decode scrollId");
+        assertFailure(listener, "Cannot parse scroll id");
         assertSearchContextsClosed();
     }
 

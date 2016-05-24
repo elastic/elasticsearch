@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -48,7 +49,9 @@ public abstract class ScriptTestCase extends ESTestCase {
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} */
     public Object exec(String script, Map<String, Object> vars) {
-        return exec(script, vars, Collections.emptyMap());
+        Map<String,String> compilerSettings = new HashMap<>();
+        compilerSettings.put(CompilerSettings.PICKY, "true");
+        return exec(script, vars, compilerSettings);
     }
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} and compile-time parameters */

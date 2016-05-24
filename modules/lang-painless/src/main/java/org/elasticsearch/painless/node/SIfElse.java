@@ -30,11 +30,11 @@ import org.elasticsearch.painless.MethodWriter;
 public final class SIfElse extends AStatement {
 
     AExpression condition;
-    final AStatement ifblock;
-    final AStatement elseblock;
+    final SBlock ifblock;
+    final SBlock elseblock;
 
-    public SIfElse(int line, String location, AExpression condition, AStatement ifblock, AStatement elseblock) {
-        super(line, location);
+    public SIfElse(int line, int offset, String location, AExpression condition, SBlock ifblock, SBlock elseblock) {
+        super(line, offset, location);
 
         this.condition = condition;
         this.ifblock = ifblock;
@@ -51,6 +51,10 @@ public final class SIfElse extends AStatement {
             throw new IllegalArgumentException(error("Extraneous if statement."));
         }
 
+        if (ifblock == null) {
+            throw new IllegalArgumentException(error("Extraneous if statement."));
+        }
+
         ifblock.lastSource = lastSource;
         ifblock.inLoop = inLoop;
         ifblock.lastLoop = lastLoop;
@@ -63,49 +67,50 @@ public final class SIfElse extends AStatement {
         anyBreak = ifblock.anyBreak;
         statementCount = ifblock.statementCount;
 
-        if (elseblock != null) {
-            elseblock.lastSource = lastSource;
-            elseblock.inLoop = inLoop;
-            elseblock.lastLoop = lastLoop;
-
-            variables.incrementScope();
-            elseblock.analyze(variables);
-            variables.decrementScope();
-
-            methodEscape = ifblock.methodEscape && elseblock.methodEscape;
-            loopEscape = ifblock.loopEscape && elseblock.loopEscape;
-            allEscape = ifblock.allEscape && elseblock.allEscape;
-            anyContinue |= elseblock.anyContinue;
-            anyBreak |= elseblock.anyBreak;
-            statementCount = Math.max(ifblock.statementCount, elseblock.statementCount);
+        if (elseblock == null) {
+            throw new IllegalArgumentException(error("Extraneous else statement."));
         }
+
+        elseblock.lastSource = lastSource;
+        elseblock.inLoop = inLoop;
+        elseblock.lastLoop = lastLoop;
+
+        variables.incrementScope();
+        elseblock.analyze(variables);
+        variables.decrementScope();
+
+        methodEscape = ifblock.methodEscape && elseblock.methodEscape;
+        loopEscape = ifblock.loopEscape && elseblock.loopEscape;
+        allEscape = ifblock.allEscape && elseblock.allEscape;
+        anyContinue |= elseblock.anyContinue;
+        anyBreak |= elseblock.anyBreak;
+        statementCount = Math.max(ifblock.statementCount, elseblock.statementCount);
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        final Label end = new Label();
-        final Label fals = elseblock != null ? new Label() : end;
+    void write(MethodWriter writer) {
+        writeDebugInfo(writer);
+
+        Label end = new Label();
+        Label fals = elseblock != null ? new Label() : end;
 
         condition.fals = fals;
-        condition.write(adapter);
+        condition.write(writer);
 
         ifblock.continu = continu;
         ifblock.brake = brake;
-        ifblock.write(adapter);
+        ifblock.write(writer);
 
-        if (elseblock != null) {
-            if (!ifblock.allEscape) {
-                adapter.goTo(end);
-            }
-
-            adapter.mark(fals);
-
-            elseblock.continu = continu;
-            elseblock.brake = brake;
-            elseblock.write(adapter);
+        if (!ifblock.allEscape) {
+            writer.goTo(end);
         }
 
-        adapter.mark(end);
+        writer.mark(fals);
+
+        elseblock.continu = continu;
+        elseblock.brake = brake;
+        elseblock.write(writer);
+
+        writer.mark(end);
     }
 }

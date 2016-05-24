@@ -28,7 +28,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
-import org.junit.BeforeClass;
+import org.elasticsearch.test.AbstractQueryTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -40,10 +41,10 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     /**
      * The query type all template tests will be based on.
      */
-    private static QueryBuilder templateBase;
+    private QueryBuilder templateBase;
 
-    @BeforeClass
-    public static void setupClass() {
+    @Before
+    public void before() {
         templateBase = RandomQueryBuilder.createQuery(random());
     }
 

@@ -30,8 +30,8 @@ public final class SReturn extends AStatement {
 
     AExpression expression;
 
-    public SReturn(int line, String location, AExpression expression) {
-        super(line, location);
+    public SReturn(int line, int offset, String location, AExpression expression) {
+        super(line, offset, location);
 
         this.expression = expression;
     }
@@ -51,9 +51,10 @@ public final class SReturn extends AStatement {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        expression.write(adapter);
-        adapter.returnValue();
+    void write(MethodWriter writer) {
+        writeDebugInfo(writer);
+
+        expression.write(writer);
+        writer.returnValue();
     }
 }

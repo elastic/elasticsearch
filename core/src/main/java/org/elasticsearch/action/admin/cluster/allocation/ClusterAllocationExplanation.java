@@ -42,15 +42,18 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
 
     private final ShardId shard;
     private final boolean primary;
+    private final boolean hasPendingAsyncFetch;
     private final String assignedNodeId;
     private final UnassignedInfo unassignedInfo;
     private final long remainingDelayMillis;
     private final Map<DiscoveryNode, NodeExplanation> nodeExplanations;
 
     public ClusterAllocationExplanation(ShardId shard, boolean primary, @Nullable String assignedNodeId, long remainingDelayMillis,
-                                        @Nullable UnassignedInfo unassignedInfo, Map<DiscoveryNode, NodeExplanation> nodeExplanations) {
+                                        @Nullable UnassignedInfo unassignedInfo, boolean hasPendingAsyncFetch,
+                                        Map<DiscoveryNode, NodeExplanation> nodeExplanations) {
         this.shard = shard;
         this.primary = primary;
+        this.hasPendingAsyncFetch = hasPendingAsyncFetch;
         this.assignedNodeId = assignedNodeId;
         this.unassignedInfo = unassignedInfo;
         this.remainingDelayMillis = remainingDelayMillis;
@@ -60,6 +63,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
     public ClusterAllocationExplanation(StreamInput in) throws IOException {
         this.shard = ShardId.readShardId(in);
         this.primary = in.readBoolean();
+        this.hasPendingAsyncFetch = in.readBoolean();
         this.assignedNodeId = in.readOptionalString();
         this.unassignedInfo = in.readOptionalWriteable(UnassignedInfo::new);
         this.remainingDelayMillis = in.readVLong();
@@ -77,6 +81,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
     public void writeTo(StreamOutput out) throws IOException {
         this.getShard().writeTo(out);
         out.writeBoolean(this.isPrimary());
+        out.writeBoolean(this.isStillFetchingShardData());
         out.writeOptionalString(this.getAssignedNodeId());
         out.writeOptionalWriteable(this.getUnassignedInfo());
         out.writeVLong(remainingDelayMillis);
@@ -95,6 +100,11 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
     /** Return true if the explained shard is primary, false otherwise */
     public boolean isPrimary() {
         return this.primary;
+    }
+
+    /** Return turn if shard data is still being fetched for the allocation */
+    public boolean isStillFetchingShardData() {
+        return this.hasPendingAsyncFetch;
     }
 
     /** Return turn if the shard is assigned to a node */
@@ -138,6 +148,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
             if (assignedNodeId != null) {
                 builder.field("assigned_node_id", this.assignedNodeId);
             }
+            builder.field("shard_state_fetch_pending", this.hasPendingAsyncFetch);
             // If we have unassigned info, show that
             if (unassignedInfo != null) {
                 unassignedInfo.toXContent(builder, params);

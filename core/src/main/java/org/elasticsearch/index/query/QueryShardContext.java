@@ -171,7 +171,12 @@ public class QueryShardContext extends QueryRewriteContext {
         return isFilter;
     }
 
-    void setIsFilter(boolean isFilter) {
+    /**
+     * Public for testing only!
+     *
+     * Sets whether we are currently parsing a filter or a query
+     */
+    public void setIsFilter(boolean isFilter) {
         this.isFilter = isFilter;
     }
 

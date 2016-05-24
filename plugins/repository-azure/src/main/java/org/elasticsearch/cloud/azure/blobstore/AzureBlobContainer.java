@@ -52,11 +52,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     public AzureBlobContainer(String repositoryName, BlobPath path, AzureBlobStore blobStore) {
         super(path);
         this.blobStore = blobStore;
-        String keyPath = path.buildAsString("/");
-        if (!keyPath.isEmpty()) {
-            keyPath = keyPath + "/";
-        }
-        this.keyPath = keyPath;
+        this.keyPath = path.buildAsString();
         this.repositoryName = repositoryName;
     }
 

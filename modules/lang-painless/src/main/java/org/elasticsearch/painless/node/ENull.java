@@ -29,8 +29,8 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class ENull extends AExpression {
 
-    public ENull(int line, String location) {
-        super(line, location);
+    public ENull(int line, int offset, String location) {
+        super(line, offset, location);
     }
 
     @Override
@@ -49,7 +49,7 @@ public final class ENull extends AExpression {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        adapter.visitInsn(Opcodes.ACONST_NULL);
+    void write(MethodWriter writer) {
+        writer.visitInsn(Opcodes.ACONST_NULL);
     }
 }

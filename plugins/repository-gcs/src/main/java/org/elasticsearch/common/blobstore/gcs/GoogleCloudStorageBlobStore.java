@@ -88,12 +88,7 @@ public class GoogleCloudStorageBlobStore extends AbstractComponent implements Bl
 
     @Override
     public void delete(BlobPath path) throws IOException {
-        String keyPath = path.buildAsString("/");
-        // TODO Move this keyPath logic to the buildAsString() method
-        if (!keyPath.isEmpty()) {
-            keyPath = keyPath + "/";
-        }
-        deleteBlobsByPrefix(keyPath);
+        deleteBlobsByPrefix(path.buildAsString());
     }
 
     @Override

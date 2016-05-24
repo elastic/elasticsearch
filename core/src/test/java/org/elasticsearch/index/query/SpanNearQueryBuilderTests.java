@@ -24,6 +24,7 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Iterator;

@@ -88,6 +88,7 @@ public interface CharMatcher {
                 case Character.CURRENCY_SYMBOL:
                 case Character.MATH_SYMBOL:
                 case Character.OTHER_SYMBOL:
+                case Character.MODIFIER_SYMBOL:
                     return true;
                  default:
                      return false;

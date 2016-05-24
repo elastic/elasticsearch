@@ -309,8 +309,8 @@ public final class InternalTestCluster extends TestCluster {
         builder.put("http.port", HTTP_BASE_PORT + "-" + (HTTP_BASE_PORT + PORTS_PER_CLUSTER));
         builder.put(Node.NODE_MODE_SETTING.getKey(), nodeMode);
         builder.put("http.pipelining", enableHttpPipelining);
-        if (Strings.hasLength(System.getProperty("tests.logger.level"))) {
-            builder.put("logger.level", System.getProperty("tests.logger.level"));
+        if (Strings.hasLength(System.getProperty("tests.es.logger.level"))) {
+            builder.put("logger.level", System.getProperty("tests.es.logger.level"));
         }
         if (Strings.hasLength(System.getProperty("es.logger.prefix"))) {
             builder.put("logger.prefix", System.getProperty("es.logger.prefix"));
@@ -334,14 +334,14 @@ public final class InternalTestCluster extends TestCluster {
 
     public static String configuredNodeMode() {
         Builder builder = Settings.builder();
-        if (Strings.isEmpty(System.getProperty("node.mode")) && Strings.isEmpty(System.getProperty("node.local"))) {
+        if (Strings.isEmpty(System.getProperty("tests.es.node.mode")) && Strings.isEmpty(System.getProperty("tests.node.local"))) {
             return "local"; // default if nothing is specified
         }
-        if (Strings.hasLength(System.getProperty("node.mode"))) {
-            builder.put(Node.NODE_MODE_SETTING.getKey(), System.getProperty("node.mode"));
+        if (Strings.hasLength(System.getProperty("tests.es.node.mode"))) {
+            builder.put(Node.NODE_MODE_SETTING.getKey(), System.getProperty("tests.es.node.mode"));
         }
-        if (Strings.hasLength(System.getProperty("node.local"))) {
-            builder.put(Node.NODE_LOCAL_SETTING.getKey(), System.getProperty("node.local"));
+        if (Strings.hasLength(System.getProperty("tests.es.node.local"))) {
+            builder.put(Node.NODE_LOCAL_SETTING.getKey(), System.getProperty("tests.es.node.local"));
         }
         if (DiscoveryNode.isLocalNode(builder.build())) {
             return "local";

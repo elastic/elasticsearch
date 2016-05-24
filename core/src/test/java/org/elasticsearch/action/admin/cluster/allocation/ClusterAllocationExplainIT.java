@@ -120,6 +120,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertThat(cae.getShard().getIndexName(), equalTo("only-foo"));
         assertFalse(cae.isPrimary());
         assertFalse(cae.isAssigned());
+        assertFalse(cae.isStillFetchingShardData());
         assertThat(UnassignedInfo.Reason.INDEX_CREATED, equalTo(cae.getUnassignedInfo().getReason()));
         assertThat("expecting no remaining delay: " + cae.getRemainingDelayMillis(), cae.getRemainingDelayMillis(), equalTo(0L));
 

@@ -20,9 +20,7 @@
 package org.elasticsearch.common.network;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.client.transport.TransportClientNodesService;
@@ -36,7 +34,6 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommandReg
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -137,8 +134,6 @@ import org.elasticsearch.rest.action.ingest.RestGetPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestPutPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestSimulatePipelineAction;
 import org.elasticsearch.rest.action.main.RestMainAction;
-import org.elasticsearch.rest.action.percolate.RestMultiPercolateAction;
-import org.elasticsearch.rest.action.percolate.RestPercolateAction;
 import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestDeleteStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestGetStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestPutStoredScriptAction;
@@ -250,8 +245,6 @@ public class NetworkModule extends AbstractModule {
         RestMultiTermVectorsAction.class,
         RestBulkAction.class,
         RestUpdateAction.class,
-        RestPercolateAction.class,
-        RestMultiPercolateAction.class,
 
         RestSearchAction.class,
         RestSearchScrollAction.class,

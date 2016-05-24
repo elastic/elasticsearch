@@ -27,8 +27,8 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class SContinue extends AStatement {
 
-    public SContinue(int line, String location) {
-        super(line, location);
+    public SContinue(int line, int offset, String location) {
+        super(line, offset, location);
     }
 
     @Override
@@ -47,8 +47,9 @@ public final class SContinue extends AStatement {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        adapter.goTo(continu);
+    void write(MethodWriter writer) {
+        writeDebugInfo(writer);
+
+        writer.goTo(continu);
     }
 }

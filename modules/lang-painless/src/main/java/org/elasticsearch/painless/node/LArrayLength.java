@@ -30,8 +30,8 @@ public final class LArrayLength extends ALink {
 
     final String value;
 
-    LArrayLength(int line, String location, String value) {
-        super(line, location, -1);
+    LArrayLength(int line, int offset, String location, String value) {
+        super(line, offset, location, -1);
 
         this.value = value;
     }
@@ -54,17 +54,17 @@ public final class LArrayLength extends ALink {
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter adapter) {
-        adapter.arrayLength();
+    void load(MethodWriter writer) {
+        writer.arrayLength();
     }
 
     @Override
-    void store(MethodWriter adapter) {
+    void store(MethodWriter writer) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

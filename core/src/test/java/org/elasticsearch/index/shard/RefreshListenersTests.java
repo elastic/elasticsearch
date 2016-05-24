@@ -88,7 +88,7 @@ public class RefreshListenersTests extends ESTestCase {
                 () -> maxListeners,
                 () -> engine.refresh("too-many-listeners"),
                 // Immediately run listeners rather than adding them to the listener thread pool like IndexShard does to simplify the test.
-                fire -> fire.run()
+                toExecute -> toExecute.run()
                 );
 
         // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
@@ -212,7 +212,6 @@ public class RefreshListenersTests extends ESTestCase {
         int threadCount = between(3, 10);
         maxListeners = between(1, threadCount * 2);
 
-
         // This thread just refreshes every once in a while to cause trouble.
         ScheduledFuture<?> refresher = threadPool.scheduleWithFixedDelay(() -> engine.refresh("because test"), timeValueMillis(100));
 
@@ -221,7 +220,7 @@ public class RefreshListenersTests extends ESTestCase {
         for (int thread = 0; thread < threadCount; thread++) {
             final String threadId = String.format(Locale.ROOT, "%04d", thread);
             indexers[thread] = new Thread(() -> {
-                for (int iteration = 1; iteration <= 500; iteration++) {
+                for (int iteration = 1; iteration <= 50; iteration++) {
                     try {
                         String testFieldValue = String.format(Locale.ROOT, "%s%04d", threadId, iteration);
                         Engine.Index index = index(threadId, testFieldValue);

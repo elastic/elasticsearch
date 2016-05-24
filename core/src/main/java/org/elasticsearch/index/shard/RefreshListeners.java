@@ -21,14 +21,13 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.search.ReferenceManager;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
-import java.util.Iterator;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executor;
-import java.util.concurrent.LinkedTransferQueue;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
@@ -39,21 +38,14 @@ import static java.util.Objects.requireNonNull;
  * {@link IndexShard} but kept here so it can be tested without standing up the entire thing. 
  */
 final class RefreshListeners {
-    /**
-     * Refresh listeners. While they are not stored in sorted order they are processed as though they are.
-     */
-    private final LinkedTransferQueue<Tuple<Translog.Location, Consumer<Boolean>>> refreshListeners = new LinkedTransferQueue<>();
-
     private final IntSupplier getMaxRefreshListeners;
     private final Runnable forceRefresh;
     private final Executor listenerExecutor;
 
     /**
-     * The estimated size of refreshListenersEstimatedSize used for triggering refresh when the size gets over
-     * {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}. No effort is made to correct for threading issues in the size calculation
-     * beyond it being volatile.
+     * List of refresh listeners. Built new any time any entries are removed from it. Always modified while synchronized on {@code this}.
      */
-    private volatile int refreshListenersEstimatedSize;
+    private volatile List<Tuple<Translog.Location, Consumer<Boolean>>> refreshListeners = new ArrayList<>();
     /**
      * The translog location that was last made visible by a refresh.
      */
@@ -83,11 +75,12 @@ final class RefreshListeners {
             listener.accept(false);
             return;
         }
-        if (refreshListenersEstimatedSize < getMaxRefreshListeners.getAsInt()) {
-            // We have a free slot so register the listener
-            refreshListeners.add(new Tuple<>(location, listener));
-            refreshListenersEstimatedSize++;
-            return;
+        synchronized (this) {
+            if (refreshListeners.size() < getMaxRefreshListeners.getAsInt()) {
+                // We have a free slot so register the listener
+                refreshListeners.add(new Tuple<>(location, listener));
+                return;
+            }
         }
         // No free slot so force a refresh and call the listener in this thread
         forceRefresh.run();
@@ -143,17 +136,19 @@ final class RefreshListeners {
              * iterate over the whole queue on every refresh at the cost of some requests having to wait an extra cycle if they get stuck
              * behind a request that missed the refresh cycle.
              */
-            Iterator<Tuple<Translog.Location, Consumer<Boolean>>> itr = refreshListeners.iterator();
-            while (itr.hasNext()) {
-                Tuple<Translog.Location, Consumer<Boolean>> listener = itr.next();
-                if (listener.v1().compareTo(currentRefreshLocation) > 0) {
-                    return;
+            List<Tuple<Translog.Location, Consumer<Boolean>>> newRefreshListeners = new ArrayList<>();
+            synchronized (this) {
+                for (Tuple<Translog.Location, Consumer<Boolean>> tuple : refreshListeners) {
+                    Translog.Location location = tuple.v1();
+                    if (location.compareTo(currentRefreshLocation) > 0) {
+                        newRefreshListeners.add(tuple);
+                    } else {
+                        Consumer<Boolean> listener = tuple.v2();
+                        listenerExecutor.execute(() -> listener.accept(false));
+                    }
                 }
-                itr.remove();
-                refreshListenersEstimatedSize--;
-                listenerExecutor.execute(() -> listener.v2().accept(false));
+                refreshListeners = newRefreshListeners;
             }
-            refreshListenersEstimatedSize = 0;
         }
     }
 }

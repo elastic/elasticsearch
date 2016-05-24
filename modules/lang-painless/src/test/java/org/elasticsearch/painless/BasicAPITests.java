@@ -19,6 +19,9 @@
 
 package org.elasticsearch.painless;
 
+import java.util.Arrays;
+import java.util.Collections;
+
 public class BasicAPITests extends ScriptTestCase {
 
     public void testListIterator() {
@@ -89,5 +92,9 @@ public class BasicAPITests extends ScriptTestCase {
         assertBytecodeExists("def x = 1L", "INVOKESTATIC java/lang/Long.valueOf (J)Ljava/lang/Long;");
         assertBytecodeExists("def x = 1F", "INVOKESTATIC java/lang/Float.valueOf (F)Ljava/lang/Float;");
         assertBytecodeExists("def x = 1D", "INVOKESTATIC java/lang/Double.valueOf (D)Ljava/lang/Double;");
+    }
+    
+    void testStream() {
+        assertEquals(11, exec("params.list.stream().sum()", Collections.singletonMap("list", Arrays.asList(1,2,3,5))));
     }
 }

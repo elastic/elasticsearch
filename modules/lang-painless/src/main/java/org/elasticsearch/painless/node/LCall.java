@@ -95,7 +95,7 @@ public final class LCall extends ALink {
             argument.write(writer);
         }
 
-        if (java.lang.reflect.Modifier.isStatic(method.reflect.getModifiers())) {
+        if (java.lang.reflect.Modifier.isStatic(method.modifiers)) {
             writer.invokeStatic(method.owner.type, method.method);
         } else if (java.lang.reflect.Modifier.isInterface(method.owner.clazz.getModifiers())) {
             writer.invokeInterface(method.owner.type, method.method);

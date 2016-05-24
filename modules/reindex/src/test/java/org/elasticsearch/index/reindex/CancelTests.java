@@ -137,7 +137,7 @@ public class CancelTests extends ReindexTestCase {
         ALLOWED_OPERATIONS.release(BLOCKING_OPERATIONS);
 
         // Checks that no more operations are executed
-        assertBusy(() -> ALLOWED_OPERATIONS.availablePermits() == 0 && ALLOWED_OPERATIONS.getQueueLength() == 0);
+        assertBusy(() -> assertTrue(ALLOWED_OPERATIONS.availablePermits() == 0 && ALLOWED_OPERATIONS.getQueueLength() == 0));
 
         // And check the status of the response
         BulkIndexByScrollResponse response = future.get();

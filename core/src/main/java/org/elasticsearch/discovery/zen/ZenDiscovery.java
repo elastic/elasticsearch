@@ -215,7 +215,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         nodesFD.setLocalNode(clusterService.localNode());
         joinThreadControl.start();
         pingService.start();
-        this.nodeJoinController = new NodeJoinController(clusterService, routingService, discoverySettings, settings);
+        this.nodeJoinController = new NodeJoinController(clusterService, routingService, electMaster, discoverySettings, settings);
     }
 
     @Override
@@ -617,6 +617,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                electMaster.logMinimumMasterNodesWarningIfNecessary(oldState, newState);
             }
         });
     }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -34,7 +33,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportShardRefreshAction
@@ -64,12 +62,12 @@ public class TransportShardRefreshAction
     }
 
     @Override
-    protected void shardOperationOnReplica(BasicReplicationRequest request, ActionListener<TransportResponse.Empty> listener) {
+    protected ReplicaResult shardOperationOnReplica(BasicReplicationRequest request) {
         final ShardId shardId = request.shardId();
         IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
         indexShard.refresh("api");
         logger.trace("{} refresh request executed on replica", indexShard.shardId());
-        listener.onResponse(TransportResponse.Empty.INSTANCE);
+        return new ReplicaResult();
     }
 
     @Override

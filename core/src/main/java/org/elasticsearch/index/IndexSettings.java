@@ -115,6 +115,9 @@ public final class IndexSettings {
     public static final Setting<TimeValue> INDEX_GC_DELETES_SETTING =
         Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MILLISECONDS), Property.Dynamic,
             Property.IndexScope);
+    /**
+     * The maximum number of refresh listeners allows on this shard.
+     */
     public static final Setting<Integer> MAX_REFRESH_LISTENERS_PER_SHARD = Setting.intSetting("index.max_refresh_listeners", 1000, 0,
             Property.Dynamic, Property.IndexScope);
 
@@ -147,6 +150,9 @@ public final class IndexSettings {
     private volatile int maxResultWindow;
     private volatile int maxRescoreWindow;
     private volatile boolean TTLPurgeDisabled;
+    /**
+     * The maximum number of refresh listeners allows on this shard.
+     */
     private volatile int maxRefreshListeners;
 
     /**
@@ -504,6 +510,9 @@ public final class IndexSettings {
         return scopedSettings.get(setting);
     }
 
+    /**
+     * The maximum number of refresh listeners allows on this shard.
+     */
     public int getMaxRefreshListeners() {
         return maxRefreshListeners;
     }

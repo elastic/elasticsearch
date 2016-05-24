@@ -246,7 +246,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         searcherWrapper = indexSearcherWrapper;
         primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
         refreshListeners = new RefreshListeners(
-                () -> indexSettings.getMaxRefreshListeners(),
+                indexSettings::getMaxRefreshListeners,
                 () -> refresh("too_many_listeners"),
                 fire -> threadPool.executor(ThreadPool.Names.LISTENER).execute(fire));
     }

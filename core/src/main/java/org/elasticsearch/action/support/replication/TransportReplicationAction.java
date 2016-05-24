@@ -68,7 +68,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -149,17 +148,17 @@ public abstract class TransportReplicationAction<
     }
 
     /**
-     * Synchronous portion of primary operation on node with primary copy
+     * Primary operation on node with primary copy.
      *
      * @param shardRequest the request to the primary shard
      */
     protected abstract PrimaryResult shardOperationOnPrimary(Request shardRequest) throws Exception;
 
     /**
-     * Replica operation on nodes with replica copies. While this does take a listener it should not return until it has completed any
-     * operations that it must take under the shard lock. The listener is for waiting for things like index to become visible in search.
+     * Synchronous replica operation on nodes with replica copies. This is done under the lock form
+     * {@link #acquireReplicaOperationLock(ShardId, long)}.
      */
-    protected abstract void shardOperationOnReplica(ReplicaRequest shardRequest, ActionListener<TransportResponse.Empty> listener);
+    protected abstract ReplicaResult shardOperationOnReplica(ReplicaRequest shardRequest);
 
     /**
      * True if write consistency should be checked for an implementation
@@ -353,6 +352,17 @@ public abstract class TransportReplicationAction<
         }
     }
 
+    protected class ReplicaResult {
+        /**
+         * Public constructor so subclasses can call it.
+         */
+        public ReplicaResult() {}
+
+        public void respond(ActionListener<TransportResponse.Empty> listener) {
+            listener.onResponse(TransportResponse.Empty.INSTANCE);
+        }
+    }
+
     class ReplicaOperationTransportHandler implements TransportRequestHandler<ReplicaRequest> {
         @Override
         public void messageReceived(final ReplicaRequest request, final TransportChannel channel) throws Exception {
@@ -378,10 +388,6 @@ public abstract class TransportReplicationAction<
     }
 
     private final class AsyncReplicaAction extends AbstractRunnable {
-        /**
-         * The number of operations remaining before we can reply. See javadoc for {@link #operationComplete()} more.
-         */
-        private final AtomicInteger operationsUntilReply = new AtomicInteger(2);
         private final ReplicaRequest request;
         private final TransportChannel channel;
         /**
@@ -444,45 +450,30 @@ public abstract class TransportReplicationAction<
         protected void doRun() throws Exception {
             setPhase(task, "replica");
             assert request.shardId() != null : "request shardId must be set";
+            ReplicaResult result;
             try (Releasable ignored = acquireReplicaOperationLock(request.shardId(), request.primaryTerm())) {
-                shardOperationOnReplica(request, new ActionListener<TransportResponse.Empty>() {
-                    @Override
-                    public void onResponse(Empty response) {
-                        operationComplete();
+                result = shardOperationOnReplica(request);
+            }
+            result.respond(new ActionListener<TransportResponse.Empty>() {
+                @Override
+                public void onResponse(Empty response) {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction, request.shardId(),
+                                request);
                     }
-
-                    @Override
-                    public void onFailure(Throwable e) {
-                        AsyncReplicaAction.this.onFailure(e);
+                    setPhase(task, "finished");
+                    try {
+                        channel.sendResponse(response);
+                    } catch (Exception e) {
+                        onFailure(e);
                     }
-                });
-            }
-            operationComplete();
-        }
+                }
 
-        /**
-         * Handle a portion of the operation finishing. Called twice: once after the operation returns and the lock is released and once
-         * after the listener returns. We only reply over the channel when both have finished but we don't know in which order they will
-         * finish.
-         *
-         * The reason we can't reply until both is finished is a bit unclear - but the advantage of doing it this ways is that we never
-         * ever ever reply while we have the operation lock. And it is just a good idea in general not to do network IO while you have a
-         * lock. So that is something.
-         */
-        private void operationComplete() {
-            if (operationsUntilReply.decrementAndGet() != 0) {
-                return;
-            }
-            if (logger.isTraceEnabled()) {
-                logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction, request.shardId(),
-                    request);
-            }
-            setPhase(task, "finished");
-            try {
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
-            } catch (Exception e) {
-                onFailure(e);
-            }
+                @Override
+                public void onFailure(Throwable e) {
+                    AsyncReplicaAction.this.onFailure(e);
+                }
+            });
         }
     }
 

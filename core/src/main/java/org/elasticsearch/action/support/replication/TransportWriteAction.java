@@ -34,7 +34,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.function.Supplier;
@@ -77,39 +77,12 @@ public abstract class TransportWriteAction<
     }
 
     @Override
-    protected final void shardOperationOnReplica(Request request, ActionListener<TransportResponse.Empty> listener) {
+    protected final WriteReplicaResult shardOperationOnReplica(Request request) {
         final ShardId shardId = request.shardId();
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         Translog.Location location = onReplicaShard(request, indexShard);
-        // NOCOMMIT deduplicate with the WritePrimaryResult
-        boolean forked = false;
-        switch (request.getRefreshPolicy()) {
-        case IMMEDIATE:
-            indexShard.refresh("refresh_flag_index");
-            break;
-        case WAIT_UNTIL:
-            if (location != null) {
-                forked = true;
-                indexShard.addRefreshListener(location, forcedRefresh -> {
-                    if (forcedRefresh) {
-                        logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
-                    }
-                    listener.onResponse(null);
-                });
-            }
-            break;
-        case NONE:
-            break;
-        }
-        boolean fsyncTranslog = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null;
-        if (fsyncTranslog) {
-            indexShard.sync(location);
-        }
-        indexShard.maybeFlush();
-        if (false == forked) {
-            listener.onResponse(null);
-        }
+        return new WriteReplicaResult(indexShard, request, location);
     }
 
     /**
@@ -136,7 +109,7 @@ public abstract class TransportWriteAction<
         }
     }
 
-    protected class WritePrimaryResult extends PrimaryResult {
+    private class WritePrimaryResult extends PrimaryResult {
         volatile boolean refreshPending;
         volatile ActionListener<Response> listener = null;
 
@@ -186,6 +159,50 @@ public abstract class TransportWriteAction<
         protected void respondIfPossible() {
             if (refreshPending == false && listener != null) {
                 super.respond(listener);
+            }
+        }
+    }
+
+    private class WriteReplicaResult extends ReplicaResult {
+        private final IndexShard indexShard;
+        private final ReplicatedWriteRequest<?> request;
+        private final Translog.Location location; 
+
+        public WriteReplicaResult(IndexShard indexShard, ReplicatedWriteRequest<?> request, Location location) {
+            this.indexShard = indexShard;
+            this.request = request;
+            this.location = location;
+        }
+
+        @Override
+        public void respond(ActionListener<Empty> listener) {
+            // NOCOMMIT deduplicate with the WritePrimaryResult
+            boolean forked = false;
+            switch (request.getRefreshPolicy()) {
+            case IMMEDIATE:
+                indexShard.refresh("refresh_flag_index");
+                break;
+            case WAIT_UNTIL:
+                if (location != null) {
+                    forked = true;
+                    indexShard.addRefreshListener(location, forcedRefresh -> {
+                        if (forcedRefresh) {
+                            logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
+                        }
+                        listener.onResponse(null);
+                    });
+                }
+                break;
+            case NONE:
+                break;
+            }
+            boolean fsyncTranslog = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null;
+            if (fsyncTranslog) {
+                indexShard.sync(location);
+            }
+            indexShard.maybeFlush();
+            if (false == forked) {
+                listener.onResponse(null);
             }
         }
     }

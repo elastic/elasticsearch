@@ -667,13 +667,13 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ReplicationTask task = maybeTask();
         Action action = new Action(Settings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool) {
             @Override
-            protected void shardOperationOnReplica(Request request, ActionListener<TransportResponse.Empty> listener) {
+            protected ReplicaResult shardOperationOnReplica(Request request) {
                 assertIndexShardCounter(1);
                 assertPhase(task, "replica");
                 if (throwException) {
                     throw new ElasticsearchException("simulated");
                 }
-                super.shardOperationOnReplica(request, listener);
+                return new ReplicaResult();
             }
         };
         final Action.ReplicaOperationTransportHandler replicaOperationTransportHandler = action.new ReplicaOperationTransportHandler();
@@ -772,9 +772,9 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected void shardOperationOnReplica(Request request, ActionListener<TransportResponse.Empty> listener) {
+        protected ReplicaResult shardOperationOnReplica(Request request) {
             request.processedOnReplicas.incrementAndGet();
-            listener.onResponse(TransportResponse.Empty.INSTANCE);
+            return new ReplicaResult();
         }
 
         @Override

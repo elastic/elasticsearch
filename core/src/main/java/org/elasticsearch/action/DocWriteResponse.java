@@ -19,9 +19,9 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.ReplicatedWriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContent;
@@ -91,9 +91,9 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Re
     }
 
     /**
-     * Did this request force a refresh? Requests that set {@link WriteRequest#setRefresh(boolean)} to true should always
-     * return true for this. Requests that set {@link WriteRequest#setBlockUntilRefresh(boolean)} to true should only return
-     * this if they run out of refresh listener slots (see {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}).
+     * Did this request force a refresh? Requests that set {@link WriteRequest#setRefreshPolicy(RefreshPolicy)} to
+     * {@link RefreshPolicy#IMMEDIATE} will always return true for this. Requests that set it to {@link RefreshPolicy#WAIT_UNTIL} will
+     * only return true here if they run out of refresh listener slots (see {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}).
      */
     public boolean forcedRefresh() {
         return forcedRefresh;

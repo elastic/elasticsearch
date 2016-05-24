@@ -37,10 +37,8 @@ public interface WriteRequestBuilder<B extends WriteRequestBuilder<B>> {
     /**
      * If set to true then this request will force an immediate refresh. Backwards compatibility layer for Elasticsearch's old
      * {@code setRefresh} calls.
-     * 
-     * @deprecated use setRefreshPolicy instead
      */
-    @Deprecated
+    // NOCOMMIT deprecate or just remove this
     @SuppressWarnings("unchecked")
     default B setRefresh(boolean refresh) {
         request().setRefreshPolicy(refresh ? RefreshPolicy.IMMEDIATE : RefreshPolicy.NONE);

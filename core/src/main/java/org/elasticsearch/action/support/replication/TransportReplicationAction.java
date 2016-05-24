@@ -152,8 +152,6 @@ public abstract class TransportReplicationAction<
      * Synchronous portion of primary operation on node with primary copy
      *
      * @param shardRequest the request to the primary shard
-     * @return Tuple of the request to send to the replicas and the information needed by the {
-    //*         {@link #asyncShardOperationOnPrimary(Object, ReplicationRequest, ActionListener)} to do its job
      */
     protected abstract PrimaryResult shardOperationOnPrimary(Request shardRequest) throws Exception;
 

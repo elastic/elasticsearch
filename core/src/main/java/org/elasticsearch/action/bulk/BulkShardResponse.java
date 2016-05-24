@@ -20,12 +20,10 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -54,15 +52,12 @@ public class BulkShardResponse extends ReplicationResponse implements Replicated
         return responses;
     }
 
-    /**
-     * Each DocWriteResponse already has a location for whether or not it forced a refresh so we just set that information on the response.
-     *
-     * Requests that set {@link WriteRequest#setRefresh(boolean)} to true should always set this to true. Requests that set
-     * {@link WriteRequest#setBlockUntilRefresh(boolean)} to true should only set this to true if they run out of refresh
-     * listener slots (see {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}).
-     */
     @Override
     public void setForcedRefresh(boolean forcedRefresh) {
+        /*
+         * Each DocWriteResponse already has a location for whether or not it forced a refresh so we just set that information on the
+         * response.
+         */
         for (BulkItemResponse response : responses) {
             DocWriteResponse r = response.getResponse();
             if (r != null) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.index.IndexSettings;
 
 /**
@@ -27,11 +28,9 @@ import org.elasticsearch.index.IndexSettings;
  */
 public interface ReplicatedWriteResponse {
     /**
-     * Mark the request with if it was forced to refresh the index. All implementations by default assume that the request didn't force a
-     * refresh unless set otherwise so it mostly only makes sense to call this with {@code true}. Requests that set
-     * {@link WriteRequest#setRefresh(boolean)} to true should always set this to true. Requests that set
-     * {@link WriteRequest#setBlockUntilRefresh(boolean)} to true should only set this to true if they run out of refresh
-     * listener slots (see {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}).
+     * Mark the response as having forced a refresh? Requests that set {@link WriteRequest#setRefreshPolicy(RefreshPolicy)} to
+     * {@link RefreshPolicy#IMMEDIATE} should always mark this as true. Requests that set it to {@link RefreshPolicy#WAIT_UNTIL} will only
+     * set this to true if they run out of refresh listener slots (see {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}).
      */
     public abstract void setForcedRefresh(boolean forcedRefresh);
 }

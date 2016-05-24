@@ -302,10 +302,6 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
       '''.stripIndent().replace('\n', ' ').trim()
     url 'https://www.elastic.co/'
 
-    /* The version of the package can't contain -SNAPSHOT so we rip it off if
-      we see it. We'll add it back on to the file name though. */
-    version project.version.replace('-SNAPSHOT', '')
-
     // signing setup
     if (project.hasProperty('signing.password') && System.getProperty('build.snapshot', 'true') == 'false') {
       signingKeyId = project.hasProperty('signing.keyId') ? project.property('signing.keyId') : 'D88E42B4'

@@ -1492,7 +1492,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         /**
          * Indicates whether the cluster can have dedicated master nodes. If <tt>false</tt> means data nodes will serve as master nodes
          * and there will be no dedicated master (and data) nodes. Default is <tt>true</tt> which means
-         * dedicated master nodes will be added in random.
+         * dedicated master nodes will be randomly used.
          */
         boolean supportsDedicatedMasters() default true;
 

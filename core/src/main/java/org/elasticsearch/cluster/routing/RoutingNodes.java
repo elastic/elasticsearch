@@ -23,12 +23,9 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -808,12 +805,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         Map<Index, Integer> indicesAndShards = new HashMap<>();
         for (RoutingNode node : routingNodes) {
             for (ShardRouting shard : node) {
-                if (!shard.active() && shard.relocatingNodeId() == null) {
-                    if (!shard.relocating()) {
-                        inactiveShardCount++;
-                        if (shard.primary()) {
-                            inactivePrimaryCount++;
-                        }
+                if (shard.initializing() && shard.relocatingNodeId() == null) {
+                    inactiveShardCount++;
+                    if (shard.primary()) {
+                        inactivePrimaryCount++;
                     }
                 }
                 if (shard.relocating()) {
@@ -984,6 +979,20 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             ShardRouting unassigned = shard.moveToUnassigned(unassignedInfo);
             unassignedShards.add(unassigned);
             return unassigned;
+        }
+
+        /**
+         * Removes relocation source of an initializing non-primary shard. This allows the replica shard to continue recovery from
+         * the primary even though its non-primary relocation source has failed.
+         */
+        public ShardRouting removeRelocationSource() {
+            assert shard.isRelocationTarget();
+            ensureMutable();
+            ShardRouting relocationMarkerRemoved = shard.removeRelocationSource();
+            updateAssigned(shard, relocationMarkerRemoved);
+            inactiveShardCount++; // relocation targets are not counted as inactive shards whereas initializing shards are
+            Recoveries.getOrAdd(recoveriesPerNode, shard.relocatingNodeId()).addOutgoing(-1);
+            return relocationMarkerRemoved;
         }
 
         public ShardRouting current() {

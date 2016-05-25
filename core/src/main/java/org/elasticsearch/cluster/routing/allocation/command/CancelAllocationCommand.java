@@ -156,16 +156,29 @@ public class CancelAllocationCommand implements AllocationCommand {
                         throw new IllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " +
                                 discoNode + ", shard is primary and initializing its state");
                     }
-                    shardRouting = it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null));
-                    // now, go and find the shard that is initializing on the target node, and cancel it as well...
+                    it.remove();
+                    boolean removedRelocationSourceOnRelocationTarget = false;
+                    // now, find the shard that is initializing on the target node, and cancel it
                     RoutingNodes.RoutingNodeIterator initializingNode = allocation.routingNodes().routingNodeIter(shardRouting.relocatingNodeId());
                     if (initializingNode != null) {
                         while (initializingNode.hasNext()) {
                             ShardRouting initializingShardRouting = initializingNode.next();
                             if (initializingShardRouting.isRelocationTargetOf(shardRouting)) {
-                                initializingNode.remove();
+                                if (shardRouting.primary()) {
+                                    initializingNode.remove();
+                                } else {
+                                    // relocation source is non-primary, mark this shard as initializing without relocation source
+                                    removedRelocationSourceOnRelocationTarget = true;
+                                    initializingNode.removeRelocationSource();
+                                }
+                                break;
                             }
                         }
+                    }
+                    if (removedRelocationSourceOnRelocationTarget) {
+                        // do nothing, it was already removed above
+                    } else {
+                        it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null));
                     }
                 }
             } else {

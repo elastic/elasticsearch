@@ -588,6 +588,7 @@ public class AllocationService extends AbstractComponent {
             // relocation will be cancelled (and the target shard removed as well)
             // and the shard copy needs to be marked as unassigned
 
+            boolean removedRelocationSourceOnRelocationTarget = false;
             if (failedShard.relocatingNodeId() != null) {
                 // handle relocation source shards.  we need to find the target initializing shard that is recovering, and remove it...
                 assert failedShard.initializing() == false; // should have been dealt with and returned
@@ -598,14 +599,24 @@ public class AllocationService extends AbstractComponent {
                     while (initializingNode.hasNext()) {
                         ShardRouting shardRouting = initializingNode.next();
                         if (shardRouting.isRelocationTargetOf(failedShard)) {
-                            logger.trace("{} is removed due to the failure of the source shard", shardRouting);
-                            initializingNode.remove();
+                            if (failedShard.primary()) {
+                                logger.trace("{} is removed due to the failure of the source shard", shardRouting);
+                                initializingNode.remove();
+                            } else {
+                                logger.trace("{}, relocation source failed, mark as initializing without relocation source", shardRouting);
+                                removedRelocationSourceOnRelocationTarget = true;
+                                initializingNode.removeRelocationSource();
+                            }
+                            break;
                         }
                     }
                 }
             }
-
-            matchedNode.moveToUnassigned(unassignedInfo);
+            if (removedRelocationSourceOnRelocationTarget) {
+                // do nothing, it was already removed above
+            } else {
+                matchedNode.moveToUnassigned(unassignedInfo);
+            }
         }
         assert matchedNode.isRemoved() : "failedShard " + failedShard + " was matched but wasn't removed";
         return true;

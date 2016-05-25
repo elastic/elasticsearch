@@ -1,0 +1,39 @@
+{
+  "indices.shrink": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-index.html",
+    "methods": ["PUT", "POST"],
+    "url": {
+      "path": "/{index}/_shrink/{target}",
+      "paths": ["/{index}/_shrink/{target}"],
+      "parts": {
+        "index": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The name of the source index to shrink"
+        },
+        "target": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The name of the target index to shrink into"
+        }
+      },
+      "params": {
+        "timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout"
+        },
+        "master_timeout": {
+          "type" : "time",
+          "description" : "Specify timeout for connection to master"
+        },
+        "update_all_types": {
+          "type": "boolean",
+          "description": "Whether to update the mapping for all fields with the same name across all types or not on the target index"
+        }
+      }
+    },
+    "body": {
+      "description" : "The configuration for the target index (`settings` and `mappings`)"
+    }
+  }
+}

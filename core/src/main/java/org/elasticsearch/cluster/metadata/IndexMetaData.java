@@ -383,8 +383,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         return mappings.get(mappingType);
     }
 
-    public static final Setting<String> INDEX_SHRINK_SOURCE_UUID = Setting.simpleString("index.merge.source.uuid");
-    public static final Setting<String> INDEX_SHRINK_SOURCE_NAME = Setting.simpleString("index.merge.source.name", Property.IndexScope);
+    public static final Setting<String> INDEX_SHRINK_SOURCE_UUID = Setting.simpleString("index.shrink.source.uuid");
+    public static final Setting<String> INDEX_SHRINK_SOURCE_NAME = Setting.simpleString("index.shrink.source.name", Property.IndexScope);
 
 
     public Index getMergeSourceIndex() {

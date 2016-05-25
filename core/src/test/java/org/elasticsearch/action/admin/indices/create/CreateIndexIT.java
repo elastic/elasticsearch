@@ -297,18 +297,14 @@ public class CreateIndexIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put("index.routing.allocation.include._name", nodeName)).get();
         ensureGreen();
         // now merge source into a single shard index
-        prepareCreate("target", 0, Settings.builder()
-            .put(indexSettings())
-            .put("number_of_shards", 1)
-            .put("number_of_replicas", 0)
-            .put("index.routing.allocation.include._name", nodeName)
-            .put("index.merge.source.name", "source")).get();
+        assertAcked(client().admin().indices().prepareShrinkIndex("source", "target")
+            .setSettings(Settings.builder().put("number_of_replicas", 0).build()).get());
         ensureGreen();
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
         // let it be allocated anywhere and bump replicas
         client().admin().indices().prepareUpdateSettings("target")
             .setSettings(Settings.builder()
-                .putNull("index.routing.allocation.include._name")
+                .putNull("index.routing.allocation.require._id")
                 .put("index.number_of_replicas", 1)).get();
         ensureGreen();
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
@@ -332,7 +328,7 @@ public class CreateIndexIT extends ESIntegTestCase {
             .put("number_of_replicas", 0)
             .put("index.routing.allocation.include._name", nodeName)
             .put("index.allocation.max_retries", 1) // no retry
-            .put("index.merge.source.name", "source")).get();
+            .put("index.shrink.source.name", "source")).get();
         // wait until it fails
         assertBusy(() -> {
             ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();

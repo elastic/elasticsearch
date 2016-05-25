@@ -19,20 +19,15 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.AllocationCommandRegistry;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Request to submit cluster reroute allocation commands
@@ -109,8 +104,8 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
     /**
      * Set the allocation commands to execute.
      */
-    public ClusterRerouteRequest commands(AllocationCommand... commands) {
-        this.commands = new AllocationCommands(commands);
+    public ClusterRerouteRequest commands(AllocationCommands commands) {
+        this.commands = commands;
         return this;
     }
 
@@ -119,35 +114,6 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
      */
     public AllocationCommands getCommands() {
         return commands;
-    }
-
-    /**
-     * Sets the source for the request.
-     */
-    public ClusterRerouteRequest source(BytesReference source, AllocationCommandRegistry registry, ParseFieldMatcher parseFieldMatcher)
-            throws Exception {
-        try (XContentParser parser = XContentHelper.createParser(source)) {
-            XContentParser.Token token;
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    if ("commands".equals(currentFieldName)) {
-                        this.commands = AllocationCommands.fromXContent(parser, parseFieldMatcher, registry);
-                    } else {
-                        throw new ElasticsearchParseException("failed to parse reroute request, got start array with wrong field name [{}]", currentFieldName);
-                    }
-                } else if (token.isValue()) {
-                    if ("dry_run".equals(currentFieldName) || "dryRun".equals(currentFieldName)) {
-                        dryRun = parser.booleanValue();
-                    } else {
-                        throw new ElasticsearchParseException("failed to parse reroute request, got value with wrong field name [{}]", currentFieldName);
-                    }
-                }
-            }
-        }
-        return this;
     }
 
     @Override
@@ -173,5 +139,26 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         out.writeBoolean(explain);
         out.writeBoolean(retryFailed);
         writeTimeout(out);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        ClusterRerouteRequest other = (ClusterRerouteRequest) obj;
+        // Override equals and hashCode for testing
+        return Objects.equals(commands, other.commands) &&
+                Objects.equals(dryRun, other.dryRun) &&
+                Objects.equals(explain, other.explain) &&
+                Objects.equals(timeout, other.timeout) &&
+                Objects.equals(retryFailed, other.retryFailed) &&
+                Objects.equals(masterNodeTimeout, other.masterNodeTimeout);
+    }
+
+    @Override
+    public int hashCode() {
+        // Override equals and hashCode for testing
+        return Objects.hash(commands, dryRun, explain, timeout, retryFailed, masterNodeTimeout);
     }
 }

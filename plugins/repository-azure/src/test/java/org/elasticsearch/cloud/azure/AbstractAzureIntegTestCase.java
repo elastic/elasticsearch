@@ -17,8 +17,21 @@
  * under the License.
  */
 
-esplugin {
-  description 'The Delete By Query plugin allows to delete documents in Elasticsearch with a single query.'
-  classname 'org.elasticsearch.plugin.deletebyquery.DeleteByQueryPlugin'
-}
+package org.elasticsearch.cloud.azure;
 
+import org.elasticsearch.plugin.repository.azure.AzureRepositoryPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
+
+import java.util.Collection;
+
+/**
+ * Base class for Azure tests.
+ */
+public abstract class AbstractAzureIntegTestCase extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(AzureRepositoryPlugin.class);
+    }
+}

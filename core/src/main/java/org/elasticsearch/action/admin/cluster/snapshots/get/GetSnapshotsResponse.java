@@ -78,7 +78,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startArray("snapshots");
         for (SnapshotInfo snapshotInfo : snapshots) {
-            snapshotInfo.toExternalXContent(builder, params);
+            snapshotInfo.toXContent(builder, params);
         }
         builder.endArray();
         return builder;

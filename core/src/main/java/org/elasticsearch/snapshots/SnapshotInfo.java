@@ -44,6 +44,8 @@ import java.util.List;
 public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent, FromXContentBuilder<SnapshotInfo>, Writeable {
 
     public static final SnapshotInfo PROTO = new SnapshotInfo("", Collections.emptyList(), 0);
+    public static final String CONTEXT_MODE_PARAM = "context_mode";
+    public static final String CONTEXT_MODE_SNAPSHOT = "SNAPSHOT";
     private static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("strictDateOptionalTime");
     private static final String SNAPSHOT = "snapshot";
     private static final String INDICES = "indices";
@@ -294,37 +296,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-        builder.startObject(SNAPSHOT);
-        builder.field(NAME, name);
-        builder.field(VERSION_ID, version.id);
-        builder.startArray(INDICES);
-        for (String index : indices) {
-            builder.value(index);
+        // write snapshot info to repository snapshot blob format
+        if (CONTEXT_MODE_SNAPSHOT.equals(params.param(CONTEXT_MODE_PARAM))) {
+            return toXContentSnapshot(builder, params);
         }
-        builder.endArray();
-        builder.field(STATE, state);
-        if (reason != null) {
-            builder.field(REASON, reason);
-        }
-        builder.field(START_TIME, startTime);
-        builder.field(END_TIME, endTime);
-        builder.field(TOTAL_SHARDS, totalShards);
-        builder.field(SUCCESSFUL_SHARDS, successfulShards);
-        builder.startArray(FAILURES);
-        for (SnapshotShardFailure shardFailure : shardFailures) {
-            builder.startObject();
-            shardFailure.toXContent(builder, params);
-            builder.endObject();
-        }
-        builder.endArray();
-        builder.endObject();
-        return builder;
-    }
 
-    /**
-     * Produces the external X-content that is delivered through the REST layer.
-     */
-    public XContentBuilder toExternalXContent(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
+        // write snapshot info for the API and any other situations
         builder.startObject();
         builder.field(SNAPSHOT, name);
         builder.field(VERSION_ID, version.id);
@@ -359,6 +336,34 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         builder.field(FAILED, failedShards());
         builder.field(SUCCESSFUL, successfulShards);
         builder.endObject();
+        builder.endObject();
+        return builder;
+    }
+
+    private XContentBuilder toXContentSnapshot(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
+        builder.startObject(SNAPSHOT);
+        builder.field(NAME, name);
+        builder.field(VERSION_ID, version.id);
+        builder.startArray(INDICES);
+        for (String index : indices) {
+            builder.value(index);
+        }
+        builder.endArray();
+        builder.field(STATE, state);
+        if (reason != null) {
+            builder.field(REASON, reason);
+        }
+        builder.field(START_TIME, startTime);
+        builder.field(END_TIME, endTime);
+        builder.field(TOTAL_SHARDS, totalShards);
+        builder.field(SUCCESSFUL_SHARDS, successfulShards);
+        builder.startArray(FAILURES);
+        for (SnapshotShardFailure shardFailure : shardFailures) {
+            builder.startObject();
+            shardFailure.toXContent(builder, params);
+            builder.endObject();
+        }
+        builder.endArray();
         builder.endObject();
         return builder;
     }

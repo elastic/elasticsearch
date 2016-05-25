@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BackoffPolicy;
@@ -103,8 +102,13 @@ public class RetryTests extends ESSingleNodeTestCase {
                 matcher().updated(DOC_COUNT));
     }
 
-    private void testCase(String action, AbstractBulkIndexByScrollRequestBuilder<?, ?> request, BulkIndexByScrollResponseMatcher matcher)
-            throws Exception {
+    public void testDeleteByQuery() throws Exception {
+        testCase(DeleteByQueryAction.NAME, DeleteByQueryAction.INSTANCE.newRequestBuilder(client()).source("source"),
+                matcher().deleted(DOC_COUNT));
+    }
+
+    private void testCase(String action, AbstractBulkByScrollRequestBuilder<?, BulkIndexByScrollResponse, ?> request,
+            BulkIndexByScrollResponseMatcher matcher) throws Exception {
         logger.info("Blocking search");
         CyclicBarrier initialSearchBlock = blockExecutor(ThreadPool.Names.SEARCH);
 

@@ -47,11 +47,15 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -62,23 +66,25 @@ public final class RestClient implements Closeable {
 
     private final CloseableHttpClient client;
     private final long maxRetryTimeout;
-    private final AtomicInteger lastConnectionIndex = new AtomicInteger(0);
-    private volatile List<Connection> connections;
+    private final AtomicInteger lastHostIndex = new AtomicInteger(0);
+    private volatile Set<HttpHost> hosts;
+    private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private volatile FailureListener failureListener = new FailureListener();
 
     private RestClient(CloseableHttpClient client, long maxRetryTimeout, HttpHost... hosts) {
         this.client = client;
         this.maxRetryTimeout = maxRetryTimeout;
-        setNodes(hosts);
+        setHosts(hosts);
     }
 
-    public synchronized void setNodes(HttpHost... hosts) {
-        List<Connection> connections = new ArrayList<>(hosts.length);
+    public synchronized void setHosts(HttpHost... hosts) {
+        Set<HttpHost> httpHosts = new HashSet<>();
         for (HttpHost host : hosts) {
             Objects.requireNonNull(host, "host cannot be null");
-            connections.add(new Connection(host));
+            httpHosts.add(host);
         }
-        this.connections = Collections.unmodifiableList(connections);
+        this.hosts = Collections.unmodifiableSet(httpHosts);
+        this.blacklist.clear();
     }
 
     public ElasticsearchResponse performRequest(String method, String endpoint, Map<String, String> params,
@@ -94,9 +100,9 @@ public final class RestClient implements Closeable {
         long retryTimeout = Math.round(this.maxRetryTimeout / (float)100 * 98);
         IOException lastSeenException = null;
         long startTime = System.nanoTime();
-        Iterator<Connection> connectionIterator = nextConnection();
-        while (connectionIterator.hasNext()) {
-            Connection connection = connectionIterator.next();
+        Iterator<HttpHost> hostIterator = nextHost();
+        while (hostIterator.hasNext()) {
+            HttpHost host = hostIterator.next();
 
             if (lastSeenException != null) {
                 long timeElapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
@@ -112,22 +118,22 @@ public final class RestClient implements Closeable {
 
             CloseableHttpResponse response;
             try {
-                response = client.execute(connection.getHost(), request);
+                response = client.execute(host, request);
             } catch(IOException e) {
-                RequestLogger.log(logger, "request failed", request, connection.getHost(), e);
-                onFailure(connection);
+                RequestLogger.log(logger, "request failed", request, host, e);
+                onFailure(host);
                 lastSeenException = addSuppressedException(lastSeenException, e);
                 continue;
             }
             ElasticsearchResponse elasticsearchResponse = new ElasticsearchResponse(request.getRequestLine(),
-                    connection.getHost(), response);
+                    host, response);
             int statusCode = response.getStatusLine().getStatusCode();
             if (statusCode < 300 || (request.getMethod().equals(HttpHead.METHOD_NAME) && statusCode == 404) ) {
-                RequestLogger.log(logger, "request succeeded", request, connection.getHost(), response);
-                onSuccess(connection);
+                RequestLogger.log(logger, "request succeeded", request, host, response);
+                onSuccess(host);
                 return elasticsearchResponse;
             } else {
-                RequestLogger.log(logger, "request failed", request, connection.getHost(), response);
+                RequestLogger.log(logger, "request failed", request, host, response);
                 String responseBody;
                 try {
                     if (elasticsearchResponse.getEntity() == null) {
@@ -143,10 +149,10 @@ public final class RestClient implements Closeable {
                 lastSeenException = addSuppressedException(lastSeenException, elasticsearchResponseException);
                 //clients don't retry on 500 because elasticsearch still misuses it instead of 400 in some places
                 if (statusCode == 502 || statusCode == 503 || statusCode == 504) {
-                    onFailure(connection);
+                    onFailure(host);
                 } else {
                     //don't retry and call onSuccess as the error should be a request problem, the node is alive
-                    onSuccess(connection);
+                    onSuccess(host);
                     break;
                 }
             }
@@ -156,63 +162,78 @@ public final class RestClient implements Closeable {
     }
 
     /**
-     * Returns an iterator of connections that should be used for a request call.
-     * Ideally, the first connection is retrieved from the iterator and used successfully for the request.
-     * Otherwise, after each failure the next connection should be retrieved from the iterator so that the request can be retried.
-     * The maximum total of attempts is equal to the number of connections that are available in the iterator.
-     * The iterator returned will never be empty, rather an {@link IllegalStateException} will be thrown in that case.
-     * In case there are no alive connections available, or dead ones that should be retried, one dead connection
-     * gets resurrected and returned.
+     * Returns an iterator of hosts to be used for a request call.
+     * Ideally, the first host is retrieved from the iterator and used successfully for the request.
+     * Otherwise, after each failure the next host should be retrieved from the iterator so that the request can be retried till
+     * the iterator is exhausted. The maximum total of attempts is equal to the number of hosts that are available in the iterator.
+     * The iterator returned will never be empty, rather an {@link IllegalStateException} in case there are no hosts.
+     * In case there are no healthy hosts available, or dead ones to be be retried, one dead host gets returned.
      */
-    private Iterator<Connection> nextConnection() {
-        if (this.connections.isEmpty()) {
-            throw new IllegalStateException("no connections available");
+    private Iterator<HttpHost> nextHost() {
+        if (this.hosts.isEmpty()) {
+            throw new IllegalStateException("no hosts available");
         }
 
-        List<Connection> rotatedConnections = new ArrayList<>(connections);
-        //TODO is it possible to make this O(1)? (rotate is O(n))
-        Collections.rotate(rotatedConnections, rotatedConnections.size() - lastConnectionIndex.getAndIncrement());
-        Iterator<Connection> connectionIterator = rotatedConnections.iterator();
-        while (connectionIterator.hasNext()) {
-            Connection connection = connectionIterator.next();
-            if (connection.isBlacklisted()) {
-                connectionIterator.remove();
+        Set<HttpHost> filteredHosts = new HashSet<>(hosts);
+        for (Map.Entry<HttpHost, DeadHostState> entry : blacklist.entrySet()) {
+            if (System.nanoTime() - entry.getValue().getDeadUntil() < 0) {
+                filteredHosts.remove(entry.getKey());
             }
         }
-        if (rotatedConnections.isEmpty()) {
-            List<Connection> sortedConnections = new ArrayList<>(connections);
-            Collections.sort(sortedConnections, new Comparator<Connection>() {
+
+        if (filteredHosts.isEmpty()) {
+            //last resort: if there are no good hosts to use, return a single dead one, the one that's closest to being retried
+            List<Map.Entry<HttpHost, DeadHostState>> sortedHosts = new ArrayList<>(blacklist.entrySet());
+            Collections.sort(sortedHosts, new Comparator<Map.Entry<HttpHost, DeadHostState>>() {
                 @Override
-                public int compare(Connection o1, Connection o2) {
-                    return Long.compare(o1.getDeadUntil(), o2.getDeadUntil());
+                public int compare(Map.Entry<HttpHost, DeadHostState> o1, Map.Entry<HttpHost, DeadHostState> o2) {
+                    return Long.compare(o1.getValue().getDeadUntil(), o2.getValue().getDeadUntil());
                 }
             });
-            Connection connection = sortedConnections.get(0);
-            logger.trace("trying to resurrect connection for " + connection.getHost());
-            return Collections.singleton(connection).iterator();
+            HttpHost deadHost = sortedHosts.get(0).getKey();
+            logger.trace("resurrecting host [" + deadHost + "]");
+            return Collections.singleton(deadHost).iterator();
         }
-        return rotatedConnections.iterator();
+
+        List<HttpHost> rotatedHosts = new ArrayList<>(filteredHosts);
+        //TODO is it possible to make this O(1)? (rotate is O(n))
+        Collections.rotate(rotatedHosts, rotatedHosts.size() - lastHostIndex.getAndIncrement());
+        return rotatedHosts.iterator();
     }
 
     /**
      * Called after each successful request call.
-     * Receives as an argument the connection that was used for the successful request.
+     * Receives as an argument the host that was used for the successful request.
      */
-    public void onSuccess(Connection connection) {
-        connection.markAlive();
-        logger.trace("marked connection alive for " + connection.getHost());
+    private void onSuccess(HttpHost host) {
+        DeadHostState removedHost = this.blacklist.remove(host);
+        if (logger.isDebugEnabled() && removedHost != null) {
+            logger.debug("removed host [" + host + "] from blacklist");
+        }
     }
 
     /**
      * Called after each failed attempt.
-     * Receives as an argument the connection that was used for the failed attempt.
+     * Receives as an argument the host that was used for the failed attempt.
      */
-    private void onFailure(Connection connection) throws IOException {
-        connection.markDead();
-        logger.debug("marked connection dead for " + connection.getHost());
-        failureListener.onFailure(connection);
+    private void onFailure(HttpHost host) throws IOException {
+        while(true) {
+            DeadHostState previousDeadHostState = blacklist.putIfAbsent(host, DeadHostState.INITIAL_DEAD_STATE);
+            if (previousDeadHostState == null) {
+                logger.debug("added host [" + host + "] to blacklist");
+                break;
+            }
+            if (blacklist.replace(host, previousDeadHostState, new DeadHostState(previousDeadHostState))) {
+                logger.debug("updated host [" + host + "] already in blacklist");
+                break;
+            }
+        }
+        failureListener.onFailure(host);
     }
 
+    /**
+     * Sets a {@link FailureListener} to be notified each and every time a host fails
+     */
     public synchronized void setFailureListener(FailureListener failureListener) {
         this.failureListener = failureListener;
     }
@@ -397,7 +418,11 @@ public final class RestClient implements Closeable {
      * The default implementation is a no-op.
      */
     public static class FailureListener {
-        public void onFailure(Connection connection) throws IOException {
+
+        /**
+         * Notifies that the host provided as argument has just failed
+         */
+        public void onFailure(HttpHost host) throws IOException {
 
         }
     }

@@ -23,7 +23,6 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpHost;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.elasticsearch.client.Connection;
 import org.elasticsearch.client.RestClient;
 
 import java.io.Closeable;
@@ -57,10 +56,10 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
     }
 
     @Override
-    public void onFailure(Connection connection) throws IOException {
+    public void onFailure(HttpHost host) throws IOException {
         if (sniffOnFailure) {
             //re-sniff immediately but take out the node that failed
-            task.sniffOnFailure(connection.getHost());
+            task.sniffOnFailure(host);
         }
     }
 
@@ -108,7 +107,7 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
                         sniffedNodes.remove(excludeHost);
                     }
                     logger.debug("sniffed nodes: " + sniffedNodes);
-                    this.restClient.setNodes(sniffedNodes.toArray(new HttpHost[sniffedNodes.size()]));
+                    this.restClient.setHosts(sniffedNodes.toArray(new HttpHost[sniffedNodes.size()]));
                 } catch (Throwable t) {
                     logger.error("error while sniffing nodes", t);
                 } finally {

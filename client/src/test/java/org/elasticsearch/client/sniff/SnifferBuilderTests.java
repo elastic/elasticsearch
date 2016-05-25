@@ -107,8 +107,8 @@ public class SnifferBuilderTests extends LuceneTestCase {
             if (random().nextBoolean()) {
                 builder.setSniffOnFailure(random().nextBoolean());
             }
-            try (Sniffer connectionPool = builder.build()) {
-                assertNotNull(connectionPool);
+            try (Sniffer sniffer = builder.build()) {
+                assertNotNull(sniffer);
             }
         }
     }

@@ -31,6 +31,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Variables.Reserved;
 import org.elasticsearch.painless.antlr.PainlessParser.AfterthoughtContext;
+import org.elasticsearch.painless.antlr.PainlessParser.ArgumentContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentsContext;
 import org.elasticsearch.painless.antlr.PainlessParser.AssignmentContext;
 import org.elasticsearch.painless.antlr.PainlessParser.BinaryContext;
@@ -58,6 +59,7 @@ import org.elasticsearch.painless.antlr.PainlessParser.ExprprecContext;
 import org.elasticsearch.painless.antlr.PainlessParser.FalseContext;
 import org.elasticsearch.painless.antlr.PainlessParser.FieldaccessContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ForContext;
+import org.elasticsearch.painless.antlr.PainlessParser.FuncrefContext;
 import org.elasticsearch.painless.antlr.PainlessParser.IfContext;
 import org.elasticsearch.painless.antlr.PainlessParser.InitializerContext;
 import org.elasticsearch.painless.antlr.PainlessParser.NewarrayContext;
@@ -95,6 +97,7 @@ import org.elasticsearch.painless.node.EComp;
 import org.elasticsearch.painless.node.EConditional;
 import org.elasticsearch.painless.node.EDecimal;
 import org.elasticsearch.painless.node.EExplicit;
+import org.elasticsearch.painless.node.EFunctionRef;
 import org.elasticsearch.painless.node.ENull;
 import org.elasticsearch.painless.node.ENumeric;
 import org.elasticsearch.painless.node.EUnary;
@@ -389,6 +392,11 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
     @Override
     public Object visitDecltype(DecltypeContext ctx) {
         throw new IllegalStateException("Error " + location(ctx) + " Illegal tree structure.");
+    }
+
+    @Override
+    public Object visitFuncref(FuncrefContext ctx) {
+        return new EFunctionRef(line(ctx), offset(ctx), location(ctx), ctx.TYPE().getText(), ctx.ID().getText());
     }
 
     @Override
@@ -774,11 +782,8 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
     @Override
     public Object visitNewobject(NewobjectContext ctx) {
         String type = ctx.TYPE().getText();
-        List<AExpression> arguments = new ArrayList<>();
-
-        for (ExpressionContext expression : ctx.arguments().expression()) {
-            arguments.add((AExpression)visitExpression(expression));
-        }
+        @SuppressWarnings("unchecked")
+        List<AExpression> arguments = (List<AExpression>)visit(ctx.arguments());
 
         List<ALink> links = new ArrayList<>();
         links.add(new LNewObj(line(ctx), offset(ctx), location(ctx), type, arguments));
@@ -800,11 +805,8 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
     @Override
     public Object visitCallinvoke(CallinvokeContext ctx) {
         String name = ctx.DOTID().getText();
-        List<AExpression> arguments = new ArrayList<>();
-
-        for (ExpressionContext expression : ctx.arguments().expression()) {
-            arguments.add((AExpression)visitExpression(expression));
-        }
+        @SuppressWarnings("unchecked")
+        List<AExpression> arguments = (List<AExpression>)visit(ctx.arguments());
 
         return new LCall(line(ctx), offset(ctx), location(ctx), name, arguments);
     }
@@ -833,6 +835,23 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
     @Override
     public Object visitArguments(ArgumentsContext ctx) {
-        throw new IllegalStateException("Error " + location(ctx) + " Illegal tree structure.");
+        List<AExpression> arguments = new ArrayList<>();
+
+        for (ArgumentContext argument : ctx.argument()) {
+            arguments.add((AExpression)visit(argument));
+        }
+
+        return arguments;
+    }
+
+    @Override
+    public Object visitArgument(ArgumentContext ctx) {
+        if (ctx.expression() != null) {
+            return visitExpression(ctx.expression());
+        } else if (ctx.funcref() != null) {
+            return visit(ctx.funcref());
+        } else {
+            throw new IllegalStateException("Error " + location(ctx) + " Illegal tree structure.");
+        }
     }
 }

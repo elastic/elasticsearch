@@ -39,7 +39,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -52,7 +51,6 @@ import java.util.zip.ZipInputStream;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.cli.ExitCodes;
@@ -65,7 +63,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
-import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 
 /**
@@ -100,7 +97,7 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
  */
 class InstallPluginCommand extends SettingCommand {
 
-    private static final String PROPERTY_SUPPORT_STAGING_URLS = "es.plugins.staging";
+    private static final String PROPERTY_STAGING_ID = "es.plugins.staging";
 
     /** The builtin modules, which are plugins, but cannot be installed or removed. */
     static final Set<String> MODULES;
@@ -211,12 +208,13 @@ class InstallPluginCommand extends SettingCommand {
         if (OFFICIAL_PLUGINS.contains(pluginId)) {
             final String version = Version.CURRENT.toString();
             final String url;
-            if (System.getProperty(PROPERTY_SUPPORT_STAGING_URLS, "false").equals("true")) {
+            final String stagingHash = System.getProperty(PROPERTY_STAGING_ID);
+            if (stagingHash != null) {
                 url = String.format(
                         Locale.ROOT,
                         "https://download.elastic.co/elasticsearch/staging/%1$s-%2$s/org/elasticsearch/plugin/%3$s/%1$s/%3$s-%1$s.zip",
                         version,
-                        Build.CURRENT.shortHash(),
+                        stagingHash,
                         pluginId);
             } else {
                 url = String.format(

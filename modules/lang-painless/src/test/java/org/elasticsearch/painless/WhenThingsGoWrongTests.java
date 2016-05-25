@@ -77,7 +77,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
 
     public void testBogusParameter() {
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
-            exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"));
+            exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"), null);
         });
         assertTrue(expected.getMessage().contains("Unrecognized compile-time parameter"));
     }

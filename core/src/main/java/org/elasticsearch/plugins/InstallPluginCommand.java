@@ -135,7 +135,6 @@ class InstallPluginCommand extends SettingCommand {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-
     }
 
     private final OptionSpec<Void> batchOption;

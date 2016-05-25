@@ -557,6 +557,12 @@ public class InstallPluginCommandTests extends ESTestCase {
         terminal.getOutput();
     }
 
+    public void testOfficialPluginsIncludesXpack() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        new InstallPluginCommand().main(new String[] { "--help" }, terminal);
+        assertTrue(terminal.getOutput(), terminal.getOutput().contains("x-pack"));
+    }
+
     // TODO: test batch flag?
     // TODO: test checksum (need maven/official below)
     // TODO: test maven, official, and staging install...need tests with fixtures...

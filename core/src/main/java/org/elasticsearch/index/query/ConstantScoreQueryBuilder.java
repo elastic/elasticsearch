@@ -146,10 +146,6 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Query innerFilter = filterBuilder.toFilter(context);
-        if (innerFilter == null ) {
-            // return null so that parent queries (e.g. bool) also ignore this
-            return null;
-        }
         return new ConstantScoreQuery(innerFilter);
     }
 

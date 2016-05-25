@@ -168,8 +168,8 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
             }
         }
 
-        if (!queriesFound) {
-            throw new ParsingException(parser.getTokenLocation(), "[dis_max] requires 'queries' field");
+        if (!queriesFound || queries.isEmpty()) {
+            throw new ParsingException(parser.getTokenLocation(), "[dis_max] requires 'queries' field with at least one clause");
         }
 
         DisMaxQueryBuilder disMaxQuery = new DisMaxQueryBuilder();
@@ -186,10 +186,6 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     protected Query doToQuery(QueryShardContext context) throws IOException {
         // return null if there are no queries at all
         Collection<Query> luceneQueries = toQueries(queries, context);
-        if (luceneQueries.isEmpty()) {
-            return null;
-        }
-
         return new DisjunctionMaxQuery(luceneQueries, tieBreaker);
     }
 

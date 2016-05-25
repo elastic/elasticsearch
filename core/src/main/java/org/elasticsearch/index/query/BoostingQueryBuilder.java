@@ -208,12 +208,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Query positive = positiveQuery.toQuery(context);
         Query negative = negativeQuery.toQuery(context);
-        // make upstream queries ignore this query by returning `null`
-        // if either inner query builder returns null
-        if (positive == null || negative == null) {
-            return null;
-        }
-
         return new BoostingQuery(positive, negative, negativeBoost);
     }
 

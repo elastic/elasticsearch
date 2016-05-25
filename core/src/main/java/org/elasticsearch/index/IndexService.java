@@ -50,7 +50,6 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -604,11 +603,10 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             byte[] filterSource = alias.filter().uncompressed();
             try (XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource)) {
                 Optional<QueryBuilder> innerQueryBuilder = shardContext.newParseContext(parser).parseInnerQueryBuilder();
-                ParsedQuery parsedFilter = null;
                 if (innerQueryBuilder.isPresent()) {
-                    parsedFilter = shardContext.toFilter(innerQueryBuilder.get());
+                    return shardContext.toFilter(innerQueryBuilder.get()).query();
                 }
-                return parsedFilter == null ? null : parsedFilter.query();
+                return null;
             }
         } catch (IOException ex) {
             throw new AliasFilterParsingException(shardContext.index(), alias.getAlias(), "Invalid alias filter", ex);

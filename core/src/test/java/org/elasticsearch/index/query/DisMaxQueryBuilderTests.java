@@ -25,6 +25,7 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -89,24 +90,16 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     }
 
     /**
-     * test `null`return value for missing inner queries
-     */
-    public void testNoInnerQueries() throws IOException {
-        DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder();
-        assertNull(disMaxBuilder.toQuery(createShardContext()));
-    }
-
-    /**
      * Test with empty inner query body, this should be ignored upstream.
      * To test this, we use inner {@link ConstantScoreQueryBuilder} with empty inner filter.
      */
-    public void testInnerQueryEmptyIgnored() throws IOException {
+    public void testInnerQueryEmptyException() throws IOException {
         String queryString = "{ \"" + DisMaxQueryBuilder.NAME + "\" :"
                 + "             { \"queries\" : [ {\"" + ConstantScoreQueryBuilder.NAME + "\" : { \"filter\" : { } } } ] "
                 + "             }"
                 + "           }";
-        DisMaxQueryBuilder builder = (DisMaxQueryBuilder) parseQuery(queryString, ParseFieldMatcher.EMPTY);
-        assertTrue("the inner query has an empty body, so it should be ignored", builder.innerQueries().isEmpty());
+        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(queryString, ParseFieldMatcher.EMPTY));
+        assertEquals("[dis_max] requires 'queries' field with at least one clause", ex.getMessage());
     }
 
     public void testIllegalArguments() {

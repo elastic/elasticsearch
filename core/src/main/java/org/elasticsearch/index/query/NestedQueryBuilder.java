@@ -255,9 +255,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         try {
             context.nestedScope().nextLevel(nestedObjectMapper);
             innerQuery = this.query.toQuery(context);
-            if (innerQuery == null) {
-                return null;
-            }
         } finally {
             context.nestedScope().previousLevel();
         }

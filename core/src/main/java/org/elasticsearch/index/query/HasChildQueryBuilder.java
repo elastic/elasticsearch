@@ -330,9 +330,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             context.setTypes(previousTypes);
         }
 
-        if (innerQuery == null) {
-            return null;
-        }
         DocumentMapper childDocMapper = context.getMapperService().documentMapper(type);
         if (childDocMapper == null) {
             if (ignoreUnmapped) {

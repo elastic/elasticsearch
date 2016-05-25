@@ -441,9 +441,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
                     luceneQuery = query.toFilter(context);
                     break;
             }
-            if (luceneQuery != null) {
-                booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
-            }
+            booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
         }
     }
 

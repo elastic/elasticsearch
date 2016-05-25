@@ -193,7 +193,34 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         }
 
         // sometimes index while relocating
-        if (randomBoolean()) {
+
+        /*
+        There is a rarely occurring bug which causes documents to be lost as follows:
+
+        We fail to send index requests to a replica when primary and replica relocate shortly after each other and a replica request is in
+        flight for a long time.
+        One shard with primary and one replica.
+        We index a document while the primary is relocating. This actually works ok on the old primary. The request to the new replica is
+        sent as a replication request.
+        We send two replication requests (to relocation target of primary and replica) but they are in flight for a while (threadpool full,
+        network slow etc).
+        In the meanwhile:
+        - relocation of primary is done
+        - replica is relocated after primary relocation is done
+        The two replication requests (relocation target of primary and replica) reach their respective targets *after* the relocation of
+        the primary is done and the relocation of the replica is done.
+        This means:
+        - the node that had the replica will not index the document because it does not have the replica anymore
+        - the node that has the new primary will index the document but not replicate it because it comes in as a replica request
+        - the new replica will not get the the document via recovery (translog etc) because recovery is done already
+
+        --> replica does not get the document at all
+
+        This should be fixed by https://github.com/elastic/elasticsearch/pull/15900 but the fix will not be backported so we should not
+        test this scenario anymore either on 2.x branches. Therfore the indexing while relocation happens is commented out.
+
+
+         if (randomBoolean()) {
             logger.info(" --> indexing [{}] more docs", numDocs);
             for (int i = 0; i < numDocs; i++) {
                 String id = randomRealisticUnicodeOfLength(10) + String.valueOf(numDocs + i);
@@ -202,7 +229,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
             }
             indexRandom(true, docs);
             numDocs *= 2;
-        }
+        }*/
 
         logger.info(" --> waiting for relocation to complete", numDocs);
         ensureYellow("test");// move all shards to the new node (it waits on relocation)

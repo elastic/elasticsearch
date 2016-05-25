@@ -554,7 +554,6 @@ public class InstallPluginCommandTests extends ESTestCase {
                 line = reader.readLine();
             }
         }
-        terminal.getOutput();
     }
 
     public void testOfficialPluginsIncludesXpack() throws Exception {

@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.internal.SearchContext;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -106,7 +107,7 @@ public class DerivativeParser implements PipelineAggregator.Parser {
         if (units != null) {
             DateTimeUnit dateTimeUnit = DateHistogramParser.DATE_FIELD_UNITS.get(units);
             if (dateTimeUnit != null) {
-                xAxisUnits = dateTimeUnit.field().getDurationField().getUnitMillis();
+                xAxisUnits = dateTimeUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
             } else {
                 TimeValue timeValue = TimeValue.parseTimeValue(units, null, getClass().getSimpleName() + ".unit");
                 if (timeValue != null) {

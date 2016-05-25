@@ -21,6 +21,7 @@ package org.elasticsearch.common.rounding;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.joda.Joda;
 import org.joda.time.DateTimeField;
+import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
 
 /**
@@ -28,38 +29,76 @@ import org.joda.time.chrono.ISOChronology;
  */
 public enum DateTimeUnit {
 
-    WEEK_OF_WEEKYEAR(   (byte) 1, ISOChronology.getInstanceUTC().weekOfWeekyear()),
-    YEAR_OF_CENTURY(    (byte) 2, ISOChronology.getInstanceUTC().yearOfCentury()),
-    QUARTER(            (byte) 3, Joda.QuarterOfYear.getField(ISOChronology.getInstanceUTC())),
-    MONTH_OF_YEAR(      (byte) 4, ISOChronology.getInstanceUTC().monthOfYear()),
-    DAY_OF_MONTH(       (byte) 5, ISOChronology.getInstanceUTC().dayOfMonth()),
-    HOUR_OF_DAY(        (byte) 6, ISOChronology.getInstanceUTC().hourOfDay()),
-    MINUTES_OF_HOUR(    (byte) 7, ISOChronology.getInstanceUTC().minuteOfHour()),
-    SECOND_OF_MINUTE(   (byte) 8, ISOChronology.getInstanceUTC().secondOfMinute());
+    WEEK_OF_WEEKYEAR((byte) 1, new FieldFunction() {
+        @Override
+        public DateTimeField apply(DateTimeZone tz) {
+            return ISOChronology.getInstance(tz).weekOfWeekyear();
+        }
+    }),
+    YEAR_OF_CENTURY((byte) 2, new FieldFunction() {
+        @Override
+        public DateTimeField apply(DateTimeZone tz) {
+            return ISOChronology.getInstance(tz).yearOfCentury();
+        }
+    }),
+    QUARTER((byte) 3, new FieldFunction() {
+        @Override
+        public DateTimeField apply(DateTimeZone tz) {
+            return Joda.QuarterOfYear.getField(ISOChronology.getInstance(tz));
+        }
+    }),
+    MONTH_OF_YEAR((byte) 4, new FieldFunction() {
+        @Override
+        public DateTimeField apply(DateTimeZone tz) {
+            return ISOChronology.getInstance(tz).monthOfYear();
+        }
+    }),
+    DAY_OF_MONTH((byte) 5, new FieldFunction() {
+        @Override
+        public DateTimeField apply(DateTimeZone tz) {
+            return ISOChronology.getInstance(tz).dayOfMonth();
+        }
+    }),
+    HOUR_OF_DAY((byte) 6, new FieldFunction() {
+        @Override
+        public DateTimeField apply(DateTimeZone tz) {
+            return ISOChronology.getInstance(tz).hourOfDay();
+        }
+    }),
+    MINUTES_OF_HOUR((byte) 7, new FieldFunction() {
+        @Override
+        public DateTimeField apply(DateTimeZone tz) {
+            return ISOChronology.getInstance(tz).minuteOfHour();
+        }
+    }),
+    SECOND_OF_MINUTE((byte) 8, new FieldFunction() {
+        @Override
+        public DateTimeField apply(DateTimeZone tz) {
+            return ISOChronology.getInstance(tz).secondOfMinute();
+        }
+    });
+
+    private static abstract class FieldFunction {
+        abstract DateTimeField apply(DateTimeZone timezone);
+    }
 
     private final byte id;
-    private final DateTimeField field;
+    private final FieldFunction fieldFunction;
 
-    private DateTimeUnit(byte id, DateTimeField field) {
+    private DateTimeUnit(byte id, FieldFunction fieldFunction) {
         this.id = id;
-        this.field = field;
+        this.fieldFunction = fieldFunction;
     }
 
     public byte id() {
         return id;
     }
 
-    public DateTimeField field() {
-        return field;
-    }
-
     /**
-     * @param unit the {@link DateTimeUnit} to check
-     * @return true if the unit is a day or longer
+     * @return the {@link DateTimeField} for the provided {@link DateTimeZone} for this time unit
      */
-    public static boolean isDayOrLonger(DateTimeUnit unit) {
-        return (unit == DateTimeUnit.HOUR_OF_DAY || unit == DateTimeUnit.MINUTES_OF_HOUR
-                || unit == DateTimeUnit.SECOND_OF_MINUTE) == false;
+    public DateTimeField field(DateTimeZone tz) {
+        return fieldFunction.apply(tz);
     }
 
     public static DateTimeUnit resolve(byte id) {

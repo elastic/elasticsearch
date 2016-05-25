@@ -20,14 +20,14 @@ package org.elasticsearch.common.rounding;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.common.rounding.DateTimeUnit.WEEK_OF_WEEKYEAR;
-import static org.elasticsearch.common.rounding.DateTimeUnit.YEAR_OF_CENTURY;
-import static org.elasticsearch.common.rounding.DateTimeUnit.QUARTER;
-import static org.elasticsearch.common.rounding.DateTimeUnit.MONTH_OF_YEAR;
 import static org.elasticsearch.common.rounding.DateTimeUnit.DAY_OF_MONTH;
 import static org.elasticsearch.common.rounding.DateTimeUnit.HOUR_OF_DAY;
 import static org.elasticsearch.common.rounding.DateTimeUnit.MINUTES_OF_HOUR;
+import static org.elasticsearch.common.rounding.DateTimeUnit.MONTH_OF_YEAR;
+import static org.elasticsearch.common.rounding.DateTimeUnit.QUARTER;
 import static org.elasticsearch.common.rounding.DateTimeUnit.SECOND_OF_MINUTE;
+import static org.elasticsearch.common.rounding.DateTimeUnit.WEEK_OF_WEEKYEAR;
+import static org.elasticsearch.common.rounding.DateTimeUnit.YEAR_OF_CENTURY;
 
 public class DateTimeUnitTests extends ESTestCase {
 
@@ -59,17 +59,4 @@ public class DateTimeUnitTests extends ESTestCase {
         assertEquals(8, SECOND_OF_MINUTE.id());
         assertEquals(SECOND_OF_MINUTE, DateTimeUnit.resolve((byte) 8));
     }
-
-    public void testIsDayOrLonger() {
-        for (DateTimeUnit unit : DateTimeUnit.values()) {
-            if (DateTimeUnit.isDayOrLonger(unit)) {
-                assertTrue(unit == DAY_OF_MONTH ||
-                        unit == MONTH_OF_YEAR ||
-                        unit == QUARTER ||
-                        unit == YEAR_OF_CENTURY ||
-                        unit == WEEK_OF_WEEKYEAR);
-            }
-        }
-    }
-
 }

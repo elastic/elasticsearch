@@ -26,6 +26,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
+
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
@@ -121,7 +122,6 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -1854,23 +1854,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public static String randomNumericFieldDataFormat() {
         return randomFrom(Arrays.asList("array", "doc_values"));
-    }
-
-    /**
-     * Returns a random JODA Time Zone based on Java Time Zones
-     */
-    public static DateTimeZone randomDateTimeZone() {
-        DateTimeZone timeZone;
-
-        // It sounds like some Java Time Zones are unknown by JODA. For example: Asia/Riyadh88
-        // We need to fallback in that case to a known time zone
-        try {
-            timeZone = DateTimeZone.forTimeZone(RandomizedTest.randomTimeZone());
-        } catch (IllegalArgumentException e) {
-            timeZone = DateTimeZone.forOffsetHours(randomIntBetween(-12, 12));
-        }
-
-        return timeZone;
     }
 
     /**

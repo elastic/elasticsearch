@@ -30,6 +30,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
 import com.google.common.base.Predicate;
+
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -56,14 +57,23 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.*;
+import org.joda.time.DateTimeZone;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -395,6 +405,15 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static String randomPositiveTimeValue() {
         return randomTimeValue(1, 1000);
+    }
+
+    /**
+     * generate a random DateTimeZone from the ones available in joda library
+     */
+    public static DateTimeZone randomDateTimeZone() {
+        List<String> ids = new ArrayList<>(DateTimeZone.getAvailableIDs());
+        Collections.sort(ids);
+        return DateTimeZone.forID(randomFrom(ids));
     }
 
     /**

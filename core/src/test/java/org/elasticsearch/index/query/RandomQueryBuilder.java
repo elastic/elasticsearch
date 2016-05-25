@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.util.Random;
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Constructor;
 import org.elasticsearch.painless.Definition.Struct;
@@ -39,17 +38,17 @@ public final class LNewObj extends ALink {
 
     Constructor constructor;
 
-    public LNewObj(final int line, final String location, final String type, final List<AExpression> arguments) {
-        super(line, location, -1);
+    public LNewObj(int line, int offset, String location, String type, List<AExpression> arguments) {
+        super(line, offset, location, -1);
 
         this.type = type;
         this.arguments = arguments;
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(Variables variables) {
         if (before != null) {
-            throw new IllegalStateException(error("Illegal tree structure"));
+            throw new IllegalArgumentException(error("Illegal new call with a target already defined."));
         } else if (store) {
             throw new IllegalArgumentException(error("Cannot assign a value to a new call."));
         }
@@ -57,16 +56,16 @@ public final class LNewObj extends ALink {
         final Type type;
 
         try {
-            type = definition.getType(this.type);
-        } catch (final IllegalArgumentException exception) {
+            type = Definition.getType(this.type);
+        } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
         }
 
-        final Struct struct = type.struct;
+        Struct struct = type.struct;
         constructor = struct.constructors.get(new Definition.MethodKey("new", arguments.size()));
 
         if (constructor != null) {
-            final Type[] types = new Type[constructor.arguments.size()];
+            Type[] types = new Type[constructor.arguments.size()];
             constructor.arguments.toArray(types);
 
             if (constructor.arguments.size() != arguments.size()) {
@@ -75,11 +74,12 @@ public final class LNewObj extends ALink {
             }
 
             for (int argument = 0; argument < arguments.size(); ++argument) {
-                final AExpression expression = arguments.get(argument);
+                AExpression expression = arguments.get(argument);
 
                 expression.expected = types[argument];
-                expression.analyze(settings, definition, variables);
-                arguments.set(argument, expression.cast(settings, definition, variables));
+                expression.internal = true;
+                expression.analyze(variables);
+                arguments.set(argument, expression.cast(variables));
             }
 
             statement = true;
@@ -92,27 +92,27 @@ public final class LNewObj extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        adapter.newInstance(after.type);
+    void load(MethodWriter writer) {
+        writer.newInstance(after.type);
 
         if (load) {
-            adapter.dup();
+            writer.dup();
         }
 
-        for (final AExpression argument : arguments) {
-            argument.write(settings, definition, adapter);
+        for (AExpression argument : arguments) {
+            argument.write(writer);
         }
 
-        adapter.invokeConstructor(constructor.owner.type, constructor.method);
+        writer.invokeConstructor(constructor.owner.type, constructor.method);
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void store(MethodWriter writer) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

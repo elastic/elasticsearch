@@ -14,13 +14,20 @@ by the query.
 
 [source,js]
 --------------------------------------------------
-"function_score": {
-    "query": {},
-    "boost": "boost for the whole query",
-    "FUNCTION": {}, <1>
-    "boost_mode":"(multiply|replace|...)"
+GET /_search
+{
+    "query": {
+        "function_score": {
+            "query": {},
+            "boost": "5",
+            "random_score": {}, <1>
+            "boost_mode":"multiply"
+        }
+    }
 }
 --------------------------------------------------
+// CONSOLE
+
 <1> See <<score-functions>> for a list of supported functions.
 
 Furthermore, several functions can be combined. In this case one can
@@ -29,30 +36,35 @@ given filtering query
 
 [source,js]
 --------------------------------------------------
-"function_score": {
-    "query": {},
-    "boost": "boost for the whole query",
-    "functions": [
-        {
-            "filter": {},
-            "FUNCTION": {}, <1>
-            "weight": number
-        },
-        {
-            "FUNCTION": {} <1>
-        },
-        {
-            "filter": {},
-            "weight": number
+GET /_search
+{
+    "query": {
+        "function_score": {
+          "query": {},
+          "boost": "5", <1>
+          "functions": [
+              {
+                  "filter": {},
+                  "random_score": {}, <2>
+                  "weight": 23
+              },
+              {
+                  "filter": {},
+                  "weight": 42 
+              }
+          ],
+          "max_boost": 42,
+          "score_mode": "max",
+          "boost_mode": "multiply",
+          "min_score" : 42
         }
-    ],
-    "max_boost": number,
-    "score_mode": "(multiply|max|...)",
-    "boost_mode": "(multiply|replace|...)",
-    "min_score" : number
+    }
 }
 --------------------------------------------------
-<1> See <<score-functions>> for a list of supported functions.
+// CONSOLE
+
+<1> Boost for the whole query.
+<2> See <<score-functions>> for a list of supported functions.
 
 NOTE: The scores produced by the filtering query of each function do not matter.
 
@@ -459,36 +471,36 @@ the request would look like this:
 
 [source,js]
 --------------------------------------------------
-GET _search
+GET /_search
 {
-  "query": {
-    "function_score": {
-      "functions": [
-        {
-          "gauss": {
-            "price": {
-              "origin": "0",
-              "scale": "20"
+    "query": {
+        "function_score": {
+          "functions": [
+            {
+              "gauss": {
+                "price": {
+                  "origin": "0",
+                  "scale": "20"
+                }
+              }
+            },
+            {
+              "gauss": {
+                "location": {
+                  "origin": "11, 12",
+                  "scale": "2km"
+                }
+              }
             }
-          }
-        },
-        {
-          "gauss": {
-            "location": {
-              "origin": "11, 12",
-              "scale": "2km"
+          ],
+          "query": {
+            "match": {
+              "properties": "balcony"
             }
-          }
+          },
+          "score_mode": "multiply"
         }
-      ],
-      "query": {
-        "match": {
-          "properties": "balcony"
-        }
-      },
-      "score_mode": "multiply"
     }
-  }
 }
 --------------------------------------------------
 // CONSOLE

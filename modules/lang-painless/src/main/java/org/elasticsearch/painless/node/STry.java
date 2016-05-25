@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
@@ -33,24 +31,28 @@ import java.util.List;
  */
 public final class STry extends AStatement {
 
-    final AStatement block;
-    final List<STrap> traps;
+    final SBlock block;
+    final List<SCatch> catches;
 
-    public STry(final int line, final String location, final AStatement block, final List<STrap> traps) {
-        super(line, location);
+    public STry(int line, int offset, String location, SBlock block, List<SCatch> traps) {
+        super(line, offset, location);
 
         this.block = block;
-        this.traps = Collections.unmodifiableList(traps);
+        this.catches = Collections.unmodifiableList(traps);
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Variables variables) {
+        if (block == null) {
+            throw new IllegalArgumentException(error("Extraneous try statement."));
+        }
+
         block.lastSource = lastSource;
         block.inLoop = inLoop;
         block.lastLoop = lastLoop;
 
         variables.incrementScope();
-        block.analyze(settings, definition, variables);
+        block.analyze(variables);
         variables.decrementScope();
 
         methodEscape = block.methodEscape;
@@ -61,55 +63,56 @@ public final class STry extends AStatement {
 
         int statementCount = 0;
 
-        for (final STrap trap : traps) {
-            trap.lastSource = lastSource;
-            trap.inLoop = inLoop;
-            trap.lastLoop = lastLoop;
+        for (SCatch catc : catches) {
+            catc.lastSource = lastSource;
+            catc.inLoop = inLoop;
+            catc.lastLoop = lastLoop;
 
             variables.incrementScope();
-            trap.analyze(settings, definition, variables);
+            catc.analyze(variables);
             variables.decrementScope();
 
-            methodEscape &= trap.methodEscape;
-            loopEscape &= trap.loopEscape;
-            allEscape &= trap.allEscape;
-            anyContinue |= trap.anyContinue;
-            anyBreak |= trap.anyBreak;
+            methodEscape &= catc.methodEscape;
+            loopEscape &= catc.loopEscape;
+            allEscape &= catc.allEscape;
+            anyContinue |= catc.anyContinue;
+            anyBreak |= catc.anyBreak;
 
-            statementCount = Math.max(statementCount, trap.statementCount);
+            statementCount = Math.max(statementCount, catc.statementCount);
         }
 
         this.statementCount = block.statementCount + statementCount;
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        final Label begin = new Label();
-        final Label end = new Label();
-        final Label exception = new Label();
+    void write(MethodWriter writer) {
+        writeDebugInfo(writer);
 
-        adapter.mark(begin);
+        Label begin = new Label();
+        Label end = new Label();
+        Label exception = new Label();
+
+        writer.mark(begin);
 
         block.continu = continu;
         block.brake = brake;
-        block.write(settings, definition, adapter);
+        block.write(writer);
 
         if (!block.allEscape) {
-            adapter.goTo(exception);
+            writer.goTo(exception);
         }
 
-        adapter.mark(end);
+        writer.mark(end);
 
-        for (final STrap trap : traps) {
-            trap.begin = begin;
-            trap.end = end;
-            trap.exception = traps.size() > 1 ? exception : null;
-            trap.write(settings, definition, adapter);
+        for (SCatch catc : catches) {
+            catc.begin = begin;
+            catc.end = end;
+            catc.exception = catches.size() > 1 ? exception : null;
+            catc.write(writer);
         }
 
-        if (!block.allEscape || traps.size() > 1) {
-            adapter.mark(exception);
+        if (!block.allEscape || catches.size() > 1) {
+            writer.mark(exception);
         }
     }
 }

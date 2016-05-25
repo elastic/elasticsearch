@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
@@ -29,39 +28,39 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class LString extends ALink {
 
-    public LString(final int line, final String location, final String string) {
-        super(line, location, -1);
+    public LString(int line, int offset, String location, String string) {
+        super(line, offset, location, -1);
 
         this.string = string;
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(Variables variables) {
         if (before != null) {
-            throw new IllegalStateException("Illegal tree structure.");
+            throw new IllegalArgumentException(error("Illegal String constant [" + string + "]."));
         } else if (store) {
             throw new IllegalArgumentException(error("Cannot write to read-only String constant [" + string + "]."));
         } else if (!load) {
             throw new IllegalArgumentException(error("Must read String constant [" + string + "]."));
         }
 
-        after = definition.stringType;
+        after = Definition.STRING_TYPE;
 
         return this;
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        adapter.push(string);
+    void load(MethodWriter writer) {
+        writer.push(string);
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void store(MethodWriter writer) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

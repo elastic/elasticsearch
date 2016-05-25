@@ -95,6 +95,11 @@ cloud:
 
 Cloud GCE plugin has been renamed to {plugins}/discovery-gce.html[Discovery GCE plugin].
 
+==== Delete-By-Query plugin removed
+
+The Delete-By-Query plugin has been removed in favor of a new <<docs-delete-by-query,Delete By Query API>>
+implementation in core. It now supports throttling, retries and cancellation but no longer supports timeouts.
+Instead use the <<docs-delete-by-query-cancel-task-api,cancel API>> to cancel deletes that run too long.
 
 ==== Mapper Attachments plugin deprecated
 

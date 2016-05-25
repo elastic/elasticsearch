@@ -22,7 +22,6 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
@@ -39,7 +38,7 @@ public class ScriptSettingsTests extends ESTestCase {
 
     public void testDefaultLanguageIsGroovy() {
         ScriptEngineRegistry scriptEngineRegistry =
-                new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.NAME, ScriptMode.ON)));
+                new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.NAME, true)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         assertThat(scriptSettings.getDefaultScriptLanguageSetting().get(Settings.EMPTY), equalTo("groovy"));
@@ -47,7 +46,7 @@ public class ScriptSettingsTests extends ESTestCase {
 
     public void testCustomDefaultLanguage() {
         ScriptEngineRegistry scriptEngineRegistry =
-            new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.NAME, ScriptMode.ON)));
+            new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.NAME, true)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         String defaultLanguage = CustomScriptEngineService.NAME;
@@ -57,7 +56,7 @@ public class ScriptSettingsTests extends ESTestCase {
 
     public void testInvalidDefaultLanguage() {
         ScriptEngineRegistry scriptEngineRegistry =
-            new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.NAME, ScriptMode.ON)));
+            new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.NAME, true)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         Settings settings = Settings.builder().put("script.default_lang", "C++").build();

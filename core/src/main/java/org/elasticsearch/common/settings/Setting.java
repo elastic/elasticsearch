@@ -537,6 +537,10 @@ public class Setting<T> extends ToXContentToBytes {
         return new Setting<>(key, fallbackSetting, Booleans::parseBooleanExact, properties);
     }
 
+    public static Setting<Boolean> boolSetting(String key, Function<Settings, String> defaultValueFn, Property... properties) {
+        return new Setting<>(key, defaultValueFn, Booleans::parseBooleanExact, properties);
+    }
+
     public static Setting<ByteSizeValue> byteSizeSetting(String key, String percentage, Property... properties) {
         return new Setting<>(key, (s) -> percentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
     }

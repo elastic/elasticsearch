@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
@@ -35,52 +34,52 @@ public final class LBrace extends ALink {
 
     AExpression index;
 
-    public LBrace(final int line, final String location, final AExpression index) {
-        super(line, location, 2);
+    public LBrace(int line, int offset, String location, AExpression index) {
+        super(line, offset, location, 2);
 
         this.index = index;
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(Variables variables) {
         if (before == null) {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw new IllegalArgumentException(error("Illegal array access made without target."));
         }
 
         final Sort sort = before.sort;
 
         if (sort == Sort.ARRAY) {
-            index.expected = definition.intType;
-            index.analyze(settings, definition, variables);
-            index = index.cast(settings, definition, variables);
+            index.expected = Definition.INT_TYPE;
+            index.analyze(variables);
+            index = index.cast(variables);
 
-            after = definition.getType(before.struct, before.dimensions - 1);
+            after = Definition.getType(before.struct, before.dimensions - 1);
 
             return this;
         } else if (sort == Sort.DEF) {
-            return new LDefArray(line, location, index).copy(this).analyze(settings, definition, variables);
+            return new LDefArray(line, offset, location, index).copy(this).analyze(variables);
         } else if (Map.class.isAssignableFrom(before.clazz)) {
-            return new LMapShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
+            return new LMapShortcut(line, offset, location, index).copy(this).analyze(variables);
         } else if (List.class.isAssignableFrom(before.clazz)) {
-            return new LListShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
+            return new LListShortcut(line, offset, location, index).copy(this).analyze(variables);
         }
 
         throw new IllegalArgumentException(error("Illegal array access on type [" + before.name + "]."));
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        index.write(settings, definition, adapter);
+    void write(MethodWriter writer) {
+        index.write(writer);
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        adapter.arrayLoad(after.type);
+    void load(MethodWriter writer) {
+        writer.arrayLoad(after.type);
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        adapter.arrayStore(after.type);
+    void store(MethodWriter writer) {
+        writer.arrayStore(after.type);
     }
 
 }

@@ -9,17 +9,21 @@ in the same manner as the `has_child` query.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "has_parent" : {
-        "parent_type" : "blog",
-        "query" : {
-            "term" : {
-                "tag" : "something"
-            }
+    "query": {
+        "has_parent" : {
+            "parent_type" : "blog",
+                "query" : {
+                    "term" : {
+                        "tag" : "something"
+                    }
+                }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ==== Scoring capabilities
@@ -34,18 +38,22 @@ matching parent document. The score mode can be specified with the
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "has_parent" : {
-        "parent_type" : "blog",
-        "score" : true,
-        "query" : {
-            "term" : {
-                "tag" : "something"
-            }
+    "query": {
+        "has_parent" : {
+            "parent_type" : "blog",
+                "score" : true,
+                "query" : {
+                    "term" : {
+                        "tag" : "something"
+                    }
+                }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ==== Ignore Unmapped

@@ -30,13 +30,13 @@ public class ScriptEngineRegistry {
 
     private final Map<Class<? extends ScriptEngineService>, String> registeredScriptEngineServices;
     private final Map<String, Class<? extends ScriptEngineService>> registeredLanguages;
-    private final Map<String, ScriptMode> defaultInlineScriptModes;
+    private final Map<String, Boolean> defaultInlineScriptEnableds;
 
     public ScriptEngineRegistry(Iterable<ScriptEngineRegistration> registrations) {
         Objects.requireNonNull(registrations);
         Map<Class<? extends ScriptEngineService>, String> registeredScriptEngineServices = new HashMap<>();
         Map<String, Class<? extends ScriptEngineService>> registeredLanguages = new HashMap<>();
-        Map<String, ScriptMode> inlineScriptModes = new HashMap<>();
+        Map<String, Boolean> inlineScriptEnableds = new HashMap<>();
         for (ScriptEngineRegistration registration : registrations) {
             String oldLanguage = registeredScriptEngineServices.putIfAbsent(registration.getScriptEngineService(),
                     registration.getScriptEngineLanguage());
@@ -51,12 +51,12 @@ public class ScriptEngineRegistry {
                 throw new IllegalArgumentException("scripting language [" + language + "] already registered for script engine service [" +
                                 scriptEngineServiceClazz.getCanonicalName() + "]");
             }
-            inlineScriptModes.put(language, registration.getDefaultInlineScriptMode());
+            inlineScriptEnableds.put(language, registration.getDefaultInlineScriptEnabled());
         }
 
         this.registeredScriptEngineServices = Collections.unmodifiableMap(registeredScriptEngineServices);
         this.registeredLanguages = Collections.unmodifiableMap(registeredLanguages);
-        this.defaultInlineScriptModes = Collections.unmodifiableMap(inlineScriptModes);
+        this.defaultInlineScriptEnableds = Collections.unmodifiableMap(inlineScriptEnableds);
     }
 
     Iterable<Class<? extends ScriptEngineService>> getRegisteredScriptEngineServices() {
@@ -72,27 +72,27 @@ public class ScriptEngineRegistry {
         return registeredLanguages;
     }
 
-    Map<String, ScriptMode> getDefaultInlineScriptModes() {
-        return this.defaultInlineScriptModes;
+    Map<String, Boolean> getDefaultInlineScriptEnableds() {
+        return this.defaultInlineScriptEnableds;
     }
 
     public static class ScriptEngineRegistration {
         private final Class<? extends ScriptEngineService> scriptEngineService;
         private final String scriptEngineLanguage;
-        private final ScriptMode defaultInlineScriptMode;
+        private final boolean defaultInlineScriptEnabled;
 
         /**
          * Register a script engine service with the default of inline scripts disabled
          */
         public ScriptEngineRegistration(Class<? extends ScriptEngineService> scriptEngineService, String scriptEngineLanguage) {
-            this(scriptEngineService, scriptEngineLanguage, ScriptMode.OFF);
+            this(scriptEngineService, scriptEngineLanguage, false);
         }
 
         /**
          * Register a script engine service with the given default mode for inline scripts
          */
         public ScriptEngineRegistration(Class<? extends ScriptEngineService> scriptEngineService, String scriptEngineLanguage,
-                                        ScriptMode defaultInlineScriptMode) {
+                                        boolean defaultInlineScriptEnabled) {
             Objects.requireNonNull(scriptEngineService);
             if (Strings.hasText(scriptEngineLanguage) == false) {
                 throw new IllegalArgumentException("languages for script engine service [" +
@@ -100,7 +100,7 @@ public class ScriptEngineRegistry {
             }
             this.scriptEngineService = scriptEngineService;
             this.scriptEngineLanguage = scriptEngineLanguage;
-            this.defaultInlineScriptMode = defaultInlineScriptMode;
+            this.defaultInlineScriptEnabled = defaultInlineScriptEnabled;
         }
 
         Class<? extends ScriptEngineService> getScriptEngineService() {
@@ -111,8 +111,8 @@ public class ScriptEngineRegistry {
             return scriptEngineLanguage;
         }
 
-        ScriptMode getDefaultInlineScriptMode() {
-            return defaultInlineScriptMode;
+        boolean getDefaultInlineScriptEnabled() {
+            return defaultInlineScriptEnabled;
         }
     }
 

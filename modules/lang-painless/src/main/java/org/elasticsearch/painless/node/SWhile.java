@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
@@ -30,23 +29,25 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class SWhile extends AStatement {
 
+    final int maxLoopCounter;
     AExpression condition;
-    final AStatement block;
+    final SBlock block;
 
-    public SWhile(final int line, final String location, final AExpression condition, final AStatement block) {
-        super(line, location);
+    public SWhile(int line, int offset, String location, int maxLoopCounter, AExpression condition, SBlock block) {
+        super(line, offset, location);
 
+        this.maxLoopCounter = maxLoopCounter;
         this.condition = condition;
         this.block = block;
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Variables variables) {
         variables.incrementScope();
 
-        condition.expected = definition.booleanType;
-        condition.analyze(settings, definition, variables);
-        condition = condition.cast(settings, definition, variables);
+        condition.expected = Definition.BOOLEAN_TYPE;
+        condition.analyze(variables);
+        condition = condition.cast(variables);
 
         boolean continuous = false;
 
@@ -62,16 +63,14 @@ public final class SWhile extends AStatement {
             }
         }
 
-        int count = 1;
-
         if (block != null) {
             block.beginLoop = true;
             block.inLoop = true;
 
-            block.analyze(settings, definition, variables);
+            block.analyze(variables);
 
             if (block.loopEscape && !block.anyContinue) {
-                throw new IllegalArgumentException(error("Extranous while loop."));
+                throw new IllegalArgumentException(error("Extraneous while loop."));
             }
 
             if (continuous && !block.anyBreak) {
@@ -79,12 +78,12 @@ public final class SWhile extends AStatement {
                 allEscape = true;
             }
 
-            block.statementCount = Math.max(count, block.statementCount);
+            block.statementCount = Math.max(1, block.statementCount);
         }
 
         statementCount = 1;
 
-        if (settings.getMaxLoopCounter() > 0) {
+        if (maxLoopCounter > 0) {
             loopCounterSlot = variables.getVariable(location, "#loop").slot;
         }
 
@@ -92,30 +91,31 @@ public final class SWhile extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        final Label begin = new Label();
-        final Label end = new Label();
+    void write(MethodWriter writer) {
+        writeDebugInfo(writer);
 
-        adapter.mark(begin);
+        Label begin = new Label();
+        Label end = new Label();
+
+        writer.mark(begin);
 
         condition.fals = end;
-        condition.write(settings, definition, adapter);
+        condition.write(writer);
 
         if (block != null) {
-            adapter.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount));
+            writer.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount));
 
             block.continu = begin;
             block.brake = end;
-            block.write(settings, definition, adapter);
+            block.write(writer);
         } else {
-            adapter.writeLoopCounter(loopCounterSlot, 1);
+            writer.writeLoopCounter(loopCounterSlot, 1);
         }
 
         if (block == null || !block.allEscape) {
-            adapter.goTo(begin);
+            writer.goTo(begin);
         }
 
-        adapter.mark(end);
+        writer.mark(end);
     }
 }

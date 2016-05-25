@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
@@ -36,8 +34,8 @@ final class ECast extends AExpression {
 
     Cast cast = null;
 
-    ECast(final int line, final String location, final AExpression child, final Cast cast) {
-        super(line, location);
+    ECast(int line, int offset, String location, AExpression child, Cast cast) {
+        super(line, offset, location);
 
         this.type = null;
         this.child = child;
@@ -46,14 +44,14 @@ final class ECast extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Variables variables) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        child.write(settings, definition, adapter);
-        adapter.writeCast(cast);
-        adapter.writeBranch(tru, fals);
+    void write(MethodWriter writer) {
+        child.write(writer);
+        writer.writeCast(cast);
+        writer.writeBranch(tru, fals);
     }
 }

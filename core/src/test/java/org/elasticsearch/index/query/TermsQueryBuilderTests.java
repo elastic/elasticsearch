@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.indices.TermsLookup;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -45,7 +46,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;

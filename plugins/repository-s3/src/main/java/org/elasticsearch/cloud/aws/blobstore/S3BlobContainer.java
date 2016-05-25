@@ -54,11 +54,7 @@ public class S3BlobContainer extends AbstractBlobContainer {
     public S3BlobContainer(BlobPath path, S3BlobStore blobStore) {
         super(path);
         this.blobStore = blobStore;
-        String keyPath = path.buildAsString("/");
-        if (!keyPath.isEmpty()) {
-            keyPath = keyPath + "/";
-        }
-        this.keyPath = keyPath;
+        this.keyPath = path.buildAsString();
     }
 
     @Override

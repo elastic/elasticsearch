@@ -50,7 +50,7 @@ The `phonetic` token filter takes the following settings:
     token. Accepts `true` (default) and `false`.  Not supported by
     `beidermorse` encoding.
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT phonetic_sample
 {

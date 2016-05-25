@@ -208,10 +208,6 @@ fi
     install_and_check_plugin discovery gce google-api-client-*.jar
 }
 
-@test "[$GROUP] install delete by query plugin" {
-    install_and_check_plugin - delete-by-query
-}
-
 @test "[$GROUP] install discovery-azure plugin" {
     install_and_check_plugin discovery azure azure-core-*.jar
 }
@@ -221,10 +217,10 @@ fi
 }
 
 @test "[$GROUP] install ingest-attachment plugin" {
-    # we specify the version on the poi-3.13.jar so that the test does
+    # we specify the version on the poi-3.15-beta1.jar so that the test does
     # not spuriously pass if the jar is missing but the other poi jars
     # are present
-    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-3.13.jar
+    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-3.15-beta1.jar poi-ooxml-3.15-beta1.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
 }
 
 @test "[$GROUP] install ingest-geoip plugin" {
@@ -345,10 +341,6 @@ fi
 
 @test "[$GROUP] remove gce plugin" {
     remove_plugin discovery-gce
-}
-
-@test "[$GROUP] remove delete by query plugin" {
-    remove_plugin delete-by-query
 }
 
 @test "[$GROUP] remove discovery-azure plugin" {

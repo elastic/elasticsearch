@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Variables;
@@ -35,8 +34,8 @@ public final class EBool extends AExpression {
     AExpression left;
     AExpression right;
 
-    public EBool(final int line, final String location, final Operation operation, final AExpression left, final AExpression right) {
-        super(line, location);
+    public EBool(int line, int offset, String location, Operation operation, AExpression left, AExpression right) {
+        super(line, offset, location);
 
         this.operation = operation;
         this.left = left;
@@ -44,14 +43,14 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.expected = definition.booleanType;
-        left.analyze(settings, definition, variables);
-        left = left.cast(settings, definition, variables);
+    void analyze(Variables variables) {
+        left.expected = Definition.BOOLEAN_TYPE;
+        left.analyze(variables);
+        left = left.cast(variables);
 
-        right.expected = definition.booleanType;
-        right.analyze(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        right.expected = Definition.BOOLEAN_TYPE;
+        right.analyze(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
             if (operation == Operation.AND) {
@@ -63,74 +62,74 @@ public final class EBool extends AExpression {
             }
         }
 
-        actual = definition.booleanType;
+        actual = Definition.BOOLEAN_TYPE;
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter writer) {
         if (tru != null || fals != null) {
             if (operation == Operation.AND) {
-                final Label localfals = fals == null ? new Label() : fals;
+                Label localfals = fals == null ? new Label() : fals;
 
                 left.fals = localfals;
                 right.tru = tru;
                 right.fals = fals;
 
-                left.write(settings, definition, adapter);
-                right.write(settings, definition, adapter);
+                left.write(writer);
+                right.write(writer);
 
                 if (fals == null) {
-                    adapter.mark(localfals);
+                    writer.mark(localfals);
                 }
             } else if (operation == Operation.OR) {
-                final Label localtru = tru == null ? new Label() : tru;
+                Label localtru = tru == null ? new Label() : tru;
 
                 left.tru = localtru;
                 right.tru = tru;
                 right.fals = fals;
 
-                left.write(settings, definition, adapter);
-                right.write(settings, definition, adapter);
+                left.write(writer);
+                right.write(writer);
 
                 if (tru == null) {
-                    adapter.mark(localtru);
+                    writer.mark(localtru);
                 }
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
         } else {
             if (operation == Operation.AND) {
-                final Label localfals = new Label();
-                final Label end = new Label();
+                Label localfals = new Label();
+                Label end = new Label();
 
                 left.fals = localfals;
                 right.fals = localfals;
 
-                left.write(settings, definition, adapter);
-                right.write(settings, definition, adapter);
+                left.write(writer);
+                right.write(writer);
 
-                adapter.push(true);
-                adapter.goTo(end);
-                adapter.mark(localfals);
-                adapter.push(false);
-                adapter.mark(end);
+                writer.push(true);
+                writer.goTo(end);
+                writer.mark(localfals);
+                writer.push(false);
+                writer.mark(end);
             } else if (operation == Operation.OR) {
-                final Label localtru = new Label();
-                final Label localfals = new Label();
-                final Label end = new Label();
+                Label localtru = new Label();
+                Label localfals = new Label();
+                Label end = new Label();
 
                 left.tru = localtru;
                 right.fals = localfals;
 
-                left.write(settings, definition, adapter);
-                right.write(settings, definition, adapter);
+                left.write(writer);
+                right.write(writer);
 
-                adapter.mark(localtru);
-                adapter.push(true);
-                adapter.goTo(end);
-                adapter.mark(localfals);
-                adapter.push(false);
-                adapter.mark(end);
+                writer.mark(localtru);
+                writer.push(true);
+                writer.goTo(end);
+                writer.mark(localfals);
+                writer.push(false);
+                writer.mark(end);
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }

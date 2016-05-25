@@ -25,6 +25,27 @@ POST _analyze
 ---------------------------
 // CONSOLE
 
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone.",
+      "start_offset": 0,
+      "end_offset": 56,
+      "type": "word",
+      "position": 0
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
 The above sentence would produce the following single term:
 
 [source,text]

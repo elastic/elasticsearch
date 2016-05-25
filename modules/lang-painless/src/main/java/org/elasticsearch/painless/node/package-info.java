@@ -22,6 +22,7 @@
  * <p>
  * The following are the types of nodes:
  * A* (abstract) - These are the abstract nodes that are the superclasses for the other types.
+ * I* (interface) -- Thse are marker interfaces to denote a property of the node.
  * S* (statement) - These are nodes that represent a statement in Painless.  These are the highest level nodes.
  * E* (expression) - These are nodess that represent an expression in Painless.  These are the middle level nodes.
  * L* (link) - These are nodes that respresent a piece of a variable/method chain.  The are the lowest level nodes.
@@ -58,21 +59,23 @@
  * {@link org.elasticsearch.painless.node.LNewArray} - Represents an array instantiation.
  * {@link org.elasticsearch.painless.node.LNewObj} - Respresents and object instantiation.
  * {@link org.elasticsearch.painless.node.LShortcut} - Represents a field load/store shortcut.  (Internal only.)
+ * {@link org.elasticsearch.painless.node.LStatic} - Represents a static type target.
  * {@link org.elasticsearch.painless.node.LString} - Represents a string constant.
  * {@link org.elasticsearch.painless.node.LVariable} - Represents a variable load/store.
  * {@link org.elasticsearch.painless.node.SBlock} - Represents a set of statements as a branch of control-flow.
  * {@link org.elasticsearch.painless.node.SBreak} - Represents a break statement.
+ * {@link org.elasticsearch.painless.node.SCatch} - Represents a catch block as part of a try-catch block.
  * {@link org.elasticsearch.painless.node.SContinue} - Represents a continue statement.
  * {@link org.elasticsearch.painless.node.SDeclaration} - Represents a single variable declaration.
  * {@link org.elasticsearch.painless.node.SDeclBlock} - Represents a series of declarations.
  * {@link org.elasticsearch.painless.node.SDo} - Represents a do-while loop.
  * {@link org.elasticsearch.painless.node.SExpression} - Represents the top-level node for an expression as a statement.
  * {@link org.elasticsearch.painless.node.SFor} - Represents a for loop.
+ * {@link org.elasticsearch.painless.node.SIf} - Represents an if block.
  * {@link org.elasticsearch.painless.node.SIfElse} - Represents an if/else block.
  * {@link org.elasticsearch.painless.node.SReturn} - Represents a return statement.
  * {@link org.elasticsearch.painless.node.SSource} - The root of all Painless trees.  Contains a series of statements.
  * {@link org.elasticsearch.painless.node.SThrow} - Represents a throw statement.
- * {@link org.elasticsearch.painless.node.STrap} - Represents a catch block as part of a try-catch block.
  * {@link org.elasticsearch.painless.node.STry} - Represents the try block as part of a try-catch block.
  * {@link org.elasticsearch.painless.node.SWhile} - Represents a while loop.
  * <p>

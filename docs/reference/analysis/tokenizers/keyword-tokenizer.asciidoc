@@ -1,15 +1,60 @@
 [[analysis-keyword-tokenizer]]
 === Keyword Tokenizer
 
-A tokenizer of type `keyword` that emits the entire input as a single
-output.
+The `keyword` tokenizer  is a ``noop'' tokenizer that accepts whatever text it
+is given and outputs the exact same text as a single term.  It can be combined
+with token filters to normalise output, e.g. lower-casing email addresses.
 
-The following are settings that can be set for a `keyword` tokenizer
-type:
+[float]
+=== Example output
 
-[cols="<,<",options="header",]
-|=======================================================
-|Setting |Description
-|`buffer_size` |The term buffer size. Defaults to `256`.
-|=======================================================
+[source,js]
+---------------------------
+POST _analyze
+{
+  "tokenizer": "keyword",
+  "text": "New York"
+}
+---------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "New York",
+      "start_offset": 0,
+      "end_offset": 8,
+      "type": "word",
+      "position": 0
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above sentence would produce the following term:
+
+[source,text]
+---------------------------
+[ New York ]
+---------------------------
+
+[float]
+=== Configuration
+
+The `keyword` tokenizer accepts the following parameters:
+
+[horizontal]
+`buffer_size`::
+
+    The number of characters read into the term buffer in a single pass.
+    Defaults to `256`.  The term buffer will grow by this size until all the
+    text has been consumed.  It is advisable not to change this setting.
 

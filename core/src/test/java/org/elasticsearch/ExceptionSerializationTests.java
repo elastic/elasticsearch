@@ -743,7 +743,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(105, org.elasticsearch.cluster.routing.RoutingException.class);
         ids.put(106, org.elasticsearch.index.shard.IndexShardRecoveryException.class);
         ids.put(107, org.elasticsearch.repositories.RepositoryMissingException.class);
-        ids.put(108, org.elasticsearch.index.percolator.PercolatorException.class);
+        ids.put(108, null);
         ids.put(109, org.elasticsearch.index.engine.DocumentSourceMissingException.class);
         ids.put(110, org.elasticsearch.index.engine.FlushNotAllowedEngineException.class);
         ids.put(111, org.elasticsearch.common.settings.NoClassSettingsException.class);

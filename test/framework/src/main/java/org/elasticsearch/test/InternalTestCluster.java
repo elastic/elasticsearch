@@ -80,7 +80,6 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
@@ -291,11 +290,10 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
         builder.put(TransportSettings.PORT.getKey(), TRANSPORT_BASE_PORT + "-" + (TRANSPORT_BASE_PORT + PORTS_PER_CLUSTER));
         builder.put("http.port", HTTP_BASE_PORT + "-" + (HTTP_BASE_PORT + PORTS_PER_CLUSTER));
-        builder.put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true);
         builder.put(Node.NODE_MODE_SETTING.getKey(), nodeMode);
         builder.put("http.pipelining", enableHttpPipelining);
-        if (Strings.hasLength(System.getProperty("es.logger.level"))) {
-            builder.put("logger.level", System.getProperty("es.logger.level"));
+        if (Strings.hasLength(System.getProperty("tests.es.logger.level"))) {
+            builder.put("logger.level", System.getProperty("tests.es.logger.level"));
         }
         if (Strings.hasLength(System.getProperty("es.logger.prefix"))) {
             builder.put("logger.prefix", System.getProperty("es.logger.prefix"));
@@ -319,14 +317,14 @@ public final class InternalTestCluster extends TestCluster {
 
     public static String configuredNodeMode() {
         Builder builder = Settings.builder();
-        if (Strings.isEmpty(System.getProperty("es.node.mode")) && Strings.isEmpty(System.getProperty("es.node.local"))) {
+        if (Strings.isEmpty(System.getProperty("tests.es.node.mode")) && Strings.isEmpty(System.getProperty("tests.node.local"))) {
             return "local"; // default if nothing is specified
         }
-        if (Strings.hasLength(System.getProperty("es.node.mode"))) {
-            builder.put(Node.NODE_MODE_SETTING.getKey(), System.getProperty("es.node.mode"));
+        if (Strings.hasLength(System.getProperty("tests.es.node.mode"))) {
+            builder.put(Node.NODE_MODE_SETTING.getKey(), System.getProperty("tests.es.node.mode"));
         }
-        if (Strings.hasLength(System.getProperty("es.node.local"))) {
-            builder.put(Node.NODE_LOCAL_SETTING.getKey(), System.getProperty("es.node.local"));
+        if (Strings.hasLength(System.getProperty("tests.es.node.local"))) {
+            builder.put(Node.NODE_LOCAL_SETTING.getKey(), System.getProperty("tests.es.node.local"));
         }
         if (DiscoveryNode.isLocalNode(builder.build())) {
             return "local";
@@ -882,7 +880,6 @@ public final class InternalTestCluster extends TestCluster {
                     .put(Node.NODE_MODE_SETTING.getKey(), Node.NODE_MODE_SETTING.exists(nodeSettings) ? Node.NODE_MODE_SETTING.get(nodeSettings) : nodeMode)
                     .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
                     .put("logger.level", nodeSettings.get("logger.level", "INFO"))
-                    .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
                     .put(settings);
 
             if (Node.NODE_LOCAL_SETTING.exists(nodeSettings)) {

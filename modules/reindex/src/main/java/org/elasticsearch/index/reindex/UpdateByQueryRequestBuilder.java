@@ -48,4 +48,9 @@ public class UpdateByQueryRequestBuilder extends
         request.setAbortOnVersionConflict(abortOnVersionConflict);
         return this;
     }
+
+    public UpdateByQueryRequestBuilder setPipeline(String pipeline) {
+        request.setPipeline(pipeline);
+        return this;
+    }
 }

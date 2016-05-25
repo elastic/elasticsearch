@@ -39,6 +39,11 @@ command corresponds to the old `allocate` command  with `allow_primary` set to
 false. The new `allocate_empty_primary` command corresponds to the old
 `allocate` command with `allow_primary` set to true.
 
+==== Custom Reroute Commands
+
+Elasticsearch no longer supports plugins registering custom allocation
+commands. It was unused and hopefully unneeded.
+
 ==== `index.shared_filesystem.recover_on_any_node` changes
 
 The behavior of `index.shared_filesystem.recover_on_any_node: true` has been

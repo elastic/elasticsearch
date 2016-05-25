@@ -87,6 +87,10 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
          * calls buildTest to actually build the test.
          */
         void handleSnippet(Snippet snippet) {
+            if (snippet.language == 'json') {
+                throw new InvalidUserDataException(
+                        "$snippet: Use `js` instead of `json`.")
+            }
             if (snippet.testSetup) {
                 setup(snippet)
                 return

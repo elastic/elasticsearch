@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
@@ -30,32 +29,38 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class SDo extends AStatement {
 
-    final AStatement block;
+    final int maxLoopCounter;
+    final SBlock block;
     AExpression condition;
 
-    public SDo(final int line, final String location, final AStatement block, final AExpression condition) {
-        super(line, location);
+    public SDo(int line, int offset, String location, int maxLoopCounter, SBlock block, AExpression condition) {
+        super(line, offset, location);
 
         this.condition = condition;
         this.block = block;
+        this.maxLoopCounter = maxLoopCounter;
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Variables variables) {
         variables.incrementScope();
+
+        if (block == null) {
+            throw new IllegalArgumentException(error("Extraneous do while loop."));
+        }
 
         block.beginLoop = true;
         block.inLoop = true;
 
-        block.analyze(settings, definition, variables);
+        block.analyze(variables);
 
         if (block.loopEscape && !block.anyContinue) {
             throw new IllegalArgumentException(error("Extraneous do while loop."));
         }
 
-        condition.expected = definition.booleanType;
-        condition.analyze(settings, definition, variables);
-        condition = condition.cast(settings, definition, variables);
+        condition.expected = Definition.BOOLEAN_TYPE;
+        condition.analyze(variables);
+        condition = condition.cast(variables);
 
         if (condition.constant != null) {
             final boolean continuous = (boolean)condition.constant;
@@ -72,7 +77,7 @@ public final class SDo extends AStatement {
 
         statementCount = 1;
 
-        if (settings.getMaxLoopCounter() > 0) {
+        if (maxLoopCounter > 0) {
             loopCounterSlot = variables.getVariable(location, "#loop").slot;
         }
 
@@ -80,26 +85,27 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        final Label start = new Label();
-        final Label begin = new Label();
-        final Label end = new Label();
+    void write(MethodWriter writer) {
+        writeDebugInfo(writer);
 
-        adapter.mark(start);
+        Label start = new Label();
+        Label begin = new Label();
+        Label end = new Label();
+
+        writer.mark(start);
 
         block.continu = begin;
         block.brake = end;
-        block.write(settings, definition, adapter);
+        block.write(writer);
 
-        adapter.mark(begin);
+        writer.mark(begin);
 
         condition.fals = end;
-        condition.write(settings, definition, adapter);
+        condition.write(writer);
 
-        adapter.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount));
+        writer.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount));
 
-        adapter.goTo(start);
-        adapter.mark(end);
+        writer.goTo(start);
+        writer.mark(end);
     }
 }

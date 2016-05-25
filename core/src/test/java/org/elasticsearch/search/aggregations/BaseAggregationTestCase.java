@@ -44,7 +44,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.AbstractQueryTestCase;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -55,7 +55,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
@@ -76,8 +75,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class BaseAggregationTestCase<AB extends AggregationBuilder<AB>> extends ESTestCase {
@@ -149,7 +148,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregationBuilder<AB>>
                         new ScriptEngineRegistry(Collections
                                 .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class,
                                                                                                  MockScriptEngine.NAME,
-                                                                                                 ScriptMode.ON)));
+                                                                                                 true)));
                 bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
                 ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
                 bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);

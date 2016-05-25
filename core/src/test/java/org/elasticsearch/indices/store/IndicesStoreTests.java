@@ -50,7 +50,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.Version.CURRENT;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 
 /**

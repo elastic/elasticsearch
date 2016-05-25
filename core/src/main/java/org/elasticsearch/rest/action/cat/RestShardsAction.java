@@ -139,8 +139,6 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("merges.total_size", "alias:mts,mergesTotalSize;default:false;text-align:right;desc:size merged");
         table.addCell("merges.total_time", "alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges");
 
-        table.addCell("percolate.queries", "alias:pq,percolateQueries;default:false;text-align:right;desc:number of registered percolation queries");
-
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
 
@@ -277,8 +275,6 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(commonStats == null ? null : commonStats.getMerge().getTotalNumDocs());
             table.addCell(commonStats == null ? null : commonStats.getMerge().getTotalSize());
             table.addCell(commonStats == null ? null : commonStats.getMerge().getTotalTime());
-
-            table.addCell(commonStats == null ? null : commonStats.getPercolatorCache().getNumQueries());
 
             table.addCell(commonStats == null ? null : commonStats.getRefresh().getTotal());
             table.addCell(commonStats == null ? null : commonStats.getRefresh().getTotalTime());

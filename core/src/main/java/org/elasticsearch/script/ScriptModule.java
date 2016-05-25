@@ -24,7 +24,6 @@ import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.script.ScriptMode;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -42,7 +41,7 @@ public class ScriptModule extends AbstractModule {
 
     {
         scriptEngineRegistrations.add(new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class,
-                        NativeScriptEngineService.NAME, ScriptMode.ON));
+                        NativeScriptEngineService.NAME, true));
     }
 
     private final Map<String, Class<? extends NativeScriptFactory>> scripts = new HashMap<>();

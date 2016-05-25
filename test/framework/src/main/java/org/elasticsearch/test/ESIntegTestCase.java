@@ -19,7 +19,6 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
@@ -124,7 +123,6 @@ import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -1827,23 +1825,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Returns a random JODA Time Zone based on Java Time Zones
-     */
-    public static DateTimeZone randomDateTimeZone() {
-        DateTimeZone timeZone;
-
-        // It sounds like some Java Time Zones are unknown by JODA. For example: Asia/Riyadh88
-        // We need to fallback in that case to a known time zone
-        try {
-            timeZone = DateTimeZone.forTimeZone(RandomizedTest.randomTimeZone());
-        } catch (IllegalArgumentException e) {
-            timeZone = DateTimeZone.forOffsetHours(randomIntBetween(-12, 12));
-        }
-
-        return timeZone;
-    }
-
-    /**
      * Returns path to a random directory that can be used to create a temporary file system repo
      */
     public Path randomRepoPath() {
@@ -1968,7 +1949,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assert INSTANCE == null;
         if (isSuiteScopedTest(targetClass)) {
             // note we need to do this this way to make sure this is reproducible
-            INSTANCE = (ESIntegTestCase) targetClass.newInstance();
+            INSTANCE = (ESIntegTestCase) targetClass.getConstructor().newInstance();
             boolean success = false;
             try {
                 INSTANCE.printTestMessage("setup");

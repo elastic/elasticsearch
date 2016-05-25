@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.AnalyzerCaster;
@@ -35,43 +34,43 @@ public final class LCast extends ALink {
 
     Cast cast = null;
 
-    public LCast(final int line, final String location, final String type) {
-        super(line, location, -1);
+    public LCast(int line, int offset, String location, String type) {
+        super(line, offset, location, -1);
 
         this.type = type;
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(Variables variables) {
         if (before == null) {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw new IllegalStateException(error("Illegal cast without a target."));
         } else if (store) {
             throw new IllegalArgumentException(error("Cannot assign a value to a cast."));
         }
 
         try {
-            after = definition.getType(type);
-        } catch (final IllegalArgumentException exception) {
+            after = Definition.getType(type);
+        } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException(error("Not a type [" + type + "]."));
         }
 
-        cast = AnalyzerCaster.getLegalCast(definition, location, before, after, true);
+        cast = AnalyzerCaster.getLegalCast(location, before, after, true, false);
 
         return cast != null ? this : null;
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        adapter.writeCast(cast);
+    void write(MethodWriter writer) {
+        writer.writeCast(cast);
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void load(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void store(MethodWriter writer) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

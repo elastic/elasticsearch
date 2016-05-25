@@ -28,6 +28,7 @@ import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.spatial4j.shape.Point;
 

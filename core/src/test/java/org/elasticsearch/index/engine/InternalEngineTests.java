@@ -54,7 +54,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -111,6 +110,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -829,7 +829,7 @@ public class InternalEngineTests extends ESTestCase {
             engine.index(new Engine.Index(newUid("1"), doc));
             Engine.CommitId commitID = engine.flush();
             assertThat(commitID, equalTo(new Engine.CommitId(store.readLastCommittedSegmentsInfo().getId())));
-            byte[] wrongBytes = Base64.decode(commitID.toString());
+            byte[] wrongBytes = Base64.getDecoder().decode(commitID.toString());
             wrongBytes[0] = (byte) ~wrongBytes[0];
             Engine.CommitId wrongId = new Engine.CommitId(wrongBytes);
             assertEquals("should fail to sync flush with wrong id (but no docs)", engine.syncFlush(syncId + "1", wrongId),

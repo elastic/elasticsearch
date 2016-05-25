@@ -81,18 +81,13 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
         return snapshotInfo.status();
     }
 
-    static final class Fields {
-        static final String SNAPSHOT = "snapshot";
-        static final String ACCEPTED = "accepted";
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (snapshotInfo != null) {
-            builder.field(Fields.SNAPSHOT);
-            snapshotInfo.toExternalXContent(builder, params);
+            builder.field("snapshot");
+            snapshotInfo.toXContent(builder, params);
         } else {
-            builder.field(Fields.ACCEPTED, true);
+            builder.field("accepted", true);
         }
         return builder;
     }

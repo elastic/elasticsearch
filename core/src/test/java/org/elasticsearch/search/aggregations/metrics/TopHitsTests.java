@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.AbstractQueryTestCase;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;

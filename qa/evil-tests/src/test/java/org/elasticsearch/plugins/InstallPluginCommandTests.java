@@ -36,8 +36,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
 import org.junit.After;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringReader;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -530,6 +532,29 @@ public class InstallPluginCommandTests extends ESTestCase {
         String pluginZip = zip.toUri().toURL().toString();
         IOException e = expectThrows(IOException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("resolving outside of plugin directory"));
+    }
+
+    public void testOfficialPluginsHelpSorted() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        new InstallPluginCommand().main(new String[] { "--help" }, terminal);
+        try (BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()))) {
+            String line = reader.readLine();
+
+            // first find the beginning of our list of official plugins
+            while (line.endsWith("may be installed by name:") == false) {
+                line = reader.readLine();
+            }
+
+            // now check each line compares greater than the last, until we reach an empty line
+            String prev = reader.readLine();
+            line = reader.readLine();
+            while (line != null && line.trim().isEmpty() == false) {
+                assertTrue(prev + " < " + line, prev.compareTo(line) < 0);
+                prev = line;
+                line = reader.readLine();
+            }
+        }
+        terminal.getOutput();
     }
 
     // TODO: test batch flag?

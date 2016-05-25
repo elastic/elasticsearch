@@ -33,6 +33,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
 
 import java.util.ArrayList;
@@ -53,6 +54,7 @@ public class NodeJoinController extends AbstractComponent {
 
     final ClusterService clusterService;
     final RoutingService routingService;
+    final ElectMasterService electMaster;
     final DiscoverySettings discoverySettings;
     final AtomicBoolean accumulateJoins = new AtomicBoolean(false);
 
@@ -62,10 +64,11 @@ public class NodeJoinController extends AbstractComponent {
 
     protected final Map<DiscoveryNode, List<MembershipAction.JoinCallback>> pendingJoinRequests = new HashMap<>();
 
-    public NodeJoinController(ClusterService clusterService, RoutingService routingService, DiscoverySettings discoverySettings, Settings settings) {
+    public NodeJoinController(ClusterService clusterService, RoutingService routingService, ElectMasterService electMaster, DiscoverySettings discoverySettings, Settings settings) {
         super(settings);
         this.clusterService = clusterService;
         this.routingService = routingService;
+        this.electMaster = electMaster;
         this.discoverySettings = discoverySettings;
     }
 
@@ -449,6 +452,8 @@ public class NodeJoinController extends AbstractComponent {
                     logger.error("unexpected error during [{}]", e, source);
                 }
             }
+
+            NodeJoinController.this.electMaster.logMinimumMasterNodesWarningIfNecessary(oldState, newState);
         }
     }
 }

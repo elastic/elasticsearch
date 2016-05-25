@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.shield.ssl.ClientSSLService;
-import org.elasticsearch.shield.ssl.SSLConfiguration.Global;
 import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.filter.IPFilter;
@@ -48,7 +47,7 @@ import static org.elasticsearch.shield.transport.SSLExceptionHelper.isNotSslReco
 public class ShieldNettyTransport extends NettyTransport {
 
     public static final String CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED.name();
-    public static final boolean SSL_DEFAULT = true;
+    public static final boolean SSL_DEFAULT = false;
 
     public static final Setting<Boolean> DEPRECATED_HOSTNAME_VERIFICATION_SETTING =
             Setting.boolSetting(setting("ssl.hostname_verification"), true, Property.NodeScope, Property.Filtered, Property.Deprecated);
@@ -79,7 +78,6 @@ public class ShieldNettyTransport extends NettyTransport {
 
     private final ServerSSLService serverSslService;
     private final ClientSSLService clientSSLService;
-    private final Global globalSSLConfiguration;
     private final @Nullable IPFilter authenticator;
     private final boolean ssl;
 
@@ -87,21 +85,19 @@ public class ShieldNettyTransport extends NettyTransport {
     public ShieldNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                                 Version version, @Nullable IPFilter authenticator, @Nullable ServerSSLService serverSSLService,
                                 ClientSSLService clientSSLService, NamedWriteableRegistry namedWriteableRegistry,
-                                CircuitBreakerService circuitBreakerService, Global globalSSLConfiguration) {
+                                CircuitBreakerService circuitBreakerService) {
         super(settings, threadPool, networkService, bigArrays, version, namedWriteableRegistry, circuitBreakerService);
         this.authenticator = authenticator;
         this.ssl = SSL_SETTING.get(settings);
         this.serverSslService = serverSSLService;
         this.clientSSLService = clientSSLService;
-        this.globalSSLConfiguration = globalSSLConfiguration;
     }
 
     @Override
     protected void doStart() {
         super.doStart();
-        globalSSLConfiguration.onTransportStart(boundAddress, profileBoundAddresses);
         if (authenticator != null) {
-            authenticator.setBoundTransportAddress(this.boundAddress(), profileBoundAddresses());
+            authenticator.setBoundTransportAddress(boundAddress(), profileBoundAddresses());
         }
     }
 

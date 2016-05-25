@@ -87,11 +87,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
         return true;
     }
 
-    @Override
-    protected boolean autoSSLEnabled() {
-        return false;
-    }
-
     private TransportClient createTransportClient(Settings additionalSettings) {
         Settings clientSettings = transportClientSettings();
         if (additionalSettings.getByPrefix("xpack.security.ssl.").isEmpty() == false) {

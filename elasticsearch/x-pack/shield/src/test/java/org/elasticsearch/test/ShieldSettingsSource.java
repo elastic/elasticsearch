@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.marvel.Monitoring;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.authc.esnative.NativeRealm;
 import org.elasticsearch.shield.Security;
@@ -84,7 +85,6 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     private final String subfolderPrefix;
     private final byte[] systemKey;
     private final boolean sslTransportEnabled;
-    private final boolean autoSSLEnabled;
     private final boolean hostnameVerificationEnabled;
     private final boolean hostnameVerificationResolveNameEnabled;
 
@@ -96,9 +96,8 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
      * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
      * @param scope the scope of the test that is requiring an instance of ShieldSettingsSource
      */
-    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, boolean autoSSLEnabled, Path parentFolder,
-                                ESIntegTestCase.Scope scope) {
-        this(numOfNodes, sslTransportEnabled, autoSSLEnabled, generateKey(), parentFolder, scope);
+    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, Path parentFolder, Scope scope) {
+        this(numOfNodes, sslTransportEnabled, generateKey(), parentFolder, scope);
     }
 
     /**
@@ -110,14 +109,12 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
      * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
      * @param scope the scope of the test that is requiring an instance of ShieldSettingsSource
      */
-    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, boolean autoSSLEnabled, byte[] systemKey, Path parentFolder,
-                                ESIntegTestCase.Scope scope) {
+    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, byte[] systemKey, Path parentFolder, Scope scope) {
         super(numOfNodes, DEFAULT_SETTINGS);
         this.systemKey = systemKey;
         this.parentFolder = parentFolder;
         this.subfolderPrefix = scope.name();
         this.sslTransportEnabled = sslTransportEnabled;
-        this.autoSSLEnabled = autoSSLEnabled;
         this.hostnameVerificationEnabled = randomBoolean();
         this.hostnameVerificationResolveNameEnabled = randomBoolean();
     }
@@ -216,10 +213,6 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     }
 
     public Settings getNodeSSLSettings() {
-        if (sslTransportEnabled && autoSSLEnabled) {
-            return Settings.EMPTY;
-        }
-
         if (randomBoolean()) {
             return getSSLSettingsForPEMFiles("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.pem", "testnode",
                     Collections.singletonList("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.crt"),
@@ -235,10 +228,6 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     }
 
     public Settings getClientSSLSettings() {
-        if (sslTransportEnabled && autoSSLEnabled) {
-            return Settings.EMPTY;
-        }
-
         if (randomBoolean()) {
             return getSSLSettingsForPEMFiles("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.pem", "testclient",
                     Collections.singletonList("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.crt"),

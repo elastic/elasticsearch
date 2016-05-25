@@ -152,9 +152,7 @@ public class ClientSSLServiceTests extends ESTestCase {
     }
 
     public void testThatCreateClientSSLEngineWithoutAnySettingsWorks() throws Exception {
-        ClientSSLService sslService = createClientSSLService(Settings.builder()
-                .put(Global.AUTO_GENERATE_SSL_SETTING.getKey(), false)
-                .build());
+        ClientSSLService sslService = createClientSSLService(Settings.EMPTY);
         SSLEngine sslEngine = sslService.createSSLEngine();
         assertThat(sslEngine, notNullValue());
     }
@@ -179,8 +177,7 @@ public class ClientSSLServiceTests extends ESTestCase {
 
     @Network
     public void testThatSSLContextWithoutSettingsWorks() throws Exception {
-        ClientSSLService sslService = createClientSSLService(Settings.builder()
-                .put(Global.AUTO_GENERATE_SSL_SETTING.getKey(), false).build());
+        ClientSSLService sslService = createClientSSLService(Settings.EMPTY);
         SSLContext sslContext = sslService.sslContext();
         try (CloseableHttpClient client = HttpClients.custom().setSslcontext(sslContext).build()) {
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA

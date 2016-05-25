@@ -54,11 +54,6 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
         return true;
     }
 
-    @Override
-    protected boolean autoSSLEnabled() {
-        return false;
-    }
-
     public void testThatHttpFailsWithoutSslClientAuth() throws IOException {
         SSLConnectionSocketFactory socketFactory = new SSLConnectionSocketFactory(
                 SSLContexts.createDefault(),

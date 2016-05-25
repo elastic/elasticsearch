@@ -152,8 +152,7 @@ public class ServerSSLServiceTests extends ESTestCase {
     }
 
     public void testThatCreateSSLEngineWithoutAnySettingsDoesNotWork() throws Exception {
-        ServerSSLService sslService = new ServerSSLService(Settings.EMPTY, env, new Global(Settings.builder()
-                .put(Global.AUTO_GENERATE_SSL_SETTING.getKey(), false).build()), null);
+        ServerSSLService sslService = new ServerSSLService(Settings.EMPTY, env, new Global(Settings.EMPTY), null);
         try {
             sslService.createSSLEngine();
             fail("Expected IllegalArgumentException");

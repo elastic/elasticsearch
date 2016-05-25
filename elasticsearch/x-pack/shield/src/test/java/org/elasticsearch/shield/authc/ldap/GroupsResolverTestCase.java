@@ -33,14 +33,10 @@ public abstract class GroupsResolverTestCase extends ESTestCase {
     public void setUpLdapConnection() throws Exception {
         Path keystore = getDataPath("../ldap/support/ldaptrust.jks");
         boolean useGlobalSSL = randomBoolean();
-        Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
-        if (useGlobalSSL) {
-            builder.put("xpack.security.ssl.keystore.path", keystore)
-                    .put("xpack.security.ssl.keystore.password", "changeit");
-        } else {
-            builder.put(Global.AUTO_GENERATE_SSL_SETTING.getKey(), false);
-        }
-        Settings settings = builder.build();
+        Settings settings = Settings.builder().put("path.home", createTempDir())
+                .put("xpack.security.ssl.keystore.path", keystore)
+                .put("xpack.security.ssl.keystore.password", "changeit")
+                .build();
         Environment env = new Environment(settings);
         ClientSSLService clientSSLService = new ClientSSLService(settings, new Global(settings));
         clientSSLService.setEnvironment(env);

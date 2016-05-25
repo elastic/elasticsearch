@@ -52,21 +52,16 @@ public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
     private final ServerSSLService sslService;
     private final boolean ssl;
     private final Settings sslSettings;
-    private final Global globalSSLConfiguration;
 
     @Inject
     public ShieldNettyHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, IPFilter ipFilter,
-                                          ServerSSLService sslService, ThreadPool threadPool, Global sslConfig) {
+                                          ServerSSLService sslService, ThreadPool threadPool) {
         super(settings, networkService, bigArrays, threadPool);
         this.ipFilter = ipFilter;
         this.ssl = SSL_SETTING.get(settings);
         this.sslService =  sslService;
-        this.globalSSLConfiguration = sslConfig;
         if (ssl) {
-            Settings.Builder builder = Settings.builder().put(settings.getByPrefix(setting("http.ssl.")));
-            builder.remove("client.auth");
-            builder.remove("enabled");
-            sslSettings = builder.build();
+            sslSettings = settings.getByPrefix(setting("http.ssl."));
         } else {
             sslSettings = Settings.EMPTY;
         }
@@ -101,7 +96,6 @@ public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
     @Override
     protected void doStart() {
         super.doStart();
-        globalSSLConfiguration.onTransportStart(this.boundAddress(), Collections.emptyMap());
         ipFilter.setBoundHttpTransportAddress(this.boundAddress());
     }
 

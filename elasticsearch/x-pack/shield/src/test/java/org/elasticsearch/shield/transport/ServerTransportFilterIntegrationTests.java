@@ -52,11 +52,6 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
     }
 
     @Override
-    protected boolean autoSSLEnabled() {
-        return false;
-    }
-
-    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settingsBuilder = Settings.builder();
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);

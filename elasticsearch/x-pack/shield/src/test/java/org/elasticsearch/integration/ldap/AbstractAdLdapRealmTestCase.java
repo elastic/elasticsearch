@@ -92,11 +92,6 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
         return sslEnabled;
     }
 
-    @Override
-    protected boolean autoSSLEnabled() {
-        return sslEnabled && (useGlobalSSL == false);
-    }
-
     protected String configRoleMappings() {
         return realmConfig.configRoleMappings();
     }

@@ -64,16 +64,18 @@ abstract class KeyConfig extends TrustConfig {
         if (reloadEnabled && resourceWatcherService != null && listener != null) {
             ReloadableX509KeyManager reloadableX509KeyManager = new ReloadableX509KeyManager(keyManagers[0], environment);
             List<Path> filesToMonitor = filesToMonitor(environment);
-            ChangeListener changeListener = new ChangeListener(filesToMonitor, reloadableX509KeyManager, listener);
-            try {
-                for (Path dir : directoriesToMonitor(filesToMonitor)) {
-                    FileWatcher fileWatcher = new FileWatcher(dir);
-                    fileWatcher.addListener(changeListener);
-                    resourceWatcherService.add(fileWatcher, Frequency.HIGH);
+            if (filesToMonitor.isEmpty() == false) {
+                ChangeListener changeListener = new ChangeListener(filesToMonitor, reloadableX509KeyManager, listener);
+                try {
+                    for (Path dir : directoriesToMonitor(filesToMonitor)) {
+                        FileWatcher fileWatcher = new FileWatcher(dir);
+                        fileWatcher.addListener(changeListener);
+                        resourceWatcherService.add(fileWatcher, Frequency.HIGH);
+                    }
+                    return new X509ExtendedKeyManager[]{reloadableX509KeyManager};
+                } catch (IOException e) {
+                    throw new ElasticsearchException("failed to add file watcher", e);
                 }
-                return new X509ExtendedKeyManager[] { reloadableX509KeyManager };
-            } catch (IOException e) {
-                throw new ElasticsearchException("failed to add file watcher", e);
             }
         }
         return keyManagers;

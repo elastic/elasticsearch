@@ -131,7 +131,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         final boolean useSSL = useShield && randomBoolean();
         logger.info("--> remote indexing enabled. shield enabled: [{}], SSL enabled: [{}], nodes: [{}]", useShield, useSSL, numNodes);
         ShieldSettingsSource cluster2SettingsSource =
-                new ShieldSettingsSource(numNodes, useSSL, randomBoolean(), systemKey(), createTempDir(), Scope.SUITE) {
+                new ShieldSettingsSource(numNodes, useSSL, systemKey(), createTempDir(), Scope.SUITE) {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()

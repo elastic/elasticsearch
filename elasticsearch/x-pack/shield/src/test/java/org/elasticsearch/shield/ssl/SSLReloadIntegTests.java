@@ -90,11 +90,6 @@ public class SSLReloadIntegTests extends ShieldIntegTestCase {
         return true;
     }
 
-    @Override
-    protected boolean autoSSLEnabled() {
-        return false;
-    }
-
     public void testThatSSLConfigurationReloadsOnModification() throws Exception {
         KeyPair keyPair = CertUtils.generateKeyPair();
         X509Certificate certificate = getCertificate(keyPair);

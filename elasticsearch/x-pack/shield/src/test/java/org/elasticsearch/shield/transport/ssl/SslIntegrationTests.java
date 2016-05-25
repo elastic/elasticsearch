@@ -56,11 +56,6 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
         return true;
     }
 
-    @Override
-    protected boolean autoSSLEnabled() {
-        return false;
-    }
-
     // no SSL exception as this is the exception is returned when connecting
     public void testThatUnconfiguredCiphersAreRejected() {
         try (TransportClient transportClient = TransportClient.builder().addPlugin(XPackPlugin.class).settings(Settings.builder()

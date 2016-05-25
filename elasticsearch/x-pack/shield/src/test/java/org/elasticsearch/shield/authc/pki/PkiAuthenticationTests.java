@@ -74,11 +74,6 @@ public class PkiAuthenticationTests extends ShieldIntegTestCase {
         return true;
     }
 
-    @Override
-    protected boolean autoSSLEnabled() {
-        return false;
-    }
-
     public void testTransportClientCanAuthenticateViaPki() {
         Settings settings = getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode");
         try (TransportClient client = createTransportClient(settings)) {

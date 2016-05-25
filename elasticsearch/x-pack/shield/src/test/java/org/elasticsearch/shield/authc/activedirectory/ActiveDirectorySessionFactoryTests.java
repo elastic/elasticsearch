@@ -208,11 +208,14 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
     public void testStandardLdapConnection() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
-        Settings settings = Settings.builder()
-                .put(LdapTestCase.buildLdapSettings(AD_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
-                .put("ssl.truststore.password", "changeit")
-                .build();
+        Settings settings = LdapTestCase.buildLdapSettings(AD_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE);
+        if (useGlobalSSL == false) {
+            settings = Settings.builder()
+                    .put(settings)
+                    .put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
+                    .put("ssl.truststore.password", "changeit")
+                    .build();
+        }
         RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService).init();
 
@@ -231,11 +234,14 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
     @SuppressWarnings("unchecked")
     public void testStandardLdapWithAttributeGroups() throws Exception {
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
-        Settings settings = Settings.builder()
-                .put(LdapTestCase.buildLdapSettings(new String[] { AD_LDAP_URL }, userTemplate, false))
-                .put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
-                .put("ssl.truststore.password", "changeit")
-                .build();
+        Settings settings = LdapTestCase.buildLdapSettings(new String[] { AD_LDAP_URL }, userTemplate, false);
+        if (useGlobalSSL == false) {
+            settings = Settings.builder()
+                    .put(settings)
+                    .put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
+                    .put("ssl.truststore.password", "changeit")
+                    .build();
+        }
         RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService).init();
 
@@ -285,9 +291,11 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
         Settings.Builder builder = Settings.builder()
                 .put(ActiveDirectorySessionFactory.URLS_SETTING, ldapUrl)
                 .put(ActiveDirectorySessionFactory.AD_DOMAIN_NAME_SETTING, adDomainName)
-                .put(ActiveDirectorySessionFactory.HOSTNAME_VERIFICATION_SETTING, hostnameVerification)
-                .put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
-                .put("ssl.truststore.password", "changeit");
+                .put(ActiveDirectorySessionFactory.HOSTNAME_VERIFICATION_SETTING, hostnameVerification);
+        if (useGlobalSSL == false) {
+            builder.put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
+                    .put("ssl.truststore.password", "changeit");
+        }
         return builder.build();
     }
 }

@@ -38,6 +38,7 @@ public class OpenLdapTests extends ESTestCase {
     public static final String OPEN_LDAP_URL = "ldaps://54.200.235.244:636";
     public static final String PASSWORD = "NickFuryHeartsES";
 
+    private boolean useGlobalSSL;
     private ClientSSLService clientSSLService;
     private Settings globalSettings;
 
@@ -49,10 +50,13 @@ public class OpenLdapTests extends ESTestCase {
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
-        globalSettings = Settings.builder().put("path.home", createTempDir())
-                .put("xpack.security.ssl.keystore.path", keystore)
-                .put("xpack.security.ssl.keystore.password", "changeit")
-                .build();
+        useGlobalSSL = randomBoolean();
+        Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
+        if (useGlobalSSL) {
+            builder.put("xpack.security.ssl.keystore.path", keystore)
+                    .put("xpack.security.ssl.keystore.password", "changeit");
+        }
+        globalSettings = builder.build();
         Environment environment = new Environment(globalSettings);
         clientSSLService = new ClientSSLService(globalSettings, new Global(globalSettings));
         clientSSLService.setEnvironment(environment);
@@ -180,6 +184,9 @@ public class OpenLdapTests extends ESTestCase {
 
     Settings buildLdapSettings(String ldapUrl, String userTemplate, String groupSearchBase, LdapSearchScope scope) {
         Settings baseSettings = LdapTestCase.buildLdapSettings(ldapUrl, userTemplate, groupSearchBase, scope);
+        if (useGlobalSSL) {
+            return baseSettings;
+        }
         return Settings.builder()
                 .put(baseSettings)
                 .put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))

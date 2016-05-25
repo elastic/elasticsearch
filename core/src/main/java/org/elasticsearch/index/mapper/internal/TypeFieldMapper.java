@@ -35,12 +35,16 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -87,12 +91,29 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     }
 
     static final class TypeFieldType extends StringFieldType {
+        private boolean fielddata;
 
         public TypeFieldType() {
+            this.fielddata = false;
         }
 
         protected TypeFieldType(TypeFieldType ref) {
             super(ref);
+            this.fielddata = ref.fielddata;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (super.equals(o) == false) {
+                return false;
+            }
+            TypeFieldType that = (TypeFieldType) o;
+            return fielddata == that.fielddata;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), fielddata);
         }
 
         @Override
@@ -105,12 +126,48 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             return CONTENT_TYPE;
         }
 
+        public boolean fielddata() {
+            return fielddata;
+        }
+
+        public void setFielddata(boolean fielddata) {
+            checkIfFrozen();
+            this.fielddata = fielddata;
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder() {
+            if (hasDocValues()) {
+                return new DocValuesIndexFieldData.Builder();
+            }
+            assert indexOptions() != IndexOptions.NONE;
+            if (fielddata) {
+                return new PagedBytesIndexFieldData.Builder(TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
+                    TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
+                    TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
+            }
+            return super.fielddataBuilder();
+        }
+
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
             if (indexOptions() == IndexOptions.NONE) {
                 throw new AssertionError();
             }
             return new TypeQuery(indexedValueForSearch(value));
+        }
+
+        @Override
+        public void checkCompatibility(MappedFieldType other,
+                                       List<String> conflicts, boolean strict) {
+            super.checkCompatibility(other, conflicts, strict);
+            TypeFieldType otherType = (TypeFieldType) other;
+            if (strict) {
+                if (fielddata() != otherType.fielddata()) {
+                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [fielddata] "
+                        + "across all types.");
+                }
+            }
         }
     }
 
@@ -169,7 +226,10 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     private static MappedFieldType defaultFieldType(Settings indexSettings) {
         MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
         Version indexCreated = Version.indexCreated(indexSettings);
-        if (indexCreated.onOrAfter(Version.V_2_1_0)) {
+        if (indexCreated.before(Version.V_2_1_0)) {
+            // enables fielddata loading, doc values was disabled on _type between 2.0 and 2.1.
+            ((TypeFieldType) defaultFieldType).setFielddata(true);
+        } else {
             defaultFieldType.setHasDocValues(true);
         }
         return defaultFieldType;

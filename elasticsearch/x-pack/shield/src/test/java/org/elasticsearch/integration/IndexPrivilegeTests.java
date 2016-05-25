@@ -405,50 +405,24 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed("admin", "GET", "/" + index + "/foo/1");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/foo/1/_explain", "{ \"query\" : { \"match_all\" : {} } }");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/foo/1/_termvector");
-                    try {
-                        assertAccessIsAllowed(user, "GET", "/" + index + "/foo/_percolate", "{ \"doc\" : { \"foo\" : \"bar\" } }");
-                    } catch (Throwable e) {
-                        assertThat(e.getMessage(), containsString("field [query] does not exist"));
-                    }
                     assertAccessIsAllowed(user, "GET",
                             "/" + index + "/_suggest", "{ \"sgs\" : { \"text\" : \"foo\", \"term\" : { \"field\" : \"body\" } } }");
                     assertAccessIsAllowed(user, "GET",
                             "/" + index + "/foo/_mget", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
                     assertAccessIsAllowed(user, "GET",
                             "/" + index + "/foo/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
-
-                    StringBuilder multiPercolate =
-                            new StringBuilder("{\"percolate\" : {\"index\" : \"" + index + "\", \"type\" : \"foo\"}}\n");
-                    multiPercolate.append("{\"doc\" : {\"message\" : \"some text\"}}\n");
-                    multiPercolate.append("{\"percolate\" : {\"index\" : \"" + index + "\", \"type\" : \"foo\", \"id\" : \"1\"}}\n");
-                    multiPercolate.append("{}\n");
-                    try {
-                        assertAccessIsAllowed(user, "GET", "/" + index + "/foo/_mpercolate", multiPercolate.toString());
-                    } catch (Throwable e) {
-                        assertThat(e.getMessage(), containsString("field [query] does not exist"));
-                    }
-
                     assertUserIsAllowed(user, "search", index);
                 } else {
                     assertAccessIsDenied(user, "GET", "/" + index + "/_count");
                     assertAccessIsDenied(user, "GET", "/" + index + "/_search");
                     assertAccessIsDenied(user, "GET", "/" + index + "/foo/1/_explain", "{ \"query\" : { \"match_all\" : {} } }");
                     assertAccessIsDenied(user, "GET", "/" + index + "/foo/1/_termvector");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/foo/_percolate", "{ \"doc\" : { \"foo\" : \"bar\" } }");
                     assertAccessIsDenied(user,
                             "GET", "/" + index + "/_suggest", "{ \"sgs\" : { \"text\" : \"foo\", \"term\" : { \"field\" : \"body\" } } }");
                     assertAccessIsDenied(user,
                             "GET", "/" + index + "/foo/_mget", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
                     assertAccessIsDenied(user,
                             "GET", "/" + index + "/foo/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
-
-                    StringBuilder multiPercolate =
-                            new StringBuilder("{\"percolate\" : {\"index\" : \"" + index + "\", \"type\" : \"foo\"}}\n");
-                    multiPercolate.append("{\"doc\" : {\"message\" : \"some text\"}}\n");
-                    multiPercolate.append("{\"percolate\" : {\"index\" : \"" + index + "\", \"type\" : \"foo\", \"id\" : \"1\"}}\n");
-                    multiPercolate.append("{}\n");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/foo/_mpercolate", multiPercolate.toString());
-
                     assertUserIsDenied(user, "search", index);
                 }
                 break;

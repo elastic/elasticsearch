@@ -220,6 +220,7 @@ public class WatcherUtilsTests extends ESTestCase {
             templateSource = new Template(template.getTemplate(), template.getType(), null, template.getContentType(),
                     template.getParams());
         }
+        builder.endObject();
 
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));

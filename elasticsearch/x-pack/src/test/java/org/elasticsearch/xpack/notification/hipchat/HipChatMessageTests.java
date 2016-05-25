@@ -206,7 +206,7 @@ public class HipChatMessageTests extends ESTestCase {
             jsonBuilder.field("notify", notify);
         }
 
-        BytesReference bytes = jsonBuilder.bytes();
+        BytesReference bytes = jsonBuilder.endObject().bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 

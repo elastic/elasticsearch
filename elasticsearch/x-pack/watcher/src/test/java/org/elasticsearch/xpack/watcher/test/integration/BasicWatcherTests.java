@@ -153,7 +153,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
         watchSource.startObject("condition").startObject("script").field("script", "return true").field("request");
         WatcherUtils.writeSearchRequest(newInputSearchRequest(), watchSource, ToXContent.EMPTY_PARAMS);
-        watchSource.endObject();
+        watchSource.endObject().endObject();
 
         watchSource.endObject();
         try {

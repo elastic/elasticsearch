@@ -294,6 +294,8 @@ public class EmailActionTests extends ESTestCase {
             }
             builder.endObject();
         }
+        builder.endObject();
+
         BytesReference bytes = builder.bytes();
         logger.info("email action json [{}]", bytes.toUtf8());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
@@ -421,7 +423,7 @@ public class EmailActionTests extends ESTestCase {
         HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
         EmailAttachmentsParser emailAttachmentsParser = mock(EmailAttachmentsParser.class);
 
-        XContentBuilder builder = jsonBuilder().startObject().field("unknown_field", "value");
+        XContentBuilder builder = jsonBuilder().startObject().field("unknown_field", "value").endObject();
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
         try {

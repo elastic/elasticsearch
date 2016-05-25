@@ -236,7 +236,7 @@ public class PagerDutyActionTests extends ESTestCase {
 
     public void testParserInvalid() throws Exception {
         try {
-            XContentBuilder builder = jsonBuilder().startObject().field("unknown_field", "value");
+            XContentBuilder builder = jsonBuilder().startObject().field("unknown_field", "value").endObject();
             XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
             parser.nextToken();
             PagerDutyAction.parse("_watch", "_action", parser);

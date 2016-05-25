@@ -188,7 +188,7 @@ public class SlackActionTests extends ESTestCase {
     }
 
     public void testParserInvalid() throws Exception {
-        XContentBuilder builder = jsonBuilder().startObject().field("unknown_field", "value");
+        XContentBuilder builder = jsonBuilder().startObject().field("unknown_field", "value").endObject();
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
         try {

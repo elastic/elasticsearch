@@ -121,6 +121,36 @@ forbiddenPatterns {
   exclude '**/org/elasticsearch/cluster/routing/shard_routes.txt'
 }
 
+task generateModulesList {
+  List<String> modules = project(':modules').subprojects.collect { it.name }
+  File modulesFile = new File(buildDir, 'generated-resources/modules.txt')
+  processResources.from(modulesFile) 
+  inputs.property('modules', modules) 
+  outputs.file(modulesFile)
+  doLast {
+    modulesFile.parentFile.mkdirs()
+    modulesFile.setText(modules.join('\n'), 'UTF-8')
+  }
+}
+
+task generatePluginsList {
+  List<String> plugins = project(':plugins').subprojects
+    .findAll { it.name.contains('example') == false }
+    .collect { it.name }
+  File pluginsFile = new File(buildDir, 'generated-resources/plugins.txt')
+  processResources.from(pluginsFile) 
+  inputs.property('plugins', plugins) 
+  outputs.file(pluginsFile)
+  doLast {
+    pluginsFile.parentFile.mkdirs()
+    pluginsFile.setText(plugins.join('\n'), 'UTF-8')
+  }
+}
+
+processResources {
+  dependsOn generateModulesList, generatePluginsList
+}
+
 thirdPartyAudit.excludes = [
   // uses internal java api: sun.security.x509 (X509CertInfo, X509CertImpl, X500Name)
   'org.jboss.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',

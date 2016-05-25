@@ -1033,7 +1033,6 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    @SuppressWarnings("deprecation") // https://github.com/elastic/elasticsearch/issues/15844
     private void randomlyResetClients() throws IOException {
         // only reset the clients on nightly tests, it causes heavy load...
         if (RandomizedTest.isNightly() && rarely(random)) {

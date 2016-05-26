@@ -109,7 +109,8 @@ least 2048 threads. This can be done via `/etc/security/limits.conf`
 using the `nproc` setting (note that you might have to increase the
 limits for the `root` user too).
 
-[[max-size-virtual-memory-check]] === Maximum size virtual memory check
+[[max-size-virtual-memory-check]]
+=== Maximum size virtual memory check
 
 Elasticsearch and Lucene use `mmap` to great effect to map portions of
 an index into the Elasticsearch address space. This keeps certain index

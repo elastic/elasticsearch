@@ -153,7 +153,11 @@ public class TransportShrinkActionTests extends ESTestCase {
         String indexName = randomAsciiOfLength(10);
         // create one that won't fail
         ClusterState clusterState = ClusterState.builder(createClusterState(indexName, randomIntBetween(2, 10), 0,
-            Settings.builder().put("index.blocks.write", true).build())).nodes(DiscoveryNodes.builder().put(newNode("node1")))
+            Settings.builder()
+                .put("index.blocks.write", true)
+                .put("index.similarity.default.type", "BM25")
+                .put("index.analysis.analyzer.my_analyzer.tokenizer", "keyword")
+                .build())).nodes(DiscoveryNodes.builder().put(newNode("node1")))
             .build();
         AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
             Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
@@ -173,6 +177,9 @@ public class TransportShrinkActionTests extends ESTestCase {
         assertEquals(indexName, request.settings().get("index.shrink.source.name"));
         assertEquals("1", request.settings().get("index.number_of_shards"));
         assertEquals("0", request.settings().get("index.number_of_replicas"));
+        assertEquals("similarity settings must be copied", "BM25", request.settings().get("index.similarity.default.type"));
+        assertEquals("analysis settings must be copied",
+            "keyword", request.settings().get("index.analysis.analyzer.my_analyzer.tokenizer"));
         assertEquals("node1", request.settings().get("index.routing.allocation.require._id"));
         assertEquals("shrink_index", request.cause());
 
@@ -182,6 +189,10 @@ public class TransportShrinkActionTests extends ESTestCase {
         assertEquals(indexName, request.settings().get("index.shrink.source.name"));
         assertEquals("1", request.settings().get("index.number_of_shards"));
         assertEquals("1", request.settings().get("index.number_of_replicas"));
+
+        assertEquals("similarity settings must be copied", "BM25", request.settings().get("index.similarity.default.type"));
+        assertEquals("analysis settings must be copied",
+            "keyword", request.settings().get("index.analysis.analyzer.my_analyzer.tokenizer"));
         assertEquals("node1", request.settings().get("index.routing.allocation.require._id"));
 
     }

@@ -186,7 +186,10 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
             // we set default to 0 only if there is nothing explicitly set
             .put("index.number_of_replicas", IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(tagetIndexSettings) ?
                 IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(tagetIndexSettings) : 0)
-            .put("index.routing.allocation.require._id", Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray())));
+            .put("index.routing.allocation.require._id", Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
+            // now copy all similarity / analysis settings
+            .put(metaData.getSettings().filter((s) -> s.startsWith("index.similarity.") || s.startsWith("index.analysis.")))
+        );
 
         return new CreateIndexClusterStateUpdateRequest(targetIndex,
             "shrink_index", targetIndexName, true)

@@ -113,6 +113,28 @@ fi
     fi
 }
 
+@test "[$GROUP] install jvm-example plugin with a symlinked plugins path" {
+    # Clean up after the last time this test was run
+    rm -rf /tmp/plugins.*
+    rm -rf /tmp/old_plugins.*
+
+    rm -rf "$ESPLUGINS"
+    local es_plugins=$(mktemp -d -t 'plugins.XXXX')
+    chown -R elasticsearch:elasticsearch "$es_plugins"
+    ln -s "$es_plugins" "$ESPLUGINS"
+
+    install_jvm_example
+    start_elasticsearch_service
+    # check that symlinked plugin was actually picked up
+    curl -s localhost:9200/_cat/configured_example | sed 's/ *$//' > /tmp/installed
+    echo "foo" > /tmp/expected
+    diff /tmp/installed /tmp/expected
+    stop_elasticsearch_service
+    remove_jvm_example
+
+    unlink "$ESPLUGINS"
+}
+
 @test "[$GROUP] install jvm-example plugin with a custom CONFIG_DIR" {
     # Clean up after the last time we ran this test
     rm -rf /tmp/config.*

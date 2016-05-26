@@ -291,12 +291,14 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         // mark shard as delayed if reason is NODE_LEFT
         boolean delayed = reason == UnassignedInfo.Reason.NODE_LEFT &&
             UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings).nanos() > 0;
+        int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
         RoutingTable routingTable = RoutingTable.builder()
                 .add(IndexRoutingTable.builder(shardId.getIndex())
                                 .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
                                         .addShard(primaryShard)
                                         .addShard(ShardRouting.newUnassigned(shardId, null, false,
-                                            new UnassignedInfo(reason, null, null, 0, System.nanoTime(), System.currentTimeMillis(), delayed)))
+                                            new UnassignedInfo(reason, null, null, failedAllocations, System.nanoTime(),
+                                                System.currentTimeMillis(), delayed)))
                                         .build())
                 )
                 .build();

@@ -83,7 +83,7 @@ public class TranslogRecoveryPerformer {
         int opsRecovered = 0;
         while ((op = snapshot.next()) != null) {
             try {
-                performRecoveryOperation(engine, op, true, Engine.Operation.Origin.LOCAL_RECOVERY);
+                performRecoveryOperation(engine, op, true, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY);
                 opsRecovered++;
             } catch (ElasticsearchException e) {
                 if (e.status() == RestStatus.BAD_REQUEST) {

@@ -390,7 +390,7 @@ public class InternalEngine extends Engine {
                 created = update(index, versionValue, indexWriter);
             }
 
-            if (index.origin() != Operation.Origin.LOCAL_RECOVERY) {
+            if (index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
                 final Translog.Location translogLocation = translog.add(new Translog.Index(index));
                 index.setTranslogLocation(translogLocation);
             }
@@ -494,7 +494,7 @@ public class InternalEngine extends Engine {
 
             delete.updateVersion(updatedVersion, found);
 
-            if (delete.origin() != Operation.Origin.LOCAL_RECOVERY) {
+            if (delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
                 final Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
                 delete.setTranslogLocation(translogLocation);
             }

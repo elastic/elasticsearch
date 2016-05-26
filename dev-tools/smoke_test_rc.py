@@ -191,7 +191,7 @@ def smoke_test_release(release, files, expected_hash, plugins):
     plugin_names = {}
     for plugin  in plugins:
       print('     Install plugin [%s]' % (plugin))
-      run('%s; export ES_JAVA_OPTS="-Des.plugins.staging=true"; %s %s %s' % (java_exe(), es_plugin_path, 'install -b', plugin))
+      run('%s; export ES_JAVA_OPTS="-Des.plugins.staging=%s"; %s %s %s' % (java_exe(), expected_hash, es_plugin_path, 'install -b', plugin))
       plugin_names[plugin] = True
     if 'x-pack' in plugin_names:
       headers = { 'Authorization' : 'Basic %s' % base64.b64encode(b"es_admin:foobar").decode("UTF-8") }

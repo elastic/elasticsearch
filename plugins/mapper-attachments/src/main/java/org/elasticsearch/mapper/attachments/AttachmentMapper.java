@@ -427,7 +427,6 @@ public class AttachmentMapper extends FieldMapper {
     }
 
     @Override
-    @SuppressWarnings("deprecation") // https://github.com/elastic/elasticsearch/issues/15843
     public Mapper parse(ParseContext context) throws IOException {
         byte[] content = null;
         String contentType = null;

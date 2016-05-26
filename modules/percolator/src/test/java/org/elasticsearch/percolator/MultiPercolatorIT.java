@@ -235,7 +235,7 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         }
 
         client().prepareIndex(INDEX_NAME, "type", "1")
-                .setSource(jsonBuilder().startObject().field("field", "a"))
+                .setSource(jsonBuilder().startObject().field("field", "a").endObject())
                 .execute().actionGet();
         refresh();
 

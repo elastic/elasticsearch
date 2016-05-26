@@ -1489,6 +1489,7 @@ public class PercolatorIT extends ESIntegTestCase {
         XContentBuilder doc = jsonBuilder();
         doc.startObject();
         doc.field("some_unnested_field", "value");
+        doc.endObject();
         PercolateResponse response = preparePercolate(client()).setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc(doc)).setIndices(INDEX_NAME).setDocumentType("company").get();
         assertNoFailures(response);
     }

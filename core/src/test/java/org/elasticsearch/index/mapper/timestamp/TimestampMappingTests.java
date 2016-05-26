@@ -69,7 +69,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testSimpleDisabled() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
@@ -104,8 +104,8 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
             version = randomVersion(random());
         } while (version.before(Version.V_2_0_0_beta1));
         for (String mapping : Arrays.asList(
-                XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string(),
-                XContentFactory.jsonBuilder().startObject().startObject("type").startObject("_timestamp").endObject().endObject().string())) {
+                XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string(),
+                XContentFactory.jsonBuilder().startObject().startObject("type").startObject("_timestamp").endObject().endObject().endObject().string())) {
             DocumentMapper docMapper = createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build()).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
             assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(TimestampFieldMapper.Defaults.ENABLED.enabled));
             assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(version.onOrAfter(Version.V_2_0_0_beta1)));

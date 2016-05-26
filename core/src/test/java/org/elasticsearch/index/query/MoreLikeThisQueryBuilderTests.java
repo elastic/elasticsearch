@@ -121,6 +121,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             for (String field : randomFields) {
                 doc.field(field, randomAsciiOfLength(10));
             }
+            doc.endObject();
         } catch (IOException e) {
             throw new ElasticsearchException("Unable to generate random artificial doc!");
         }

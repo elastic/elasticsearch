@@ -10,6 +10,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.shield.SecurityContext;
 import org.elasticsearch.shield.authz.RoleDescriptor;
 import org.elasticsearch.shield.authz.permission.KibanaRole;
+import org.elasticsearch.shield.authz.permission.KibanaUserRole;
 import org.elasticsearch.shield.authz.permission.Role;
 import org.elasticsearch.shield.authz.permission.SuperuserRole;
 import org.elasticsearch.shield.authz.permission.TransportClientRole;
@@ -39,6 +40,8 @@ public class ReservedRolesStore implements RolesStore {
                 return SuperuserRole.INSTANCE;
             case TransportClientRole.NAME:
                 return TransportClientRole.INSTANCE;
+            case KibanaUserRole.NAME:
+                return KibanaUserRole.INSTANCE;
             case KibanaRole.NAME:
                 // The only user that should know about this role is the kibana user itself (who has this role). The reason we want to hide
                 // this role is that it was created specifically for kibana, with all the permissions that the kibana user needs.
@@ -58,6 +61,8 @@ public class ReservedRolesStore implements RolesStore {
                 return SuperuserRole.DESCRIPTOR;
             case TransportClientRole.NAME:
                 return TransportClientRole.DESCRIPTOR;
+            case KibanaUserRole.NAME:
+                return KibanaUserRole.DESCRIPTOR;
             case KibanaRole.NAME:
                 // The only user that should know about this role is the kibana user itself (who has this role). The reason we want to hide
                 // this role is that it was created specifically for kibana, with all the permissions that the kibana user needs.
@@ -73,19 +78,21 @@ public class ReservedRolesStore implements RolesStore {
 
     public Collection<RoleDescriptor> roleDescriptors() {
         if (KibanaUser.is(securityContext.getUser())) {
-            return Arrays.asList(SuperuserRole.DESCRIPTOR, TransportClientRole.DESCRIPTOR, KibanaRole.DESCRIPTOR);
+            return Arrays.asList(SuperuserRole.DESCRIPTOR, TransportClientRole.DESCRIPTOR, KibanaUserRole.DESCRIPTOR,
+                    KibanaRole.DESCRIPTOR);
         }
-        return Arrays.asList(SuperuserRole.DESCRIPTOR, TransportClientRole.DESCRIPTOR);
+        return Arrays.asList(SuperuserRole.DESCRIPTOR, TransportClientRole.DESCRIPTOR, KibanaUserRole.DESCRIPTOR);
     }
 
     public static Set<String> names() {
-        return Sets.newHashSet(SuperuserRole.NAME, KibanaRole.NAME, TransportClientRole.NAME);
+        return Sets.newHashSet(SuperuserRole.NAME, KibanaRole.NAME, TransportClientRole.NAME, KibanaUserRole.NAME);
     }
 
     public static boolean isReserved(String role) {
         switch (role) {
             case SuperuserRole.NAME:
             case KibanaRole.NAME:
+            case KibanaUserRole.NAME:
             case TransportClientRole.NAME:
             case SystemUser.ROLE_NAME:
                 return true;

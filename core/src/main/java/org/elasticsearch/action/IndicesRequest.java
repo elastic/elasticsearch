@@ -40,7 +40,7 @@ public interface IndicesRequest {
      */
     IndicesOptions indicesOptions();
 
-    static interface Replaceable extends IndicesRequest {
+    interface Replaceable extends IndicesRequest {
         /**
          * Sets the indices that the action relates to.
          */

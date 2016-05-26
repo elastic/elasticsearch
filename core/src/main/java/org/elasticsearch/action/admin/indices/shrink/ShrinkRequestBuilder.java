@@ -23,29 +23,25 @@ import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 
-public class ShrinkIndexRequestBuilder extends AcknowledgedRequestBuilder<ShrinkIndexRequest, ShrinkIndexResponse, ShrinkIndexRequestBuilder> {
-    public ShrinkIndexRequestBuilder(ElasticsearchClient client, ShrinkIndexAction action) {
-        super(client, action, new ShrinkIndexRequest());
+public class ShrinkRequestBuilder extends AcknowledgedRequestBuilder<ShrinkRequest, ShrinkResponse,
+    ShrinkRequestBuilder> {
+    public ShrinkRequestBuilder(ElasticsearchClient client, ShrinkAction action) {
+        super(client, action, new ShrinkRequest());
     }
 
 
-    public ShrinkIndexRequestBuilder setTargetIndex(CreateIndexRequest request) {
-        this.request.setTargetIndex(request);
+    public ShrinkRequestBuilder setTargetIndex(CreateIndexRequest request) {
+        this.request.setShrinkIndex(request);
         return this;
     }
 
-    public ShrinkIndexRequestBuilder setTargetIndex(String index) {
-        this.request.setTargetIndex(index);
-        return this;
-    }
-
-    public ShrinkIndexRequestBuilder setSourceIndex(String index) {
+    public ShrinkRequestBuilder setSourceIndex(String index) {
         this.request.setSourceIndex(index);
         return this;
     }
 
-    public ShrinkIndexRequestBuilder setSettings(Settings settings) {
-        this.request.getTargetIndex().settings(settings);
+    public ShrinkRequestBuilder setSettings(Settings settings) {
+        this.request.getShrinkIndexReqeust().settings(settings);
         return this;
     }
 }

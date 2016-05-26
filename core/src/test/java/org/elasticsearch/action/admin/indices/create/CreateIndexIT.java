@@ -294,7 +294,9 @@ public class CreateIndexIT extends ESIntegTestCase {
         String nodeName = internalCluster().startNode();
         // relocate all shards to one node such that we can merge it.
         client().admin().indices().prepareUpdateSettings("source")
-            .setSettings(Settings.builder().put("index.routing.allocation.include._name", nodeName)).get();
+            .setSettings(Settings.builder()
+                .put("index.routing.allocation.include._name", nodeName)
+                .put("index.blocks.write", true)).get();
         ensureGreen();
         // now merge source into a single shard index
         assertAcked(client().admin().indices().prepareShrinkIndex("source", "target")
@@ -319,7 +321,8 @@ public class CreateIndexIT extends ESIntegTestCase {
         String nodeName = internalCluster().startNode();
         // relocate all shards to one node such that we can merge it.
         client().admin().indices().prepareUpdateSettings("source")
-            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", nodeName)).get();
+            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", nodeName)
+                .put("index.blocks.write", true)).get();
         ensureGreen();
         // now merge source into a single shard index
         prepareCreate("target", 0, Settings.builder()

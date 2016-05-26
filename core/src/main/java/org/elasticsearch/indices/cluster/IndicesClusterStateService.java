@@ -679,7 +679,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 case STORE: return "after recovery from store";
                 case PRIMARY_RELOCATION: return "after recovery (primary relocation) from node [" + state.getSourceNode() + "]";
                 case REPLICA: return "after recovery (replica) from node [" + state.getSourceNode() + "]";
-                default: throw new IllegalArgumentException(state.getType().name());
+                case LOCAL_SHARDS: return "after recovery from local shards";
+                default: throw new IllegalArgumentException("Unknown recovery type: " + state.getType().name());
             }
         }
 

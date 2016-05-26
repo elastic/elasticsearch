@@ -212,10 +212,10 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoreRequestBui
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkIndexAction;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkIndexRequest;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkIndexResponse;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkRequest;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkRequestBuilder;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
@@ -1689,18 +1689,19 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public ShrinkIndexRequestBuilder prepareShrinkIndex(String sourceIndex, String targetIndex) {
-            return new ShrinkIndexRequestBuilder(this, ShrinkIndexAction.INSTANCE).setSourceIndex(sourceIndex).setTargetIndex(targetIndex);
+        public ShrinkRequestBuilder prepareShrinkIndex(String sourceIndex, String targetIndex) {
+            return new ShrinkRequestBuilder(this, ShrinkAction.INSTANCE).setSourceIndex(sourceIndex)
+                .setTargetIndex(new CreateIndexRequest(targetIndex));
         }
 
         @Override
-        public ActionFuture<ShrinkIndexResponse> shrinkIndex(ShrinkIndexRequest request) {
-            return execute(ShrinkIndexAction.INSTANCE, request);
+        public ActionFuture<ShrinkResponse> shrinkIndex(ShrinkRequest request) {
+            return execute(ShrinkAction.INSTANCE, request);
         }
 
         @Override
-        public void shrinkIndex(ShrinkIndexRequest request, ActionListener<ShrinkIndexResponse> listener) {
-            execute(ShrinkIndexAction.INSTANCE, request, listener);
+        public void shrinkIndex(ShrinkRequest request, ActionListener<ShrinkResponse> listener) {
+            execute(ShrinkAction.INSTANCE, request, listener);
         }
 
         @Override

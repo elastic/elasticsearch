@@ -25,29 +25,24 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
+ * Request class to shrink an index into a single shard
  */
-public class ShrinkIndexRequest extends AcknowledgedRequest<ShrinkIndexRequest> implements IndicesRequest {
+public class ShrinkRequest extends AcknowledgedRequest<ShrinkRequest> implements IndicesRequest {
 
-    private CreateIndexRequest createIndexRequest;
-    private String sourceIndex = null;
+    private CreateIndexRequest skrinkIndexRequest;
+    private String sourceIndex;
 
-    public ShrinkIndexRequest() {
-    }
+    ShrinkRequest() {}
 
-    public ShrinkIndexRequest(String targetIndex, String sourceindex) {
-        this.createIndexRequest = new CreateIndexRequest(targetIndex);
-        this.sourceIndex = sourceindex;
-    }
-
-    public ShrinkIndexRequest(CreateIndexRequest targetIndex, String sourceindex) {
-        this.createIndexRequest = targetIndex;
+    public ShrinkRequest(String targetIndex, String sourceindex) {
+        this.skrinkIndexRequest = new CreateIndexRequest(targetIndex);
         this.sourceIndex = sourceindex;
     }
 
@@ -57,8 +52,8 @@ public class ShrinkIndexRequest extends AcknowledgedRequest<ShrinkIndexRequest> 
         if (sourceIndex == null) {
             validationException = addValidationError("source index is missing", validationException);
         }
-        if (createIndexRequest == null) {
-            validationException = addValidationError("target index is missing", validationException);
+        if (skrinkIndexRequest == null) {
+            validationException = addValidationError("shrink index request is missing", validationException);
         }
         return validationException;
     }
@@ -70,40 +65,42 @@ public class ShrinkIndexRequest extends AcknowledgedRequest<ShrinkIndexRequest> 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        createIndexRequest = new CreateIndexRequest();
-        createIndexRequest.readFrom(in);
+        skrinkIndexRequest = new CreateIndexRequest();
+        skrinkIndexRequest.readFrom(in);
         sourceIndex = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        createIndexRequest.writeTo(out);
+        skrinkIndexRequest.writeTo(out);
         out.writeString(sourceIndex);
     }
 
     @Override
     public String[] indices() {
-        return new String[0];
+        return new String[] {sourceIndex};
     }
 
     @Override
     public IndicesOptions indicesOptions() {
-        return null;
+        return IndicesOptions.lenientExpandOpen();
     }
 
-    public void setTargetIndex(String targetIndex) {
-        this.createIndexRequest = new CreateIndexRequest(targetIndex);;
+    public void setShrinkIndex(CreateIndexRequest shrinkIndexRequest) {
+        this.skrinkIndexRequest = Objects.requireNonNull(shrinkIndexRequest, "shrink index request must not be null");
     }
 
-    public void setTargetIndex(CreateIndexRequest targetIndexRequest) {
-        this.createIndexRequest = targetIndexRequest;
+    /**
+     * Returns the {@link CreateIndexRequest} for the shrink index
+     */
+    public CreateIndexRequest getShrinkIndexReqeust() {
+        return skrinkIndexRequest;
     }
 
-    public CreateIndexRequest getTargetIndex() {
-        return createIndexRequest;
-    }
-
+    /**
+     * Returns the source index name
+     */
     public String getSourceIndex() {
         return sourceIndex;
     }

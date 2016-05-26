@@ -92,9 +92,9 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRespons
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoreRequestBuilder;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkIndexRequest;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkIndexResponse;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkRequest;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkRequestBuilder;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -788,16 +788,16 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Shrinks an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
      */
-    ShrinkIndexRequestBuilder prepareShrinkIndex(String sourceIndex, String targetIndex);
+    ShrinkRequestBuilder prepareShrinkIndex(String sourceIndex, String targetIndex);
 
     /**
      * Shrinks an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
      */
-    ActionFuture<ShrinkIndexResponse> shrinkIndex(ShrinkIndexRequest request);
+    ActionFuture<ShrinkResponse> shrinkIndex(ShrinkRequest request);
 
     /**
      * Shrinks an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
      */
-    void shrinkIndex(ShrinkIndexRequest request, ActionListener<ShrinkIndexResponse> listener);
+    void shrinkIndex(ShrinkRequest request, ActionListener<ShrinkResponse> listener);
 
 }

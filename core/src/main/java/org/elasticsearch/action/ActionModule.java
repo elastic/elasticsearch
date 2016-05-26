@@ -115,8 +115,8 @@ import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettin
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkIndexAction;
-import org.elasticsearch.action.admin.indices.shrink.TransportShrinkIndexAction;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
+import org.elasticsearch.action.admin.indices.shrink.TransportShrinkAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
@@ -288,7 +288,7 @@ public class ActionModule extends AbstractModule {
         registerAction(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
         registerAction(IndicesShardStoresAction.INSTANCE, TransportIndicesShardStoresAction.class);
         registerAction(CreateIndexAction.INSTANCE, TransportCreateIndexAction.class);
-        registerAction(ShrinkIndexAction.INSTANCE, TransportShrinkIndexAction.class);
+        registerAction(ShrinkAction.INSTANCE, TransportShrinkAction.class);
         registerAction(DeleteIndexAction.INSTANCE, TransportDeleteIndexAction.class);
         registerAction(GetIndexAction.INSTANCE, TransportGetIndexAction.class);
         registerAction(OpenIndexAction.INSTANCE, TransportOpenIndexAction.class);

@@ -19,10 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkIndexAction;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkIndexRequest;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -53,11 +50,11 @@ public class RestShrinkIndexAction extends BaseRestHandler {
         if (request.param("index") == null) {
             throw new IllegalArgumentException("no source index");
         }
-        ShrinkIndexRequest shrinkIndexRequest = new ShrinkIndexRequest(request.param("target"), request.param("index"));
+        ShrinkRequest shrinkIndexRequest = new ShrinkRequest(request.param("target"), request.param("index"));
         if (request.hasContent()) {
-            shrinkIndexRequest.getTargetIndex().source(request.content());
+            shrinkIndexRequest.getShrinkIndexReqeust().source(request.content());
         }
-        shrinkIndexRequest.getTargetIndex().updateAllTypes(request.paramAsBoolean("update_all_types", false));
+        shrinkIndexRequest.getShrinkIndexReqeust().updateAllTypes(request.paramAsBoolean("update_all_types", false));
         shrinkIndexRequest.timeout(request.paramAsTime("timeout", shrinkIndexRequest.timeout()));
         shrinkIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", shrinkIndexRequest.masterNodeTimeout()));
         client.admin().indices().shrinkIndex(shrinkIndexRequest, new AcknowledgedRestListener<>(channel));

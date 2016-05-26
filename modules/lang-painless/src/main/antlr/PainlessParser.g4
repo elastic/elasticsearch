@@ -72,6 +72,10 @@ decltype
     : TYPE (LBRACE RBRACE)*
     ;
 
+funcref
+    : TYPE REF ID
+    ;
+
 declvar
     : ID ( ASSIGN expression )?
     ;
@@ -156,5 +160,10 @@ brace
     ;
 
 arguments
-    : ( LP ( expression ( COMMA expression )* )? RP )
+    : ( LP ( argument ( COMMA argument )* )? RP )
+    ;
+
+argument
+    : expression
+    | funcref
     ;

@@ -42,6 +42,7 @@
  * {@link org.elasticsearch.painless.node.EConstant} - Respresents a constant.  (Internal only.)
  * {@link org.elasticsearch.painless.node.EDecimal} - Respresents a decimal constant.
  * {@link org.elasticsearch.painless.node.EExplicit} - Represents an explicit cast.
+ * {@link org.elasticsearch.painless.node.EFunctionRef} - Represents a function reference.
  * {@link org.elasticsearch.painless.node.ENull} - Represents a null constant.
  * {@link org.elasticsearch.painless.node.ENumeric} - Respresents a non-decimal numeric constant.
  * {@link org.elasticsearch.painless.node.EUnary} - Represents a unary math expression.

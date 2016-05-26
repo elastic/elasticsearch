@@ -33,11 +33,13 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.QueryFunction;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -134,7 +136,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             return new WeightBuilder().setWeight(randomFloat());
         }
         ScoreFunctionBuilder<?> functionBuilder;
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 4)) {
         case 0:
             DecayFunctionBuilder<?> decayFunctionBuilder = createRandomDecayFunction();
             if (randomBoolean()) {
@@ -171,6 +173,9 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 randomScoreFunctionBuilder.seed(randomAsciiOfLengthBetween(1, 10));
             }
             functionBuilder = randomScoreFunctionBuilder;
+            break;
+        case 4:
+            functionBuilder = new QueryFunctionBuilder(new TermQueryBuilder("text", "value"));
             break;
         default:
             throw new UnsupportedOperationException();
@@ -689,6 +694,42 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 "    }\n" +
                 "}";
         expectParsingException(json, "[query] is already defined.");
+    }
+
+    public void testParseQueryFunction() throws IOException {
+        //verify that an error is thrown rather than setting the query twice (https://github.com/elastic/elasticsearch/issues/16583)
+        String json = "{\n" +
+            "    \"function_score\": {\n" +
+            "      \"score_mode\": \"max\",\n" +
+            "      \"query\": {\n" +
+            "        \"match\": {\n" +
+            "          \"FIELD\": \"TEXT\"\n" +
+            "        }\n" +
+            "      },\n" +
+            "      \"functions\": [\n" +
+            "        {\n" +
+            "          \"filter\": {\n" +
+            "            \"term\": {\n" +
+            "              \"FIELD\": \"VALUE\"\n" +
+            "            }\n" +
+            "          },\n" +
+            "          \"query_function\": {\n" +
+            "            \"query\": {\n" +
+            "              \"match\": {\n" +
+            "                \"FIELD\": \"TEXT\"\n" +
+            "              }\n" +
+            "            }\n" +
+            "          }\n" +
+            "        }\n" +
+            "      ],\n" +
+            "      \"boost_mode\": \"sum\"\n" +
+            "    }" +
+            "}";
+
+        FunctionScoreQueryBuilder queryBuilder = (FunctionScoreQueryBuilder)parseQuery(json);
+        FilterFunctionBuilder[] filterFunctionBuilders = queryBuilder.filterFunctionBuilders();
+        assertThat(filterFunctionBuilders[0].getScoreFunction(), instanceOf(QueryFunctionBuilder.class));
+        assertThat(((QueryFunctionBuilder)filterFunctionBuilders[0].getScoreFunction()).queryBuilder, instanceOf(MatchQueryBuilder.class));
     }
 
     private void expectParsingException(String json, Matcher<String> messageMatcher) {

@@ -91,7 +91,9 @@ public class FunctionScoreQuery extends Query {
         if (needsScores == false && minScore == null) {
             return subQuery.createWeight(searcher, needsScores);
         }
-
+        if (function != null) {
+            function.initWeight(searcher, needsScores);
+        }
         boolean subQueryNeedsScores =
                 combineFunction != CombineFunction.REPLACE // if we don't replace we need the original score
                 || function == null // when the function is null, we just multiply the score, so we need it

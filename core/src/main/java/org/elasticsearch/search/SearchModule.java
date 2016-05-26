@@ -84,6 +84,7 @@ import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ExponentialDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.FieldValueFactorFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.QueryFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.LinearDecayFunctionBuilder;
@@ -606,6 +607,8 @@ public class SearchModule extends AbstractModule {
                 RandomScoreFunctionBuilder.FUNCTION_NAME_FIELD);
         registerScoreFunction(FieldValueFactorFunctionBuilder::new, FieldValueFactorFunctionBuilder::fromXContent,
                 FieldValueFactorFunctionBuilder.FUNCTION_NAME_FIELD);
+        registerScoreFunction(QueryFunctionBuilder::new, QueryFunctionBuilder::fromXContent,
+            QueryFunctionBuilder.FUNCTION_NAME_FIELD);
 
         //weight doesn't have its own parser, so every function supports it out of the box.
         //Can be a single function too when not associated to any other function, which is why it needs to be registered manually here.

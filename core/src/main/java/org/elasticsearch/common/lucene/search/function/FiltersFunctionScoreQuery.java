@@ -144,6 +144,7 @@ public class FiltersFunctionScoreQuery extends Query {
         for (int i = 0; i < filterFunctions.length; ++i) {
             subQueryNeedsScores |= filterFunctions[i].function.needsScores();
             filterWeights[i] = searcher.createNormalizedWeight(filterFunctions[i].filter, false);
+            filterFunctions[i].function.initWeight(searcher, needsScores);
         }
         Weight subQueryWeight = subQuery.createWeight(searcher, subQueryNeedsScores);
         return new CustomBoostFactorWeight(this, subQueryWeight, filterWeights, subQueryNeedsScores);
@@ -274,7 +275,7 @@ public class FiltersFunctionScoreQuery extends Query {
             return scoreCombiner.combine(subQueryScore, factor, maxBoost);
         }
 
-        protected double computeScore(int docId, float subQueryScore) {
+        protected double computeScore(int docId, float subQueryScore) throws IOException {
             double factor = 1d;
             switch(scoreMode) {
                 case FIRST:

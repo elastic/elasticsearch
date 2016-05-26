@@ -20,6 +20,7 @@
 package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -43,10 +44,14 @@ public abstract class ScoreFunction {
 
     /**
      * Indicates if document scores are needed by this function.
-     * 
+     *
      * @return {@code true} if scores are needed.
      */
     public abstract boolean needsScores();
+
+    public void initWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+       // do nothing iof you do not need it
+    }
 
     @Override
     public final boolean equals(Object obj) {

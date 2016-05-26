@@ -415,6 +415,19 @@ Example:
     }
 --------------------------------------------------
 
+[[function-query]]
+==== Query function
+
+If the score for a function again should be computed by a different query, use the `query_function`:
+
+[source,js]
+--------------------------------------------------
+"query_function": {
+    "query": {
+          ARBITRARY QUERY
+    }
+}
+--------------------------------------------------
 
 ==== Detailed example
 

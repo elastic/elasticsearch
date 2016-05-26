@@ -52,14 +52,13 @@ you might have to configure [[file-descriptors,file descriptors]].
 
 === Memory lock check
 
-A terrible thing can happen if parts of the JVM heap are swapped out to
-disk and the JVM decides to a do major garbage collection. In this case,
-the JVM will touch every page of the heap. If this happens when parts of
-the JVM heap are swapped out to disk, this will lead to disk thrashing
-at an inopportune time. There are several ways to configure a system to
-disallow swapping. One way is by requesting the JVM to lock the heap in
-memory through `mlockall` (Unix) or virtual lock (Windows). This is done
-via the Elasticsearch setting
+When the JVM does a major garbage collection it touches every page of
+the heap. If any of those pages are swapped out to disk they will have
+to be swapped back in to memory. That causes lots of disk thrashing that
+Elasticsearch would much rather use to service requests. There are
+several ways to configure a system to disallow swapping. One way is by
+requesting the JVM to lock the heap in memory through `mlockall` (Unix)
+or virtual lock (Windows). This is done via the Elasticsearch setting
 <<bootstrap.mlockall,`bootstrap.mlockall`>>. However, there are cases
 where this setting can be passed to Elasticsearch but Elasticsearch is
 not able to lock the heap (e.g., if the `elasticsearch` user does not

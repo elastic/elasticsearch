@@ -59,6 +59,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
+
 /**
  * The {@code TransportClusterAllocationExplainAction} is responsible for actually executing the explanation of a shard's allocation on the
  * master node in the cluster.
@@ -237,9 +239,9 @@ public class TransportClusterAllocationExplainAction
         long remainingDelayMillis = 0;
         final MetaData metadata = allocation.metaData();
         final IndexMetaData indexMetaData = metadata.index(shard.index());
-        if (ui != null) {
-            final Settings indexSettings = indexMetaData.getSettings();
-            long remainingDelayNanos = ui.getRemainingDelay(System.nanoTime(), metadata.settings(), indexSettings);
+        long allocationDelayMillis = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetaData.getSettings()).getMillis();
+        if (ui != null && ui.isDelayed()) {
+            long remainingDelayNanos = ui.getRemainingDelay(System.nanoTime(), indexMetaData.getSettings());
             remainingDelayMillis = TimeValue.timeValueNanos(remainingDelayNanos).millis();
         }
 
@@ -262,8 +264,9 @@ public class TransportClusterAllocationExplainAction
                     allocation.hasPendingAsyncFetch());
             explanations.put(node, nodeExplanation);
         }
-        return new ClusterAllocationExplanation(shard.shardId(), shard.primary(), shard.currentNodeId(),
-                remainingDelayMillis, ui, gatewayAllocator.hasFetchPending(shard.shardId(), shard.primary()), explanations);
+        return new ClusterAllocationExplanation(shard.shardId(), shard.primary(),
+            shard.currentNodeId(), allocationDelayMillis, remainingDelayMillis, ui,
+            gatewayAllocator.hasFetchPending(shard.shardId(), shard.primary()), explanations);
     }
 
     @Override

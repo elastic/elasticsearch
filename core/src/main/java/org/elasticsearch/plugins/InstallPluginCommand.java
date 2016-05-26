@@ -304,7 +304,9 @@ class InstallPluginCommand extends SettingCommand {
 
                 // be on the safe side: do not rely on that directories are always extracted
                 // before their children (although this makes sense, but is it guaranteed?)
-                Files.createDirectories(targetFile.getParent());
+                if (!Files.isSymbolicLink(targetFile.getParent())) {
+                    Files.createDirectories(targetFile.getParent());
+                }
                 if (entry.isDirectory() == false) {
                     try (OutputStream out = Files.newOutputStream(targetFile)) {
                         int len;

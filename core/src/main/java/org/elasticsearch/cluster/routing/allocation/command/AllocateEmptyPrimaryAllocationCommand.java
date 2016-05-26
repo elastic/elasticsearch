@@ -125,7 +125,7 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
             // we need to move the unassigned info back to treat it as if it was index creation
             unassignedInfoToUpdate = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED,
                 "force empty allocation from previous reason " + shardRouting.unassignedInfo().getReason() + ", " + shardRouting.unassignedInfo().getMessage(),
-                shardRouting.unassignedInfo().getFailure(), 0, System.nanoTime(), System.currentTimeMillis());
+                shardRouting.unassignedInfo().getFailure(), 0, System.nanoTime(), System.currentTimeMillis(), false);
         }
 
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, unassignedInfoToUpdate);

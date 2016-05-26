@@ -332,7 +332,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Environment.PATH_DATA_SETTING,
                     Environment.PATH_HOME_SETTING,
                     Environment.PATH_LOGS_SETTING,
-                    Environment.PATH_PLUGINS_SETTING,
                     Environment.PATH_REPO_SETTING,
                     Environment.PATH_SCRIPTS_SETTING,
                     Environment.PATH_SHARED_DATA_SETTING,

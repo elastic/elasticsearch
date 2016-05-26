@@ -233,16 +233,14 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             // we sometime return empty list of files, make sure we test this as well
             testAllocator.addData(node2, false, null);
         }
-        AllocationService.updateLeftDelayOfUnassignedShards(allocation, Settings.EMPTY);
         boolean changed = testAllocator.allocateUnassigned(allocation);
-        assertThat(changed, equalTo(true));
+        assertThat(changed, equalTo(false));
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
 
         allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(),
                 Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1)).build(), UnassignedInfo.Reason.NODE_LEFT);
         testAllocator.addData(node2, false, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"));
-        AllocationService.updateLeftDelayOfUnassignedShards(allocation, Settings.EMPTY);
         changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(true));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
@@ -290,11 +288,17 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                     .numberOfShards(1).numberOfReplicas(1)
                     .putActiveAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId())))
             .build();
+        // mark shard as delayed if reason is NODE_LEFT
+        boolean delayed = reason == UnassignedInfo.Reason.NODE_LEFT &&
+            UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings).nanos() > 0;
+        int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
         RoutingTable routingTable = RoutingTable.builder()
                 .add(IndexRoutingTable.builder(shardId.getIndex())
                                 .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
                                         .addShard(primaryShard)
-                                        .addShard(ShardRouting.newUnassigned(shardId, null, false, new UnassignedInfo(reason, null)))
+                                        .addShard(ShardRouting.newUnassigned(shardId, null, false,
+                                            new UnassignedInfo(reason, null, null, failedAllocations, System.nanoTime(),
+                                                System.currentTimeMillis(), delayed)))
                                         .build())
                 )
                 .build();

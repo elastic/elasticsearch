@@ -150,14 +150,20 @@ subprojects {
       MavenFilteringHack.filter(it, expansions)
     }
 
-    commonFiles = copySpec {
-      // everything except windows files, and config is separate
-      from '../src/main/resources'
-      exclude 'bin/*.bat'
-      exclude 'bin/*.exe'
-      exclude 'config/**'
-      filesMatching('bin/*') { it.setMode(0755) }
+    binFiles = copySpec {
+      // everything except windows files
+      from '../src/main/resources/bin'
+      exclude '*.bat'
+      exclude '*.exe'
+      eachFile { it.setMode(0755) }
       MavenFilteringHack.filter(it, expansions)
+    }
+
+    commonFiles = copySpec {
+      from rootProject.projectDir
+      include 'NOTICE.txt'
+      include 'LICENSE.txt'
+      include 'README.textile'
     }
   }
 
@@ -187,14 +193,17 @@ configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.nam
       into('config') {
         with configFiles
       }
-      with copySpec {
-        with commonFiles
-        from('../src/main/resources') {
-          include 'bin/*.bat'
-          filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+      into('bin') {
+        with copySpec {
+          with binFiles
+          from('../src/main/resources') {
+            include 'bin/*.bat'
+            filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+          }
+          MavenFilteringHack.filter(it, expansions)
         }
-        MavenFilteringHack.filter(it, expansions)
       }
+      with commonFiles
       from('../src/main/resources') {
         include 'bin/*.exe'
       }
@@ -330,6 +339,9 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     permissionGroup 'root'
     with libFiles
     with modulesFiles
+    into('bin') {
+      with binFiles
+    }
     with copySpec {
       with commonFiles
       if (project.name == 'deb') {

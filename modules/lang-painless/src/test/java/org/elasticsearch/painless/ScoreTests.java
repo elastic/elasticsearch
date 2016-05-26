@@ -19,12 +19,11 @@
 
 package org.elasticsearch.painless;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
+
+import java.io.IOException;
+import java.util.Collections;
 
 public class ScoreTests extends ScriptTestCase {
 

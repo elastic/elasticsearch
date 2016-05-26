@@ -73,7 +73,7 @@ public class RemovePluginCommandTests extends ESTestCase {
 
     public void testMissing() throws Exception {
         UserError e = expectThrows(UserError.class, () -> removePlugin("dne", home));
-        assertTrue(e.getMessage(), e.getMessage().contains("Plugin dne not found"));
+        assertTrue(e.getMessage(), e.getMessage().contains("plugin dne not found"));
         assertRemoveCleaned(env);
     }
 

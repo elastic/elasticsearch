@@ -36,6 +36,7 @@
         index: source
         body:
           index.routing.allocation.include._id: $master
+          index.blocks.write: true
 
   - do:
       cluster.health:

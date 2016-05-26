@@ -53,6 +53,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 /**
  * Main class to initiate shrinking an index into a new index with a single shard
@@ -152,10 +153,10 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
             throw new IllegalArgumentException("mappings are not allowed when shrinking indices" +
                 ", all mappings are copied from the source index");
         }
-        final Settings tagetIndexSettings = Settings.builder().put(targetIndex.settings())
+        final Settings tragetIndexSettings = Settings.builder().put(targetIndex.settings())
             .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
-        if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(tagetIndexSettings)
-            && IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(tagetIndexSettings) > 1) {
+        if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(tragetIndexSettings)
+            && IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(tragetIndexSettings) > 1) {
             throw new IllegalArgumentException("can not shrink index into more than one shard");
         }
         // now check that index is all on one node
@@ -178,17 +179,18 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
                 " must have all shards allocated on the same node to shrink index");
         }
         targetIndex.cause("shrink_index");
-
+        Predicate<String> analysisSimilarityPredicate = (s) -> s.startsWith("index.similarity.") || s.startsWith("index.analysis.");
         targetIndex.settings(Settings.builder()
-            .put(tagetIndexSettings)
+            .put(tragetIndexSettings)
             // we can only shrink to 1 index so far!
             .put("index.number_of_shards", 1)
             // we set default to 0 only if there is nothing explicitly set
-            .put("index.number_of_replicas", IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(tagetIndexSettings) ?
-                IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(tagetIndexSettings) : 0)
-            .put("index.routing.allocation.require._id", Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
-            // now copy all similarity / analysis settings
-            .put(metaData.getSettings().filter((s) -> s.startsWith("index.similarity.") || s.startsWith("index.analysis.")))
+            .put("index.number_of_replicas", IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(tragetIndexSettings) ?
+                IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(tragetIndexSettings) : 0)
+            // we use "i.r.a.include" rather than "i.r.a.require" since it's allows one of the nodes holding an instance of all shards.
+            .put("index.routing.allocation.include._id", Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
+            // now copy all similarity / analysis settings - this overrides all settings from the user unless they wanna add extra settings
+            .put(metaData.getSettings().filter(analysisSimilarityPredicate))
         );
 
         return new CreateIndexClusterStateUpdateRequest(targetIndex,

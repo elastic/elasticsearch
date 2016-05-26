@@ -174,26 +174,28 @@ public class TransportShrinkActionTests extends ESTestCase {
         ShrinkRequest target = new ShrinkRequest("target", indexName);
         CreateIndexClusterStateUpdateRequest request = TransportShrinkAction.prepareCreateIndexRequest(
             target, clusterState, stats, new IndexNameExpressionResolver(Settings.EMPTY));
-        assertEquals(indexName, request.settings().get("index.shrink.source.name"));
+        assertNotNull(request.shrinkFrom());
+        assertEquals(indexName, request.shrinkFrom().getName());
         assertEquals("1", request.settings().get("index.number_of_shards"));
         assertEquals("0", request.settings().get("index.number_of_replicas"));
         assertEquals("similarity settings must be copied", "BM25", request.settings().get("index.similarity.default.type"));
         assertEquals("analysis settings must be copied",
             "keyword", request.settings().get("index.analysis.analyzer.my_analyzer.tokenizer"));
-        assertEquals("node1", request.settings().get("index.routing.allocation.require._id"));
+        assertEquals("node1", request.settings().get("index.routing.allocation.include._id"));
         assertEquals("shrink_index", request.cause());
 
         target.getShrinkIndexReqeust().settings(Settings.builder().put("number_of_replicas", 1));
         request = TransportShrinkAction.prepareCreateIndexRequest(
             target, clusterState, stats, new IndexNameExpressionResolver(Settings.EMPTY));
-        assertEquals(indexName, request.settings().get("index.shrink.source.name"));
+        assertNotNull(request.shrinkFrom());
+        assertEquals(indexName, request.shrinkFrom().getName());
         assertEquals("1", request.settings().get("index.number_of_shards"));
         assertEquals("1", request.settings().get("index.number_of_replicas"));
 
         assertEquals("similarity settings must be copied", "BM25", request.settings().get("index.similarity.default.type"));
         assertEquals("analysis settings must be copied",
             "keyword", request.settings().get("index.analysis.analyzer.my_analyzer.tokenizer"));
-        assertEquals("node1", request.settings().get("index.routing.allocation.require._id"));
+        assertEquals("node1", request.settings().get("index.routing.allocation.include._id"));
 
     }
 

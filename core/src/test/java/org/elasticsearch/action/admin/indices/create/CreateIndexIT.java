@@ -315,8 +315,15 @@ public class CreateIndexIT extends ESIntegTestCase {
                 .put("index.number_of_replicas", 1)).get();
         ensureGreen();
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
-    }
 
+        for (int i = 20; i < 40; i++) {
+            client().prepareIndex("target", randomFrom("t1", "t2", "t3")).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+        }
+        flushAndRefresh();
+        assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 40);
+        assertHitCount(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+
+    }
     /**
      * Tests that we can manually recover from a failed allocation due to shards being moved away etc.
      */

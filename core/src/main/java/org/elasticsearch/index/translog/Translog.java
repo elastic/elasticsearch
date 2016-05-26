@@ -749,10 +749,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         Source getSource();
 
-        void location(Location location);
-
-        Location location();
-
         /**
          * Reads the type and the operation from the given stream. The operatino must be written with
          * {@link #writeType(Operation, StreamOutput)}
@@ -809,7 +805,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         private final String parent;
         private final long timestamp;
         private final long ttl;
-        private Location location;
 
         public Index(StreamInput in) throws IOException {
             final int format = in.readVInt(); // SERIALIZATION_FORMAT
@@ -858,16 +853,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         @Override
         public long estimateSize() {
             return ((id.length() + type.length()) * 2) + source.length() + 12;
-        }
-
-        @Override
-        public void location(Location location) {
-            this.location = location;
-        }
-
-        @Override
-        public Location location() {
-            return location;
         }
 
         public String type() {
@@ -981,7 +966,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         private final Term uid;
         private final long version;
         private final VersionType versionType;
-        private Location location;
 
         public Delete(StreamInput in) throws IOException {
             final int format = in.readVInt();// SERIALIZATION_FORMAT
@@ -1016,16 +1000,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         @Override
         public long estimateSize() {
             return ((uid.field().length() + uid.text().length()) * 2) + 20;
-        }
-
-        @Override
-        public void location(Location location) {
-            this.location = location;
-        }
-
-        @Override
-        public Location location() {
-            return location;
         }
 
         public Term uid() {

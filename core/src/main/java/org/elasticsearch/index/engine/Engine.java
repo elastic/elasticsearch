@@ -808,6 +808,16 @@ public abstract class Engine implements Closeable {
             return this.location;
         }
 
+        public int sizeInBytes() {
+            if (location != null) {
+                return location.size;
+            } else {
+                return estimatedSizeInBytes();
+            }
+        }
+
+        protected abstract int estimatedSizeInBytes();
+
         public VersionType versionType() {
             return this.versionType;
         }
@@ -889,9 +899,16 @@ public abstract class Engine implements Closeable {
         public BytesReference source() {
             return this.doc.source();
         }
+
+        @Override
+        protected int estimatedSizeInBytes() {
+            return (id().length() + type().length()) * 2 + source().length() + 12;
+        }
+
     }
 
     public static class Delete extends Operation {
+
         private final String type;
         private final String id;
         private boolean found;
@@ -927,6 +944,12 @@ public abstract class Engine implements Closeable {
         public boolean found() {
             return this.found;
         }
+
+        @Override
+        protected int estimatedSizeInBytes() {
+            return (uid().field().length() + uid().text().length()) * 2 + 20;
+        }
+
     }
 
     public static class Get {

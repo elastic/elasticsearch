@@ -154,7 +154,6 @@ public class TranslogRecoveryPerformer {
                     Engine.Index engineIndex = IndexShard.prepareIndex(docMapper(index.type()), source(shardId.getIndexName(), index.type(), index.id(), index.source())
                             .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()),
                         index.version(), index.versionType().versionTypeForReplicationAndRecovery(), origin);
-                    engineIndex.setTranslogLocation(operation.location());
                     maybeAddMappingUpdate(engineIndex.type(), engineIndex.parsedDoc().dynamicMappingsUpdate(), engineIndex.id(), allowMappingUpdates);
                     if (logger.isTraceEnabled()) {
                         logger.trace("[translog] recover [index] op of [{}][{}]", index.type(), index.id());
@@ -169,7 +168,6 @@ public class TranslogRecoveryPerformer {
                     }
                     final Engine.Delete engineDelete = new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.version(),
                         delete.versionType().versionTypeForReplicationAndRecovery(), origin, System.nanoTime(), false);
-                    engineDelete.setTranslogLocation(operation.location());
                     delete(engine, engineDelete);
                     break;
                 default:

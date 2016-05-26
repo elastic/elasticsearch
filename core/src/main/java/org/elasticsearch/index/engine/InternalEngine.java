@@ -393,9 +393,8 @@ public class InternalEngine extends Engine {
             if (index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
                 final Translog.Location translogLocation = translog.add(new Translog.Index(index));
                 index.setTranslogLocation(translogLocation);
+                versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, index.getTranslogLocation()));
             }
-            assert index.getTranslogLocation() != null;
-            versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, index.getTranslogLocation()));
 
             return created;
         }
@@ -497,9 +496,8 @@ public class InternalEngine extends Engine {
             if (delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
                 final Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
                 delete.setTranslogLocation(translogLocation);
+                versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), delete.getTranslogLocation()));
             }
-            assert delete.getTranslogLocation() != null;
-            versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), delete.getTranslogLocation()));
         }
     }
 

@@ -19,9 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Label;
-
 /**
  * The superclass for all other nodes.
  */
@@ -50,16 +47,5 @@ public abstract class ANode {
 
     public String error(final String message) {
         return "Error " + location  + ": " + message;
-    }
-
-    /**
-     * Writes line number information
-     * <p>
-     * Currently we emit line number data for for leaf S-nodes
-     */
-    void writeDebugInfo(MethodWriter writer) {
-        Label label = new Label();
-        writer.visitLabel(label);
-        writer.visitLineNumber(line, label);
     }
 }

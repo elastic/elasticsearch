@@ -24,7 +24,7 @@ import org.apache.lucene.util.Constants;
 import org.codehaus.groovy.control.MultipleCompilationErrorsException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -157,7 +157,7 @@ public class GroovySecurityTests extends ESTestCase {
         try {
             doTest(script);
             fail("did not get expected exception");
-        } catch (ScriptException expected) {
+        } catch (GeneralScriptException expected) {
             Throwable cause = expected.getCause();
             assertNotNull(cause);
             if (exceptionClass.isAssignableFrom(cause.getClass()) == false) {

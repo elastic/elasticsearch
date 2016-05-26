@@ -48,8 +48,6 @@ public final class SContinue extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writeDebugInfo(writer);
-
         writer.goTo(continu);
     }
 }

@@ -86,8 +86,7 @@ public final class SDo extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writeDebugInfo(writer);
-
+        writer.writeStatementOffset(offset);
         Label start = new Label();
         Label begin = new Label();
         Label end = new Label();
@@ -103,7 +102,7 @@ public final class SDo extends AStatement {
         condition.fals = end;
         condition.write(writer);
 
-        writer.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount));
+        writer.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount), offset);
 
         writer.goTo(start);
         writer.mark(end);

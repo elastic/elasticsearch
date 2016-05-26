@@ -23,7 +23,7 @@
   - is_true: failures.0.shard
   - match: {failures.0.index:  source}
   - is_true: failures.0.node
-  - match: {failures.0.reason.type:   script_exception}
+  - match: {failures.0.reason.type:   general_script_exception}
   - match: {failures.0.reason.reason: "failed to run inline script [1/0] using lang [groovy]"}
   - match: {failures.0.reason.caused_by.type:   arithmetic_exception}
   - match: {failures.0.reason.caused_by.reason: Division by zero}

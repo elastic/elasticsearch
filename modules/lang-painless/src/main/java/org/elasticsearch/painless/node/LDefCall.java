@@ -67,6 +67,7 @@ final class LDefCall extends ALink implements IDefLink {
 
     @Override
     void load(MethodWriter writer) {
+        writer.writeDebugInfo(offset);
         StringBuilder signature = new StringBuilder();
 
         signature.append('(');

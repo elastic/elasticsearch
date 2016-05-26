@@ -79,6 +79,7 @@ public final class LNewArray extends ALink {
 
     @Override
     void load(MethodWriter writer) {
+        writer.writeDebugInfo(offset);
         for (AExpression argument : arguments) {
             argument.write(writer);
         }

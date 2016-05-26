@@ -92,8 +92,7 @@ public final class SWhile extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writeDebugInfo(writer);
-
+        writer.writeStatementOffset(offset);
         Label begin = new Label();
         Label end = new Label();
 
@@ -103,13 +102,13 @@ public final class SWhile extends AStatement {
         condition.write(writer);
 
         if (block != null) {
-            writer.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount));
+            writer.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount), offset);
 
             block.continu = begin;
             block.brake = end;
             block.write(writer);
         } else {
-            writer.writeLoopCounter(loopCounterSlot, 1);
+            writer.writeLoopCounter(loopCounterSlot, 1, offset);
         }
 
         if (block == null || !block.allEscape) {

@@ -51,6 +51,7 @@ final class ECast extends AExpression {
     @Override
     void write(MethodWriter writer) {
         child.write(writer);
+        writer.writeDebugInfo(offset);
         writer.writeCast(cast);
         writer.writeBranch(tru, fals);
     }

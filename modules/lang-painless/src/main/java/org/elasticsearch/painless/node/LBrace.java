@@ -74,11 +74,13 @@ public final class LBrace extends ALink {
 
     @Override
     void load(MethodWriter writer) {
+        writer.writeDebugInfo(offset);
         writer.arrayLoad(after.type);
     }
 
     @Override
     void store(MethodWriter writer) {
+        writer.writeDebugInfo(offset);
         writer.arrayStore(after.type);
     }
 

@@ -52,8 +52,7 @@ public final class SReturn extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writeDebugInfo(writer);
-
+        writer.writeStatementOffset(offset);
         expression.write(writer);
         writer.returnValue();
     }

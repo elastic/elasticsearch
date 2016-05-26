@@ -50,8 +50,7 @@ public final class SThrow extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writeDebugInfo(writer);
-
+        writer.writeStatementOffset(offset);
         expression.write(writer);
         writer.throwException();
     }

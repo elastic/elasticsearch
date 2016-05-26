@@ -470,6 +470,7 @@ public final class EBinary extends AExpression {
 
     @Override
     void write(MethodWriter writer) {
+        writer.writeDebugInfo(offset);
         if (actual.sort == Sort.STRING && operation == Operation.ADD) {
             if (!cat) {
                 writer.writeNewStrings();

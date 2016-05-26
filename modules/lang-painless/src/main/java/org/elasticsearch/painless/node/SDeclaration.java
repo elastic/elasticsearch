@@ -66,8 +66,7 @@ public final class SDeclaration extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writeDebugInfo(writer);
-
+        writer.writeStatementOffset(offset);
         if (expression == null) {
             switch (variable.type.sort) {
                 case VOID:   throw new IllegalStateException(error("Illegal tree structure."));

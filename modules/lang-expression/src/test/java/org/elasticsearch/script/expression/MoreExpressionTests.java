@@ -44,7 +44,7 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -324,7 +324,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             assertThat(e.toString() + "should have contained ScriptException",
                     e.toString().contains("ScriptException"), equalTo(true));
             assertThat(e.toString() + "should have contained compilation failure",
-                    e.toString().contains("Failed to parse expression"), equalTo(true));
+                    e.toString().contains("compile error"), equalTo(true));
         }
     }
 
@@ -494,7 +494,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             ees = new ExpressionExecutableScript(compiledScript, vars);
             ees.run();
             fail("An incorrect number of variables were allowed to be used in an expression.");
-        } catch (ScriptException se) {
+        } catch (GeneralScriptException se) {
             message = se.getMessage();
             assertThat(message + " should have contained number of variables", message.contains("number of variables"), equalTo(true));
         }
@@ -507,7 +507,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             ees = new ExpressionExecutableScript(compiledScript, vars);
             ees.run();
             fail("A variable was allowed to be set that does not exist in the expression.");
-        } catch (ScriptException se) {
+        } catch (GeneralScriptException se) {
             message = se.getMessage();
             assertThat(message + " should have contained does not exist in", message.contains("does not exist in"), equalTo(true));
         }
@@ -520,7 +520,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             ees = new ExpressionExecutableScript(compiledScript, vars);
             ees.run();
             fail("A non-number was allowed to be use in the expression.");
-        } catch (ScriptException se) {
+        } catch (GeneralScriptException se) {
             message = se.getMessage();
             assertThat(message + " should have contained process numbers", message.contains("process numbers"), equalTo(true));
         }

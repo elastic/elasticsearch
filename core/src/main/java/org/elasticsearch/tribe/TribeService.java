@@ -220,9 +220,6 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         if (Environment.PATH_CONF_SETTING.exists(globalSettings)) {
             sb.put(Environment.PATH_CONF_SETTING.getKey(), Environment.PATH_CONF_SETTING.get(globalSettings));
         }
-        if (Environment.PATH_PLUGINS_SETTING.exists(globalSettings)) {
-            sb.put(Environment.PATH_PLUGINS_SETTING.getKey(), Environment.PATH_PLUGINS_SETTING.get(globalSettings));
-        }
         if (Environment.PATH_LOGS_SETTING.exists(globalSettings)) {
             sb.put(Environment.PATH_LOGS_SETTING.getKey(), Environment.PATH_LOGS_SETTING.get(globalSettings));
         }

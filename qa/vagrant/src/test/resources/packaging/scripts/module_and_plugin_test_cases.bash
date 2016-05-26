@@ -113,27 +113,6 @@ fi
     fi
 }
 
-@test "[$GROUP] install jvm-example plugin with a custom path.plugins" {
-    # Clean up after the last time this test was run
-    rm -rf /tmp/plugins.*
-
-    local oldPlugins="$ESPLUGINS"
-    export ESPLUGINS=$(mktemp -d -t 'plugins.XXXX')
-
-    # Modify the path.plugins setting in configuration file
-    echo "path.plugins: $ESPLUGINS" >> "$ESCONFIG/elasticsearch.yml"
-    chown -R elasticsearch:elasticsearch "$ESPLUGINS"
-
-    install_jvm_example
-    start_elasticsearch_service
-    # check that configuration was actually picked up
-    curl -s localhost:9200/_cat/configured_example | sed 's/ *$//' > /tmp/installed
-    echo "foo" > /tmp/expected
-    diff /tmp/installed /tmp/expected
-    stop_elasticsearch_service
-    remove_jvm_example
-}
-
 @test "[$GROUP] install jvm-example plugin with a custom CONFIG_DIR" {
     # Clean up after the last time we ran this test
     rm -rf /tmp/config.*

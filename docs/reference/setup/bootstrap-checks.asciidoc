@@ -3,9 +3,9 @@
 Collectively, we have a lot of experience with users suffering
 unexpected issues because they have not configured
 <<important-setting,important settings>>. In previous versions of
-Elasticsearch, some of these settings were logged as
-warnings. Understandably, users sometimes miss these log messages. To
-ensure that these settings receive the attention that they deserve,
+Elasticsearch, misconfiguration of some of these settings were logged
+as warnings. Understandably, users sometimes miss these log messages.
+To ensure that these settings receive the attention that they deserve,
 Elasticsearch has bootstrap checks upon startup.
 
 These bootstrap checks inspect a variety of Elasticsearch and system

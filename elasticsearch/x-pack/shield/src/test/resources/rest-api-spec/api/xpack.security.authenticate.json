@@ -3,8 +3,8 @@
     "documentation": "Retrieve details about the currently authenticated user",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_xpack/security/authenticate",
-      "paths": [ "/_xpack/security/authenticate" ],
+      "path": "/_xpack/security/_authenticate",
+      "paths": [ "/_xpack/security/_authenticate" ],
       "parts": {},
       "params": {}
     },

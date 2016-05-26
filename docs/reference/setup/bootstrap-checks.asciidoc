@@ -87,7 +87,7 @@ minimum master nodes check enforces that you've set
 must configure <<minimum_master_nodes>>.
 
 NOTE: The minimum master nodes check does not enforce that you've
-configured <<minimum_master_nodes>> correctly, only that you have
+configured <<minimum_master_nodes>> correctly, only that you have it
 configured. Elasticsearch does log a warning message if it detects that
 <<minimum_master_nodes>> is incorrectly configured based on the number
 of master-eligible nodes visible in the cluster state. Future versions

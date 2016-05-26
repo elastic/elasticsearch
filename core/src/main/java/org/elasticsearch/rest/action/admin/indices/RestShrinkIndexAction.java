@@ -54,7 +54,6 @@ public class RestShrinkIndexAction extends BaseRestHandler {
         if (request.hasContent()) {
             shrinkIndexRequest.getShrinkIndexReqeust().source(request.content());
         }
-        shrinkIndexRequest.getShrinkIndexReqeust().updateAllTypes(request.paramAsBoolean("update_all_types", false));
         shrinkIndexRequest.timeout(request.paramAsTime("timeout", shrinkIndexRequest.timeout()));
         shrinkIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", shrinkIndexRequest.masterNodeTimeout()));
         client.admin().indices().shrinkIndex(shrinkIndexRequest, new AcknowledgedRestListener<>(channel));

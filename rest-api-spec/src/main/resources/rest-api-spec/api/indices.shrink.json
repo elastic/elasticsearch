@@ -1,6 +1,6 @@
 {
   "indices.shrink": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-index.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-shrink-index.html",
     "methods": ["PUT", "POST"],
     "url": {
       "path": "/{index}/_shrink/{target}",
@@ -25,15 +25,11 @@
         "master_timeout": {
           "type" : "time",
           "description" : "Specify timeout for connection to master"
-        },
-        "update_all_types": {
-          "type": "boolean",
-          "description": "Whether to update the mapping for all fields with the same name across all types or not on the target index"
         }
       }
     },
     "body": {
-      "description" : "The configuration for the target index (`settings` and `mappings`)"
+      "description" : "The configuration for the target index (`settings` and `aliases`)"
     }
   }
 }

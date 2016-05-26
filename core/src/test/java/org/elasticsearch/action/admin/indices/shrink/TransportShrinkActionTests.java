@@ -67,6 +67,7 @@ public class TransportShrinkActionTests extends ESTestCase {
             .metaData(metaData).routingTable(routingTable).blocks(ClusterBlocks.builder().addBlocks(indexMetaData)).build();
         return clusterState;
     }
+
     public void testErrorCondition() {
         ClusterState state = createClusterState("source", randomIntBetween(2, 100), randomIntBetween(0, 10),
             Settings.builder().put("index.blocks.write", true).build());
@@ -117,6 +118,15 @@ public class TransportShrinkActionTests extends ESTestCase {
                     ? "number_of_shards" : "index.number_of_shards", 2));
                 TransportShrinkAction.prepareCreateIndexRequest(shrinkRequest, state, stats,
                     new IndexNameExpressionResolver(Settings.EMPTY));
+                }
+            ).getMessage());
+
+        assertEquals("mappings are not allowed for shrinked indices, all mappings are copied from the source index",
+            expectThrows(IllegalArgumentException.class, () -> {
+                    ShrinkRequest shrinkRequest = new ShrinkRequest("target", "source");
+                    shrinkRequest.getShrinkIndexReqeust().mapping("foo", "{}");
+                    TransportShrinkAction.prepareCreateIndexRequest(shrinkRequest, state, stats,
+                        new IndexNameExpressionResolver(Settings.EMPTY));
                 }
             ).getMessage());
 

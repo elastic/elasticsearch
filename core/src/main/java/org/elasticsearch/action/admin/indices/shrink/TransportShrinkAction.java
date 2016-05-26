@@ -147,6 +147,10 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
             throw new IllegalStateException("Can't merge index with more than [" + IndexWriter.MAX_DOCS
                 + "] docs -  too many documents");
         }
+        if (targetIndex.mappings().isEmpty() == false) {
+            throw new IllegalArgumentException("mappings are not allowed for shrinked indices" +
+                ", all mappings are copied from the source index");
+        }
         final Settings tagetIndexSettings = Settings.builder().put(targetIndex.settings())
             .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
         if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(tagetIndexSettings)
@@ -185,9 +189,14 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
             .put("index.routing.allocation.require._id", Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray())));
 
         return new CreateIndexClusterStateUpdateRequest(targetIndex,
-            "shrink_index", targetIndexName, targetIndex.updateAllTypes())
-            .ackTimeout(targetIndex.timeout()).masterNodeTimeout(targetIndex.masterNodeTimeout())
-            .settings(targetIndex.settings()).mappings(targetIndex.mappings())
-            .aliases(targetIndex.aliases()).customs(targetIndex.customs());
+            "shrink_index", targetIndexName, true)
+            // mappings are updated on the node when merging in the shards, this prevents race-conditions since all mapping must be
+            // applied once we took the snapshot and if somebody fucks things up and switches the index read/write and adds docs we miss
+            // the mappings for everything is corrupted and hard to debug
+            .ackTimeout(targetIndex.timeout())
+            .masterNodeTimeout(targetIndex.masterNodeTimeout())
+            .settings(targetIndex.settings())
+            .aliases(targetIndex.aliases())
+            .customs(targetIndex.customs());
     }
 }

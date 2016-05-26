@@ -147,7 +147,6 @@ directory so that you do not delete important data later on.
 | plugins
   | Plugin files location. Each plugin will be contained in a subdirectory.
   | $ES_HOME/plugins
-  | path.plugins
 
 | repo
   | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here.

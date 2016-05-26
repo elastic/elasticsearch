@@ -305,11 +305,10 @@ public class ScriptService extends AbstractComponent implements Closeable {
                 // for the inline case, then its anonymous: null.
                 String actualName = (type == ScriptType.INLINE) ? null : name;
                 compiledScript = new CompiledScript(type, name, lang, scriptEngineService.compile(actualName, code, params));
-            } catch (Exception exception) {
+            } catch (ScriptException good) {
                 // TODO: remove this try-catch completely, when all script engines have good exceptions!
-                if (exception instanceof ScriptException) {
-                    throw exception; // its already good!
-                }
+                throw good; // its already good
+            } catch (Exception exception) {
                 throw new GeneralScriptException("Failed to compile " + type + " script [" + name + "] using lang [" + lang + "]", exception);
             }
 
@@ -367,11 +366,10 @@ public class ScriptService extends AbstractComponent implements Closeable {
                                 "skipping compile of script [{}], lang [{}] as all scripted operations are disabled for indexed scripts",
                                 template.getScript(), scriptLang);
                     }
-                } catch (Exception e) {
+                } catch (ScriptException good) {
                     // TODO: remove this when all script engines have good exceptions!
-                    if (e instanceof ScriptException) {
-                        throw e; // its already good!
-                    }
+                    throw good; // its already good!
+                } catch (Exception e) {
                     throw new IllegalArgumentException("Unable to parse [" + template.getScript() +
                             "] lang [" + scriptLang + "]", e);
                 }

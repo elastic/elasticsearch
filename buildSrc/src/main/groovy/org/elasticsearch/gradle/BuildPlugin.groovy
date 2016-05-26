@@ -372,6 +372,13 @@ class BuildPlugin implements Plugin<Project> {
                 options.fork = true
                 options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
                 options.forkOptions.memoryMaximumSize = "1g"
+                if (project.targetCompatibility >= JavaVersion.VERSION_1_8) {
+                    // compile with compact 3 profile by default
+                    // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
+                    if (project.compactProfile != 'full') {
+                        options.compilerArgs << '-profile' << project.compactProfile
+                    }
+                }
                 /*
                  * -path because gradle will send in paths that don't always exist.
                  * -missing because we have tons of missing @returns and @param.
@@ -379,11 +386,6 @@ class BuildPlugin implements Plugin<Project> {
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
                 options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation' << '-Xdoclint:all' << '-Xdoclint:-missing'
-                // compile with compact 3 profile by default
-                // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
-                if (project.compactProfile != 'full') {
-                    options.compilerArgs << '-profile' << project.compactProfile
-                }
                 options.encoding = 'UTF-8'
                 //options.incremental = true
 

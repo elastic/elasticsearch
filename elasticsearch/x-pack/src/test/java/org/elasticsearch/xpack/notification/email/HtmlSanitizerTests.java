@@ -75,7 +75,7 @@ public class HtmlSanitizerTests extends ESTestCase {
     }
 
     public void testDefaultTablesAllowed() {
-        String html = "<table>" +
+        String html = "<table border=\"1\" cellpadding=\"6\">" +
                 "<caption>caption</caption>" +
                 "<colgroup>" +
                 "<col span=\"2\" />" +
@@ -83,7 +83,7 @@ public class HtmlSanitizerTests extends ESTestCase {
                 "</colgroup>" +
                 "<thead>" +
                 "<tr>" +
-                "<th>header1</th>" +
+                "<th colspan=\"2\">header1</th>" +
                 "<th>header2</th>" +
                 "</tr>" +
                 "</thead>" +
@@ -101,6 +101,14 @@ public class HtmlSanitizerTests extends ESTestCase {
                 "</tbody>" +
                 "</table>";
         HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.EMPTY);
+        String sanitizedHtml = sanitizer.sanitize(html);
+        assertThat(sanitizedHtml, equalTo(html));
+    }
+
+    public void testAllowStyles() {
+        String html = "<table border=\"1\" cellpadding=\"6\" style=\"color:red\"></table>";
+        Settings settings = Settings.builder().putArray("xpack.notification.email.html.sanitization.allow", "_tables", "_styles").build();
+        HtmlSanitizer sanitizer = new HtmlSanitizer(settings);
         String sanitizedHtml = sanitizer.sanitize(html);
         assertThat(sanitizedHtml, equalTo(html));
     }

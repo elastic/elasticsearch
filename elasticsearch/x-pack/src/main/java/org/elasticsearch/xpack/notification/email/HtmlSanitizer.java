@@ -86,6 +86,8 @@ public class HtmlSanitizer {
                 case "_tables":
                     policyBuilder.allowElements(TABLE_TAGS);
                     policyBuilder.allowAttributes("span").onElements("col");
+                    policyBuilder.allowAttributes("border", "cellpadding").onElements("table");
+                    policyBuilder.allowAttributes("colspan", "rowspan").onElements("th", "td");
                     break;
                 case "_links":
                     policyBuilder.allowElements("a")

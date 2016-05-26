@@ -79,11 +79,11 @@ public class TranslogRecoveryPerformer {
     }
 
     public int recoveryFromSnapshot(Engine engine, Translog.Snapshot snapshot) throws IOException {
-        Translog.Operation op;
+        Translog.Operation operation;
         int opsRecovered = 0;
-        while ((op = snapshot.next()) != null) {
+        while ((operation = snapshot.next()) != null) {
             try {
-                performRecoveryOperation(engine, op, true, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY);
+                performRecoveryOperation(engine, operation, true, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY);
                 opsRecovered++;
             } catch (ElasticsearchException e) {
                 if (e.status() == RestStatus.BAD_REQUEST) {

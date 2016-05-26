@@ -88,8 +88,7 @@ file by default.  The format of this config file is explained in
 <<settings>>.
 
 Any settings that can be specified in the config file can also be specified on
-the command line, using the `-E` syntax, and prepending `es.` to the setting
-name, as follows:
+the command line, using the `-E` syntax as follows:
 
 [source,sh]
 --------------------------------------------

@@ -735,7 +735,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
             assertThat(e.getMessage(),
-                    equalTo("Can't execute an bulk request with update requests embedded if field or document level security is enabled"));
+                    equalTo("Can't execute a bulk request with update requests embedded if field or document level security is enabled"));
         }
         assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field1").toString(), equalTo("value2"));
 

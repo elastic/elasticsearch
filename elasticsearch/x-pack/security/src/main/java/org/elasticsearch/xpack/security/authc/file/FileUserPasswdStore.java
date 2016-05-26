@@ -56,9 +56,6 @@ public class FileUserPasswdStore {
         logger = config.logger(FileUserPasswdStore.class);
         file = resolveFile(config.settings(), config.env());
         users = parseFileLenient(file, logger);
-        if (users.isEmpty() && logger.isDebugEnabled()) {
-            logger.debug("realm [file] has no users");
-        }
         FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileListener());
         try {
@@ -163,9 +160,7 @@ public class FileUserPasswdStore {
             users.put(username, hash.toCharArray());
         }
 
-        if (users.isEmpty()) {
-            logger.warn("no users found in users file [{}]. use bin/x-pack/users to add users and role mappings", path.toAbsolutePath());
-        }
+        logger.debug("parsed [{}] users from file [{}]", users.size(), path.toAbsolutePath());
         return unmodifiableMap(users);
     }
 

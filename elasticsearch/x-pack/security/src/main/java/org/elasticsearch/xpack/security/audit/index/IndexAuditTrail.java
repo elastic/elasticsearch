@@ -694,8 +694,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         if (currentState != State.STOPPING && currentState != State.STOPPED) {
             boolean accepted = eventQueue.offer(message);
             if (!accepted) {
-                logger.warn("failed to index audit event: [{}]. queue is full; bulk processor may not be able to keep up" +
-                        "or has stopped indexing.", type);
+                logger.warn("failed to index audit event: [{}]. internal queue is full, which may be caused by a high indexing rate or " +
+                        "issue with the destination", type);
             }
         }
     }

@@ -16,7 +16,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import com.fasterxml.jackson.dataformat.yaml.snakeyaml.error.YAMLException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
@@ -144,7 +143,7 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
         }
 
         Map<String, Role> roles = new HashMap<>();
-        logger.trace("attempted to read roles file located at [{}]", path.toAbsolutePath());
+        logger.debug("attempting to read roles file located at [{}]", path.toAbsolutePath());
         if (Files.exists(path)) {
             try {
                 List<String> roleSegments = roleSegments(path);
@@ -162,9 +161,14 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
 
             } catch (IOException ioe) {
                 logger.error("failed to read roles file [{}]. skipping all roles...", ioe, path.toAbsolutePath());
+                return emptyMap();
             }
+        } else {
+            logger.debug("roles file does not exist");
+            return emptyMap();
         }
 
+        logger.debug("parsed [{}] roles from file [{}]", roles.size(), path.toAbsolutePath());
         return unmodifiableMap(roles);
     }
 
@@ -175,7 +179,7 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
         }
 
         Map<String, RoleDescriptor> roles = new HashMap<>();
-        logger.trace("attempted to read roles file located at [{}]", path.toAbsolutePath());
+        logger.trace("attempting to read roles file located at [{}]", path.toAbsolutePath());
         if (Files.exists(path)) {
             try {
                 List<String> roleSegments = roleSegments(path);
@@ -187,6 +191,7 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
                 }
             } catch (IOException ioe) {
                 logger.error("failed to read roles file [{}]. skipping all roles...", ioe, path.toAbsolutePath());
+                return emptyMap();
             }
         }
         return unmodifiableMap(roles);

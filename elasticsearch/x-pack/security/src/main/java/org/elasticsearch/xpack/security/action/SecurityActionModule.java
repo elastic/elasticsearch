@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.action;
 
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
 import org.elasticsearch.xpack.security.action.interceptor.BulkRequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.FieldStatsRequestInterceptor;
@@ -28,13 +29,14 @@ public class SecurityActionModule extends AbstractSecurityModule.Node {
         // we need to ensure that there's only a single instance of the action filters
         bind(SecurityActionFilter.class).asEagerSingleton();
 
-        // TODO: we should move these to action filters and only have 1 chain.
         Multibinder<RequestInterceptor> multibinder
                 = Multibinder.newSetBinder(binder(), RequestInterceptor.class);
-        multibinder.addBinding().to(RealtimeRequestInterceptor.class);
-        multibinder.addBinding().to(SearchRequestInterceptor.class);
-        multibinder.addBinding().to(UpdateRequestInterceptor.class);
-        multibinder.addBinding().to(BulkRequestInterceptor.class);
-        multibinder.addBinding().to(FieldStatsRequestInterceptor.class);
+        if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
+            multibinder.addBinding().to(RealtimeRequestInterceptor.class);
+            multibinder.addBinding().to(SearchRequestInterceptor.class);
+            multibinder.addBinding().to(UpdateRequestInterceptor.class);
+            multibinder.addBinding().to(BulkRequestInterceptor.class);
+            multibinder.addBinding().to(FieldStatsRequestInterceptor.class);
+        }
     }
 }

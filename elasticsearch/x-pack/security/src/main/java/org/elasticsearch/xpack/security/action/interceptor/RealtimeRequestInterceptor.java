@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.action.interceptor;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -18,8 +19,8 @@ import org.elasticsearch.transport.TransportRequest;
 public class RealtimeRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor<RealtimeRequest> {
 
     @Inject
-    public RealtimeRequestInterceptor(Settings settings, ThreadPool threadPool) {
-        super(settings, threadPool.getThreadContext());
+    public RealtimeRequestInterceptor(Settings settings, ThreadPool threadPool, XPackLicenseState licenseState) {
+        super(settings, threadPool.getThreadContext(), licenseState);
     }
 
     @Override

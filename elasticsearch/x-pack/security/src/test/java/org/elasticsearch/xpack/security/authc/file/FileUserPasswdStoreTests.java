@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.file;
 
-import org.elasticsearch.common.SuppressLoggerChecks;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger;
@@ -41,11 +38,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.contains;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
 /**
  *
@@ -181,14 +173,14 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         assertThat(new String(users.get("sha")), equalTo("{SHA}cojt0Pw//L6ToM8G41aOKFIWh7w="));
     }
 
-    @SuppressLoggerChecks(reason = "mock usage")
     public void testParseFile_Empty() throws Exception {
         Path empty = createTempFile();
-        ESLogger log = ESLoggerFactory.getLogger("test");
-        log = spy(log);
-        Map<String, char[]> users = FileUserPasswdStore.parseFile(empty, log);
+        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.DEBUG);
+        Map<String, char[]> users = FileUserPasswdStore.parseFile(empty, logger);
         assertThat(users.isEmpty(), is(true));
-        verify(log, times(1)).warn(contains("no users found"), eq(empty));
+        List<CapturingLogger.Msg> msgs = logger.output(CapturingLogger.Level.DEBUG);
+        assertThat(msgs.size(), is(1));
+        assertThat(msgs.get(0).text, containsString("parsed [0] users"));
     }
 
     public void testParseFile_WhenFileDoesNotExist() throws Exception {

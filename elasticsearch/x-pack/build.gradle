@@ -180,10 +180,6 @@ artifacts {
     testArtifacts testJar
 }
 
-run {
-  setupCommand 'setupDummyUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
-}
-
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
 thirdPartyAudit.excludes = [
     // uses internal java api: sun.misc.Unsafe

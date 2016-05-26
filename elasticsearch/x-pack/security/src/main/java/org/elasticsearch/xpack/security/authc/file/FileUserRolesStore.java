@@ -177,11 +177,7 @@ public class FileUserRolesStore {
             usersRoles.put(entry.getKey(), entry.getValue().toArray(new String[entry.getValue().size()]));
         }
 
-        if (usersRoles.isEmpty()) {
-            logger.warn("no entries found in users_roles file [{}]. use bin/xpack/users to add users and role mappings", path
-                    .toAbsolutePath());
-        }
-
+        logger.debug("parsed [{}] user to role mappings from file [{}]", usersRoles.size(), path.toAbsolutePath());
         return unmodifiableMap(usersRoles);
     }
 

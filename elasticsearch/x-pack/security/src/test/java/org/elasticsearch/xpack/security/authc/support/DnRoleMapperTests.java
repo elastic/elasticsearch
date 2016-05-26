@@ -192,13 +192,13 @@ public class DnRoleMapperTests extends ESTestCase {
     public void testParseFile_Empty() throws Exception {
         Path file = createTempDir().resolve("foo.yaml");
         Files.createFile(file);
-        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
+        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.DEBUG);
         Map<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
-        List<CapturingLogger.Msg> msgs = logger.output(CapturingLogger.Level.WARN);
+        List<CapturingLogger.Msg> msgs = logger.output(CapturingLogger.Level.DEBUG);
         assertThat(msgs.size(), is(1));
-        assertThat(msgs.get(0).text, containsString("no mappings found"));
+        assertThat(msgs.get(0).text, containsString("[0] role mappings found"));
     }
 
     public void testParseFile_WhenFileDoesNotExist() throws Exception {

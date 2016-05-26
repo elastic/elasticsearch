@@ -56,6 +56,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
@@ -1125,5 +1126,12 @@ public class InternalEngine extends Engine {
 
     public MergeStats getMergeStats() {
         return mergeScheduler.stats();
+    }
+
+    @Override
+    public DocsStats getDocStats() {
+        final int numDocs = indexWriter.numDocs();
+        final int maxDoc = indexWriter.maxDoc();
+        return new DocsStats(numDocs, maxDoc-numDocs);
     }
 }

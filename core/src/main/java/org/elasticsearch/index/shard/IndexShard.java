@@ -614,9 +614,9 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public DocsStats docStats() {
-        try (Engine.Searcher searcher = acquireSearcher("doc_stats")) {
-            return new DocsStats(searcher.reader().numDocs(), searcher.reader().numDeletedDocs());
-        }
+        readAllowed();
+        final Engine engine = getEngine();
+        return engine.getDocStats();
     }
 
     /**

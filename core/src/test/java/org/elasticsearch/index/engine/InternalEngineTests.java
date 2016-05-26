@@ -82,6 +82,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -2109,5 +2110,32 @@ public class InternalEngineTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testDocStats() throws IOException {
+        final int numDocs = randomIntBetween(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
+            Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime());
+            engine.index(firstIndexRequest);
+            assertThat(firstIndexRequest.version(), equalTo(1L));
+        }
+        DocsStats docStats = engine.getDocStats();
+        assertEquals(numDocs, docStats.getCount());
+        assertEquals(0, docStats.getDeleted());
+        engine.forceMerge(randomBoolean(), 1, false, false, false);
+
+        ParsedDocument doc = testParsedDocument(Integer.toString(0), Integer.toString(0), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
+        Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(0)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime());
+        engine.index(firstIndexRequest);
+        assertThat(firstIndexRequest.version(), equalTo(2L));
+        engine.flush(); // flush - buffered deletes are not counted
+        docStats = engine.getDocStats();
+        assertEquals(1, docStats.getDeleted());
+        assertEquals(numDocs, docStats.getCount());
+        engine.forceMerge(randomBoolean(), 1, false, false, false);
+        docStats = engine.getDocStats();
+        assertEquals(0, docStats.getDeleted());
+        assertEquals(numDocs, docStats.getCount());
     }
 }

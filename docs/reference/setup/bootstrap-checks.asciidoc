@@ -134,13 +134,14 @@ must configure `vm.max_map_count` via `sysctl` to be at least `262144`.
 
 === Client JVM check
 
-There are two different JVMs provided by OpenJDK: the client JVM and the
-server JVM. These JVMs use different compilers for producing executable
-machine code from Java bytecode. The client JVM is tuned for startup
-time and memory footprint while the server JVM is tuned for maximizing
-performance. The difference in performance between the two VMs can be
-substantial. The client JVM check ensures that Elasticsearch is not
-running inside the client JVM. To pass the client JVM check, you must
-start Elasticsearch with the server VM. On modern systems and operating
-systems, the server VM is the default. Additionally, Elasticsearch is
-configured by default to force the server VM.
+There are two different JVMs provided by OpenJDK-derived JVMs: the
+client JVM and the server JVM. These JVMs use different compilers for
+producing executable machine code from Java bytecode. The client JVM is
+tuned for startup time and memory footprint while the server JVM is
+tuned for maximizing performance. The difference in performance between
+the two VMs can be substantial. The client JVM check ensures that
+Elasticsearch is not running inside the client JVM. To pass the client
+JVM check, you must start Elasticsearch with the server VM. On modern
+systems and operating systems, the server VM is the
+default. Additionally, Elasticsearch is configured by default to force
+the server VM.

@@ -521,7 +521,7 @@ public class NodeJoinControllerTests extends ESTestCase {
     static class NoopRoutingService extends RoutingService {
 
         public NoopRoutingService(Settings settings) {
-            super(settings, null, null, new NoopAllocationService(settings));
+            super(settings, null, new NoopAllocationService(settings));
         }
 
         @Override

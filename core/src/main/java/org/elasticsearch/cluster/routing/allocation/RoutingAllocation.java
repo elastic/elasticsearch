@@ -56,7 +56,7 @@ public class RoutingAllocation {
 
         private final MetaData metaData;
 
-        private RoutingExplanations explanations = new RoutingExplanations();
+        private final RoutingExplanations explanations;
 
         /**
          * Creates a new {@link RoutingAllocation.Result}
@@ -65,9 +65,7 @@ public class RoutingAllocation {
          * @param metaData the {@link MetaData} this Result references
          */
         public Result(boolean changed, RoutingTable routingTable, MetaData metaData) {
-            this.changed = changed;
-            this.routingTable = routingTable;
-            this.metaData = metaData;
+            this(changed, routingTable, metaData, new RoutingExplanations());
         }
 
         /**

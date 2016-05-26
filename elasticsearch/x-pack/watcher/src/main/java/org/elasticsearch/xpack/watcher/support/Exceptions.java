@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.support;
 
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.GeneralScriptException;
 
 import java.io.IOException;
 
@@ -45,9 +45,9 @@ public class Exceptions {
     }
 
 
-    //todo remove once ScriptException supports varargs
-    public static ScriptException invalidScript(String msg, Object... args) {
-        throw new ScriptException(format(msg, args));
+    //todo remove once GeneralScriptException supports varargs
+    public static GeneralScriptException invalidScript(String msg, Object... args) {
+        throw new GeneralScriptException(format(msg, args));
     }
 
     //todo remove once SettingsException supports varargs

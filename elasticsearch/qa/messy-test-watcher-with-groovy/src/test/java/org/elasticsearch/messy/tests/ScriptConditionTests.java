@@ -13,7 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
@@ -138,7 +138,7 @@ public class ScriptConditionTests extends ESTestCase {
         try {
             conditionParser.createExecutable(scriptCondition);
             fail("expected a condition validation exception trying to create an executable with a bad or missing script");
-        } catch (ScriptException e) {
+        } catch (GeneralScriptException e) {
             // TODO add these when the test if fixed
             // assertThat(e.getMessage(), is("ASDF"));
         }
@@ -155,7 +155,7 @@ public class ScriptConditionTests extends ESTestCase {
         try {
             conditionParser.createExecutable(scriptCondition);
             fail("expected a condition validation exception trying to create an executable with an invalid language");
-        } catch (ScriptException e) {
+        } catch (GeneralScriptException e) {
             // TODO add these when the test if fixed
             // assertThat(e.getMessage(), is("ASDF"));
         }

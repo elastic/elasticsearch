@@ -138,7 +138,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         functionScoreQuery(functions);
     }
 
-    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 4.0
     public void testFuzzy() {
         fuzzyQuery("name", "kimchy");
     }

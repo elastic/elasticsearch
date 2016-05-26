@@ -33,19 +33,23 @@ public final class SSource extends AStatement {
 
     final List<AStatement> statements;
 
-    public SSource(int line, String location, List<AStatement> statements) {
-        super(line, location);
+    public SSource(int line, int offset, String location, List<AStatement> statements) {
+        super(line, offset, location);
 
         this.statements = Collections.unmodifiableList(statements);
     }
 
     @Override
     public void analyze(Variables variables) {
+        if (statements == null || statements.isEmpty()) {
+            throw new IllegalArgumentException(error("Cannot generate an empty script."));
+        }
+
         variables.incrementScope();
 
         final AStatement last = statements.get(statements.size() - 1);
 
-        for (final AStatement statement : statements) {
+        for (AStatement statement : statements) {
             if (allEscape) {
                 throw new IllegalArgumentException(error("Unreachable statement."));
             }
@@ -61,14 +65,14 @@ public final class SSource extends AStatement {
     }
 
     @Override
-    public void write(MethodWriter adapter) {
-        for (final AStatement statement : statements) {
-            statement.write(adapter);
+    public void write(MethodWriter writer) {
+        for (AStatement statement : statements) {
+            statement.write(writer);
         }
 
         if (!methodEscape) {
-            adapter.visitInsn(Opcodes.ACONST_NULL);
-            adapter.returnValue();
+            writer.visitInsn(Opcodes.ACONST_NULL);
+            writer.returnValue();
         }
     }
 }

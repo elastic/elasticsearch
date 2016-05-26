@@ -19,13 +19,17 @@
 
 package org.elasticsearch.painless;
 
+import org.apache.lucene.search.Scorer;
+import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -48,14 +52,20 @@ public abstract class ScriptTestCase extends ESTestCase {
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} */
     public Object exec(String script, Map<String, Object> vars) {
-        return exec(script, vars, Collections.emptyMap());
+        Map<String,String> compilerSettings = new HashMap<>();
+        compilerSettings.put(CompilerSettings.PICKY, "true");
+        return exec(script, vars, compilerSettings, null);
     }
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} and compile-time parameters */
-    public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams) {
+    public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, Scorer scorer) {
         Object object = scriptEngine.compile(null, script, compileParams);
         CompiledScript compiled = new CompiledScript(ScriptService.ScriptType.INLINE, getTestName(), "painless", object);
-        return scriptEngine.executable(compiled, vars).run();
+        ExecutableScript executableScript = scriptEngine.executable(compiled, vars);
+        if (scorer != null) {
+            ((ScorerAware)executableScript).setScorer(scorer);
+        }
+        return executableScript.run();
     }
 
     /**

@@ -34,7 +34,6 @@ import java.util.Set;
 /**
  *
  */
-@SuppressWarnings("deprecation")
 public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final CharArraySet stopWords;

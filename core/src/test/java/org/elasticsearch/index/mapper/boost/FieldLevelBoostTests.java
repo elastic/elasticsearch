@@ -37,6 +37,7 @@ import java.util.Collection;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  */
@@ -59,6 +60,7 @@ public class FieldLevelBoostTests extends ESSingleNodeTestCase {
                 .startObject("float_field").field("type", "float").startObject("norms").field("enabled", true).endObject().endObject()
                 .startObject("long_field").field("type", "long").startObject("norms").field("enabled", true).endObject().endObject()
                 .startObject("short_field").field("type", "short").startObject("norms").field("enabled", true).endObject().endObject()
+                .endObject().endObject().endObject()
                 .string();
 
         DocumentMapper docMapper = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
@@ -71,6 +73,7 @@ public class FieldLevelBoostTests extends ESSingleNodeTestCase {
                 .startObject("float_field").field("boost", 7.0).field("value", 40.0).endObject()
                 .startObject("long_field").field("boost", 8.0).field("value", 50).endObject()
                 .startObject("short_field").field("boost", 9.0).field("value", 60).endObject()
+                .endObject()
                 .bytes();
         Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
 
@@ -109,6 +112,7 @@ public class FieldLevelBoostTests extends ESSingleNodeTestCase {
             .startObject("float_field").field("type", "float").field("boost", "7.0").endObject()
             .startObject("long_field").field("type", "long").field("boost", "8.0").endObject()
             .startObject("short_field").field("type", "short").field("boost", "9.0").endObject()
+            .endObject().endObject().endObject()
             .string();
 
         {
@@ -122,6 +126,7 @@ public class FieldLevelBoostTests extends ESSingleNodeTestCase {
                 .field("float_field", 40.0)
                 .field("long_field", 50)
                 .field("short_field", 60)
+                .endObject()
                 .bytes();
             Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
 
@@ -161,6 +166,7 @@ public class FieldLevelBoostTests extends ESSingleNodeTestCase {
                 .field("float_field", 40.0)
                 .field("long_field", 50)
                 .field("short_field", 60)
+                .endObject()
                 .bytes();
             Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
 
@@ -200,79 +206,80 @@ public class FieldLevelBoostTests extends ESSingleNodeTestCase {
                 .startObject("float_field").field("type", "float").startObject("norms").field("enabled", true).endObject().endObject()
                 .startObject("long_field").field("type", "long").startObject("norms").field("enabled", true).endObject().endObject()
                 .startObject("short_field").field("type", "short").startObject("norms").field("enabled", true).endObject().endObject()
+                .endObject().endObject().endObject()
                 .string();
 
         DocumentMapper docMapper = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         try {
             docMapper.parse("test", "person", "1", XContentFactory.jsonBuilder().startObject()
                     .startObject("str_field").field("foo", "bar")
-                    .endObject().bytes()).rootDoc();
+                    .endObject().endObject().bytes()).rootDoc();
             fail();
-        } catch (MapperParsingException ex) {
-            // Expected
+        } catch (Exception ex) {
+            assertThat(ex, instanceOf(MapperParsingException.class));
         }
 
         try {
             docMapper.parse("test", "person", "1", XContentFactory.jsonBuilder().startObject()
                     .startObject("int_field").field("foo", "bar")
-                    .endObject().bytes()).rootDoc();
+                    .endObject().endObject().bytes()).rootDoc();
             fail();
-        } catch (MapperParsingException ex) {
-            // Expected
+        } catch (Exception ex) {
+            assertThat(ex, instanceOf(MapperParsingException.class));
         }
 
         try {
             docMapper.parse("test", "person", "1", XContentFactory.jsonBuilder().startObject()
                     .startObject("byte_field").field("foo", "bar")
-                    .endObject().bytes()).rootDoc();
+                    .endObject().endObject().bytes()).rootDoc();
             fail();
-        } catch (MapperParsingException ex) {
-            // Expected
+        } catch (Exception ex) {
+            assertThat(ex, instanceOf(MapperParsingException.class));
         }
 
         try {
             docMapper.parse("test", "person", "1", XContentFactory.jsonBuilder().startObject()
                     .startObject("date_field").field("foo", "bar")
-                    .endObject().bytes()).rootDoc();
+                    .endObject().endObject().bytes()).rootDoc();
             fail();
-        } catch (MapperParsingException ex) {
-            // Expected
+        } catch (Exception ex) {
+            assertThat(ex, instanceOf(MapperParsingException.class));
         }
 
         try {
             docMapper.parse("test", "person", "1", XContentFactory.jsonBuilder().startObject()
                     .startObject("double_field").field("foo", "bar")
-                    .endObject().bytes()).rootDoc();
+                    .endObject().endObject().bytes()).rootDoc();
             fail();
-        } catch (MapperParsingException ex) {
-            // Expected
+        } catch (Exception ex) {
+            assertThat(ex, instanceOf(MapperParsingException.class));
         }
 
         try {
             docMapper.parse("test", "person", "1", XContentFactory.jsonBuilder().startObject()
                     .startObject("float_field").field("foo", "bar")
-                    .endObject().bytes()).rootDoc();
+                    .endObject().endObject().bytes()).rootDoc();
             fail();
-        } catch (MapperParsingException ex) {
-            // Expected
+        } catch (Exception ex) {
+            assertThat(ex, instanceOf(MapperParsingException.class));
         }
 
         try {
             docMapper.parse("test", "person", "1", XContentFactory.jsonBuilder().startObject()
                     .startObject("long_field").field("foo", "bar")
-                    .endObject().bytes()).rootDoc();
+                    .endObject().endObject().bytes()).rootDoc();
             fail();
-        } catch (MapperParsingException ex) {
-            // Expected
+        } catch (Exception ex) {
+            assertThat(ex, instanceOf(MapperParsingException.class));
         }
 
         try {
             docMapper.parse("test", "person", "1", XContentFactory.jsonBuilder().startObject()
                     .startObject("short_field").field("foo", "bar")
-                    .endObject().bytes()).rootDoc();
+                    .endObject().endObject().bytes()).rootDoc();
             fail();
-        } catch (MapperParsingException ex) {
-            // Expected
+        } catch (Exception ex) {
+            assertThat(ex, instanceOf(MapperParsingException.class));
         }
 
     }

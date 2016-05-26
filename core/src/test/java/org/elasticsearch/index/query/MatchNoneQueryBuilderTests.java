@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
@@ -40,10 +41,10 @@ public class MatchNoneQueryBuilderTests extends AbstractQueryTestCase<MatchNoneQ
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"match_none\" : {\n" + 
-                "    \"boost\" : 1.2\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"match_none\" : {\n" +
+                "    \"boost\" : 1.2\n" +
+                "  }\n" +
                 "}";
         MatchNoneQueryBuilder parsed = (MatchNoneQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

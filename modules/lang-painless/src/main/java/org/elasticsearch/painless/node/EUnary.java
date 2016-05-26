@@ -37,11 +37,11 @@ import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
  */
 public final class EUnary extends AExpression {
 
-    Operation operation;
+    final Operation operation;
     AExpression child;
 
-    public EUnary(int line, String location, Operation operation, AExpression child) {
-        super(line, location);
+    public EUnary(int line, int offset, String location, Operation operation, AExpression child) {
+        super(line, offset, location);
 
         this.operation = operation;
         this.child = child;
@@ -77,7 +77,7 @@ public final class EUnary extends AExpression {
     void analyzeBWNot(Variables variables) {
         child.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(child.actual, false);
+        Type promote = AnalyzerCaster.promoteNumeric(child.actual, false);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply not [~] to type [" + child.actual.name + "]."));
@@ -87,7 +87,7 @@ public final class EUnary extends AExpression {
         child = child.cast(variables);
 
         if (child.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
                 constant = ~(int)child.constant;
@@ -104,7 +104,7 @@ public final class EUnary extends AExpression {
     void analyzerAdd(Variables variables) {
         child.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(child.actual, true);
+        Type promote = AnalyzerCaster.promoteNumeric(child.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply positive [+] to type [" + child.actual.name + "]."));
@@ -114,7 +114,7 @@ public final class EUnary extends AExpression {
         child = child.cast(variables);
 
         if (child.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
                 constant = +(int)child.constant;
@@ -135,7 +135,7 @@ public final class EUnary extends AExpression {
     void analyzerSub(Variables variables) {
         child.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(child.actual, true);
+        Type promote = AnalyzerCaster.promoteNumeric(child.actual, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply negative [-] to type [" + child.actual.name + "]."));
@@ -145,7 +145,7 @@ public final class EUnary extends AExpression {
         child = child.cast(variables);
 
         if (child.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
                 constant = -(int)child.constant;
@@ -164,56 +164,56 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         if (operation == Operation.NOT) {
             if (tru == null && fals == null) {
-                final Label localfals = new Label();
-                final Label end = new Label();
+                Label localfals = new Label();
+                Label end = new Label();
 
                 child.fals = localfals;
-                child.write(adapter);
+                child.write(writer);
 
-                adapter.push(false);
-                adapter.goTo(end);
-                adapter.mark(localfals);
-                adapter.push(true);
-                adapter.mark(end);
+                writer.push(false);
+                writer.goTo(end);
+                writer.mark(localfals);
+                writer.push(true);
+                writer.mark(end);
             } else {
                 child.tru = fals;
                 child.fals = tru;
-                child.write(adapter);
+                child.write(writer);
             }
         } else {
-            final org.objectweb.asm.Type type = actual.type;
-            final Sort sort = actual.sort;
+            org.objectweb.asm.Type type = actual.type;
+            Sort sort = actual.sort;
 
-            child.write(adapter);
+            child.write(writer);
 
             if (operation == Operation.BWNOT) {
                 if (sort == Sort.DEF) {
-                    adapter.invokeStatic(DEF_UTIL_TYPE, DEF_NOT_CALL);
+                    writer.invokeStatic(DEF_UTIL_TYPE, DEF_NOT_CALL);
                 } else {
                     if (sort == Sort.INT) {
-                        adapter.push(-1);
+                        writer.push(-1);
                     } else if (sort == Sort.LONG) {
-                        adapter.push(-1L);
+                        writer.push(-1L);
                     } else {
                         throw new IllegalStateException(error("Illegal tree structure."));
                     }
 
-                    adapter.math(MethodWriter.XOR, type);
+                    writer.math(MethodWriter.XOR, type);
                 }
             } else if (operation == Operation.SUB) {
                 if (sort == Sort.DEF) {
-                    adapter.invokeStatic(DEF_UTIL_TYPE, DEF_NEG_CALL);
+                    writer.invokeStatic(DEF_UTIL_TYPE, DEF_NEG_CALL);
                 } else {
-                    adapter.math(MethodWriter.NEG, type);
+                    writer.math(MethodWriter.NEG, type);
                 }
             } else if (operation != Operation.ADD) {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
 
-            adapter.writeBranch(tru, fals);
+            writer.writeBranch(tru, fals);
         }
     }
 }

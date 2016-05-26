@@ -137,7 +137,7 @@ use `S3SignerType`, which is Signature Version 2.
 
 The S3 repository is using S3 to store snapshots. The S3 repository can be created using the following command:
 
-[source,json]
+[source,js]
 ----
 PUT _snapshot/my_s3_repository
 {

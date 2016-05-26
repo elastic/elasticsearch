@@ -1440,7 +1440,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 3L);
     }
 
-    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 4.0
     public void testSpanMultiTermQuery() throws IOException {
         createIndex("test");
 
@@ -1711,7 +1710,8 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testAllDisabledButQueried() throws Exception {
         createIndex("myindex");
         assertAcked(client().admin().indices().preparePutMapping("myindex").setType("mytype").setSource(
-                jsonBuilder().startObject().startObject("mytype").startObject("_all").field("enabled", false)));
+                jsonBuilder().startObject().startObject("mytype").startObject("_all").field("enabled", false)
+                .endObject().endObject().endObject()));
         client().prepareIndex("myindex", "mytype").setId("1").setSource("bar", "foo").setRefresh(true).get();
         SearchResponse response = client().prepareSearch("myindex").setQuery(matchQuery("_all", "foo")).get();
         assertNoFailures(response);

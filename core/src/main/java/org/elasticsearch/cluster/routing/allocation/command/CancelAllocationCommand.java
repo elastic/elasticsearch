@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 
@@ -239,5 +240,24 @@ public class CancelAllocationCommand implements AllocationCommand {
             throw new ElasticsearchParseException("[{}] command missing the node parameter", NAME);
         }
         return new CancelAllocationCommand(index, shardId, nodeId, allowPrimary);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        CancelAllocationCommand other = (CancelAllocationCommand) obj;
+        // Override equals and hashCode for testing
+        return Objects.equals(index, other.index) &&
+                Objects.equals(shardId, other.shardId) &&
+                Objects.equals(node, other.node) &&
+                Objects.equals(allowPrimary, other.allowPrimary);
+    }
+
+    @Override
+    public int hashCode() {
+        // Override equals and hashCode for testing
+        return Objects.hash(index, shardId, node, allowPrimary);
     }
 }

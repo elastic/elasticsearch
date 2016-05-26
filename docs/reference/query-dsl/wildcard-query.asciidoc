@@ -11,28 +11,40 @@ query maps to Lucene `WildcardQuery`.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "wildcard" : { "user" : "ki*y" }
+    "query": {
+        "wildcard" : { "user" : "ki*y" }
+    }
 }
 --------------------------------------------------
+// CONSOLE
 
 A boost can also be associated with the query:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "wildcard" : { "user" : { "value" : "ki*y", "boost" : 2.0 } }
+    "query": {
+        "wildcard" : { "user" : { "value" : "ki*y", "boost" : 2.0 } }
+    }
 }
 --------------------------------------------------
+// CONSOLE
 
 Or :
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "wildcard" : { "user" : { "wildcard" : "ki*y", "boost" : 2.0 } }
+    "query": {
+        "wildcard" : { "user" : { "wildcard" : "ki*y", "boost" : 2.0 } }
+    }
 }
 --------------------------------------------------
+// CONSOLE
 
 This multi term query allows to control how it gets rewritten using the
 <<query-dsl-multi-term-rewrite,rewrite>>

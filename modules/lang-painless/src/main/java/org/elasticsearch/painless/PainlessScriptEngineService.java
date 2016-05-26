@@ -121,6 +121,12 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
                 compilerSettings.setMaxLoopCounter(Integer.parseInt(value));
             }
 
+            value = copy.remove(CompilerSettings.PICKY);
+
+            if (value != null) {
+                compilerSettings.setPicky(Boolean.parseBoolean(value));
+            }
+
             if (!copy.isEmpty()) {
                 throw new IllegalArgumentException("Unrecognized compile-time parameter(s): " + copy);
             }

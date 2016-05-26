@@ -52,13 +52,13 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
                  "return y.isEmpty();");
         });
         assertEquals(3, exception.getStackTrace()[0].getLineNumber());
-        
+
         // trigger NPE at line 4 in script (inside conditional)
         exception = expectThrows(NullPointerException.class, () -> {
             exec("String x = null;\n" +
                  "boolean y = false;\n" +
                  "if (!y) {\n" +
-                 "  y = x.isEmpty();\n" + 
+                 "  y = x.isEmpty();\n" +
                  "}\n" +
                  "return y;");
         });
@@ -77,7 +77,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
 
     public void testBogusParameter() {
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
-            exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"));
+            exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"), null);
         });
         assertTrue(expected.getMessage().contains("Unrecognized compile-time parameter"));
     }
@@ -133,7 +133,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
             exec("try { int x; } catch (PainlessError error) {}");
             fail("should have hit ParseException");
         });
-        assertTrue(parseException.getMessage().contains("Not a type [PainlessError]."));
+        assertTrue(parseException.getMessage().contains("unexpected token ['PainlessError']"));
     }
 
     public void testLoopLimits() {

@@ -19,11 +19,6 @@
 
 package org.elasticsearch.common.network;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.client.transport.support.TransportProxyClient;
@@ -36,7 +31,6 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommandReg
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -71,6 +65,12 @@ import org.elasticsearch.rest.action.admin.cluster.snapshots.restore.RestRestore
 import org.elasticsearch.rest.action.admin.cluster.snapshots.status.RestSnapshotsStatusAction;
 import org.elasticsearch.rest.action.admin.cluster.state.RestClusterStateAction;
 import org.elasticsearch.rest.action.admin.cluster.stats.RestClusterStatsAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestDeleteSearchTemplateAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestDeleteStoredScriptAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestGetSearchTemplateAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestGetStoredScriptAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestPutSearchTemplateAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestPutStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.tasks.RestPendingClusterTasksAction;
 import org.elasticsearch.rest.action.admin.indices.alias.RestIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.delete.RestIndexDeleteAliasesAction;
@@ -137,19 +137,11 @@ import org.elasticsearch.rest.action.ingest.RestGetPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestPutPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestSimulatePipelineAction;
 import org.elasticsearch.rest.action.main.RestMainAction;
-import org.elasticsearch.rest.action.percolate.RestMultiPercolateAction;
-import org.elasticsearch.rest.action.percolate.RestPercolateAction;
-import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestDeleteStoredScriptAction;
-import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestGetStoredScriptAction;
-import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestPutStoredScriptAction;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.rest.action.suggest.RestSuggestAction;
-import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestDeleteSearchTemplateAction;
-import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestGetSearchTemplateAction;
-import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestPutSearchTemplateAction;
 import org.elasticsearch.rest.action.termvectors.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.termvectors.RestTermVectorsAction;
 import org.elasticsearch.rest.action.update.RestUpdateAction;
@@ -158,6 +150,9 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
 import org.elasticsearch.transport.netty.NettyTransport;
+
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * A module to handle registering and binding all network related classes.
@@ -250,8 +245,6 @@ public class NetworkModule extends AbstractModule {
         RestMultiTermVectorsAction.class,
         RestBulkAction.class,
         RestUpdateAction.class,
-        RestPercolateAction.class,
-        RestMultiPercolateAction.class,
 
         RestSearchAction.class,
         RestSearchScrollAction.class,
@@ -404,7 +397,7 @@ public class NetworkModule extends AbstractModule {
      * @param commandName the names under which the command should be parsed. The {@link ParseField#getPreferredName()} is special because
      *        it is the name under which the command's reader is registered.
      */
-    public <T extends AllocationCommand> void registerAllocationCommand(Writeable.Reader<T> reader, AllocationCommand.Parser<T> parser,
+    private <T extends AllocationCommand> void registerAllocationCommand(Writeable.Reader<T> reader, AllocationCommand.Parser<T> parser,
             ParseField commandName) {
         allocationCommandRegistry.register(parser, commandName);
         namedWriteableRegistry.register(AllocationCommand.class, commandName.getPreferredName(), reader);

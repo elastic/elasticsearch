@@ -143,7 +143,6 @@ public class SearchModuleTests extends ModuleTestCase {
             "multi_match",
             "nested",
             "parent_id",
-            "percolate",
             "prefix",
             "query_string",
             "range",

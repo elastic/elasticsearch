@@ -20,7 +20,7 @@ values.  For backwards compatibility purposes, during the 5.x series:
 
 String mappings now have the following default mappings:
 
-[source,json]
+[source,js]
 ---------------
 {
   "type": "text",
@@ -135,7 +135,7 @@ will reject this option.
 Core types no longer support the object notation, which was used to provide
 per document boosts as follows:
 
-[source,json]
+[source,js]
 ---------------
 {
   "value": "field_value",

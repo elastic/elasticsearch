@@ -199,6 +199,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .field("type", "text")
                         .endObject()
                         .endObject()
+                        .endObject()
                         .endObject())
                 .setSettings(Settings.builder()
                         .put(indexSettings())
@@ -828,7 +829,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                             .endObject()
                         .endObject()
                     .endObject()
-                .endObject()));
+                .endObject().endObject().endObject()));
         ensureGreen();
 
         index("test", "type1", "1",
@@ -2268,7 +2269,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
     }
 
-    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 4.0
     public void testPostingsHighlighterFuzzyQuery() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
@@ -2553,9 +2553,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertHighlight(response, 0, "field1", 0, 1, highlightedMatcher);
     }
 
-    public void testGeoFieldHighlighting() throws IOException {
+    public void testGeoFieldHighlightingWithDifferentHighlighters() throws IOException {
         // check that we do not get an exception for geo_point fields in case someone tries to highlight
-        // it accidential with a wildcard
+        // it accidentially with a wildcard
         // see https://github.com/elastic/elasticsearch/issues/17537
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
@@ -2563,6 +2563,12 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .startObject("properties")
             .startObject("geo_point")
             .field("type", "geo_point")
+            .field("geohash", true)
+            .endObject()
+            .startObject("text")
+            .field("type", "text")
+            .field("term_vector", "with_positions_offsets_payloads")
+            .field("index_options", "offsets")
             .endObject()
             .endObject()
             .endObject();
@@ -2572,14 +2578,19 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         ensureYellow();
 
         client().prepareIndex("test", "type", "1")
-            .setSource(jsonBuilder().startObject().field("geo_point", "60.12,100.34").endObject())
+            .setSource(jsonBuilder().startObject().field("text", "Arbitrary text field which will should not cause a failure").endObject())
             .get();
         refresh();
+        String highlighterType = randomFrom("plain", "fvh", "postings");
+        QueryBuilder query = QueryBuilders.boolQuery().should(QueryBuilders.geoBoundingBoxQuery("geo_point")
+            .setCorners(61.10078883158897, -170.15625, -64.92354174306496, 118.47656249999999))
+            .should(QueryBuilders.termQuery("text", "failure"));
         SearchResponse search = client().prepareSearch().setSource(
-            new SearchSourceBuilder().query(QueryBuilders.geoBoundingBoxQuery("geo_point").setCorners(61.10078883158897, -170.15625,
-                -64.92354174306496, 118.47656249999999)).highlighter(new HighlightBuilder().field("*"))).get();
+            new SearchSourceBuilder().query(query)
+                .highlighter(new HighlightBuilder().field("*").highlighterType(highlighterType))).get();
         assertNoFailures(search);
         assertThat(search.getHits().totalHits(), equalTo(1L));
+        assertThat(search.getHits().getAt(0).highlightFields().get("text").fragments().length, equalTo(1));
     }
 
     public void testKeywordFieldHighlighting() throws IOException {

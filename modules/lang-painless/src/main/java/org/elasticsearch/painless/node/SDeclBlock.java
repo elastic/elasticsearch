@@ -32,15 +32,15 @@ public final class SDeclBlock extends AStatement {
 
     final List<SDeclaration> declarations;
 
-    public SDeclBlock(int line, String location, List<SDeclaration> declarations) {
-        super(line, location);
+    public SDeclBlock(int line, int offset, String location, List<SDeclaration> declarations) {
+        super(line, offset, location);
 
         this.declarations = Collections.unmodifiableList(declarations);
     }
 
     @Override
     void analyze(Variables variables) {
-        for (final SDeclaration declaration : declarations) {
+        for (SDeclaration declaration : declarations) {
             declaration.analyze(variables);
         }
 
@@ -48,9 +48,9 @@ public final class SDeclBlock extends AStatement {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        for (final SDeclaration declaration : declarations) {
-            declaration.write(adapter);
+    void write(MethodWriter writer) {
+        for (SDeclaration declaration : declarations) {
+            declaration.write(writer);
         }
     }
 }

@@ -252,7 +252,6 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         }
     }
 
-    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 4.0
     public void testFuzzyQuerySupportsName() {
         createIndex("test1");
         ensureGreen();

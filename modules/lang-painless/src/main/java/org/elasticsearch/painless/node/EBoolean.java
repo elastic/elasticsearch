@@ -28,8 +28,8 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class EBoolean extends AExpression {
 
-    public EBoolean(int line, String location, boolean constant) {
-        super(line, location);
+    public EBoolean(int line, int offset, String location, boolean constant) {
+        super(line, offset, location);
 
         this.constant = constant;
     }

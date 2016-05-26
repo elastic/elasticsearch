@@ -109,7 +109,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                     .field("type", "object")
                     .field("dynamic", true)
                     .startObject("properties")
-            .endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject().endObject().string();
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
         BytesReference bytes = XContentFactory.jsonBuilder()
             .startObject().startObject("foo")
@@ -129,7 +129,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .field("type", "object")
             .field("dynamic", true)
             .startObject("properties")
-            .endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject().endObject().string();
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
         BytesReference bytes = XContentFactory.jsonBuilder()
             .startObject().startObject("foo").startObject("bar")
@@ -148,7 +148,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .startObject("foo")
             .field("type", "object")
             .startObject("properties")
-            .endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject().endObject().string();
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
         BytesReference bytes = XContentFactory.jsonBuilder()
             .startObject().startObject("foo")

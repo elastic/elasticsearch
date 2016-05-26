@@ -125,7 +125,7 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
     }
 
     public void testDocValuesInvalidMappingOnUpdate() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject(TYPE).startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject().string();
+        String mapping = jsonBuilder().startObject().startObject(TYPE).startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject().endObject().string();
         prepareCreate(INDEX).addMapping(TYPE, mapping).get();
         String mappingUpdate = jsonBuilder().startObject().startObject(TYPE).startObject("_all").startObject("fielddata").field("format", "doc_values").endObject().endObject().endObject().endObject().string();
         GetMappingsResponse mappingsBeforeUpdateResponse = client().admin().indices().prepareGetMappings(INDEX).addTypes(TYPE).get();

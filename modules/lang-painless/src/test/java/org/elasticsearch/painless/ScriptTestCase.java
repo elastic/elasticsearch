@@ -24,11 +24,13 @@ import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.Collections;
+import junit.framework.AssertionFailedError;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -75,5 +77,28 @@ public abstract class ScriptTestCase extends ESTestCase {
     public void assertBytecodeExists(String script, String bytecode) {
         final String asm = Debugger.toString(script);
         assertTrue("bytecode not found", asm.contains(bytecode));
+    }
+    
+    /** Checks a specific exception class is thrown (boxed inside ScriptException) and returns it. */
+    public static <T extends Throwable> T expectScriptThrows(Class<T> expectedType, ThrowingRunnable runnable) {
+        try {
+            runnable.run();
+        } catch (Throwable e) {
+            if (e instanceof ScriptException) {
+                e = e.getCause();
+                if (expectedType.isInstance(e)) {
+                    return expectedType.cast(e);
+                }
+            } else {
+                AssertionFailedError assertion = new AssertionFailedError("Expected boxed ScriptException");
+                assertion.initCause(e);
+                throw assertion;
+            }
+            AssertionFailedError assertion = new AssertionFailedError("Unexpected exception type, expected " 
+                                                                      + expectedType.getSimpleName());
+            assertion.initCause(e);
+            throw assertion;
+        }
+        throw new AssertionFailedError("Expected exception " + expectedType.getSimpleName());
     }
 }

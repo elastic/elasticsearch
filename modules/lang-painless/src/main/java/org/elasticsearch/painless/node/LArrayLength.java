@@ -60,6 +60,7 @@ public final class LArrayLength extends ALink {
 
     @Override
     void load(MethodWriter writer) {
+        writer.writeDebugInfo(offset);
         writer.arrayLength();
     }
 

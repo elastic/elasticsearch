@@ -173,7 +173,7 @@ public class DefOptimizationTests extends ScriptTestCase {
         final String script = "int x;\ndef y = new HashMap();\ny['double'] = 1.0;\nx = y.get('double');\n";
         assertBytecodeExists(script, "INVOKEDYNAMIC get(Ljava/lang/Object;Ljava/lang/String;)I");
 
-        final Exception exception = expectThrows(ClassCastException.class, () -> {
+        final Exception exception = expectScriptThrows(ClassCastException.class, () -> {
             exec(script);
         });
         assertTrue(exception.getMessage().contains("Cannot cast java.lang.Double to java.lang.Integer"));

@@ -33,7 +33,7 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.LeafSearchScript;
-import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.SearchScript;
 
 /**
@@ -73,7 +73,7 @@ class ExpressionSearchScript implements SearchScript {
                 try {
                     return values.doubleVal(docid);
                 } catch (Exception exception) {
-                    throw new ScriptException("Error evaluating " + compiledScript, exception);
+                    throw new GeneralScriptException("Error evaluating " + compiledScript, exception);
                 }
             }
 
@@ -114,7 +114,7 @@ class ExpressionSearchScript implements SearchScript {
                     if (value instanceof Number) {
                         specialValue.setValue(((Number)value).doubleValue());
                     } else {
-                        throw new ScriptException("Cannot use expression with text variable using " + compiledScript);
+                        throw new GeneralScriptException("Cannot use expression with text variable using " + compiledScript);
                     }
                 }
             }

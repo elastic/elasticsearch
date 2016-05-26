@@ -200,41 +200,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         return rootCause;
     }
 
-    /**
-     * Check whether this exception contains an exception of the given type:
-     * either it is of the given class itself or it contains a nested cause
-     * of the given type.
-     *
-     * @param exType the exception type to look for
-     * @return whether there is a nested exception of the specified type
-     */
-    public boolean contains(Class<? extends Throwable> exType) {
-        if (exType == null) {
-            return false;
-        }
-        if (exType.isInstance(this)) {
-            return true;
-        }
-        Throwable cause = getCause();
-        if (cause == this) {
-            return false;
-        }
-        if (cause instanceof ElasticsearchException) {
-            return ((ElasticsearchException) cause).contains(exType);
-        } else {
-            while (cause != null) {
-                if (exType.isInstance(cause)) {
-                    return true;
-                }
-                if (cause.getCause() == cause) {
-                    break;
-                }
-                cause = cause.getCause();
-            }
-            return false;
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(this.getMessage());
@@ -531,7 +496,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.shard.IndexShardStartedException::new, 23),
         SEARCH_CONTEXT_MISSING_EXCEPTION(org.elasticsearch.search.SearchContextMissingException.class,
                 org.elasticsearch.search.SearchContextMissingException::new, 24),
-        SCRIPT_EXCEPTION(org.elasticsearch.script.ScriptException.class, org.elasticsearch.script.ScriptException::new, 25),
+        GENERAL_SCRIPT_EXCEPTION(org.elasticsearch.script.GeneralScriptException.class, 
+                org.elasticsearch.script.GeneralScriptException::new, 25),
         BATCH_OPERATION_EXCEPTION(org.elasticsearch.index.shard.TranslogRecoveryPerformer.BatchOperationException.class,
                 org.elasticsearch.index.shard.TranslogRecoveryPerformer.BatchOperationException::new, 26),
         SNAPSHOT_CREATION_EXCEPTION(org.elasticsearch.snapshots.SnapshotCreationException.class,
@@ -741,7 +707,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         QUERY_SHARD_EXCEPTION(org.elasticsearch.index.query.QueryShardException.class,
                 org.elasticsearch.index.query.QueryShardException::new, 141),
         NO_LONGER_PRIMARY_SHARD_EXCEPTION(ShardStateAction.NoLongerPrimaryShardException.class,
-                ShardStateAction.NoLongerPrimaryShardException::new, 142);
+                ShardStateAction.NoLongerPrimaryShardException::new, 142),
+        SCRIPT_EXCEPTION(org.elasticsearch.script.ScriptException.class, org.elasticsearch.script.ScriptException::new, 143);
 
 
         final Class<? extends ElasticsearchException> exceptionClass;

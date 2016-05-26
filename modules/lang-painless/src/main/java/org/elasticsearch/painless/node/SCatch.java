@@ -84,8 +84,7 @@ public final class SCatch extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writeDebugInfo(writer);
-
+        writer.writeStatementOffset(offset);
         Label jump = new Label();
 
         writer.mark(jump);

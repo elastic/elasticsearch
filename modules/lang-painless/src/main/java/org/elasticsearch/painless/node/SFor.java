@@ -127,8 +127,7 @@ public final class SFor extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writeDebugInfo(writer);
-
+        writer.writeStatementOffset(offset);
         Label start = new Label();
         Label begin = afterthought == null ? start : new Label();
         Label end = new Label();
@@ -160,10 +159,10 @@ public final class SFor extends AStatement {
                 ++statementCount;
             }
 
-            writer.writeLoopCounter(loopCounterSlot, statementCount);
+            writer.writeLoopCounter(loopCounterSlot, statementCount, offset);
             block.write(writer);
         } else {
-            writer.writeLoopCounter(loopCounterSlot, 1);
+            writer.writeLoopCounter(loopCounterSlot, 1, offset);
         }
 
         if (afterthought != null) {

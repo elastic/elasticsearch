@@ -21,10 +21,14 @@ package org.elasticsearch.painless;
 
 public class DefOperationTests extends ScriptTestCase {
     public void testIllegalCast() {
-        Exception exception = expectThrows(ClassCastException.class, () -> exec("def x = 1.0; int y = x; return y;"));
+        Exception exception = expectScriptThrows(ClassCastException.class, () -> { 
+            exec("def x = 1.0; int y = x; return y;");
+        });
         assertTrue(exception.getMessage().contains("cannot be cast"));
 
-        exception = expectThrows(ClassCastException.class, () -> exec("def x = (short)1; byte y = x; return y;"));
+        exception = expectScriptThrows(ClassCastException.class, () -> { 
+            exec("def x = (short)1; byte y = x; return y;");
+        });
         assertTrue(exception.getMessage().contains("cannot be cast"));
     }
 

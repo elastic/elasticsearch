@@ -29,6 +29,7 @@ import org.objectweb.asm.commons.Method;
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.util.BitSet;
 import java.util.Map;
 
 /**
@@ -42,7 +43,7 @@ public final class WriterConstants {
     public final static String CLASS_NAME      = BASE_CLASS_NAME + "$Script";
     public final static Type CLASS_TYPE        = Type.getObjectType(CLASS_NAME.replace('.', '/'));
 
-    public final static Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", String.class, String.class);
+    public final static Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", String.class, String.class, BitSet.class);
     public final static Method EXECUTE     =
         getAsmMethod(Object.class, "execute", Map.class, Scorer.class, LeafDocLookup.class, Object.class);
 

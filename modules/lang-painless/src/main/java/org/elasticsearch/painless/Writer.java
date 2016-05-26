@@ -33,15 +33,15 @@ import static org.elasticsearch.painless.WriterConstants.EXECUTE;
 import static org.elasticsearch.painless.WriterConstants.MAP_GET;
 import static org.elasticsearch.painless.WriterConstants.MAP_TYPE;
 
+import java.util.BitSet;
+
 /**
  * Runs the writing phase of compilation using the Painless AST.
  */
 final class Writer {
 
-    static byte[] write(final CompilerSettings settings,
-                               String name, final String source, final Variables variables, final SSource root) {
-        final Writer writer = new Writer(settings, name, source, variables, root);
-
+    static byte[] write(CompilerSettings settings, String name, String source, Variables variables, SSource root, BitSet expressions) {
+        Writer writer = new Writer(settings, name, source, variables, root, expressions);
         return writer.getBytes();
     }
 
@@ -54,8 +54,7 @@ final class Writer {
     private final ClassWriter writer;
     private final MethodWriter adapter;
 
-    private Writer(final CompilerSettings settings,
-                     String name, final String source, final Variables variables, final SSource root) {
+    private Writer(CompilerSettings settings, String name, String source, Variables variables, SSource root, BitSet expressions) {
         this.settings = settings;
         this.scriptName = name;
         this.source = source;
@@ -67,7 +66,7 @@ final class Writer {
         writeBegin();
         writeConstructor();
 
-        adapter = new MethodWriter(Opcodes.ACC_PUBLIC, EXECUTE, null, writer);
+        adapter = new MethodWriter(Opcodes.ACC_PUBLIC, EXECUTE, null, writer, expressions);
 
         writeExecute();
         writeEnd();

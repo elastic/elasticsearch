@@ -249,6 +249,10 @@ public final class EChain extends AExpression {
     @Override
     void write(MethodWriter writer) {
         if (cat) {
+            writer.writeDebugInfo(offset);
+        }
+
+        if (cat) {
             writer.writeNewStrings();
         }
 

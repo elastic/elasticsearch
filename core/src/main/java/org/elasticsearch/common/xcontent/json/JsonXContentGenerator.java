@@ -100,7 +100,7 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     @Override
     public final void usePrettyPrint() {
-        generator.setPrettyPrinter(new DefaultPrettyPrinter().withObjectIndenter(INDENTER));
+        generator.setPrettyPrinter(new DefaultPrettyPrinter().withObjectIndenter(INDENTER).withArrayIndenter(INDENTER));
         prettyPrint = true;
     }
 

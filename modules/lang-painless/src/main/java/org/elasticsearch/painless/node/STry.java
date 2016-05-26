@@ -86,8 +86,7 @@ public final class STry extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writeDebugInfo(writer);
-
+        writer.writeStatementOffset(offset);
         Label begin = new Label();
         Label end = new Label();
         Label exception = new Label();

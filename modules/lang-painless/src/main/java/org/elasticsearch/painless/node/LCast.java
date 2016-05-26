@@ -61,6 +61,7 @@ public final class LCast extends ALink {
 
     @Override
     void write(MethodWriter writer) {
+        writer.writeDebugInfo(offset);
         writer.writeCast(cast);
     }
 

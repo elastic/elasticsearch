@@ -45,8 +45,6 @@ public final class SBreak extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writeDebugInfo(writer);
-
         writer.goTo(brake);
     }
 }

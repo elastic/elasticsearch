@@ -22,10 +22,13 @@ package org.elasticsearch.painless;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -114,7 +117,63 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
      */
     @Override
     public Object run() {
-        return executable.execute(variables, scorer, doc, aggregationValue);
+        try {
+            return executable.execute(variables, scorer, doc, aggregationValue);
+        } catch (PainlessError | Exception t) {
+            throw convertToScriptException(t);
+        }
+    }
+    
+    private ScriptException convertToScriptException(Throwable t) {
+        // create a script stack: this is just the script portion
+        List<String> scriptStack = new ArrayList<>();
+        for (StackTraceElement element : t.getStackTrace()) {
+            if (WriterConstants.CLASS_NAME.equals(element.getClassName())) {
+                // found the script portion
+                int offset = element.getLineNumber();
+                if (offset == -1) {
+                    scriptStack.add("<<< unknown portion of script >>>");
+                } else {
+                    offset--; // offset is 1 based, line numbers must be!
+                    int startOffset = executable.getPreviousStatement(offset);
+                    if (startOffset == -1) {
+                        assert false; // should never happen unless we hit exc in ctor prologue...
+                        startOffset = 0;
+                    }
+                    int endOffset = executable.getNextStatement(startOffset);
+                    if (endOffset == -1) {
+                        endOffset = executable.getSource().length();
+                    }
+                    // TODO: if this is still too long, truncate and use ellipses
+                    String snippet = executable.getSource().substring(startOffset, endOffset);
+                    scriptStack.add(snippet);
+                    StringBuilder pointer = new StringBuilder();
+                    for (int i = startOffset; i < offset; i++) {
+                        pointer.append(' ');
+                    }
+                    pointer.append("^---- HERE");
+                    scriptStack.add(pointer.toString());
+                }
+                break;
+            // but filter our own internal stacks (e.g. indy bootstrap)
+            } else if (!shouldFilter(element)) {
+                scriptStack.add(element.toString());
+            }
+        }
+        // build a name for the script:
+        final String name;
+        if (PainlessScriptEngineService.INLINE_NAME.equals(executable.getName())) {
+            name = executable.getSource();
+        } else {
+            name = executable.getName();
+        }
+        throw new ScriptException("runtime error", t, scriptStack, name, PainlessScriptEngineService.NAME);
+    }
+    
+    /** returns true for methods that are part of the runtime */
+    private static boolean shouldFilter(StackTraceElement element) {
+        return element.getClassName().startsWith("org.elasticsearch.painless.") ||
+               element.getClassName().startsWith("java.lang.invoke.");
     }
 
     /**

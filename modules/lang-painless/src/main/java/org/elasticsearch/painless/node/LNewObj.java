@@ -98,6 +98,7 @@ public final class LNewObj extends ALink {
 
     @Override
     void load(MethodWriter writer) {
+        writer.writeDebugInfo(offset);
         writer.newInstance(after.type);
 
         if (load) {

@@ -89,8 +89,7 @@ public final class SIfElse extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writeDebugInfo(writer);
-
+        writer.writeStatementOffset(offset);
         Label end = new Label();
         Label fals = elseblock != null ? new Label() : end;
 

@@ -120,34 +120,29 @@ public class CompoundAssignmentTests extends ScriptTestCase {
 
     public void testDivisionByZero() {
         // byte
-        try {
+        expectScriptThrows(ArithmeticException.class, () -> {
             exec("byte x = 1; x /= 0; return x;");
-            fail("should have hit exception");
-        } catch (ArithmeticException expected) {}
+        });
 
         // short
-        try {
+        expectScriptThrows(ArithmeticException.class, () -> {
             exec("short x = 1; x /= 0; return x;");
-            fail("should have hit exception");
-        } catch (ArithmeticException expected) {}
+        });
 
         // char
-        try {
+        expectScriptThrows(ArithmeticException.class, () -> {
             exec("char x = 1; x /= 0; return x;");
-            fail("should have hit exception");
-        } catch (ArithmeticException expected) {}
+        });
 
         // int
-        try {
+        expectScriptThrows(ArithmeticException.class, () -> {
             exec("int x = 1; x /= 0; return x;");
-            fail("should have hit exception");
-        } catch (ArithmeticException expected) {}
+        });
 
         // long
-        try {
+        expectScriptThrows(ArithmeticException.class, () -> {
             exec("long x = 1; x /= 0; return x;");
-            fail("should have hit exception");
-        } catch (ArithmeticException expected) {}
+        });
     }
 
     public void testRemainder() {

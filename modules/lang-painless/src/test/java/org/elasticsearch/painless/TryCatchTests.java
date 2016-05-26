@@ -26,7 +26,7 @@ public class TryCatchTests extends ScriptTestCase {
 
     /** throws an exception */
     public void testThrow() {
-        RuntimeException exception = expectThrows(RuntimeException.class, () -> {
+        RuntimeException exception = expectScriptThrows(RuntimeException.class, () -> {
             exec("throw new RuntimeException('test')");
         });
         assertEquals("test", exception.getMessage());
@@ -48,7 +48,7 @@ public class TryCatchTests extends ScriptTestCase {
     
     /** tries to catch a different type of exception */
     public void testNoCatch() {
-        RuntimeException exception = expectThrows(RuntimeException.class, () -> {
+        RuntimeException exception = expectScriptThrows(RuntimeException.class, () -> {
            exec("try { if (params.param == 'true') throw new RuntimeException('test'); } " + 
                 "catch (ArithmeticException e) { return 1; } return 2;", 
                 Collections.singletonMap("param", "true"));

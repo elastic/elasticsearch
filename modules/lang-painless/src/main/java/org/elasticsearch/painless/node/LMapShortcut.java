@@ -78,6 +78,7 @@ final class LMapShortcut extends ALink {
 
     @Override
     void load(MethodWriter writer) {
+        writer.writeDebugInfo(offset);
         if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
             writer.invokeInterface(getter.owner.type, getter.method);
         } else {
@@ -91,6 +92,7 @@ final class LMapShortcut extends ALink {
 
     @Override
     void store(MethodWriter writer) {
+        writer.writeDebugInfo(offset);
         if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {
             writer.invokeInterface(setter.owner.type, setter.method);
         } else {

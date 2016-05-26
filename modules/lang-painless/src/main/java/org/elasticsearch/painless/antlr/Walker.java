@@ -383,7 +383,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             String name = declvar.ID().getText();
             AExpression expression = declvar.expression() == null ? null : (AExpression)visitExpression(declvar.expression());
 
-            declarations.add(new SDeclaration(line(ctx), offset(ctx), location(ctx), type, name, expression));
+            declarations.add(new SDeclaration(line(declvar), offset(declvar), location(declvar), type, name, expression));
         }
 
         return new SDeclBlock(line(ctx), offset(ctx), location(ctx), declarations);

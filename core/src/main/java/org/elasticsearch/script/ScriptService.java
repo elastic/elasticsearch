@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
@@ -236,7 +235,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
         ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
         if (canExecuteScript(lang, scriptEngineService, script.getType(), scriptContext) == false) {
-            throw new ScriptException("scripts of type [" + script.getType() + "], operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
+            throw new IllegalStateException("scripts of type [" + script.getType() + "], operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
         }
 
         // TODO: fix this through some API or something, that's wrong
@@ -244,7 +243,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         boolean expression = "expression".equals(script.getLang());
         boolean notSupported = scriptContext.getKey().equals(ScriptContext.Standard.UPDATE.getKey());
         if (expression && notSupported) {
-            throw new ScriptException("scripts of type [" + script.getType() + "]," +
+            throw new UnsupportedOperationException("scripts of type [" + script.getType() + "]," +
                     " operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are not supported");
         }
 
@@ -306,8 +305,11 @@ public class ScriptService extends AbstractComponent implements Closeable {
                 // for the inline case, then its anonymous: null.
                 String actualName = (type == ScriptType.INLINE) ? null : name;
                 compiledScript = new CompiledScript(type, name, lang, scriptEngineService.compile(actualName, code, params));
+            } catch (ScriptException good) {
+                // TODO: remove this try-catch completely, when all script engines have good exceptions!
+                throw good; // its already good
             } catch (Exception exception) {
-                throw new ScriptException("Failed to compile " + type + " script [" + name + "] using lang [" + lang + "]", exception);
+                throw new GeneralScriptException("Failed to compile " + type + " script [" + name + "] using lang [" + lang + "]", exception);
             }
 
             //Since the cache key is the script content itself we don't need to
@@ -364,6 +366,9 @@ public class ScriptService extends AbstractComponent implements Closeable {
                                 "skipping compile of script [{}], lang [{}] as all scripted operations are disabled for indexed scripts",
                                 template.getScript(), scriptLang);
                     }
+                } catch (ScriptException good) {
+                    // TODO: remove this when all script engines have good exceptions!
+                    throw good; // its already good!
                 } catch (Exception e) {
                     throw new IllegalArgumentException("Unable to parse [" + template.getScript() +
                             "] lang [" + scriptLang + "]", e);

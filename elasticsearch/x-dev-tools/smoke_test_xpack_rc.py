@@ -103,7 +103,7 @@ def smoke_test_release(release, files, expected_hash):
     es_plugin_path = os.path.join(es_dir, 'bin/elasticsearch-plugin')
     
     print('     Install xpack [%s]')
-    run('%s; %s -Des.plugins.staging=true install -b x-pack' % (java_exe(), es_plugin_path))
+    run('%s; ES_JAVA_OPTS="-Des.plugins.staging=%s" %s install -b x-pack' % (java_exe(), expected_hash, es_plugin_path))
     headers = { 'Authorization' : 'Basic %s' % base64.b64encode(b"es_admin:foobar").decode("UTF-8") }
     es_shield_path = os.path.join(es_dir, 'bin/x-pack/users')
     

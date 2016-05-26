@@ -27,6 +27,7 @@ import java.util.Map;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -104,8 +105,16 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
                     collectBucket(sub, doc, bucket);
                 }
             };
+        } else {
+            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+            return new SortedBinaryRangeLeafCollector(values, ranges, sub) {
+                @Override
+                protected void doCollect(LeafBucketCollector sub, int doc, long bucket)
+                        throws IOException {
+                    collectBucket(sub, doc, bucket);
+                }
+            };
         }
-        throw new IllegalArgumentException("binary range aggregation expects a values source that supports ordinals");
     }
 
     static abstract class SortedSetRangeLeafCollector extends LeafBucketCollectorBase {
@@ -205,6 +214,99 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
             for (int i = startLo; i <= endHi; ++i) {
                 if (ord <= tos[i]) {
                     doCollect(sub, doc, bucket * froms.length + i);
+                }
+            }
+
+            return endHi + 1;
+        }
+
+        protected abstract void doCollect(LeafBucketCollector sub, int doc, long bucket) throws IOException;
+    }
+
+    static abstract class SortedBinaryRangeLeafCollector extends LeafBucketCollectorBase {
+
+        final Range[] ranges;
+        final BytesRef[] maxTos;
+        final SortedBinaryDocValues values;
+        final LeafBucketCollector sub;
+
+        SortedBinaryRangeLeafCollector(SortedBinaryDocValues values,
+                Range[] ranges, LeafBucketCollector sub) {
+            super(sub, values);
+            for (int i = 1; i < ranges.length; ++i) {
+                if (RANGE_COMPARATOR.compare(ranges[i-1], ranges[i]) > 0) {
+                    throw new IllegalArgumentException("Ranges must be sorted");
+                }
+            }
+            this.values = values;
+            this.sub = sub;
+            this.ranges = ranges;
+            maxTos = new BytesRef[ranges.length];
+            if (ranges.length > 0) {
+                maxTos[0] = ranges[0].to;
+            }
+            for (int i = 1; i < ranges.length; ++i) {
+                if (compare(ranges[i].to, maxTos[i-1], -1) >= 0) {
+                    maxTos[i] = ranges[i].to;
+                } else {
+                    maxTos[i] = maxTos[i-1];
+                }
+            }
+        }
+
+        @Override
+        public void collect(int doc, long bucket) throws IOException {
+            values.setDocument(doc);
+            final int valuesCount = values.count();
+            for (int i = 0, lo = 0; i < valuesCount; ++i) {
+                final BytesRef value = values.valueAt(i);
+                lo = collect(doc, value, bucket, lo);
+            }
+        }
+
+        private int collect(int doc, BytesRef value, long bucket, int lowBound) throws IOException {
+            int lo = lowBound, hi = ranges.length - 1; // all candidates are between these indexes
+            int mid = (lo + hi) >>> 1;
+            while (lo <= hi) {
+                if (compare(value, ranges[mid].from, 1) < 0) {
+                    hi = mid - 1;
+                } else if (compare(value, maxTos[mid], -1) >= 0) {
+                    lo = mid + 1;
+                } else {
+                    break;
+                }
+                mid = (lo + hi) >>> 1;
+            }
+            if (lo > hi) return lo; // no potential candidate
+
+            // binary search the lower bound
+            int startLo = lo, startHi = mid;
+            while (startLo <= startHi) {
+                final int startMid = (startLo + startHi) >>> 1;
+                if (compare(value, maxTos[startMid], -1) >= 0) {
+                    startLo = startMid + 1;
+                } else {
+                    startHi = startMid - 1;
+                }
+            }
+
+            // binary search the upper bound
+            int endLo = mid, endHi = hi;
+            while (endLo <= endHi) {
+                final int endMid = (endLo + endHi) >>> 1;
+                if (compare(value, ranges[endMid].from, 1) < 0) {
+                    endHi = endMid - 1;
+                } else {
+                    endLo = endMid + 1;
+                }
+            }
+
+            assert startLo == lowBound || compare(value, maxTos[startLo - 1], -1) >= 0;
+            assert endHi == ranges.length - 1 || compare(value, ranges[endHi + 1].from, 1) < 0;
+
+            for (int i = startLo; i <= endHi; ++i) {
+                if (compare(value, ranges[i].to, -1) < 0) {
+                    doCollect(sub, doc, bucket * ranges.length + i);
                 }
             }
 

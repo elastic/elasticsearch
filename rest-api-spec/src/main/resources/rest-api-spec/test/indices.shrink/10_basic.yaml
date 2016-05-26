@@ -2,7 +2,7 @@
 "Shrink index via API":
   # creates an index with one document.
   # relocates all it's shards to one node
-  # shrinks it into a new index with a single shard 
+  # shrinks it into a new index with a single shard
   - do:
       indices.create:
         index: source
@@ -44,6 +44,8 @@
   - do:
       cluster.health:
         wait_for_status: green
+        index: source
+        wait_for_relocating_shards: 0
 
   # now we do the actual shrink
   - do:

@@ -20,9 +20,16 @@
 package org.elasticsearch.index.shard;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -45,6 +52,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -81,7 +89,7 @@ final class StoreRecovery {
             }
             return executeRecovery(indexShard, () -> {
                 logger.debug("starting recovery from store ...");
-                internalRecoverFromStore(indexShard, indexShouldExists, () -> {});
+                internalRecoverFromStore(indexShard, indexShouldExists);
             });
         }
         return false;
@@ -89,6 +97,7 @@ final class StoreRecovery {
 
     boolean recoverFromLocalShards(BiConsumer<String, MappingMetaData> mappingUpdateConsumer, final IndexShard indexShard, final List<LocalShardSnapshot> shards) throws IOException {
         if (canRecover(indexShard)) {
+            assert indexShard.recoveryState().getType() == RecoveryState.Type.LOCAL_SHARDS : "invalid recovery type: " + indexShard.recoveryState().getType();
             if (indexShard.routingEntry().restoreSource() != null) {
                 throw new IllegalStateException("can't recover - restore source is not null");
             }
@@ -107,24 +116,118 @@ final class StoreRecovery {
             }
             return executeRecovery(indexShard, () -> {
                 logger.debug("starting recovery from local shards {}", shards);
-                internalRecoverFromStore(indexShard, false, () -> {
-                    try {
-                        final Engine engine = indexShard.getEngine();
-                        // nocommit - do we need stats for this?
-                        engine.addIndexes(shards.stream().map(s->s.getSnapshotDirectory())
-                            .collect(Collectors.toList()).toArray(new Directory[0]));
-                        engine.flush(true, true); // commit the added indices
-                        Store store = indexShard.store();
-                        SegmentInfos si = store.readLastCommittedSegmentsInfo();
-                        final RecoveryState.Index index = indexShard.recoveryState().getIndex();
-                        addRecoveredFileDetails(si, store, index);
-                    } catch (IOException ex) {
-                        throw new IndexShardRecoveryException(indexShard.shardId(), "failed to recover from local shards", ex);
-                    }
-                });
+                try {
+                    /*
+                     * TODO: once we upgraded to Lucene 6.1 use HardlinkCopyDirectoryWrapper to enable hardlinks if possible and enable it
+                     * in the security.policy:
+                     *
+                     * grant codeBase "${codebase.lucene-misc-6.1.0.jar}" {
+                     *  // needed to allow shard shrinking to use hard-links if possible via lucenes HardlinkCopyDirectoryWrapper
+                     *  permission java.nio.file.LinkPermission "hard";
+                     * };
+                     *
+                     */
+                    final Directory directory = indexShard.store().directory(); // don't close this directory!!
+                    addIndices(indexShard.recoveryState().getIndex(), directory, shards.stream().map(s -> s.getSnapshotDirectory())
+                        .collect(Collectors.toList()).toArray(new Directory[shards.size()]));
+                    internalRecoverFromStore(indexShard, true);
+                    // just trigger a merge to do housekeeping on the
+                    // copied segments - we will also see them in stats etc.
+                    indexShard.getEngine().forceMerge(false, -1, false, false, false);
+                } catch (IOException ex) {
+                    throw new IndexShardRecoveryException(indexShard.shardId(), "failed to recover from local shards", ex);
+                }
+
             });
         }
         return false;
+    }
+
+    final void addIndices(RecoveryState.Index indexRecoveryStats, Directory target, Directory... sources) throws IOException {
+        try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(target, indexRecoveryStats),
+            new IndexWriterConfig(null)
+                .setCommitOnClose(false)
+                // we don't want merges to happen here - we call maybe merge on the engine
+                // later once we stared it up otherwise we would need to wait for it here
+                // we also don't specify a codec here and merges should use the engines for this index
+                .setMergePolicy(NoMergePolicy.INSTANCE)
+                .setOpenMode(IndexWriterConfig.OpenMode.CREATE))) {
+            writer.addIndexes(sources);
+            writer.commit();
+        }
+    }
+
+    /**
+     * Directory wrapper that records copy process for recovery statistics
+     */
+    static final class StatsDirectoryWrapper extends FilterDirectory {
+        private final RecoveryState.Index index;
+
+        StatsDirectoryWrapper(Directory in, RecoveryState.Index indexRecoveryStats) {
+            super(in);
+            this.index = indexRecoveryStats;
+        }
+
+        @Override
+        public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
+            final long l = from.fileLength(src);
+            final AtomicBoolean copies = new AtomicBoolean(false);
+            // here we wrap the index input form the source directory to report progress of file copy for the recovery stats.
+            // we increment the num bytes recovered in the readBytes method below, if users pull statistics they can see immediately
+            // how much has been recovered.
+            super.copyFrom(new FilterDirectory(from) {
+                @Override
+                public IndexInput openInput(String name, IOContext context) throws IOException {
+                    index.addFileDetail(dest, l, false);
+                    copies.set(true);
+                    final IndexInput input = in.openInput(name, context);
+                    return new IndexInput(name) {
+                        @Override
+                        public void close() throws IOException {
+                            input.close();
+                        }
+
+                        @Override
+                        public long getFilePointer() {
+                            throw new UnsupportedOperationException("only straight copies are supported");
+                        }
+
+                        @Override
+                        public void seek(long pos) throws IOException {
+                            throw new UnsupportedOperationException("seeks are not supported");
+                        }
+
+                        @Override
+                        public long length() {
+                            return input.length();
+                        }
+
+                        @Override
+                        public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
+                            throw new UnsupportedOperationException("slices are not supported");
+                        }
+
+                        @Override
+                        public byte readByte() throws IOException {
+                           throw new UnsupportedOperationException("use a buffer if you wanna perform well");
+                        }
+
+                        @Override
+                        public void readBytes(byte[] b, int offset, int len) throws IOException {
+                            // we rely on the fact that copyFrom uses a buffer
+                            input.readBytes(b, offset, len);
+                            index.addRecoveredBytesToFile(dest, len);
+                        }
+                    };
+                }
+            }, src, dest, context);
+            if (copies.get() == false) {
+                index.addFileDetail(dest, l, true); // hardlinked - we treat it as reused since the file was already somewhat there
+            } else {
+                assert index.getFileDetails(dest) != null : "File [" + dest + "] has no file details";
+                assert index.getFileDetails(dest).recovered() == l : index.getFileDetails(dest).toString();
+            }
+        }
     }
 
     /**
@@ -216,7 +319,7 @@ final class StoreRecovery {
     /**
      * Recovers the state of the shard from the store.
      */
-    private void internalRecoverFromStore(IndexShard indexShard, boolean indexShouldExists, Runnable afterRecover) throws IndexShardRecoveryException {
+    private void internalRecoverFromStore(IndexShard indexShard, boolean indexShouldExists) throws IndexShardRecoveryException {
         final RecoveryState recoveryState = indexShard.recoveryState();
         indexShard.prepareForIndexRecovery();
         long version = -1;
@@ -256,14 +359,18 @@ final class StoreRecovery {
             // since we recover from local, just fill the files and size
             try {
                 final RecoveryState.Index index = recoveryState.getIndex();
-                if (si != null) {
+                if (si != null && recoveryState.getType() == RecoveryState.Type.STORE) {
                     addRecoveredFileDetails(si, store, index);
                 }
             } catch (IOException e) {
                 logger.debug("failed to list file details", e);
             }
-            indexShard.performTranslogRecovery(indexShouldExists);
-            afterRecover.run();
+            if (recoveryState.getType() == RecoveryState.Type.LOCAL_SHARDS) {
+                assert indexShouldExists;
+                indexShard.skipTranslogRecovery();
+            } else {
+                indexShard.performTranslogRecovery(indexShouldExists);
+            }
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from shard_store");
         } catch (EngineException | IOException e) {

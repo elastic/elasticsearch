@@ -25,7 +25,6 @@ import java.net.SocketPermission;
 import java.net.URL;
 import java.io.FilePermission;
 import java.io.IOException;
-import java.nio.file.LinkPermission;
 import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
@@ -49,7 +48,6 @@ final class ESPolicy extends Policy {
     final Map<String,Policy> plugins;
 
     public ESPolicy(PermissionCollection dynamic, Map<String,Policy> plugins, boolean filterBadDefaults) {
-        dynamic.add(new LinkPermission("hard")); // nocommit - is this the right place to add this?
         this.template = Security.readPolicy(getClass().getResource(POLICY_RESOURCE), JarHell.parseClassPath());
         this.untrusted = Security.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), new URL[0]);
         if (filterBadDefaults) {

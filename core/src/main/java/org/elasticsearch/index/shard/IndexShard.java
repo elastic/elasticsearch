@@ -928,8 +928,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         } else {
             openMode = EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
         }
-        final EngineConfig config = newEngineConfig(openMode, translogConfig, cachingPolicy,
-            new IndexShardRecoveryPerformer(shardId, mapperService, logger));
+        final EngineConfig config = newEngineConfig(openMode);
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
         config.setEnableGcDeletes(false);
@@ -1383,11 +1382,13 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
         } else if (restoreSource == null) {
             // recover from filesystem store
-            final RecoveryState recoveryState = new RecoveryState(shardId(), shardRouting.primary(),
-                RecoveryState.Type.STORE, localNode, localNode);
+
             IndexMetaData indexMetaData = indexSettings().getIndexMetaData();
             Index mergeSourceIndex = indexMetaData.getMergeSourceIndex();
-            if (mergeSourceIndex != null && shardRouting.allocatedPostIndexCreate(indexMetaData) == false && shardRouting.primary()) {
+            final boolean recoverFromLocalShards = mergeSourceIndex != null && shardRouting.allocatedPostIndexCreate(indexMetaData) == false && shardRouting.primary();
+            final RecoveryState recoveryState = new RecoveryState(shardId(), shardRouting.primary(),
+                recoverFromLocalShards ? RecoveryState.Type.LOCAL_SHARDS : RecoveryState.Type.STORE, localNode, localNode);
+            if (recoverFromLocalShards) {
                 final List<IndexShard> startedShards = new ArrayList<>();
                 IndexMetaData sourceIndexMetaData = indicesService.getIndexMetaData(mergeSourceIndex);
                 final IndexService sourceIndexService = indicesService.indexService(mergeSourceIndex);
@@ -1526,7 +1527,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         return mapperService.documentMapperWithAutoCreate(type);
     }
 
-    private final EngineConfig newEngineConfig(EngineConfig.OpenMode openMode, TranslogConfig translogConfig, QueryCachingPolicy cachingPolicy, TranslogRecoveryPerformer translogRecoveryPerformer) {
+    private final EngineConfig newEngineConfig(EngineConfig.OpenMode openMode) {
+        final IndexShardRecoveryPerformer translogRecoveryPerformer = new IndexShardRecoveryPerformer(shardId, mapperService, logger);
         return new EngineConfig(openMode, shardId,
             threadPool, indexSettings, warmer, store, deletionPolicy, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig,

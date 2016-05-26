@@ -1537,7 +1537,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         {
             final IndexShard newShard = test.createShard(routing);
             newShard.updateRoutingEntry(routing, false);
-            newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
+            newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.LOCAL_SHARDS, localNode, localNode));
 
             BiConsumer<String, MappingMetaData> mappingConsumer = (type, mapping) -> {
                 try {
@@ -1557,8 +1557,16 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
             IndexService indexService = indicesService.indexService(resolveIndex("index"));
             assertTrue(newShard.recoverFromLocalShards(mappingConsumer, Arrays.asList(indexService.getShard(0))));
-
-
+            RecoveryState recoveryState = newShard.recoveryState();
+            assertEquals(RecoveryState.Stage.DONE, recoveryState.getStage());
+            assertTrue(recoveryState.getIndex().fileDetails().size() > 0);
+            for (RecoveryState.File file : recoveryState.getIndex().fileDetails()) {
+                if (file.reused()) {
+                    assertEquals(file.recovered(), 0);
+                } else {
+                    assertEquals(file.recovered(), file.length());
+                }
+            }
             routing = ShardRoutingHelper.moveToStarted(routing);
             newShard.updateRoutingEntry(routing, true);
             assertHitCount(client().prepareSearch("index_1").get(), 2);
@@ -1569,7 +1577,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             test.removeShard(0, "b/c simon says so");
             routing = ShardRoutingHelper.reinit(routing);
             final IndexShard newShard = test.createShard(routing);
-            newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
+            newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.LOCAL_SHARDS, localNode, localNode));
             assertTrue(newShard.recoverFromStore());
             routing = ShardRoutingHelper.moveToStarted(routing);
             newShard.updateRoutingEntry(routing, true);

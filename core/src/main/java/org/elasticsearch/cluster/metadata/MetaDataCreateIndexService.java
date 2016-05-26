@@ -292,21 +292,25 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             }
 
                             indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+                            final Index shrinkFromIndex = request.shrinkFrom();
+                            if (shrinkFromIndex != null) {
 
-                            if (IndexMetaData.INDEX_SHRINK_SOURCE_NAME.exists(request.settings())) {
-                                String index = IndexMetaData.INDEX_SHRINK_SOURCE_NAME.get(request.settings());
-                                IndexMetaData indexMetaData = currentState.getMetaData().index(index);
-                                if (indexMetaData == null) {
-                                    throw new IndexNotFoundException(index);
-                                }
+                                IndexMetaData indexMetaData = currentState.getMetaData().getIndexSafe(shrinkFromIndex);
                                 if (Integer.parseInt(indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS)) != 1) {
                                     // TODO we might be able to fix this in the future
                                     throw new IllegalArgumentException("Can't merge into an index with more than 1 shard");
                                 }
+                                if (mappings.size() > 1 ||
+                                    (mappings.isEmpty() || mappings.containsKey(MapperService.DEFAULT_MAPPING)) == false) {
+                                    // we might get some mappings through templates
+                                    throw new IllegalArgumentException("mappings are not allowed when shrinking indices" +
+                                        ", all mappings are copied from the source index");
+                                }
                                 if (indexMetaData.getNumberOfShards() == 1) {
                                     throw new IllegalArgumentException("Unnecessary merge from an index with 1 shard");
                                 }
-                                indexSettingsBuilder.put(IndexMetaData.INDEX_SHRINK_SOURCE_UUID.getKey(), indexMetaData.getIndexUUID());
+                                indexSettingsBuilder.put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME.getKey(), shrinkFromIndex.getName());
+                                indexSettingsBuilder.put(IndexMetaData.INDEX_SHRINK_SOURCE_UUID.getKey(), shrinkFromIndex.getUUID());
                             }
 
                             Settings actualIndexSettings = indexSettingsBuilder.build();
@@ -496,4 +500,5 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             return Regex.simpleMatch(template.template(), request.index());
         }
     }
+
 }

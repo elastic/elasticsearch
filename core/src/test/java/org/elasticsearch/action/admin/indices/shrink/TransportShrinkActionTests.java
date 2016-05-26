@@ -111,7 +111,7 @@ public class TransportShrinkActionTests extends ESTestCase {
                     new IndexNameExpressionResolver(Settings.EMPTY))
             ).getMessage());
 
-        assertEquals("can not shrink index into more that one shard",
+        assertEquals("can not shrink index into more than one shard",
             expectThrows(IllegalArgumentException.class, () -> {
                 ShrinkRequest shrinkRequest = new ShrinkRequest("target", "source");
                 shrinkRequest.getShrinkIndexReqeust().settings(Settings.builder().put(randomBoolean()
@@ -121,7 +121,7 @@ public class TransportShrinkActionTests extends ESTestCase {
                 }
             ).getMessage());
 
-        assertEquals("mappings are not allowed for shrinked indices, all mappings are copied from the source index",
+        assertEquals("mappings are not allowed when shrinking indices, all mappings are copied from the source index",
             expectThrows(IllegalArgumentException.class, () -> {
                     ShrinkRequest shrinkRequest = new ShrinkRequest("target", "source");
                     shrinkRequest.getShrinkIndexReqeust().mapping("foo", "{}");

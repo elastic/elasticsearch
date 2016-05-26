@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -285,17 +286,21 @@ public class CreateIndexIT extends ESIntegTestCase {
         ensureGreen("test");
     }
 
-    public void testCreateShrinkedIndex() {
+    public void testCreateShrinkIndex() {
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", randomIntBetween(2, 7))).get();
         for (int i = 0; i < 20; i++) {
             client().prepareIndex("source", randomFrom("t1", "t2", "t3")).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
         }
-        String nodeName = internalCluster().startNode();
+        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
+            .getDataNodes();
+        assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        String mergeNode = discoveryNodes[0].getName();
         // relocate all shards to one node such that we can merge it.
         client().admin().indices().prepareUpdateSettings("source")
             .setSettings(Settings.builder()
-                .put("index.routing.allocation.include._name", nodeName)
+                .put("index.routing.allocation.require._name", mergeNode)
                 .put("index.blocks.write", true)).get();
         ensureGreen();
         // now merge source into a single shard index
@@ -312,26 +317,42 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
     }
 
-    public void testCreateShrinkedIndexFails() throws Exception {
+    /**
+     * Tests that we can manually recover from a failed allocation due to shards being moved away etc.
+     */
+    public void testCreateShrinkIndexFails() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", randomIntBetween(2, 7))).get();
+        prepareCreate("source").setSettings(Settings.builder().put(indexSettings())
+            .put("number_of_shards", randomIntBetween(2, 7))
+            .put("number_of_replicas", 0)).get();
         for (int i = 0; i < 20; i++) {
             client().prepareIndex("source", randomFrom("t1", "t2", "t3")).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
         }
-        String nodeName = internalCluster().startNode();
+        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
+            .getDataNodes();
+        assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        String spareNode = discoveryNodes[0].getName();
+        String mergeNode = discoveryNodes[1].getName();
         // relocate all shards to one node such that we can merge it.
         client().admin().indices().prepareUpdateSettings("source")
-            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", nodeName)
+            .setSettings(Settings.builder().put("index.routing.allocation.require._name", mergeNode)
                 .put("index.blocks.write", true)).get();
         ensureGreen();
         // now merge source into a single shard index
-        prepareCreate("target", 0, Settings.builder()
-            .put(indexSettings())
-            .put("number_of_shards", 1)
-            .put("number_of_replicas", 0)
-            .put("index.routing.allocation.include._name", nodeName)
-            .put("index.allocation.max_retries", 1) // no retry
-            .put("index.shrink.source.name", "source")).get();
+        client().admin().indices().prepareShrinkIndex("source", "target")
+            .setSettings(Settings.builder()
+            .put("index.routing.allocation.exclude._name", mergeNode) // we manually exclude the merge node to forcefully fuck it up
+            .put("index.allocation.max_retries", 1).build()).get();
+
+        // now we move all shards away from the merge node
+        client().admin().indices().prepareUpdateSettings("source")
+            .setSettings(Settings.builder().put("index.routing.allocation.require._name", spareNode)
+                .put("index.blocks.write", true)).get();
+        ensureGreen("source");
+
+        client().admin().indices().prepareUpdateSettings("target") // erase the forcefully fuckup!
+            .setSettings(Settings.builder().putNull("index.routing.allocation.exclude._name")).get();
         // wait until it fails
         assertBusy(() -> {
             ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
@@ -344,8 +365,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         });
         client().admin().indices().prepareUpdateSettings("source") // now relocate them all to the right node
             .setSettings(Settings.builder()
-                .put("index.routing.allocation.include._name", nodeName)
-            .putNull("index.routing.allocation.exclude._name")).get();
+                .put("index.routing.allocation.require._name", mergeNode)).get();
         ensureGreen("source");
         client().admin().cluster().prepareReroute().setRetryFailed(true).get(); // kick off a retry and wait until it's done!
         ensureGreen();

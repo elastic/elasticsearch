@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -148,14 +149,14 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
                 + "] docs -  too many documents");
         }
         if (targetIndex.mappings().isEmpty() == false) {
-            throw new IllegalArgumentException("mappings are not allowed for shrinked indices" +
+            throw new IllegalArgumentException("mappings are not allowed when shrinking indices" +
                 ", all mappings are copied from the source index");
         }
         final Settings tagetIndexSettings = Settings.builder().put(targetIndex.settings())
             .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
         if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(tagetIndexSettings)
             && IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(tagetIndexSettings) > 1) {
-            throw new IllegalArgumentException("can not shrink index into more that one shard");
+            throw new IllegalArgumentException("can not shrink index into more than one shard");
         }
         // now check that index is all on one node
         final IndexRoutingTable table = state.routingTable().index(sourceIndex);
@@ -180,7 +181,6 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
 
         targetIndex.settings(Settings.builder()
             .put(tagetIndexSettings)
-            .put("index.shrink.source.name", sourceIndex)
             // we can only shrink to 1 index so far!
             .put("index.number_of_shards", 1)
             // we set default to 0 only if there is nothing explicitly set
@@ -200,6 +200,7 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
             .masterNodeTimeout(targetIndex.masterNodeTimeout())
             .settings(targetIndex.settings())
             .aliases(targetIndex.aliases())
-            .customs(targetIndex.customs());
+            .customs(targetIndex.customs())
+            .shrinkFrom(metaData.getIndex());
     }
 }

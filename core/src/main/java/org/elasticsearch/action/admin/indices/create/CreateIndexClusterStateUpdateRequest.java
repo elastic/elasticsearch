@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.transport.TransportMessage;
 
 import java.util.HashMap;
@@ -40,6 +41,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private final String cause;
     private final String index;
     private final boolean updateAllTypes;
+    private Index shrinkFrom;
 
     private IndexMetaData.State state = IndexMetaData.State.OPEN;
 
@@ -91,6 +93,11 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
+    public CreateIndexClusterStateUpdateRequest shrinkFrom(Index shrinkFrom) {
+        this.shrinkFrom = shrinkFrom;
+        return this;
+    }
+
     public TransportMessage originalMessage() {
         return originalMessage;
     }
@@ -125,6 +132,10 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public Set<ClusterBlock> blocks() {
         return blocks;
+    }
+
+    public Index shrinkFrom() {
+        return shrinkFrom;
     }
 
     /** True if all fields that span multiple types should be updated, false otherwise */

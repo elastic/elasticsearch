@@ -1,8 +1,9 @@
-[[bootstrap-checks]] == Bootstrap Checks
+[[bootstrap-checks]]
+== Bootstrap Checks
 
 Collectively, we have a lot of experience with users suffering
 unexpected issues because they have not configured
-<<important-setting,important settings>>. In previous versions of
+<<important-settings,important settings>>. In previous versions of
 Elasticsearch, misconfiguration of some of these settings were logged
 as warnings. Understandably, users sometimes miss these log messages.
 To ensure that these settings receive the attention that they deserve,
@@ -36,7 +37,7 @@ size equal to the maximum heap size. Additionally, if
 the heap on startup. If the initial heap size is not equal to the
 maximum heap size, after a resize it will not be the case that all of
 the JVM heap is locked in memory. To pass the heap size check, you must
-configure the [[heap-size,heap size]].
+configure the <<heap-size,heap size>>.
 
 === File descriptor check
 
@@ -48,7 +49,7 @@ file](https://en.wikipedia.org/wiki/Everything_is_a_file). For example,
 descriptors (e.g., every shard is composed of multiple segments and
 other files, plus connections to other nodes, etc.). This bootstrap
 check is enforced on OS X and Linux. To pass the file descriptor check,
-you might have to configure [[file-descriptors,file descriptors]].
+you might have to configure <<file-descriptors,file descriptors>>.
 
 === Memory lock check
 

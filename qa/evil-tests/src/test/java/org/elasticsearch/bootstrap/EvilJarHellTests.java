@@ -54,9 +54,10 @@ public class EvilJarHellTests extends ESTestCase {
 
     public void testBootclasspathLeniency() throws Exception {
         Path dir = createTempDir();
+        URL[] jars = {makeJar(dir, "foo.jar", null, "DuplicateClass.class"), makeJar(dir, "bar.jar", null, "DuplicateClass.class")};
+
         String previousJavaHome = System.getProperty("java.home");
         System.setProperty("java.home", dir.toString());
-        URL[] jars = {makeJar(dir, "foo.jar", null, "DuplicateClass.class"), makeJar(dir, "bar.jar", null, "DuplicateClass.class")};
         try {
             JarHell.checkJarHell(jars);
         } finally {
@@ -66,14 +67,14 @@ public class EvilJarHellTests extends ESTestCase {
 
     public void testRequiredJDKVersionIsOK() throws Exception {
         Path dir = createTempDir();
-        String previousJavaVersion = System.getProperty("java.specification.version");
-        System.setProperty("java.specification.version", "1.7");
-
         Manifest manifest = new Manifest();
         Attributes attributes = manifest.getMainAttributes();
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
         attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "1.7");
         URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
+
+        String previousJavaVersion = System.getProperty("java.specification.version");
+        System.setProperty("java.specification.version", "1.7");
         try {
             JarHell.checkJarHell(jars);
         } finally {
@@ -83,14 +84,14 @@ public class EvilJarHellTests extends ESTestCase {
 
     public void testBadJDKVersionProperty() throws Exception {
         Path dir = createTempDir();
-        String previousJavaVersion = System.getProperty("java.specification.version");
-        System.setProperty("java.specification.version", "bogus");
-
         Manifest manifest = new Manifest();
         Attributes attributes = manifest.getMainAttributes();
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
         attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "1.7");
         URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
+
+        String previousJavaVersion = System.getProperty("java.specification.version");
+        System.setProperty("java.specification.version", "bogus");
         try {
             JarHell.checkJarHell(jars);
         } finally {

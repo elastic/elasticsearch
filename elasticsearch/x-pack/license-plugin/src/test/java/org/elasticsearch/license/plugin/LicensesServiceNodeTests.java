@@ -21,7 +21,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 
 /**
  */
-@ESIntegTestCase.ClusterScope(scope = TEST, numDataNodes = 10, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = TEST, supportsDedicatedMasters = false, numDataNodes = 10, numClientNodes = 0)
 public class LicensesServiceNodeTests extends AbstractLicensesIntegrationTestCase {
 
     @Override

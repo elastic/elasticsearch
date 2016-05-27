@@ -100,7 +100,7 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
             }
         };
         final InternalTestCluster cluster2 = new InternalTestCluster(InternalTestCluster.configuredNodeMode(),
-                randomLong(), createTempDir(), 2, 2,
+                randomLong(), createTempDir(), true, 2, 2,
                 UUIDs.randomBase64UUID(random()), nodeConfigurationSource, 1, false, "tribe_node2",
                 getMockPlugins(), getClientWrapper());
 

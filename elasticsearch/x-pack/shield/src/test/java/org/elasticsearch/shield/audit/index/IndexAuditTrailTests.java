@@ -13,9 +13,9 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -36,6 +36,9 @@ import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
+import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
+import org.elasticsearch.shield.user.SystemUser;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -80,7 +83,7 @@ import static org.mockito.Mockito.when;
 /**
  *
  */
-@ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1)
+@ESIntegTestCase.ClusterScope(scope = SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class IndexAuditTrailTests extends ShieldIntegTestCase {
     public static final String SECOND_CLUSTER_NODE_PREFIX = "remote_" + SUITE_CLUSTER_NODE_PREFIX;
 
@@ -143,7 +146,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
                 return builder.build();
             }
         };
-        remoteCluster = new InternalTestCluster("network", randomLong(), createTempDir(), numNodes, numNodes, cluster2Name,
+        remoteCluster = new InternalTestCluster("network", randomLong(), createTempDir(), false, numNodes, numNodes, cluster2Name,
                 cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(),
                 useShield ? getClientWrapper() : Function.identity());
         remoteCluster.beforeTest(random(), 0.5);

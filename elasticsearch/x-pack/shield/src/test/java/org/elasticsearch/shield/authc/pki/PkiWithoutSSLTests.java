@@ -21,7 +21,7 @@ import org.elasticsearch.test.rest.client.http.HttpResponse;
 
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(numClientNodes = 0, numDataNodes = 1)
+@ClusterScope(numClientNodes = 0, supportsDedicatedMasters = false, numDataNodes = 1)
 public class PkiWithoutSSLTests extends ShieldIntegTestCase {
     @Override
     public boolean sslTransportEnabled() {

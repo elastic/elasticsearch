@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.watcher.WatcherModule;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
 import java.util.ArrayList;
@@ -25,7 +24,8 @@ import static org.hamcrest.core.Is.is;
 
 /**
  */
-@ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
+@ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false,
+        supportsDedicatedMasters = false, numDataNodes = 1)
 public class WatcherIndexTemplateRegistryTests extends AbstractWatcherIntegrationTestCase {
 
     @Override

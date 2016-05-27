@@ -584,14 +584,11 @@ public class AllocationService extends AbstractComponent {
                 }
             }
         } else {
-            // The fail shard is the main copy of the current shard routing. Any
-            // relocation will be cancelled (and the target shard removed as well)
-            // and the shard copy needs to be marked as unassigned
+            // The fail shard is the main copy of the current shard routing.
 
-            boolean removedRelocationSourceOnRelocationTarget = false;
+            boolean addAsUnassigned = true;
             if (failedShard.relocatingNodeId() != null) {
-                // handle relocation source shards.  we need to find the target initializing shard that is recovering, and remove it...
-                assert failedShard.initializing() == false; // should have been dealt with and returned
+                // now, find the shard that is initializing on the target node
                 assert failedShard.relocating();
 
                 RoutingNodes.RoutingNodeIterator initializingNode = routingNodes.routingNodeIter(failedShard.relocatingNodeId());
@@ -601,20 +598,21 @@ public class AllocationService extends AbstractComponent {
                         if (shardRouting.isRelocationTargetOf(failedShard)) {
                             if (failedShard.primary()) {
                                 logger.trace("{} is removed due to the failure of the source shard", shardRouting);
+                                // cancel and remove target shard
                                 initializingNode.remove();
                             } else {
                                 logger.trace("{}, relocation source failed, mark as initializing without relocation source", shardRouting);
-                                removedRelocationSourceOnRelocationTarget = true;
+                                // promote to initializing shard without relocation source and ensure that removed relocation source
+                                // is not added back as unassigned shard
                                 initializingNode.removeRelocationSource();
+                                addAsUnassigned = false;
                             }
                             break;
                         }
                     }
                 }
             }
-            if (removedRelocationSourceOnRelocationTarget) {
-                // do nothing, it was already removed above
-            } else {
+            if (addAsUnassigned) {
                 matchedNode.moveToUnassigned(unassignedInfo);
             }
         }

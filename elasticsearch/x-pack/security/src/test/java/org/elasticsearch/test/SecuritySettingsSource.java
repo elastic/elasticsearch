@@ -14,6 +14,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.transport.Netty3Plugin;
 import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
@@ -22,7 +23,6 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
@@ -122,9 +122,15 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        Path folder = SecurityTestUtils.createFolder(parentFolder, subfolderPrefix + "-" + nodeOrdinal);
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
+        Path home = SecurityTestUtils.createFolder(parentFolder, subfolderPrefix + "-" + nodeOrdinal);
+        Path xpackConf = SecurityTestUtils.createFolder(home.resolve("config"), XPackPlugin.NAME);
+        writeFile(xpackConf, "system_key", systemKey);
+        writeFile(xpackConf, "users", configUsers());
+        writeFile(xpackConf, "users_roles", configUsersRoles());
+        writeFile(xpackConf, "roles.yml", configRoles());
 
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
+                .put(Environment.PATH_CONF_SETTING.getKey(), home.resolve("config"))
                 //TODO: for now isolate security tests from watcher & monitoring (randomize this later)
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
@@ -132,14 +138,10 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                 .put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.NODE_NAME_SETTING.getKey(), randomBoolean())
-                .put(CryptoService.FILE_SETTING.getKey(), writeFile(folder, "system_key", systemKey))
                 .put("xpack.security.authc.realms.file.type", FileRealm.TYPE)
                 .put("xpack.security.authc.realms.file.order", 0)
-                .put("xpack.security.authc.realms.file.files.users", writeFile(folder, "users", configUsers()))
-                .put("xpack.security.authc.realms.file.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
                 .put("xpack.security.authc.realms.index.type", NativeRealm.TYPE)
                 .put("xpack.security.authc.realms.index.order", "1")
-                .put(FileRolesStore.ROLES_FILE_SETTING.getKey(), writeFile(folder, "roles.yml", configRoles()))
                 .put(getNodeSSLSettings());
 
         return builder.build();

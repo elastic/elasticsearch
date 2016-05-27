@@ -55,6 +55,14 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS;
 
+    /**
+     * Settings used when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
+     * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
+     * so that some of the configuration parameters can be overridden through test instance methods, similarly
+     * to how {@link #nodeSettings(int)} and {@link #transportClientSettings()} work.
+     */
+    private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
+
     //UnicastZen requires the number of nodes in a cluster to generate the unicast configuration.
     //The number of nodes is randomized though, but we can predict what the maximum number of nodes will be
     //and configure them all in unicast.hosts
@@ -98,14 +106,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         return annotation == null ? Scope.SUITE : annotation.scope();
     }
 
-    /**
-     * Settings used when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
-     * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
-     * so that some of the configuration parameters can be overridden through test instance methods, similarly
-     * to how {@link #nodeSettings(int)} and {@link #transportClientSettings()} work.
-     */
-    private CustomSecuritySettingsSource customSecuritySettingsSource = null;
-
     @BeforeClass
     public static void initDefaultSettings() {
         if (SECURITY_DEFAULT_SETTINGS == null) {
@@ -121,6 +121,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     @AfterClass
     public static void destroyDefaultSettings() {
         SECURITY_DEFAULT_SETTINGS = null;
+        customSecuritySettingsSource = null;
     }
 
     @Rule
@@ -357,12 +358,11 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     protected String getHttpURL() {
-        boolean useSSL = false;
         final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
         final List<NodeInfo> nodes = nodeInfos.getNodes();
         assertTrue("there is at least one node", nodes.size() > 0);
         NodeInfo ni = randomFrom(nodes);
-        useSSL = SecurityNetty3HttpServerTransport.SSL_SETTING.get(ni.getSettings());
+        boolean useSSL = SecurityNetty3HttpServerTransport.SSL_SETTING.get(ni.getSettings());
         TransportAddress publishAddress = ni.getHttp().address().publishAddress();
         assertEquals(1, publishAddress.uniqueAddressTypeId());
         InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();

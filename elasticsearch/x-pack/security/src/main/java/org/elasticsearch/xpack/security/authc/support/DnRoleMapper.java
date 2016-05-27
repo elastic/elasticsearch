@@ -80,11 +80,8 @@ public class DnRoleMapper {
     }
 
     public static Path resolveFile(Settings settings, Environment env) {
-        String location = settings.get(ROLE_MAPPING_FILE_SETTING);
-        if (location == null) {
-            return XPackPlugin.resolveConfigFile(env, DEFAULT_FILE_NAME);
-        }
-        return env.binFile().getParent().resolve(location);
+        String location = settings.get(ROLE_MAPPING_FILE_SETTING, DEFAULT_FILE_NAME);
+        return XPackPlugin.resolveConfigFile(env, location);
     }
 
     /**

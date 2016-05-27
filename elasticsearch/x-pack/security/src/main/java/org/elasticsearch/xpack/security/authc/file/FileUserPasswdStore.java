@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.file;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
@@ -54,7 +53,7 @@ public class FileUserPasswdStore {
 
     FileUserPasswdStore(RealmConfig config, ResourceWatcherService watcherService, RefreshListener listener) {
         logger = config.logger(FileUserPasswdStore.class);
-        file = resolveFile(config.settings(), config.env());
+        file = resolveFile(config.env());
         users = parseFileLenient(file, logger);
         FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileListener());
@@ -90,12 +89,8 @@ public class FileUserPasswdStore {
         return users != null && users.containsKey(username);
     }
 
-    public static Path resolveFile(Settings settings, Environment env) {
-        String location = settings.get("files.users");
-        if (location == null) {
-            return XPackPlugin.resolveConfigFile(env, "users");
-        }
-        return env.binFile().getParent().resolve(location);
+    public static Path resolveFile(Environment env) {
+        return XPackPlugin.resolveConfigFile(env, "users");
     }
 
     /**

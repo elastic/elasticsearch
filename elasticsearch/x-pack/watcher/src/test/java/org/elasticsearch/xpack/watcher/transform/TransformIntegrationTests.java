@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.transform;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.env.Environment;
@@ -62,7 +63,13 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        Path config = createTempDir().resolve("config");
+        Settings baseSettings = super.nodeSettings(nodeOrdinal);
+        Path config;
+        if (Environment.PATH_CONF_SETTING.exists(baseSettings)) {
+            config = PathUtils.get(Environment.PATH_CONF_SETTING.get(baseSettings));
+        } else {
+            config = createTempDir().resolve("config");
+        }
         Path scripts = config.resolve("scripts");
 
         try {
@@ -78,7 +85,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
 
         // Set the config path so that the ScriptService will pick up the test scripts
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(baseSettings)
                 .put(Environment.PATH_CONF_SETTING.getKey(), config)
                 .put("script.stored", "true")
                 .put("script.inline", "true")

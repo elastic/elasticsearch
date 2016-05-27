@@ -19,8 +19,6 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
-import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.junit.BeforeClass;
 
@@ -31,8 +29,8 @@ import java.nio.file.Path;
 import java.util.Collections;
 
 import static java.util.Collections.singletonMap;
+
 import static org.elasticsearch.test.SecuritySettingsSource.getSSLSettingsForStore;
-import static org.elasticsearch.xpack.security.test.SecurityTestUtils.createFolder;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -81,8 +79,10 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
     }
 
     public void testThatConnectionToServerTypeConnectionWorks() throws IOException {
-        Settings dataNodeSettings = internalCluster().getDataNodeInstance(Settings.class);
-        String systemKeyFile = CryptoService.FILE_SETTING.get(dataNodeSettings);
+        Path home = createTempDir();
+        Path xpackConf = home.resolve("config").resolve(XPackPlugin.NAME);
+        Files.createDirectories(xpackConf);
+        writeFile(xpackConf, "system_key", systemKey());
 
         Transport transport = internalCluster().getDataNodeInstance(Transport.class);
         TransportAddress transportAddress = transport.boundAddress().publishAddress();
@@ -99,9 +99,9 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put("discovery.zen.ping.unicast.hosts", unicastHost)
                 .put(SecurityNetty3Transport.SSL_SETTING.getKey(), sslTransportEnabled())
                 .put("xpack.security.audit.enabled", false)
-                .put("path.home", createTempDir())
+                .put("path.home", home)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                .put(CryptoService.FILE_SETTING.getKey(), systemKeyFile)
+                .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .build();
         try (Node node = new MockNode(nodeSettings, Collections.singletonList(XPackPlugin.class))) {
             node.start();
@@ -110,18 +110,24 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
     }
 
     public void testThatConnectionToClientTypeConnectionIsRejected() throws IOException {
-        Settings dataNodeSettings = internalCluster().getDataNodeInstance(Settings.class);
-        String systemKeyFile = CryptoService.FILE_SETTING.get(dataNodeSettings);
+        Path home = createTempDir();
+        Path xpackConf = home.resolve("config").resolve(XPackPlugin.NAME);
+        Files.createDirectories(xpackConf);
+        writeFile(xpackConf, "system_key", systemKey());
+        writeFile(xpackConf, "users", configUsers());
+        writeFile(xpackConf, "users_roles", configUsersRoles());
+        writeFile(xpackConf, "roles.yml", configRoles());
 
-        Path folder = createFolder(createTempDir(), getClass().getSimpleName() + "-" + randomAsciiOfLength(10));
+        Transport transport = internalCluster().getDataNodeInstance(Transport.class);
+        TransportAddress transportAddress = transport.profileBoundAddresses().get("client").publishAddress();
+        assertThat(transportAddress, instanceOf(InetSocketTransportAddress.class));
+        InetSocketAddress inetSocketAddress = ((InetSocketTransportAddress) transportAddress).address();
+        int port = inetSocketAddress.getPort();
 
         // test that starting up a node works
         Settings nodeSettings = Settings.builder()
                 .put("xpack.security.authc.realms.file.type", FileRealm.TYPE)
                 .put("xpack.security.authc.realms.file.order", 0)
-                .put("xpack.security.authc.realms.file.files.users", writeFile(folder, "users", configUsers()))
-                .put("xpack.security.authc.realms.file.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
-                .put(FileRolesStore.ROLES_FILE_SETTING.getKey(), writeFile(folder, "roles.yml", configRoles()))
                 .put(getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode"))
                 .put("node.name", "my-test-node")
                 .put(Security.USER_SETTING.getKey(), "test_user:changeme")
@@ -130,9 +136,8 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put(SecurityNetty3Transport.SSL_SETTING.getKey(), sslTransportEnabled())
                 .put("xpack.security.audit.enabled", false)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                .put(CryptoService.FILE_SETTING.getKey(), systemKeyFile)
                 .put("discovery.initial_state_timeout", "2s")
-                .put("path.home", createTempDir())
+                .put("path.home", home)
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .build();
         try (Node node = new MockNode(nodeSettings, Collections.singletonList(XPackPlugin.class))) {

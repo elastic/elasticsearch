@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.file;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger.Level;
@@ -21,6 +22,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.BufferedWriter;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -62,14 +64,14 @@ public class FileUserRolesStoreTests extends ESTestCase {
     }
 
     public void testStore_ConfiguredWithUnreadableFile() throws Exception {
-        Path file = createTempFile();
+        Path file = getUsersRolesPath();
         List<String> lines = new ArrayList<>();
         lines.add("aldlfkjldjdflkjd");
 
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, lines, StandardCharsets.UTF_16);
 
-        Settings fileSettings = Settings.builder()
+        Settings fileSettings = randomBoolean() ? Settings.EMPTY : Settings.builder()
                 .put("files.users_roles", file.toAbsolutePath())
                 .build();
 
@@ -81,10 +83,10 @@ public class FileUserRolesStoreTests extends ESTestCase {
 
     public void testStoreAutoReload() throws Exception {
         Path users = getDataPath("users_roles");
-        Path tmp = createTempFile();
+        Path tmp = getUsersRolesPath();
         Files.copy(users, tmp, StandardCopyOption.REPLACE_EXISTING);
 
-        Settings fileSettings = Settings.builder()
+        Settings fileSettings = randomBoolean() ? Settings.EMPTY : Settings.builder()
                 .put("files.users_roles", tmp.toAbsolutePath())
                 .build();
 
@@ -124,10 +126,10 @@ public class FileUserRolesStoreTests extends ESTestCase {
 
     public void testStoreAutoReloadWithParseFailure() throws Exception {
         Path users = getDataPath("users_roles");
-        Path tmp = createTempFile();
+        Path tmp = getUsersRolesPath();
         Files.copy(users, tmp, StandardCopyOption.REPLACE_EXISTING);
 
-        Settings fileSettings = Settings.builder()
+        Settings fileSettings = randomBoolean() ? Settings.EMPTY : Settings.builder()
                 .put("files.users_roles", tmp.toAbsolutePath())
                 .build();
 
@@ -222,7 +224,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
                     .put("path.home", createTempDir())
                     .build();
 
-            Settings fileSettings = Settings.builder()
+            Settings fileSettings = randomBoolean() ? Settings.EMPTY : Settings.builder()
                     .put("files.users_roles", usersRoles.toAbsolutePath())
                     .build();
 
@@ -269,9 +271,15 @@ public class FileUserRolesStoreTests extends ESTestCase {
     }
 
     private Path writeUsersRoles(String input) throws Exception {
-        Path file = createTempFile();
+        Path file = getUsersRolesPath();
         Files.write(file, input.getBytes(StandardCharsets.UTF_8));
         return file;
+    }
+
+    private Path getUsersRolesPath() throws IOException {
+        Path xpackConf = env.configFile().resolve(XPackPlugin.NAME);
+        Files.createDirectories(xpackConf);
+        return xpackConf.resolve("users_roles");
     }
 
     private void assertInvalidInputIsSilentlyIgnored(String input) throws Exception {

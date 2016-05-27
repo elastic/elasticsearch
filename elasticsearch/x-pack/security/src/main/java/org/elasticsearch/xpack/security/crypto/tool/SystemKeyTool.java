@@ -66,7 +66,7 @@ public class SystemKeyTool extends SettingCommand {
             }
             keyPath = parsePath(args.get(0));
         } else {
-            keyPath = CryptoService.resolveSystemKey(env.settings(), env);
+            keyPath = CryptoService.resolveSystemKey(env);
         }
 
         // write the key

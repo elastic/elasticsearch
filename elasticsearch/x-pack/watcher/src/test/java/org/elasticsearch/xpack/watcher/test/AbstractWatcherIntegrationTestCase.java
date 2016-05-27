@@ -22,11 +22,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.search.SearchHit;
@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -691,17 +690,20 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 return builder.put("xpack.security.enabled", false).build();
             }
             try {
-                Path folder = createTempDir().resolve("watcher_security");
-                Files.createDirectories(folder);
+                Path conf = createTempDir().resolve("watcher_security");
+                Path xpackConf = conf.resolve(XPackPlugin.NAME);
+                Files.createDirectories(xpackConf);
+                writeFile(xpackConf, "users", USERS);
+                writeFile(xpackConf, "users_roles", USER_ROLES);
+                writeFile(xpackConf, "roles.yml", ROLES);
+                writeFile(xpackConf, "system_key", systemKey);
+
                 builder.put("xpack.security.enabled", true)
                         .put("xpack.security.authc.realms.esusers.type", FileRealm.TYPE)
                         .put("xpack.security.authc.realms.esusers.order", 0)
-                        .put("xpack.security.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))
-                        .put("xpack.security.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
-                        .put(FileRolesStore.ROLES_FILE_SETTING.getKey(), writeFile(folder, "roles.yml", ROLES))
-                        .put(CryptoService.FILE_SETTING.getKey(), writeFile(folder, "system_key.yml", systemKey))
                         .put("xpack.security.authc.sign_user_header", false)
-                        .put("xpack.security.audit.enabled", auditLogsEnabled);
+                        .put("xpack.security.audit.enabled", auditLogsEnabled)
+                        .put(Environment.PATH_CONF_SETTING.getKey(), conf);
                 if (useSecurity3) {
                     builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME3);
                     builder.put(NetworkModule.HTTP_TYPE_KEY, Security.NAME3);

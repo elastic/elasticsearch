@@ -22,7 +22,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.file.FileUserPasswdStore;
 import org.elasticsearch.xpack.security.authc.file.FileUserRolesStore;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
@@ -227,9 +226,8 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
         public void importUsers(Terminal terminal, Settings settings, Environment env, OptionSet options) {
             String usersCsv = usersToMigrateCsv.value(options);
             String[] usersToMigrate = (usersCsv != null) ? usersCsv.split(",") : Strings.EMPTY_ARRAY;
-            Settings fileRealmSettings = Realms.fileRealmSettings(settings);
-            Path usersFile = FileUserPasswdStore.resolveFile(fileRealmSettings, env);
-            Path usersRolesFile = FileUserRolesStore.resolveFile(fileRealmSettings, env);
+            Path usersFile = FileUserPasswdStore.resolveFile(env);
+            Path usersRolesFile = FileUserRolesStore.resolveFile(env);
             terminal.println("importing users from [" + usersFile + "]...");
             Map<String, char[]> userToHashedPW = FileUserPasswdStore.parseFile(usersFile, null);
             Map<String, String[]> userToRoles = FileUserRolesStore.parseFile(usersRolesFile, null);
@@ -293,8 +291,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
         public void importRoles(Terminal terminal, Settings settings, Environment env, OptionSet options) {
             String rolesCsv = rolesToMigrateCsv.value(options);
             String[] rolesToMigrate = (rolesCsv != null) ? rolesCsv.split(",") : Strings.EMPTY_ARRAY;
-            Settings fileRealmSettings = Realms.fileRealmSettings(settings);
-            Path rolesFile = FileRolesStore.resolveFile(fileRealmSettings, env).toAbsolutePath();
+            Path rolesFile = FileRolesStore.resolveFile(env).toAbsolutePath();
             terminal.println("importing roles from [" + rolesFile + "]...");
             Map<String, RoleDescriptor> roles = FileRolesStore.parseRoleDescriptors(rolesFile, null, true, Settings.EMPTY);
             Set<String> existingRoles;

@@ -9,11 +9,11 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
-import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -49,17 +49,15 @@ public class SecurityF {
             throw new IllegalStateException("es.path.home must be set and exist");
         }
         Path folder = SecurityTestUtils.createFolder(SecurityTestUtils.createFolder(PathUtils.get(homeDir), "config"), "x-pack");
+        settings.put(Environment.PATH_CONF_SETTING.getKey(), PathUtils.get(homeDir).resolve("config"));
+        writeFile(folder, "users", SecuritySettingsSource.CONFIG_STANDARD_USER);
+        writeFile(folder, "users_roles", SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES);
+        writeFile(folder, "roles.yml", SecuritySettingsSource.CONFIG_ROLE_ALLOW_ALL);
 
         settings.put("xpack.security.authc.realms.file.type", FileRealm.TYPE);
         settings.put("xpack.security.authc.realms.file.order", "0");
-        settings.put("xpack.security.authc.realms.file.files.users",
-                writeFile(folder, "users", SecuritySettingsSource.CONFIG_STANDARD_USER));
-        settings.put("xpack.security.authc.realms.file.files.users_roles", writeFile(folder, "users_roles",
-                SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES));
         settings.put("xpack.security.authc.realms.esnative.type", NativeRealm.TYPE);
         settings.put("xpack.security.authc.realms.esnative.order", "1");
-        settings.put(FileRolesStore.ROLES_FILE_SETTING.getKey(),
-                writeFile(folder, "roles.yml", SecuritySettingsSource.CONFIG_ROLE_ALLOW_ALL));
 
         final CountDownLatch latch = new CountDownLatch(1);
         final Node node = new MockNode(settings.build(), Arrays.asList(XPackPlugin.class));

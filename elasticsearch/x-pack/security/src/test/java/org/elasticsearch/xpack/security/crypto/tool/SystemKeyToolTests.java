@@ -11,6 +11,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.junit.After;
 
@@ -63,10 +64,10 @@ public class SystemKeyToolTests extends CommandTestCase {
     public void testGeneratePathInSettings() throws Exception {
         final Path homeDir = initFileSystem(false);
 
-        Path path = jimfs.getPath(randomAsciiOfLength(10)).resolve("key");
-        Files.createDirectories(path.getParent());
-        execute("-Epath.home=" + homeDir.toString(), "-Expack.security.system_key.file=" + path.toAbsolutePath().toString());
-        byte[] bytes = Files.readAllBytes(path);
+        Path xpackConf = homeDir.resolve("config").resolve(XPackPlugin.NAME);
+        Files.createDirectories(xpackConf);
+        execute("-Epath.home=" + homeDir.toString());
+        byte[] bytes = Files.readAllBytes(xpackConf.resolve("system_key"));
         assertEquals(CryptoService.KEY_SIZE / 8, bytes.length);
     }
 

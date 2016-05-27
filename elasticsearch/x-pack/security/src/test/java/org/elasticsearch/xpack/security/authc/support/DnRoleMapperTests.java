@@ -20,6 +20,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.BufferedWriter;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -64,12 +65,15 @@ public class DnRoleMapperTests extends ESTestCase {
     protected ThreadPool threadPool;
 
     @Before
-    public void init() {
+    public void init() throws IOException {
         settings = Settings.builder()
                 .put("resource.reload.interval.high", "2s")
                 .put("path.home", createTempDir())
                 .build();
         env = new Environment(settings);
+        if (Files.exists(env.configFile()) == false) {
+            Files.createDirectory(env.configFile());
+        }
         threadPool = new TestThreadPool("test");
     }
 
@@ -90,7 +94,7 @@ public class DnRoleMapperTests extends ESTestCase {
 
     public void testMapper_AutoReload() throws Exception {
         Path roleMappingFile = getDataPath("role_mapping.yml");
-        Path file = env.binFile().getParent().resolve("test_role_mapping.yml");
+        Path file = env.configFile().resolve("test_role_mapping.yml");
         Files.copy(roleMappingFile, file, StandardCopyOption.REPLACE_EXISTING);
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -129,7 +133,7 @@ public class DnRoleMapperTests extends ESTestCase {
 
     public void testMapper_AutoReload_WithParseFailures() throws Exception {
         Path roleMappingFile = getDataPath("role_mapping.yml");
-        Path file = env.binFile().getParent().resolve("test_role_mapping.yml");
+        Path file = env.configFile().resolve("test_role_mapping.yml");
         Files.copy(roleMappingFile, file, StandardCopyOption.REPLACE_EXISTING);
 
         final CountDownLatch latch = new CountDownLatch(1);

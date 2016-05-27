@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.hamcrest.Matcher;
 import org.jboss.netty.util.internal.SystemPropertyUtil;
@@ -533,20 +533,22 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                 return;
             }
             try {
-                Path folder = createTempDir().resolve("monitoring_security");
-                Files.createDirectories(folder);
+                Path conf = createTempDir().resolve("monitoring_security");
+                Path xpackConf = conf.resolve(XPackPlugin.NAME);
+                Files.createDirectories(xpackConf);
+                writeFile(xpackConf, "users", USERS);
+                writeFile(xpackConf, "users_roles", USER_ROLES);
+                writeFile(xpackConf, "roles.yml", ROLES);
+                writeFile(xpackConf, "system_key", systemKey);
 
                 builder.put("xpack.security.enabled", true)
                         .put("xpack.security.authc.realms.esusers.type", FileRealm.TYPE)
                         .put("xpack.security.authc.realms.esusers.order", 0)
-                        .put("xpack.security.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))
-                        .put("xpack.security.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
-                        .put(FileRolesStore.ROLES_FILE_SETTING.getKey(), writeFile(folder, "roles.yml", ROLES))
-                        .put(CryptoService.FILE_SETTING.getKey(), writeFile(folder, "system_key.yml", systemKey))
                         .put("xpack.security.authc.sign_user_header", false)
                         .put("xpack.security.audit.enabled", auditLogsEnabled)
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
-                        .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4);
+                        .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4)
+                        .put(Environment.PATH_CONF_SETTING.getKey(), conf);
             } catch (IOException ex) {
                 throw new RuntimeException("failed to build settings for security", ex);
             }

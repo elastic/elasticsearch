@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -64,16 +65,14 @@ public class FileUserPasswdStoreTests extends ESTestCase {
     }
 
     public void testStore_ConfiguredWithUnreadableFile() throws Exception {
-
-        Path file = createTempFile();
+        Path xpackConf = env.configFile().resolve(XPackPlugin.NAME);
+        Files.createDirectories(xpackConf);
+        Path file = xpackConf.resolve("users");
 
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
 
-        Settings fileSettings = Settings.builder()
-                .put("files.users", file.toAbsolutePath())
-                .build();
-
+        Settings fileSettings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("files.users", file.toAbsolutePath()).build();
         RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env);
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService);
@@ -82,14 +81,12 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     public void testStore_AutoReload() throws Exception {
         Path users = getDataPath("users");
-        Path tmp = createTempFile();
-        Files.copy(users, tmp, StandardCopyOption.REPLACE_EXISTING);
+        Path xpackConf = env.configFile().resolve(XPackPlugin.NAME);
+        Files.createDirectories(xpackConf);
+        Path file = xpackConf.resolve("users");
+        Files.copy(users, file, StandardCopyOption.REPLACE_EXISTING);
 
-        Settings fileSettings = Settings.builder()
-                .put("files.users", tmp.toAbsolutePath())
-                .build();
-
-
+        Settings fileSettings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("files.users", file.toAbsolutePath()).build();
         RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env);
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         final CountDownLatch latch = new CountDownLatch(1);
@@ -106,7 +103,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
         watcherService.start();
 
-        try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
+        try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
             writer.newLine();
             writer.append("foobar:").append(new String(Hasher.BCRYPT.hash(SecuredStringTests.build("barfoo"))));
         }
@@ -121,13 +118,14 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     public void testStore_AutoReload_WithParseFailures() throws Exception {
         Path users = getDataPath("users");
-        Path tmp = createTempFile();
-        Files.copy(users, tmp, StandardCopyOption.REPLACE_EXISTING);
+        Path xpackConf = env.configFile().resolve(XPackPlugin.NAME);
+        Files.createDirectories(xpackConf);
+        Path testUsers = xpackConf.resolve("users");
+        Files.copy(users, testUsers, StandardCopyOption.REPLACE_EXISTING);
 
         Settings fileSettings = Settings.builder()
-                .put("files.users", tmp.toAbsolutePath())
+                .put("files.users", testUsers.toAbsolutePath())
                 .build();
-
 
         RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env);
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
@@ -145,7 +143,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         watcherService.start();
 
         // now replacing the content of the users file with something that cannot be read
-        Files.write(tmp, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
+        Files.write(testUsers, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
 
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("Waited too long for the updated file to be picked up");

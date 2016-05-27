@@ -396,7 +396,6 @@ public class Security implements ActionPlugin, IngestPlugin {
         IndexAuditTrail.registerSettings(settingsList);
 
         // authentication settings
-        FileRolesStore.addSettings(settingsList);
         AnonymousUser.addSettings(settingsList);
         Realms.addSettings(settingsList);
         NativeUsersStore.addSettings(settingsList);

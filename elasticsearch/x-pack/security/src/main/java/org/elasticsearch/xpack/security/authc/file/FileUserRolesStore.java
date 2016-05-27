@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.RefreshListener;
@@ -53,7 +52,7 @@ public class FileUserRolesStore {
 
     FileUserRolesStore(RealmConfig config, ResourceWatcherService watcherService, RefreshListener listener) {
         logger = config.logger(FileUserRolesStore.class);
-        file = resolveFile(config.settings(), config.env());
+        file = resolveFile(config.env());
         userRoles = parseFileLenient(file, logger);
         FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileListener());
@@ -85,12 +84,8 @@ public class FileUserRolesStore {
         return roles == null ? Strings.EMPTY_ARRAY : userRoles.get(username);
     }
 
-    public static Path resolveFile(Settings settings, Environment env) {
-        String location = settings.get("files.users_roles");
-        if (location == null) {
-            return XPackPlugin.resolveConfigFile(env, "users_roles");
-        }
-        return env.binFile().getParent().resolve(location);
+    public static Path resolveFile(Environment env) {
+        return XPackPlugin.resolveConfigFile(env, "users_roles");
     }
 
     /**
@@ -227,7 +222,7 @@ public class FileUserRolesStore {
         @Override
         public void onFileChanged(Path file) {
             if (file.equals(FileUserRolesStore.this.file)) {
-                logger.info("users_roles file [{}] changed. updating users roles...", file.toAbsolutePath());
+                logger.info("users roles file [{}] changed. updating users roles...", file.toAbsolutePath());
                 userRoles = parseFileLenient(file, logger);
                 notifyRefresh();
             }

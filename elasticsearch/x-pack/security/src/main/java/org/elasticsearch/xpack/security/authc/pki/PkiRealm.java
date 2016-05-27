@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.security.transport.SSLClientAuth;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
@@ -165,7 +166,7 @@ public class PkiRealm extends Realm {
         String trustStoreAlgorithm = settings.get("truststore.algorithm", System.getProperty("ssl.TrustManagerFactory.algorithm",
                 TrustManagerFactory.getDefaultAlgorithm()));
         TrustManager[] trustManagers;
-        try (InputStream in = Files.newInputStream(env.binFile().getParent().resolve(truststorePath))) {
+        try (InputStream in = Files.newInputStream(XPackPlugin.resolveConfigFile(env, truststorePath))) {
             // Load TrustStore
             KeyStore ks = KeyStore.getInstance("jks");
             ks.load(in, password.toCharArray());

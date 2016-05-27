@@ -223,31 +223,6 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         return realmMap;
     }
 
-    /**
-     * returns the settings for the {@link FileRealm}. Typically, this realms may or may
-     * not be configured. If it is not configured, it will work OOTB using default settings. If it is
-     * configured, there can only be one configured instance.
-     */
-    public static Settings fileRealmSettings(Settings settings) {
-        Settings realmsSettings = REALMS_GROUPS_SETTINGS.get(settings);
-        Settings result = null;
-        for (String name : realmsSettings.names()) {
-            Settings realmSettings = realmsSettings.getAsSettings(name);
-            String type = realmSettings.get("type");
-            if (type == null) {
-                throw new IllegalArgumentException("missing realm type for [" + name + "] realm");
-            }
-            if (FileRealm.TYPE.equals(type)) {
-                if (result != null) {
-                    throw new IllegalArgumentException("multiple [" + FileRealm.TYPE +
-                            "]realms are configured. only one may be configured");
-                }
-                result = realmSettings;
-            }
-        }
-        return result != null ? result : Settings.EMPTY;
-    }
-
     private void addNativeRealms(List<Realm> realms) {
         Realm.Factory fileRealm = factories.get(FileRealm.TYPE);
         if (fileRealm != null) {

@@ -21,8 +21,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
@@ -42,12 +40,9 @@ import org.elasticsearch.xpack.security.support.Validation;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.xpack.security.Security.setting;
 
 public class FileRolesStore extends AbstractLifecycleComponent implements RolesStore {
 
-    public static final Setting<String> ROLES_FILE_SETTING =
-            Setting.simpleString(setting("authz.store.files.roles"), Property.NodeScope);
     private static final Pattern IN_SEGMENT_LINE = Pattern.compile("^\\s+.+");
     private static final Pattern SKIP_LINE = Pattern.compile("(^#.*|^\\s*)");
 
@@ -63,7 +58,7 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
 
     public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, RefreshListener listener) {
         super(settings);
-        this.file = resolveFile(settings, env);
+        this.file = resolveFile(env);
         this.listener = listener;
         this.watcherService = watcherService;
         permissions = emptyMap();
@@ -116,13 +111,8 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
         return usageStats;
     }
 
-    public static Path resolveFile(Settings settings, Environment env) {
-        String location = ROLES_FILE_SETTING.get(settings);
-        if (location.isEmpty()) {
-            return XPackPlugin.resolveConfigFile(env, "roles.yml");
-        }
-
-        return XPackPlugin.resolveConfigFile(env, location);
+    public static Path resolveFile(Environment env) {
+        return XPackPlugin.resolveConfigFile(env, "roles.yml");
     }
 
     public static Set<String> parseFileForRoleNames(Path path, ESLogger logger) {
@@ -317,9 +307,5 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
                 listener.onRefresh();
             }
         }
-    }
-
-    public static void addSettings(List<Setting<?>> settings) {
-        settings.add(ROLES_FILE_SETTING);
     }
 }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.security.authc.support.RefreshListener;
 import org.elasticsearch.xpack.security.authz.permission.ClusterPermission;
@@ -248,17 +247,18 @@ public class FileRolesStoreTests extends ESTestCase {
         ResourceWatcherService watcherService = null;
         try {
             Path roles = getDataPath("roles.yml");
-            Path tmp = createTempFile();
+            Path home = createTempDir();
+            Path xpackConf = home.resolve("config").resolve(XPackPlugin.NAME);
+            Files.createDirectories(xpackConf);
+            Path tmp = xpackConf.resolve("roles.yml");
             try (OutputStream stream = Files.newOutputStream(tmp)) {
                 Files.copy(roles, stream);
             }
 
-            Settings settings = Settings.builder()
+            Settings.Builder builder = Settings.builder()
                     .put("resource.reload.interval.high", "500ms")
-                    .put(FileRolesStore.ROLES_FILE_SETTING.getKey(), tmp.toAbsolutePath())
-                    .put("path.home", createTempDir())
-                    .build();
-
+                    .put("path.home", home);
+            Settings settings = builder.build();
             Environment env = new Environment(settings);
             threadPool = new TestThreadPool("test");
             watcherService = new ResourceWatcherService(settings, threadPool);
@@ -369,7 +369,9 @@ public class FileRolesStoreTests extends ESTestCase {
 
     public void testUsageStats() throws Exception {
         Path roles = getDataPath("roles.yml");
-        Path tmp = createTempFile();
+        Path home = createTempDir();
+        Path tmp = home.resolve("config/x-pack/roles.yml");
+        Files.createDirectories(tmp.getParent());
         try (OutputStream stream = Files.newOutputStream(tmp)) {
             Files.copy(roles, stream);
         }
@@ -377,8 +379,7 @@ public class FileRolesStoreTests extends ESTestCase {
         final boolean flsDlsEnabled = randomBoolean();
         Settings settings = Settings.builder()
                 .put("resource.reload.interval.high", "500ms")
-                .put(FileRolesStore.ROLES_FILE_SETTING.getKey(), tmp.toAbsolutePath())
-                .put("path.home", createTempDir())
+                .put("path.home", home)
                 .put(XPackSettings.DLS_FLS_ENABLED.getKey(), flsDlsEnabled)
                 .build();
         Environment env = new Environment(settings);

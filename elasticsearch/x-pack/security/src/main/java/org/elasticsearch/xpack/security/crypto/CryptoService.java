@@ -60,7 +60,6 @@ public class CryptoService extends AbstractComponent {
     private static final Pattern SIG_PATTERN = Pattern.compile("^\\$\\$[0-9]+\\$\\$[^\\$]*\\$\\$.+");
     private static final byte[] HKDF_APP_INFO = "es-security-crypto-service".getBytes(StandardCharsets.UTF_8);
 
-    public static final Setting<String> FILE_SETTING = Setting.simpleString(setting("system_key.file"), Setting.Property.NodeScope);
     public static final Setting<String> ENCRYPTION_ALGO_SETTING =
         new Setting<>(setting("encryption.algorithm"), s -> DEFAULT_ENCRYPTION_ALGORITHM, s -> s, Setting.Property.NodeScope);
     public static final Setting<Integer> ENCRYPTION_KEY_LENGTH_SETTING =
@@ -94,7 +93,7 @@ public class CryptoService extends AbstractComponent {
             throw new IllegalArgumentException("invalid key length [" + keyLength + "]. value must be a multiple of 8");
         }
 
-        keyFile = resolveSystemKey(settings, env);
+        keyFile = resolveSystemKey(env);
         systemKey = readSystemKey(keyFile);
         randomKey = generateSecretKey(RANDOM_KEY_SIZE);
         randomKeyBase64 = Base64.getUrlEncoder().encodeToString(randomKey.getEncoded());
@@ -123,12 +122,8 @@ public class CryptoService extends AbstractComponent {
         }
     }
 
-    public static Path resolveSystemKey(Settings settings, Environment env) {
-        String location = FILE_SETTING.get(settings);
-        if (location.isEmpty()) {
-            return XPackPlugin.resolveConfigFile(env, FILE_NAME);
-        }
-        return XPackPlugin.resolveConfigFile(env, location);
+    public static Path resolveSystemKey(Environment env) {
+        return XPackPlugin.resolveConfigFile(env, FILE_NAME);
     }
 
     static SecretKey createSigningKey(@Nullable SecretKey systemKey, SecretKey randomKey) {
@@ -493,7 +488,6 @@ public class CryptoService extends AbstractComponent {
     }
 
     public static void addSettings(List<Setting<?>> settings) {
-        settings.add(FILE_SETTING);
         settings.add(ENCRYPTION_KEY_LENGTH_SETTING);
         settings.add(ENCRYPTION_KEY_ALGO_SETTING);
         settings.add(ENCRYPTION_ALGO_SETTING);

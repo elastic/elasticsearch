@@ -28,7 +28,7 @@ public class SecurityTestUtils {
             }
         } else {
             try {
-                Files.createDirectory(createdFolder);
+                Files.createDirectories(createdFolder);
             } catch (IOException e) {
                 throw new RuntimeException("could not create temporary folder: " + createdFolder.toAbsolutePath());
             }

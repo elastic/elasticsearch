@@ -29,7 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.ingest.processor.TrackingResultProcessor.decorate;
+import static org.elasticsearch.action.ingest.TrackingResultProcessor.decorate;
 
 class SimulateExecutionService {
 

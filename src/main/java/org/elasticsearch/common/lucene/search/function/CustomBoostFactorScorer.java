@@ -116,7 +116,7 @@ abstract class CustomBoostFactorScorer extends Scorer {
             }
             currentScore = innerScore();
             if (currentScore < minScore) {
-                return scorer.nextDoc();
+                return nextDoc();
             }
             return doc;
         }

@@ -60,6 +60,7 @@ public class AzureBlobContainer extends AbstractLegacyBlobContainer {
 
     @Override
     public boolean blobExists(String blobName) {
+        logger.trace("blobExists({})", blobName);
         try {
             return blobStore.blobExists(blobStore.container(), buildKey(blobName));
         } catch (URISyntaxException | StorageException e) {
@@ -70,6 +71,7 @@ public class AzureBlobContainer extends AbstractLegacyBlobContainer {
 
     @Override
     public InputStream openInput(String blobName) throws IOException {
+        logger.trace("openInput({})", blobName);
         try {
             return blobStore.getInputStream(blobStore.container(), buildKey(blobName));
         } catch (StorageException e) {
@@ -84,6 +86,7 @@ public class AzureBlobContainer extends AbstractLegacyBlobContainer {
 
     @Override
     public OutputStream createOutput(String blobName) throws IOException {
+        logger.trace("createOutput({})", blobName);
         try {
             return new AzureOutputStream(blobStore.getOutputStream(blobStore.container(), buildKey(blobName)));
         } catch (StorageException e) {
@@ -100,6 +103,7 @@ public class AzureBlobContainer extends AbstractLegacyBlobContainer {
 
     @Override
     public void deleteBlob(String blobName) throws IOException {
+        logger.trace("deleteBlob({})", blobName);
         try {
             blobStore.deleteBlob(blobStore.container(), buildKey(blobName));
         } catch (URISyntaxException | StorageException e) {
@@ -110,6 +114,7 @@ public class AzureBlobContainer extends AbstractLegacyBlobContainer {
 
     @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(@Nullable String prefix) throws IOException {
+        logger.trace("listBlobsByPrefix({})", prefix);
 
         try {
             return blobStore.listBlobsByPrefix(blobStore.container(), keyPath, prefix);
@@ -121,6 +126,7 @@ public class AzureBlobContainer extends AbstractLegacyBlobContainer {
 
     @Override
     public void move(String sourceBlobName, String targetBlobName) throws IOException {
+        logger.trace("move({}, {})", sourceBlobName, targetBlobName);
         try {
             String source = keyPath + sourceBlobName;
             String target = keyPath + targetBlobName;
@@ -139,6 +145,7 @@ public class AzureBlobContainer extends AbstractLegacyBlobContainer {
 
     @Override
     public Map<String, BlobMetaData> listBlobs() throws IOException {
+        logger.trace("listBlobs()");
         return listBlobsByPrefix(null);
     }
 

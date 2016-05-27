@@ -25,7 +25,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 
+import static org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl.blobNameFromUri;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -167,5 +169,16 @@ public class AzureStorageServiceTest extends ESTestCase {
             this.clients.put(azureStorageSettings.getAccount(),
                     new CloudBlobClient(URI.create("https://" + azureStorageSettings.getName())));
         }
+    }
+
+    public void testBlobNameFromUri() throws URISyntaxException {
+        String name = blobNameFromUri(new URI("https://myservice.azure.net/container/path/to/myfile"));
+        assertThat(name, is("path/to/myfile"));
+        name = blobNameFromUri(new URI("http://myservice.azure.net/container/path/to/myfile"));
+        assertThat(name, is("path/to/myfile"));
+        name = blobNameFromUri(new URI("http://127.0.0.1/container/path/to/myfile"));
+        assertThat(name, is("path/to/myfile"));
+        name = blobNameFromUri(new URI("https://127.0.0.1/container/path/to/myfile"));
+        assertThat(name, is("path/to/myfile"));
     }
 }

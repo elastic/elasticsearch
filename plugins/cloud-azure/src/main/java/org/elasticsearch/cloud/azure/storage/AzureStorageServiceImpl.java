@@ -133,8 +133,8 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     public boolean doesContainerExist(String account, LocationMode mode, String container) {
         try {
             CloudBlobClient client = this.getSelectedClient(account, mode);
-            CloudBlobContainer blob_container = client.getContainerReference(container);
-            return blob_container.exists();
+            CloudBlobContainer blobContainer = client.getContainerReference(container);
+            return blobContainer.exists();
         } catch (Exception e) {
             logger.error("can not access container [{}]", container);
         }
@@ -144,25 +144,25 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     @Override
     public void removeContainer(String account, LocationMode mode, String container) throws URISyntaxException, StorageException {
         CloudBlobClient client = this.getSelectedClient(account, mode);
-        CloudBlobContainer blob_container = client.getContainerReference(container);
+        CloudBlobContainer blobContainer = client.getContainerReference(container);
         // TODO Should we set some timeout and retry options?
         /*
         BlobRequestOptions options = new BlobRequestOptions();
         options.setTimeoutIntervalInMs(1000);
         options.setRetryPolicyFactory(new RetryNoRetry());
-        blob_container.deleteIfExists(options, null);
+        blobContainer.deleteIfExists(options, null);
         */
         logger.trace("removing container [{}]", container);
-        blob_container.deleteIfExists();
+        blobContainer.deleteIfExists();
     }
 
     @Override
     public void createContainer(String account, LocationMode mode, String container) throws URISyntaxException, StorageException {
         try {
             CloudBlobClient client = this.getSelectedClient(account, mode);
-            CloudBlobContainer blob_container = client.getContainerReference(container);
+            CloudBlobContainer blobContainer = client.getContainerReference(container);
             logger.trace("creating container [{}]", container);
-            blob_container.createIfNotExists();
+            blobContainer.createIfNotExists();
         } catch (IllegalArgumentException e) {
             logger.trace("fails creating container [{}]", container, e.getMessage());
             throw new RepositoryException(container, e.getMessage());
@@ -175,22 +175,44 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
 
         // Container name must be lower case.
         CloudBlobClient client = this.getSelectedClient(account, mode);
-        CloudBlobContainer blob_container = client.getContainerReference(container);
-        if (blob_container.exists()) {
-            for (ListBlobItem blobItem : blob_container.listBlobs(path)) {
-                logger.trace("removing blob [{}]", blobItem.getUri());
-                deleteBlob(account, mode, container, blobItem.getUri().toString());
+        CloudBlobContainer blobContainer = client.getContainerReference(container);
+        if (blobContainer.exists()) {
+            // We list the blobs using a flat blob listing mode
+            for (ListBlobItem blobItem : blobContainer.listBlobs(path, true)) {
+                String blobName = blobNameFromUri(blobItem.getUri());
+                logger.trace("removing blob [{}] full URI was [{}]", blobName, blobItem.getUri());
+                deleteBlob(account, mode, container, blobName);
             }
         }
+    }
+
+    /**
+     * Extract the blob name from a URI like https://myservice.azure.net/container/path/to/myfile
+     * It should remove the container part (first part of the path) and gives path/to/myfile
+     * @param uri URI to parse
+     * @return The blob name relative to the container
+     */
+    public static String blobNameFromUri(URI uri) {
+        String path = uri.getPath();
+
+        // We remove the container name from the path
+        // The 3 magic number cames from the fact if path is /container/path/to/myfile
+        // First occurrence is empty "/"
+        // Second occurrence is "container
+        // Last part contains "path/to/myfile" which is what we want to get
+        String[] splits = path.split("/", 3);
+
+        // We return the remaining end of the string
+        return splits[2];
     }
 
     @Override
     public boolean blobExists(String account, LocationMode mode, String container, String blob) throws URISyntaxException, StorageException {
         // Container name must be lower case.
         CloudBlobClient client = this.getSelectedClient(account, mode);
-        CloudBlobContainer blob_container = client.getContainerReference(container);
-        if (blob_container.exists()) {
-            CloudBlockBlob azureBlob = blob_container.getBlockBlobReference(blob);
+        CloudBlobContainer blobContainer = client.getContainerReference(container);
+        if (blobContainer.exists()) {
+            CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
             return azureBlob.exists();
         }
 
@@ -203,10 +225,10 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
 
         // Container name must be lower case.
         CloudBlobClient client = this.getSelectedClient(account, mode);
-        CloudBlobContainer blob_container = client.getContainerReference(container);
-        if (blob_container.exists()) {
+        CloudBlobContainer blobContainer = client.getContainerReference(container);
+        if (blobContainer.exists()) {
             logger.trace("container [{}]: blob [{}] found. removing.", container, blob);
-            CloudBlockBlob azureBlob = blob_container.getBlockBlobReference(blob);
+            CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
             azureBlob.delete();
         }
     }
@@ -266,10 +288,10 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         logger.debug("moveBlob container [{}], sourceBlob [{}], targetBlob [{}]", container, sourceBlob, targetBlob);
 
         CloudBlobClient client = this.getSelectedClient(account, mode);
-        CloudBlobContainer blob_container = client.getContainerReference(container);
-        CloudBlockBlob blobSource = blob_container.getBlockBlobReference(sourceBlob);
+        CloudBlobContainer blobContainer = client.getContainerReference(container);
+        CloudBlockBlob blobSource = blobContainer.getBlockBlobReference(sourceBlob);
         if (blobSource.exists()) {
-            CloudBlockBlob blobTarget = blob_container.getBlockBlobReference(targetBlob);
+            CloudBlockBlob blobTarget = blobContainer.getBlockBlobReference(targetBlob);
             blobTarget.startCopy(blobSource);
             blobSource.delete();
             logger.debug("moveBlob container [{}], sourceBlob [{}], targetBlob [{}] -> done", container, sourceBlob, targetBlob);

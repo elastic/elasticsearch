@@ -34,7 +34,7 @@ import java.util.Collections;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-@ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0)
+@ClusterScope(scope = SUITE, supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0)
 public class SettingsListenerIT extends ESIntegTestCase {
 
     @Override
@@ -109,13 +109,13 @@ public class SettingsListenerIT extends ESIntegTestCase {
                 .put("index.test.new.setting", 21)
                 .build()).get());
 
-        for (SettingsTestingService instance : internalCluster().getInstances(SettingsTestingService.class)) {
+        for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
             assertEquals(21, instance.value);
         }
 
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
                 .put("index.test.new.setting", 42)).get();
-        for (SettingsTestingService instance : internalCluster().getInstances(SettingsTestingService.class)) {
+        for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
             assertEquals(42, instance.value);
         }
 
@@ -123,14 +123,14 @@ public class SettingsListenerIT extends ESIntegTestCase {
                 .put("index.test.new.setting", 21)
                 .build()).get());
 
-        for (SettingsTestingService instance : internalCluster().getInstances(SettingsTestingService.class)) {
+        for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
             assertEquals(42, instance.value);
         }
 
         client().admin().indices().prepareUpdateSettings("other").setSettings(Settings.builder()
                 .put("index.test.new.setting", 84)).get();
 
-        for (SettingsTestingService instance : internalCluster().getInstances(SettingsTestingService.class)) {
+        for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
             assertEquals(42, instance.value);
         }
 

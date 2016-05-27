@@ -371,7 +371,7 @@ public class TasksIT extends ESIntegTestCase {
         logger.info("--> started test tasks");
 
         // Wait for the task to start on all nodes
-        assertBusy(() -> assertEquals(internalCluster().numDataAndMasterNodes(),
+        assertBusy(() -> assertEquals(internalCluster().size(),
             client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()));
 
         logger.info("--> cancelling the main test task");
@@ -391,7 +391,7 @@ public class TasksIT extends ESIntegTestCase {
         ListenableActionFuture<TestTaskPlugin.NodesResponse> future = TestTaskPlugin.TestTaskAction.INSTANCE.newRequestBuilder(client())
                 .execute();
         // Wait for the task to start on all nodes
-        assertBusy(() -> assertEquals(internalCluster().numDataAndMasterNodes(),
+        assertBusy(() -> assertEquals(internalCluster().size(),
             client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()));
 
         TestTaskPlugin.UnblockTestTasksAction.INSTANCE.newRequestBuilder(client()).get();
@@ -409,7 +409,7 @@ public class TasksIT extends ESIntegTestCase {
         ListenableActionFuture<ListTasksResponse> waitResponseFuture;
         try {
             // Wait for the task to start on all nodes
-            assertBusy(() -> assertEquals(internalCluster().numDataAndMasterNodes(), client().admin().cluster().prepareListTasks()
+            assertBusy(() -> assertEquals(internalCluster().size(), client().admin().cluster().prepareListTasks()
                     .setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()));
 
             // Spin up a request to wait for that task to finish
@@ -437,7 +437,7 @@ public class TasksIT extends ESIntegTestCase {
                 .execute();
         try {
             // Wait for the task to start on all nodes
-            assertBusy(() -> assertEquals(internalCluster().numDataAndMasterNodes(), client().admin().cluster().prepareListTasks()
+            assertBusy(() -> assertEquals(internalCluster().size(), client().admin().cluster().prepareListTasks()
                     .setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()));
 
             // Spin up a request that should wait for those tasks to finish

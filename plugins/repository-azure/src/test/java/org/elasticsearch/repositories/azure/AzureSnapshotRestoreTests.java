@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 @ClusterScope(
         scope = ESIntegTestCase.Scope.SUITE,
-        numDataNodes = 1,
+        supportsDedicatedMasters = false, numDataNodes = 1,
         transportClientRatio = 0.0)
 public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegTestCase {
     private String getRepositoryPath() {

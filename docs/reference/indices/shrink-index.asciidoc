@@ -6,7 +6,7 @@ In order to shrink an index, all its shards must be allocated on a single node i
 This is required since the shrink command will copy all shards index files into the target index
 data folder when the primary of the target index is initially allocated.
 
-When an index is shrinked no write operations should happen to the source index. Elasticsearch will
+When an index is shrunk no write operations should happen to the source index. Elasticsearch will
 enforce the `read-only` property when the shrink command is executed. All operations necessary to shrink the
 source index are executed during initial primary recovery. Once the target index primary shard is started the
 shrink operation has successfully finished. To monitor status and progress use <<cat-recovery>>
@@ -16,9 +16,9 @@ To shrink and index all shards of that index must be allocated on a single node.
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/logs/' -d '{
+$ curl -XPUT 'http://localhost:9200/logs/_settings' -d '{
     "settings" : {
-        "index.routing.allocation.require._name" : "shrink_node_name" <1>
+        "index.routing.allocation.require._name" : "shrink_node_name", <1>
         "index.blocks.write" : true <2>
     }
 }'
@@ -37,7 +37,7 @@ $ curl -XPUT 'http://localhost:9200/logs/_shrink/logs_single_shard' -d '{
     "settings" : {
         "index.codec" : "best_compression", <1>
         "index.number_of_replicas" : 0 <2>
-    },
+    }
 }'
 --------------------------------------------------
 <1> Enables `best_compression` codec on the target index
@@ -55,7 +55,7 @@ $ curl -XPUT 'http://localhost:9200/logs_single_shard/_settings' -d '{
     "settings" : {
         "index.routing.allocation.include._id" : null, <1>
         "index.number_of_replicas" : 1 <2>
-    },
+    }
 }'
 --------------------------------------------------
 
@@ -68,7 +68,7 @@ $ curl -XPUT 'http://localhost:9200/logs_single_shard/_settings' -d '{
 [[shrink-index-limitations]]
 === Limitations
 
-Indices can only be shrinked into a single shard if they fully the following requirements:
+Indices can only be shrunk into a single shard if they fully the following requirements:
 
  * an instance of all of the indices shards must be allocated on a single node
  * the index must not contain more than `2.14 billion` documents (`2147483519`) in total (sum of all shards)

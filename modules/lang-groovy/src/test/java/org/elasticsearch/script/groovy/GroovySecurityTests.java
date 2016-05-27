@@ -45,12 +45,6 @@ public class GroovySecurityTests extends ESTestCase {
 
     private GroovyScriptEngineService se;
 
-    static {
-        // ensure we load all the timezones in the parent classloader with all permissions
-        // relates to https://github.com/elastic/elasticsearch/issues/14524
-        org.joda.time.DateTimeZone.getDefault();
-    }
-
     @Override
     public void setUp() throws Exception {
         super.setUp();

@@ -36,23 +36,23 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class ShrinkRequest extends AcknowledgedRequest<ShrinkRequest> implements IndicesRequest {
 
-    private CreateIndexRequest skrinkIndexRequest;
+    private CreateIndexRequest shrinkIndexRequest;
     private String sourceIndex;
 
     ShrinkRequest() {}
 
     public ShrinkRequest(String targetIndex, String sourceindex) {
-        this.skrinkIndexRequest = new CreateIndexRequest(targetIndex);
+        this.shrinkIndexRequest = new CreateIndexRequest(targetIndex);
         this.sourceIndex = sourceindex;
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
+        ActionRequestValidationException validationException = shrinkIndexRequest == null ? null : shrinkIndexRequest.validate();
         if (sourceIndex == null) {
             validationException = addValidationError("source index is missing", validationException);
         }
-        if (skrinkIndexRequest == null) {
+        if (shrinkIndexRequest == null) {
             validationException = addValidationError("shrink index request is missing", validationException);
         }
         return validationException;
@@ -65,15 +65,15 @@ public class ShrinkRequest extends AcknowledgedRequest<ShrinkRequest> implements
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        skrinkIndexRequest = new CreateIndexRequest();
-        skrinkIndexRequest.readFrom(in);
+        shrinkIndexRequest = new CreateIndexRequest();
+        shrinkIndexRequest.readFrom(in);
         sourceIndex = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        skrinkIndexRequest.writeTo(out);
+        shrinkIndexRequest.writeTo(out);
         out.writeString(sourceIndex);
     }
 
@@ -88,14 +88,14 @@ public class ShrinkRequest extends AcknowledgedRequest<ShrinkRequest> implements
     }
 
     public void setShrinkIndex(CreateIndexRequest shrinkIndexRequest) {
-        this.skrinkIndexRequest = Objects.requireNonNull(shrinkIndexRequest, "shrink index request must not be null");
+        this.shrinkIndexRequest = Objects.requireNonNull(shrinkIndexRequest, "shrink index request must not be null");
     }
 
     /**
      * Returns the {@link CreateIndexRequest} for the shrink index
      */
     public CreateIndexRequest getShrinkIndexReqeust() {
-        return skrinkIndexRequest;
+        return shrinkIndexRequest;
     }
 
     /**

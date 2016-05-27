@@ -17,18 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.shrink;
+package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkRequest;
+import org.elasticsearch.action.admin.indices.shrink.TransportShrinkAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -51,7 +49,7 @@ import java.util.HashSet;
 
 import static java.util.Collections.emptyMap;
 
-public class TransportShrinkActionTests extends ESTestCase {
+public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
     private ClusterState createClusterState(String name, int numShards, int numReplicas, Settings settings) {
         MetaData.Builder metaBuilder = MetaData.builder();
@@ -69,17 +67,52 @@ public class TransportShrinkActionTests extends ESTestCase {
         return clusterState;
     }
 
-    public void testErrorCondition() {
+    public void testValidateShrinkIndex() {
         ClusterState state = createClusterState("source", randomIntBetween(2, 100), randomIntBetween(0, 10),
             Settings.builder().put("index.blocks.write", true).build());
-        DocsStats stats = new DocsStats(randomIntBetween(0, IndexWriter.MAX_DOCS-1), randomIntBetween(1, 1000));
 
-        assertEquals("Can't merge index with more than [2147483519] docs -  too many documents",
+        assertEquals("index [source] already exists",
+            expectThrows(IndexAlreadyExistsException.class, () ->
+                MetaDataCreateIndexService.validateShrinkIndex(state, "target", Collections.emptySet(), "source", Settings.EMPTY)
+            ).getMessage());
+
+        assertEquals("no such index",
+            expectThrows(IndexNotFoundException.class, () ->
+                MetaDataCreateIndexService.validateShrinkIndex(state, "no such index", Collections.emptySet(), "target", Settings.EMPTY)
+            ).getMessage());
+
+        assertEquals("can't shrink an index with only one shard",
+            expectThrows(IllegalArgumentException.class, () ->
+                    MetaDataCreateIndexService.validateShrinkIndex(createClusterState("source", 1, 0,
+                        Settings.builder().put("index.blocks.write", true).build()), "source", Collections.emptySet(),
+                        "target", Settings.EMPTY)
+            ).getMessage());
+
+        assertEquals("index source must be read-only to shrink index. use \"index.blocks.write=true\"",
             expectThrows(IllegalStateException.class, () ->
-            TransportShrinkAction.prepareCreateIndexRequest(new ShrinkRequest("target", "source"), state,
-                new DocsStats(Integer.MAX_VALUE, randomIntBetween(1, 1000)), new IndexNameExpressionResolver(Settings.EMPTY))
-        ).getMessage());
+                    MetaDataCreateIndexService.validateShrinkIndex(
+                        createClusterState("source", randomIntBetween(2, 100), randomIntBetween(0, 10), Settings.EMPTY)
+                        , "source", Collections.emptySet(), "target", Settings.EMPTY)
+            ).getMessage());
 
+        assertEquals("index source must have all shards allocated on the same node to shrink index",
+            expectThrows(IllegalStateException.class, () ->
+                MetaDataCreateIndexService.validateShrinkIndex(state, "source", Collections.emptySet(), "target", Settings.EMPTY)
+
+            ).getMessage());
+
+        assertEquals("can not shrink index into more than one shard",
+            expectThrows(IllegalArgumentException.class, () ->
+                MetaDataCreateIndexService.validateShrinkIndex(state, "source", Collections.emptySet(), "target",
+                    Settings.builder().put("index.number_of_shards", 2).build())
+            ).getMessage());
+
+        assertEquals("mappings are not allowed when shrinking indices, all mappings are copied from the source index",
+            expectThrows(IllegalArgumentException.class, () -> {
+                MetaDataCreateIndexService.validateShrinkIndex(state, "source", Collections.singleton("foo"),
+                    "target", Settings.EMPTY);
+                }
+            ).getMessage());
 
         // create one that won't fail
         ClusterState clusterState = ClusterState.builder(createClusterState("source", randomIntBetween(2, 10), 0,
@@ -96,8 +129,7 @@ public class TransportShrinkActionTests extends ESTestCase {
             routingTable.index("source").shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        TransportShrinkAction.prepareCreateIndexRequest(new ShrinkRequest("target", "source"), clusterState, stats,
-            new IndexNameExpressionResolver(Settings.EMPTY));
+        MetaDataCreateIndexService.validateShrinkIndex(clusterState, "source", Collections.emptySet(), "target", Settings.EMPTY);
     }
 
     public void testShrinkIndexSettings() {
@@ -106,6 +138,8 @@ public class TransportShrinkActionTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(createClusterState(indexName, randomIntBetween(2, 10), 0,
             Settings.builder()
                 .put("index.blocks.write", true)
+                .put("index.similarity.default.type", "BM25")
+                .put("index.analysis.analyzer.my_analyzer.tokenizer", "keyword")
                 .build())).nodes(DiscoveryNodes.builder().put(newNode("node1")))
             .build();
         AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
@@ -119,14 +153,15 @@ public class TransportShrinkActionTests extends ESTestCase {
             routingTable.index(indexName).shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        DocsStats stats = new DocsStats(randomIntBetween(0, IndexWriter.MAX_DOCS-1), randomIntBetween(1, 1000));
-        ShrinkRequest target = new ShrinkRequest("target", indexName);
-        CreateIndexClusterStateUpdateRequest request = TransportShrinkAction.prepareCreateIndexRequest(
-            target, clusterState, stats, new IndexNameExpressionResolver(Settings.EMPTY));
-        assertNotNull(request.shrinkFrom());
-        assertEquals(indexName, request.shrinkFrom().getName());
-        assertEquals("1", request.settings().get("index.number_of_shards"));
-        assertEquals("shrink_index", request.cause());
+        Settings.Builder builder = Settings.builder();
+        MetaDataCreateIndexService.prepareShrinkIndexSettings(
+            clusterState, Collections.emptySet(), builder, clusterState.metaData().index(indexName).getIndex(), "target");
+        assertEquals("1", builder.build().get("index.number_of_shards"));
+        assertEquals("similarity settings must be copied", "BM25", builder.build().get("index.similarity.default.type"));
+        assertEquals("analysis settings must be copied",
+            "keyword", builder.build().get("index.analysis.analyzer.my_analyzer.tokenizer"));
+        assertEquals("node1", builder.build().get("index.routing.allocation.include._id"));
+        assertEquals("1", builder.build().get("index.allocation.max_retries"));
     }
 
     private DiscoveryNode newNode(String nodeId) {

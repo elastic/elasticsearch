@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -31,11 +32,15 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData.Custom;
 import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -62,6 +67,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
@@ -80,6 +86,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
@@ -275,7 +283,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
                             }
                             if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
+                                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS,
+                                    request.shrinkFrom() == null ? 1 : 0));
                             }
                             if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {
                                 indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
@@ -294,23 +303,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
                             final Index shrinkFromIndex = request.shrinkFrom();
                             if (shrinkFromIndex != null) {
-
-                                IndexMetaData indexMetaData = currentState.getMetaData().getIndexSafe(shrinkFromIndex);
-                                if (Integer.parseInt(indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS)) != 1) {
-                                    // TODO we might be able to fix this in the future
-                                    throw new IllegalArgumentException("Can't merge into an index with more than 1 shard");
-                                }
-                                if (mappings.size() > 1 ||
-                                    (mappings.isEmpty() || mappings.containsKey(MapperService.DEFAULT_MAPPING)) == false) {
-                                    // we might get some mappings through templates
-                                    throw new IllegalArgumentException("mappings are not allowed when shrinking indices" +
-                                        ", all mappings are copied from the source index");
-                                }
-                                if (indexMetaData.getNumberOfShards() == 1) {
-                                    throw new IllegalArgumentException("Unnecessary merge from an index with 1 shard");
-                                }
-                                indexSettingsBuilder.put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME.getKey(), shrinkFromIndex.getName());
-                                indexSettingsBuilder.put(IndexMetaData.INDEX_SHRINK_SOURCE_UUID.getKey(), shrinkFromIndex.getUUID());
+                                prepareShrinkIndexSettings(currentState, mappings.keySet(), indexSettingsBuilder, shrinkFromIndex,
+                                    request.index());
                             }
 
                             Settings actualIndexSettings = indexSettingsBuilder.build();
@@ -499,6 +493,83 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         public boolean apply(CreateIndexClusterStateUpdateRequest request, IndexTemplateMetaData template) {
             return Regex.simpleMatch(template.template(), request.index());
         }
+    }
+
+    /**
+     * Validates the settings and mappings for shrinking an index.
+     * @return the list of nodes at least one instance of the source index shards are allocated
+     */
+    static List<String> validateShrinkIndex(ClusterState state, String sourceIndex,
+                                        Set<String> targetIndexMappingsTypes, String targetIndexName,
+                                        Settings targetIndexSettings) {
+        if (state.metaData().hasIndex(targetIndexName)) {
+            throw new IndexAlreadyExistsException(state.metaData().index(targetIndexName).getIndex());
+        }
+        final IndexMetaData sourceMetaData = state.metaData().index(sourceIndex);
+        if (sourceMetaData == null) {
+            throw new IndexNotFoundException(sourceIndex);
+        }
+        // ensure index is read-only
+        if (state.blocks().indexBlocked(ClusterBlockLevel.WRITE, sourceIndex) == false) {
+            throw new IllegalStateException("index " + sourceIndex + " must be read-only to shrink index. use \"index.blocks.write=true\"");
+        }
+
+        if (sourceMetaData.getNumberOfShards() == 1) {
+            throw new IllegalArgumentException("can't shrink an index with only one shard");
+        }
+
+        if ((targetIndexMappingsTypes.size() > 1 ||
+            (targetIndexMappingsTypes.isEmpty() || targetIndexMappingsTypes.contains(MapperService.DEFAULT_MAPPING)) == false)) {
+            throw new IllegalArgumentException("mappings are not allowed when shrinking indices" +
+                ", all mappings are copied from the source index");
+        }
+        if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)
+            && IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings) > 1) {
+            throw new IllegalArgumentException("can not shrink index into more than one shard");
+        }
+
+        // now check that index is all on one node
+        final IndexRoutingTable table = state.routingTable().index(sourceIndex);
+        Map<String, AtomicInteger> nodesToNumRouting = new HashMap<>();
+        int numShards = sourceMetaData.getNumberOfShards();
+        for (ShardRouting routing : table.shardsWithState(ShardRoutingState.STARTED)) {
+            nodesToNumRouting.computeIfAbsent(routing.currentNodeId(), (s) -> new AtomicInteger(0)).incrementAndGet();
+        }
+        List<String> nodesToAllocateOn = new ArrayList<>();
+        for (Map.Entry<String, AtomicInteger> entries : nodesToNumRouting.entrySet()) {
+            int numAllocations = entries.getValue().get();
+            assert numAllocations <= numShards : "wait what? " + numAllocations + " is > than num shards " + numShards;
+            if (numAllocations == numShards) {
+                nodesToAllocateOn.add(entries.getKey());
+            }
+        }
+        if (nodesToAllocateOn.isEmpty()) {
+            throw new IllegalStateException("index " + sourceIndex +
+                " must have all shards allocated on the same node to shrink index");
+        }
+        return nodesToAllocateOn;
+    }
+
+    static void prepareShrinkIndexSettings(ClusterState currentState, Set<String> mappingKeys, Settings.Builder indexSettingsBuilder, Index shrinkFromIndex, String shrinkIntoName) {
+        final IndexMetaData sourceMetaData = currentState.metaData().index(shrinkFromIndex.getName());
+        final List<String> nodesToAllocateOn = validateShrinkIndex(currentState, shrinkFromIndex.getName(),
+            mappingKeys, shrinkIntoName, indexSettingsBuilder.build());
+        final Predicate<String> analysisSimilarityPredicate = (s) -> s.startsWith("index.similarity.")
+            || s.startsWith("index.analysis.");
+        indexSettingsBuilder
+            // we can only shrink to 1 index so far!
+            .put("index.number_of_shards", 1)
+            // we use "i.r.a.include" rather than "i.r.a.require" since it's allows one of the nodes holding an
+            // instanceof all shards.
+            .put("index.routing.allocation.include._id",
+                Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
+            // we only try once and then give up with a shrink index
+            .put("index.allocation.max_retries", 1)
+            // now copy all similarity / analysis settings - this overrides all settings from the user unless they
+            // wanna add extra settings
+            .put(sourceMetaData.getSettings().filter(analysisSimilarityPredicate))
+            .put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME.getKey(), shrinkFromIndex.getName())
+            .put(IndexMetaData.INDEX_SHRINK_SOURCE_UUID.getKey(), shrinkFromIndex.getUUID());
     }
 
 }

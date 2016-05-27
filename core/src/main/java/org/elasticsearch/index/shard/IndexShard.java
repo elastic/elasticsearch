@@ -1390,7 +1390,8 @@ public class IndexShard extends AbstractIndexShardComponent {
                 recoverFromLocalShards ? RecoveryState.Type.LOCAL_SHARDS : RecoveryState.Type.STORE, localNode, localNode);
             if (recoverFromLocalShards) {
                 final List<IndexShard> startedShards = new ArrayList<>();
-                IndexMetaData sourceIndexMetaData = indicesService.getIndexMetaData(mergeSourceIndex);
+                // look up if the index actually exists - we throw the right exception below instead of failing with ISE
+                final IndexMetaData sourceIndexMetaData = indicesService.getIndexMetaData(mergeSourceIndex);
                 final IndexService sourceIndexService = indicesService.indexService(mergeSourceIndex);
                 final int numShards = sourceIndexMetaData != null ? sourceIndexMetaData.getNumberOfShards() : -1;
                 if (sourceIndexService != null) {

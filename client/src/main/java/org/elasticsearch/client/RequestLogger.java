@@ -41,7 +41,7 @@ import java.nio.charset.StandardCharsets;
  * Helper class that exposes static methods to unify the way requests are logged.
  * Includes trace logging to log complete requests and responses in curl format.
  */
-public final class RequestLogger {
+final class RequestLogger {
 
     private static final Log tracer = LogFactory.getLog("tracer");
 
@@ -51,7 +51,7 @@ public final class RequestLogger {
     /**
      * Logs a request that yielded a response
      */
-    public static void log(Log logger, String message, HttpUriRequest request, HttpHost host, HttpResponse httpResponse) {
+    static void log(Log logger, String message, HttpUriRequest request, HttpHost host, HttpResponse httpResponse) {
         logger.debug(message + " [" + request.getMethod() + " " + host + request.getRequestLine().getUri() +
                 "] [" + httpResponse.getStatusLine() + "]");
 
@@ -77,7 +77,7 @@ public final class RequestLogger {
     /**
      * Logs a request that failed
      */
-    public static void log(Log logger, String message, HttpUriRequest request, HttpHost host, IOException e) {
+    static void log(Log logger, String message, HttpUriRequest request, HttpHost host, IOException e) {
         logger.debug(message + " [" + request.getMethod() + " " + host + request.getRequestLine().getUri() + "]", e);
         if (logger.isTraceEnabled()) {
             String traceRequest;

@@ -30,7 +30,7 @@ final class HttpDeleteWithEntity extends HttpEntityEnclosingRequestBase {
 
     final static String METHOD_NAME = HttpDelete.METHOD_NAME;
 
-    public HttpDeleteWithEntity(final URI uri) {
+    HttpDeleteWithEntity(final URI uri) {
         setURI(uri);
     }
 

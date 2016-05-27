@@ -31,7 +31,7 @@ public class ElasticsearchResponseException extends IOException {
     private ElasticsearchResponse elasticsearchResponse;
     private final String responseBody;
 
-    public ElasticsearchResponseException(ElasticsearchResponse elasticsearchResponse, String responseBody) throws IOException {
+    ElasticsearchResponseException(ElasticsearchResponse elasticsearchResponse, String responseBody) throws IOException {
         super(buildMessage(elasticsearchResponse,responseBody));
         this.elasticsearchResponse = elasticsearchResponse;
         this.responseBody = responseBody;

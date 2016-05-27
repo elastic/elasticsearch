@@ -30,7 +30,7 @@ final class HttpGetWithEntity extends HttpEntityEnclosingRequestBase {
 
     final static String METHOD_NAME = HttpGet.METHOD_NAME;
 
-    public HttpGetWithEntity(final URI uri) {
+    HttpGetWithEntity(final URI uri) {
         setURI(uri);
     }
 

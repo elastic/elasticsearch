@@ -20,7 +20,6 @@
 package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
@@ -590,6 +589,41 @@ public class InternalEngineTests extends ESTestCase {
         doc = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         engine.index(new Engine.Index(newUid("2"), doc));
         engine.flush();
+    }
+
+    public void testTranslogRecoveryDoesNotReplayIntoTranslog() throws IOException {
+        final int docs = randomIntBetween(1, 32);
+        Engine initialEngine = null;
+        try {
+            initialEngine = engine;
+            for (int i = 0; i < docs; i++) {
+                final String id = Integer.toString(i);
+                final ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocumentWithTextField(), new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+                initialEngine.index(new Engine.Index(newUid(id), doc));
+            }
+        } finally {
+            IOUtils.close(initialEngine);
+        }
+
+        Engine recoveringEngine = null;
+        try {
+            final AtomicBoolean flushed = new AtomicBoolean();
+            recoveringEngine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG)) {
+                @Override
+                public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
+                    assertThat(getTranslog().totalOperations(), equalTo(docs));
+                    final CommitId commitId = super.flush(force, waitIfOngoing);
+                    flushed.set(true);
+                    return commitId;
+                }
+            };
+
+            assertThat(recoveringEngine.getTranslog().totalOperations(), equalTo(docs));
+            recoveringEngine.recoverFromTranslog();
+            assertTrue(flushed.get());
+        } finally {
+            IOUtils.close(recoveringEngine);
+        }
     }
 
     public void testConcurrentGetAndFlush() throws Exception {

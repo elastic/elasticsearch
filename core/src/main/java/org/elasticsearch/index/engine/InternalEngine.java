@@ -336,7 +336,7 @@ public class InternalEngine extends Engine {
         final boolean created;
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            if (index.origin() == Operation.Origin.RECOVERY) {
+            if (index.origin().isRecovery()) {
                 // Don't throttle recovery operations
                 created = innerIndex(index);
             } else {
@@ -371,7 +371,7 @@ public class InternalEngine extends Engine {
 
             long expectedVersion = index.version();
             if (isVersionConflictForWrites(index, currentVersion, deleted, expectedVersion)) {
-                if (index.origin() != Operation.Origin.RECOVERY) {
+                if (!index.origin().isRecovery()) {
                     throw new VersionConflictEngineException(shardId, index.type(), index.id(),
                         index.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
                 }
@@ -389,10 +389,13 @@ public class InternalEngine extends Engine {
             } else {
                 created = update(index, versionValue, indexWriter);
             }
-            Translog.Location translogLocation = translog.add(new Translog.Index(index));
 
-            versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
-            index.setTranslogLocation(translogLocation);
+            if (index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+                final Translog.Location translogLocation = translog.add(new Translog.Index(index));
+                index.setTranslogLocation(translogLocation);
+                versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, index.getTranslogLocation()));
+            }
+
             return created;
         }
     }
@@ -467,7 +470,7 @@ public class InternalEngine extends Engine {
             long updatedVersion;
             long expectedVersion = delete.version();
             if (delete.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
-                if (delete.origin() == Operation.Origin.RECOVERY) {
+                if (delete.origin().isRecovery()) {
                     return;
                 } else {
                     throw new VersionConflictEngineException(shardId, delete.type(), delete.id(),
@@ -489,9 +492,12 @@ public class InternalEngine extends Engine {
             }
 
             delete.updateVersion(updatedVersion, found);
-            Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-            versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), translogLocation));
-            delete.setTranslogLocation(translogLocation);
+
+            if (delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+                final Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
+                delete.setTranslogLocation(translogLocation);
+                versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), delete.getTranslogLocation()));
+            }
         }
     }
 

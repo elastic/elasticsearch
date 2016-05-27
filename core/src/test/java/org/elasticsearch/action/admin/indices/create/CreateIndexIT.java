@@ -305,7 +305,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         ensureGreen();
         // now merge source into a single shard index
         assertAcked(client().admin().indices().prepareShrinkIndex("source", "target")
-            .setSettings(Settings.builder().put("number_of_replicas", 0).build()).get());
+            .setSettings(Settings.builder().put("index.number_of_replicas", 0).build()).get());
         ensureGreen();
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
         // let it be allocated anywhere and bump replicas
@@ -350,6 +350,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         client().admin().indices().prepareShrinkIndex("source", "target")
             .setSettings(Settings.builder()
             .put("index.routing.allocation.exclude._name", mergeNode) // we manually exclude the merge node to forcefully fuck it up
+            .put("index.number_of_replicas", 0)
             .put("index.allocation.max_retries", 1).build()).get();
 
         // now we move all shards away from the merge node

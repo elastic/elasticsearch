@@ -36,16 +36,33 @@ The `_shrink` API is similar to <<indices-create-index>> and accepts `settings` 
 $ curl -XPUT 'http://localhost:9200/logs/_shrink/logs_single_shard' -d '{
     "settings" : {
         "index.codec" : "best_compression", <1>
-        "index.number_of_replicas" : 1 <2>
+        "index.number_of_replicas" : 0 <2>
     },
 }'
 --------------------------------------------------
 <1> Enables `best_compression` codec on the target index
-<2> Sets the number of replicas on the target index to `1`, the default is `0`
+<2> Sets the number of replicas on the target index to `0` to ensure the cluster is green once the shard initialized
 
 The API call above returns immediately once the target index is created but doesn't wait
 for the shrink operation to start. Once the target indices primary shard moves to state `initializing`
 the shrink operation has started.
+
+Once the index is shrunk replicas can be set to `1` and allocation filtering can be removed.
+
+[source,js]
+--------------------------------------------------
+$ curl -XPUT 'http://localhost:9200/logs_single_shard/_settings' -d '{
+    "settings" : {
+        "index.routing.allocation.include._id" : null, <1>
+        "index.number_of_replicas" : 1 <2>
+    },
+}'
+--------------------------------------------------
+
+<1> Resets the allocation filtering for the new shrunk index to allow replica allocation
+<2> Bumps the number of replicas to 1
+
+
 
 [float]
 [[shrink-index-limitations]]
@@ -61,7 +78,6 @@ Indices can only be shrinked into a single shard if they fully the following req
  * the target index must not exist
  * all `index.analysis.*` and `index.similarity.*` settings passed to the `_shrink` call will be overwritten with the
   source indices settings.
- * the target index will be created with `index.number_of_replicas=0` by default
  * if the target index can't be allocated on the shrink node, due to throttling or other allocation deciders,
   its primary shard will stay `unassigned` until it can be allocated on that node
 

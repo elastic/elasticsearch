@@ -19,11 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkRequest;
-import org.elasticsearch.action.admin.indices.shrink.TransportShrinkAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -38,7 +34,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;

@@ -31,10 +31,14 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.function.Predicate;
 
@@ -45,7 +49,7 @@ public class StoreRecoveryTests extends ESTestCase {
         final int numDocs = randomIntBetween(50, 100);
         int id = 0;
         for (int i = 0; i < dirs.length; i++) {
-            dirs[i] = newDirectory();
+            dirs[i] = newFSDirectory(createTempDir());
             IndexWriter writer = new IndexWriter(dirs[i], newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
                 .setOpenMode(IndexWriterConfig.OpenMode.CREATE));
             for (int j = 0; j < numDocs; j++) {
@@ -55,20 +59,26 @@ public class StoreRecoveryTests extends ESTestCase {
             writer.commit();
             writer.close();
         }
-
         StoreRecovery storeRecovery = new StoreRecovery(new ShardId("foo", "bar", 1), logger);
         RecoveryState.Index indexStats = new RecoveryState.Index();
-        Directory target = newDirectory();
+        Directory target = newFSDirectory(createTempDir());
         storeRecovery.addIndices(indexStats, target, dirs);
         int numFiles = 0;
-        Predicate<String> filesFilter = (f) -> f.startsWith("segments") == false && f.equals("write.lock") == false;
+        Predicate<String> filesFilter = (f) -> f.startsWith("segments") == false && f.equals("write.lock") == false
+            && f.startsWith("extra") == false;
         for (Directory d : dirs) {
             numFiles += Arrays.asList(d.listAll()).stream().filter(filesFilter).count();
         }
         final long targetNumFiles = Arrays.asList(target.listAll()).stream().filter(filesFilter).count();
         assertEquals(numFiles, targetNumFiles);
         assertEquals(indexStats.totalFileCount(), targetNumFiles);
-        assertEquals(indexStats.reusedFileCount(), 0);
+        if (hardLinksSupported(createTempDir())) {
+            assertEquals("upgrade to HardlinkCopyDirectoryWrapper in Lucene 6.1", Version.LATEST, Version.LUCENE_6_0_0);
+            // assertEquals(indexStats.reusedFileCount(), targetNumFiles); -- uncomment this once upgraded to Lucene 6.1
+            assertEquals(indexStats.reusedFileCount(), 0);
+        } else {
+            assertEquals(indexStats.reusedFileCount(), 0);
+        }
         DirectoryReader reader = DirectoryReader.open(target);
         SegmentInfos segmentCommitInfos = SegmentInfos.readLatestCommit(target);
         for (SegmentCommitInfo info : segmentCommitInfos) { // check that we didn't merge
@@ -101,5 +111,18 @@ public class StoreRecoveryTests extends ESTestCase {
         assertEquals(dir.fileLength("foo.bar"), indexStats.getFileDetails("bar.foo").recovered());
         assertFalse(indexStats.getFileDetails("bar.foo").reused());
         IOUtils.close(dir, target);
+    }
+
+    public boolean hardLinksSupported(Path path) throws IOException {
+        try {
+            Files.createFile(path.resolve("foo.bar"));
+            Files.createLink(path.resolve("test"), path.resolve("foo.bar"));
+            BasicFileAttributes destAttr = Files.readAttributes(path.resolve("test"), BasicFileAttributes.class);
+            BasicFileAttributes sourceAttr = Files.readAttributes(path.resolve("foo.bar"), BasicFileAttributes.class);
+            return destAttr.fileKey() != null
+                && destAttr.fileKey().equals(sourceAttr.fileKey());
+        } catch (UnsupportedOperationException ex) {
+            return false;
+        }
     }
 }

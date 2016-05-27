@@ -29,8 +29,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.RestoreSource;
@@ -40,7 +38,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
@@ -117,16 +114,6 @@ final class StoreRecovery {
             return executeRecovery(indexShard, () -> {
                 logger.debug("starting recovery from local shards {}", shards);
                 try {
-                    /*
-                     * TODO: once we upgraded to Lucene 6.1 use HardlinkCopyDirectoryWrapper to enable hardlinks if possible and enable it
-                     * in the security.policy:
-                     *
-                     * grant codeBase "${codebase.lucene-misc-6.1.0.jar}" {
-                     *  // needed to allow shard shrinking to use hard-links if possible via lucenes HardlinkCopyDirectoryWrapper
-                     *  permission java.nio.file.LinkPermission "hard";
-                     * };
-                     *
-                     */
                     final Directory directory = indexShard.store().directory(); // don't close this directory!!
                     addIndices(indexShard.recoveryState().getIndex(), directory, shards.stream().map(s -> s.getSnapshotDirectory())
                         .collect(Collectors.toList()).toArray(new Directory[shards.size()]));
@@ -144,6 +131,16 @@ final class StoreRecovery {
     }
 
     final void addIndices(RecoveryState.Index indexRecoveryStats, Directory target, Directory... sources) throws IOException {
+        /*
+         * TODO: once we upgraded to Lucene 6.1 use HardlinkCopyDirectoryWrapper to enable hardlinks if possible and enable it
+         * in the security.policy:
+         *
+         * grant codeBase "${codebase.lucene-misc-6.1.0.jar}" {
+         *  // needed to allow shard shrinking to use hard-links if possible via lucenes HardlinkCopyDirectoryWrapper
+         *  permission java.nio.file.LinkPermission "hard";
+         * };
+         * target = new org.apache.lucene.store.HardlinkCopyDirectoryWrapper(target);
+         */
         try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(target, indexRecoveryStats),
             new IndexWriterConfig(null)
                 .setCommitOnClose(false)
@@ -175,7 +172,7 @@ final class StoreRecovery {
             // here we wrap the index input form the source directory to report progress of file copy for the recovery stats.
             // we increment the num bytes recovered in the readBytes method below, if users pull statistics they can see immediately
             // how much has been recovered.
-            super.copyFrom(new FilterDirectory(from) {
+            in.copyFrom(new FilterDirectory(from) {
                 @Override
                 public IndexInput openInput(String name, IOContext context) throws IOException {
                     index.addFileDetail(dest, l, false);

@@ -341,7 +341,7 @@
             ]
           }
   - length: { docs: 2 }
-  - match: { docs.0.error.type: "illegal_argument_exception" }
+  - match: { docs.0.error.type: "exception" }
   - match: { docs.1.doc._source.foo: "BAR" }
   - length: { docs.1.doc._ingest: 1 }
   - is_true: docs.1.doc._ingest.timestamp

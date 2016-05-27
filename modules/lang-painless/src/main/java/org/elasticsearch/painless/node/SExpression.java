@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
@@ -32,16 +31,16 @@ public final class SExpression extends AStatement {
 
     AExpression expression;
 
-    public SExpression(final int line, final String location, final AExpression expression) {
-        super(line, location);
+    public SExpression(int line, int offset, String location, AExpression expression) {
+        super(line, offset, location);
 
         this.expression = expression;
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Variables variables) {
         expression.read = lastSource;
-        expression.analyze(settings, definition, variables);
+        expression.analyze(variables);
 
         if (!lastSource && !expression.statement) {
             throw new IllegalArgumentException(error("Not a statement."));
@@ -49,8 +48,9 @@ public final class SExpression extends AStatement {
 
         final boolean rtn = lastSource && expression.actual.sort != Sort.VOID;
 
-        expression.expected = rtn ? definition.objectType : expression.actual;
-        expression = expression.cast(settings, definition, variables);
+        expression.expected = rtn ? Definition.OBJECT_TYPE : expression.actual;
+        expression.internal = rtn;
+        expression = expression.cast(variables);
 
         methodEscape = rtn;
         loopEscape = rtn;
@@ -59,14 +59,14 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        expression.write(settings, definition, adapter);
+    void write(MethodWriter writer) {
+        writer.writeStatementOffset(offset);
+        expression.write(writer);
 
         if (methodEscape) {
-            adapter.returnValue();
+            writer.returnValue();
         } else {
-            adapter.writePop(expression.expected.sort.size);
+            writer.writePop(expression.expected.sort.size);
         }
     }
 }

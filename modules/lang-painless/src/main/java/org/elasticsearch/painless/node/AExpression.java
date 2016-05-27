@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.AnalyzerCaster;
@@ -68,6 +66,12 @@ public abstract class AExpression extends ANode {
     protected boolean explicit = false;
 
     /**
+     * Set to true if a cast is allowed to boxed/unboxed.  This is used
+     * for method arguments because casting may be required.
+     */
+    protected boolean internal = false;
+
+    /**
      * Set to the value of the constant this expression node represents if
      * and only if the node represents a constant.  If this is not null
      * this node will be replaced by an {@link EConstant} during casting
@@ -94,34 +98,34 @@ public abstract class AExpression extends ANode {
      */
     protected Label fals = null;
 
-    public AExpression(final int line, final String location) {
-        super(line, location);
+    public AExpression(int line, int offset, String location) {
+        super(line, offset, location);
     }
 
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
+    abstract void analyze(Variables variables);
 
     /**
      * Writes ASM based on the data collected during the analysis phase.
      */
-    abstract void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter);
+    abstract void write(MethodWriter writer);
 
     /**
      * Inserts {@link ECast} nodes into the tree for implicit casts.  Also replaces
      * nodes with the constant variable set to a non-null value with {@link EConstant}.
      * @return The new child node for the parent node calling this method.
      */
-    AExpression cast(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        final Cast cast = AnalyzerCaster.getLegalCast(definition, location, actual, expected, explicit);
+    AExpression cast(Variables variables) {
+        final Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit, internal);
 
         if (cast == null) {
             if (constant == null || this instanceof EConstant) {
                 return this;
             } else {
-                final EConstant econstant = new EConstant(line, location, constant);
-                econstant.analyze(settings, definition, variables);
+                final EConstant econstant = new EConstant(line, offset, location, constant);
+                econstant.analyze(variables);
 
                 if (!expected.equals(econstant.actual)) {
                     throw new IllegalStateException(error("Illegal tree structure."));
@@ -131,7 +135,7 @@ public abstract class AExpression extends ANode {
             }
         } else {
             if (constant == null) {
-                final ECast ecast = new ECast(line, location, this, cast);
+                final ECast ecast = new ECast(line, offset, location, this, cast);
                 ecast.statement = statement;
                 ecast.actual = expected;
                 ecast.isNull = isNull;
@@ -141,8 +145,8 @@ public abstract class AExpression extends ANode {
                 if (expected.sort.constant) {
                     constant = AnalyzerCaster.constCast(location, constant, cast);
 
-                    final EConstant econstant = new EConstant(line, location, constant);
-                    econstant.analyze(settings, definition, variables);
+                    final EConstant econstant = new EConstant(line, offset, location, constant);
+                    econstant.analyze(variables);
 
                     if (!expected.equals(econstant.actual)) {
                         throw new IllegalStateException(error("Illegal tree structure."));
@@ -150,19 +154,19 @@ public abstract class AExpression extends ANode {
 
                     return econstant;
                 } else if (this instanceof EConstant) {
-                    final ECast ecast = new ECast(line, location, this, cast);
+                    final ECast ecast = new ECast(line, offset, location, this, cast);
                     ecast.actual = expected;
 
                     return ecast;
                 } else {
-                    final EConstant econstant = new EConstant(line, location, constant);
-                    econstant.analyze(settings, definition, variables);
+                    final EConstant econstant = new EConstant(line, offset, location, constant);
+                    econstant.analyze(variables);
 
                     if (!actual.equals(econstant.actual)) {
                         throw new IllegalStateException(error("Illegal tree structure."));
                     }
 
-                    final ECast ecast = new ECast(line, location, econstant, cast);
+                    final ECast ecast = new ECast(line, offset, location, econstant, cast);
                     ecast.actual = expected;
 
                     return ecast;

@@ -10,7 +10,7 @@
               {
                 "grok" : {
                   "field" : "field1",
-                  "pattern" : "%{NUMBER:val:float} %{NUMBER:status:int} <%{WORD:msg}>"
+                  "patterns" : ["%{NUMBER:val:float} %{NUMBER:status:int} <%{WORD:msg}>"]
                 }
               }
             ]
@@ -46,7 +46,7 @@
               {
                 "grok" : {
                   "field" : "field1",
-                  "pattern" : "<%{MY_PATTERN:msg}>",
+                  "patterns" : ["<%{MY_PATTERN:msg}>"],
                   "pattern_definitions" : {
                     "MY_PATTERN" : "foo"
                   }
@@ -83,7 +83,7 @@
               {
                 "grok" : {
                   "field" : "field1",
-                  "pattern" : "<%{NUMBER:msg}>",
+                  "patterns" : ["<%{NUMBER:msg}>"],
                   "pattern_definitions" : {
                     "NUMBER" : "foo"
                   }
@@ -107,3 +107,43 @@
         type: test
         id: 1
   - match: { _source.msg: "foo" }
+
+---
+"Test simulate with grok debugging enabled":
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "grok" : {
+                    "field" : "field",
+                    "patterns" : ["%{ONE:one}", "%{TWO:two}"],
+                    "pattern_definitions" : {
+                      "ONE" : "1",
+                      "TWO" : "2"
+                    },
+                    "trace_match" : true
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "field": "abc2xyz"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._source.field: "abc2xyz" }
+  - match: { docs.0.doc._source.two: "2" }
+  - length: { docs.0.doc._ingest: 2 }
+  - match: { docs.0.doc._ingest._grok_match_index: "1" }
+  - is_true: docs.0.doc._ingest.timestamp

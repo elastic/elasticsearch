@@ -122,7 +122,7 @@ public class Setting<T> extends ToXContentToBytes {
         this.defaultValue = defaultValue;
         this.parser = parser;
         if (properties == null) {
-            throw new IllegalArgumentException("properties can not be null for setting [" + key + "]");
+            throw new IllegalArgumentException("properties cannot be null for setting [" + key + "]");
         }
         if (properties.length == 0) {
             this.properties = EMPTY_PROPERTIES;
@@ -132,7 +132,7 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
-     * Creates a new Setting instance. When no scope is provided, we default to {@link Property#NodeScope}.
+     * Creates a new Setting instance
      * @param key the settings key for this setting.
      * @param defaultValue a default value function that returns the default values string representation.
      * @param parser a parser that parses the string rep into a complex datatype.
@@ -165,7 +165,7 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
-     * Creates a new Setting instance. When no scope is provided, we default to {@link Property#NodeScope}.
+     * Creates a new Setting instance
      * @param key the settings key for this setting.
      * @param fallbackSetting a setting who's value to fallback on if this setting is not defined
      * @param parser a parser that parses the string rep into a complex datatype.
@@ -535,6 +535,10 @@ public class Setting<T> extends ToXContentToBytes {
 
     public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, Property... properties) {
         return new Setting<>(key, fallbackSetting, Booleans::parseBooleanExact, properties);
+    }
+
+    public static Setting<Boolean> boolSetting(String key, Function<Settings, String> defaultValueFn, Property... properties) {
+        return new Setting<>(key, defaultValueFn, Booleans::parseBooleanExact, properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, String percentage, Property... properties) {

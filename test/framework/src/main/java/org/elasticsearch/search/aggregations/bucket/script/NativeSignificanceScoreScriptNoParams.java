@@ -47,6 +47,7 @@ public class NativeSignificanceScoreScriptNoParams extends TestScript {
 
     @Override
     public Object run() {
+        checkParams();
         return _subset_freq.longValue() + _subset_size.longValue() + _superset_freq.longValue() + _superset_size.longValue();
     }
 }

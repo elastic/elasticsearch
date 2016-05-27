@@ -346,7 +346,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .metaData(metaData)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
-        return new RoutingAllocation(allocationDeciders, new RoutingNodes(state, false), state, null, System.nanoTime());
+        return new RoutingAllocation(allocationDeciders, new RoutingNodes(state, false), state, null, System.nanoTime(), false);
     }
 
     /**
@@ -425,7 +425,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .metaData(metaData)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
-        return new RoutingAllocation(allocationDeciders, new RoutingNodes(state, false), state, null, System.nanoTime());
+        return new RoutingAllocation(allocationDeciders, new RoutingNodes(state, false), state, null, System.nanoTime(), false);
     }
 
     /**
@@ -444,7 +444,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
 
-        RoutingAllocation allocation = new RoutingAllocation(yesAllocationDeciders(), new RoutingNodes(state, false), state, null, System.nanoTime());
+        RoutingAllocation allocation = new RoutingAllocation(yesAllocationDeciders(), new RoutingNodes(state, false), state, null, System.nanoTime(), false);
         boolean changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(false));
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
@@ -452,7 +452,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(2)); // replicas
 
         testAllocator.addData(node1, 1, null, randomBoolean());
-        allocation = new RoutingAllocation(yesAllocationDeciders(), new RoutingNodes(state, false), state, null, System.nanoTime());
+        allocation = new RoutingAllocation(yesAllocationDeciders(), new RoutingNodes(state, false), state, null, System.nanoTime(), false);
         changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(false));
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
@@ -460,7 +460,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(2)); // replicas
 
         testAllocator.addData(node2, 1, null, randomBoolean());
-        allocation = new RoutingAllocation(yesAllocationDeciders(), new RoutingNodes(state, false), state, null, System.nanoTime());
+        allocation = new RoutingAllocation(yesAllocationDeciders(), new RoutingNodes(state, false), state, null, System.nanoTime(), false);
         changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(0));
@@ -485,7 +485,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
 
-        RoutingAllocation allocation = new RoutingAllocation(yesAllocationDeciders(), new RoutingNodes(state, false), state, null, System.nanoTime());
+        RoutingAllocation allocation = new RoutingAllocation(yesAllocationDeciders(), new RoutingNodes(state, false), state, null, System.nanoTime(), false);
         boolean changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(false));
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
@@ -493,7 +493,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(2)); // replicas
 
         testAllocator.addData(node1, 1, null, randomBoolean());
-        allocation = new RoutingAllocation(yesAllocationDeciders(), new RoutingNodes(state, false), state, null, System.nanoTime());
+        allocation = new RoutingAllocation(yesAllocationDeciders(), new RoutingNodes(state, false), state, null, System.nanoTime(), false);
         changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(false));
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
@@ -501,7 +501,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(2)); // replicas
 
         testAllocator.addData(node2, 2, null, randomBoolean());
-        allocation = new RoutingAllocation(yesAllocationDeciders(), new RoutingNodes(state, false), state, null, System.nanoTime());
+        allocation = new RoutingAllocation(yesAllocationDeciders(), new RoutingNodes(state, false), state, null, System.nanoTime(), false);
         changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(0));
@@ -525,7 +525,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                 .metaData(metaData)
                 .routingTable(routingTableBuilder.build())
                 .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
-        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, null, System.nanoTime());
+        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, null, System.nanoTime(), false);
     }
 
     class TestAllocator extends PrimaryShardAllocator {

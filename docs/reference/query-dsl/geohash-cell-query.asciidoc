@@ -13,6 +13,7 @@ setting the `geohash_prefix` option:
 
 [source,js]
 --------------------------------------------------
+PUT /my_index
 {
     "mappings" : {
         "location": {
@@ -28,6 +29,8 @@ setting the `geohash_prefix` option:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TESTSETUP
 
 The geohash cell can defined by all formats of `geo_points`. If such a cell is
 defined by a latitude and longitude pair the size of the cell needs to be
@@ -42,24 +45,28 @@ next to the given cell.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "bool" : {
-        "must" : {
-            "match_all" : {}
-        },
-        "filter" : {
-            "geohash_cell": {
-                "pin": {
-                    "lat": 13.4080,
-                    "lon": 52.5186
-                },
-                "precision": 3,
-                "neighbors": true
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geohash_cell": {
+                    "pin": {
+                        "lat": 13.4080,
+                        "lon": 52.5186
+                    },
+                    "precision": 3,
+                    "neighbors": true
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ==== Ignore Unmapped

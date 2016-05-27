@@ -16,7 +16,8 @@ There are several thread pools, but the important ones include:
 `index`::
     For index/delete operations. Thread pool type is `fixed`
     with a size of `# of available processors`,
-    queue_size of `200`.
+    queue_size of `200`.  The maximum size for this pool
+    is `# of available processors`.
 
 `search`::
     For count/search/suggest operations. Thread pool type is `fixed`
@@ -31,7 +32,8 @@ There are several thread pools, but the important ones include:
 `bulk`::
     For bulk operations. Thread pool type is `fixed`
     with a size of `# of available processors`,
-    queue_size of `50`.
+    queue_size of `50`.  The maximum size for this pool
+    is `# of available processors`.
 
 `percolate`::
     For percolate operations. Thread pool type is `fixed`

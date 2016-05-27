@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -29,12 +27,12 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class SBreak extends AStatement {
 
-    public SBreak(final int line, final String location) {
-        super(line, location);
+    public SBreak(int line, int offset, String location) {
+        super(line, offset, location);
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Variables variables) {
         if (!inLoop) {
             throw new IllegalArgumentException(error("Break statement outside of a loop."));
         }
@@ -46,8 +44,7 @@ public final class SBreak extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        adapter.goTo(brake);
+    void write(MethodWriter writer) {
+        writer.goTo(brake);
     }
 }

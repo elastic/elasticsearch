@@ -135,7 +135,7 @@ can do this as follows:
 
 [source,sh]
 ---------------------
-sudo bin/elasticsearch-plugin -Ees.path.conf=/path/to/custom/config/dir install <plugin name>
+sudo bin/elasticsearch-plugin -Epath.conf=/path/to/custom/config/dir install <plugin name>
 ---------------------
 
 You can also set the `CONF_DIR` environment variable to the custom config
@@ -180,18 +180,7 @@ set ES_JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number"
 bin/elasticsearch-plugin install analysis-icu
 -----------------------------------
 
-=== Settings related to plugins
-
-[float]
-=== Custom plugins directory
-
-The `plugins` directory can be changed from the default by adding the
-following to the `elasticsearch.yml` config file:
-
-[source,yml]
----------------------
-path.plugins: /path/to/custom/plugins/dir
----------------------
+=== Plugins directory
 
 The default location of the `plugins` directory depends on which package you install:
 

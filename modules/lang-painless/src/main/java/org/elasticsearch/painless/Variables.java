@@ -50,7 +50,7 @@ public final class Variables {
         boolean ctx = false;
         boolean loop = false;
 
-        public void markReserved(final String name) {
+        public void markReserved(String name) {
             if (SCORE.equals(name)) {
                 score = true;
             } else if (CTX.equals(name)) {
@@ -58,7 +58,7 @@ public final class Variables {
             }
         }
 
-        public boolean isReserved(final String name) {
+        public boolean isReserved(String name) {
             return name.equals(THIS) || name.equals(PARAMS) || name.equals(SCORER) || name.equals(DOC) ||
                 name.equals(VALUE) || name.equals(SCORE) || name.equals(CTX) || name.equals(LOOP);
          }
@@ -77,7 +77,7 @@ public final class Variables {
 
         public boolean read = false;
 
-        private Variable(final String location, final String name, final Type type, final int slot, final boolean readonly) {
+        private Variable(String location, String name, Type type, int slot, boolean readonly) {
             this.location = location;
             this.name = name;
             this.type = type;
@@ -86,14 +86,12 @@ public final class Variables {
         }
     }
 
-    private final Definition definition;
     final Reserved reserved;
 
     private final Deque<Integer> scopes = new ArrayDeque<>();
     private final Deque<Variable> variables = new ArrayDeque<>();
 
-    public Variables(final CompilerSettings settings, final Definition definition, final Reserved reserved) {
-        this.definition = definition;
+    public Variables(Reserved reserved) {
         this.reserved = reserved;
 
         incrementScope();
@@ -101,35 +99,35 @@ public final class Variables {
         // Method variables.
 
         // This reference.  Internal use only.
-        addVariable("[" + Reserved.THIS + "]"  , definition.execType.name, Reserved.THIS  , true, true);
+        addVariable("[" + Reserved.THIS + "]", Definition.getType("Executable"), Reserved.THIS, true, true);
 
-        // Input map of variables passed to the script.  TODO: Rename to 'params' since that will be its use.
-        addVariable("[" + Reserved.PARAMS + "]", definition.smapType.name, Reserved.PARAMS, true, true);
+        // Input map of variables passed to the script.
+        addVariable("[" + Reserved.PARAMS + "]", Definition.getType("Map"), Reserved.PARAMS, true, true);
 
         // Scorer parameter passed to the script.  Internal use only.
-        addVariable("[" + Reserved.SCORER + "]", definition.defType.name , Reserved.SCORER, true, true);
+        addVariable("[" + Reserved.SCORER + "]", Definition.DEF_TYPE, Reserved.SCORER, true, true);
 
-        // Doc parameter passed to the script. TODO: Currently working as a Map<String,Def>, we can do better?
-        addVariable("[" + Reserved.DOC + "]"   , definition.smapType.name, Reserved.DOC   , true, true);
+        // Doc parameter passed to the script. TODO: Currently working as a Map, we can do better?
+        addVariable("[" + Reserved.DOC + "]", Definition.getType("Map"), Reserved.DOC, true, true);
 
         // Aggregation _value parameter passed to the script.
-        addVariable("[" + Reserved.VALUE + "]" , definition.defType.name , Reserved.VALUE , true, true);
+        addVariable("[" + Reserved.VALUE + "]", Definition.DEF_TYPE, Reserved.VALUE, true, true);
 
         // Shortcut variables.
 
         // Document's score as a read-only double.
         if (reserved.score) {
-            addVariable("[" + Reserved.SCORE + "]", definition.doubleType.name, Reserved.SCORE, true, true);
+            addVariable("[" + Reserved.SCORE + "]", Definition.DOUBLE_TYPE, Reserved.SCORE, true, true);
         }
 
         // The ctx map set by executable scripts as a read-only map.
         if (reserved.ctx) {
-            addVariable("[" + Reserved.CTX + "]", definition.smapType.name, Reserved.CTX, true, true);
+            addVariable("[" + Reserved.CTX + "]", Definition.getType("Map"), Reserved.CTX, true, true);
         }
 
         // Loop counter to catch infinite loops.  Internal use only.
-        if (reserved.loop && settings.getMaxLoopCounter() > 0) {
-            addVariable("[" + Reserved.LOOP + "]", definition.intType.name, Reserved.LOOP, true, true);
+        if (reserved.loop) {
+            addVariable("[" + Reserved.LOOP + "]", Definition.INT_TYPE, Reserved.LOOP, true, true);
         }
     }
 
@@ -141,7 +139,7 @@ public final class Variables {
         int remove = scopes.pop();
 
         while (remove > 0) {
-            final Variable variable = variables.pop();
+             Variable variable = variables.pop();
 
             if (variable.read) {
                 throw new IllegalArgumentException("Error [" + variable.location + "]: Variable [" + variable.name + "] never used.");
@@ -151,11 +149,11 @@ public final class Variables {
         }
     }
 
-    public Variable getVariable(final String location, final String name) {
-        final Iterator<Variable> itr = variables.iterator();
+    public Variable getVariable(String location, String name) {
+         Iterator<Variable> itr = variables.iterator();
 
         while (itr.hasNext()) {
-            final Variable variable = itr.next();
+             Variable variable = itr.next();
 
             if (variable.name.equals(name)) {
                 return variable;
@@ -169,8 +167,7 @@ public final class Variables {
         return null;
     }
 
-    public Variable addVariable(final String location, final String typestr, final String name,
-                                final boolean readonly, final boolean reserved) {
+    public Variable addVariable(String location, Type type, String name, boolean readonly, boolean reserved) {
         if (!reserved && this.reserved.isReserved(name)) {
             throw new IllegalArgumentException("Error " + location + ": Variable name [" + name + "] is reserved.");
         }
@@ -179,38 +176,23 @@ public final class Variables {
             throw new IllegalArgumentException("Error " + location + ": Variable name [" + name + "] already defined.");
         }
 
-        final Type type;
-
         try {
-            type = definition.getType(typestr);
-        } catch (final IllegalArgumentException exception) {
-            throw new IllegalArgumentException("Error " + location + ": Not a type [" + typestr + "].");
-        }
-
-        boolean legal = !name.contains("<");
-
-        try {
-            definition.getType(name);
-            legal = false;
-        } catch (final IllegalArgumentException exception) {
+            Definition.getType(name);
+        } catch (IllegalArgumentException exception) {
             // Do nothing.
         }
 
-        if (!legal) {
-            throw new IllegalArgumentException("Error " + location + ": Variable name [" + name + "] cannot be a type.");
-        }
-
-        final Variable previous = variables.peekFirst();
+        Variable previous = variables.peekFirst();
         int slot = 0;
 
         if (previous != null) {
             slot = previous.slot + previous.type.type.getSize();
         }
 
-        final Variable variable = new Variable(location, name, type, slot, readonly);
+        Variable variable = new Variable(location, name, type, slot, readonly);
         variables.push(variable);
 
-        final int update = scopes.pop() + 1;
+        int update = scopes.pop() + 1;
         scopes.push(update);
 
         return variable;

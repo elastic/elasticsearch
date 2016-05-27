@@ -28,7 +28,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilter;
@@ -215,26 +214,6 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1);
 
         assertRequestsContainHeader(MultiTermVectorsRequest.class);
-    }
-
-    public void testThatPercolatingExistingDocumentGetRequestContainsContextAndHeaders() throws Exception {
-        Client client = transportClient();
-        client.admin().indices().preparePutMapping(lookupIndex).setType("query").setSource("query", "type=percolator").get();
-        client.prepareIndex(lookupIndex, "query", "1")
-            .setSource(jsonBuilder().startObject()
-                        .startObject("query").startObject("match").field("name", "star wars").endObject().endObject()
-                    .endObject())
-            .get();
-        client.prepareIndex(lookupIndex, "type", "1")
-            .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject())
-            .get();
-        client.admin().indices().prepareRefresh(lookupIndex).get();
-
-        GetRequest getRequest = client.prepareGet(lookupIndex, "type", "1").request();
-        PercolateResponse response = client.preparePercolate().setDocumentType("type").setGetRequest(getRequest).get();
-        assertThat(response.getCount(), is(1L));
-
-        assertGetRequestsContainHeaders();
     }
 
     public void testThatRelevantHttpHeadersBecomeRequestHeaders() throws Exception {

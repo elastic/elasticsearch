@@ -32,7 +32,6 @@ import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
-import org.elasticsearch.index.percolator.PercolatorHighlightSubFetchPhase;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder;
@@ -61,7 +60,6 @@ import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.ParentIdQueryBuilder;
-import org.elasticsearch.index.query.PercolateQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
@@ -469,7 +467,6 @@ public class SearchModule extends AbstractModule {
         fetchSubPhaseMultibinder.addBinding().to(MatchedQueriesFetchSubPhase.class);
         fetchSubPhaseMultibinder.addBinding().to(HighlightPhase.class);
         fetchSubPhaseMultibinder.addBinding().to(ParentFieldSubFetchPhase.class);
-        fetchSubPhaseMultibinder.addBinding().to(PercolatorHighlightSubFetchPhase.class);
         for (Class<? extends FetchSubPhase> clazz : fetchSubPhases) {
             fetchSubPhaseMultibinder.addBinding().to(clazz);
         }
@@ -697,7 +694,7 @@ public class SearchModule extends AbstractModule {
         registerQuery(ExistsQueryBuilder::new, ExistsQueryBuilder::fromXContent, ExistsQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(MatchNoneQueryBuilder::new, MatchNoneQueryBuilder::fromXContent, MatchNoneQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(ParentIdQueryBuilder::new, ParentIdQueryBuilder::fromXContent, ParentIdQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(PercolateQueryBuilder::new, PercolateQueryBuilder::fromXContent, PercolateQueryBuilder.QUERY_NAME_FIELD);
+
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQuery(GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent, GeoShapeQueryBuilder.QUERY_NAME_FIELD);
         }

@@ -24,7 +24,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
-import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
@@ -48,7 +47,7 @@ public abstract class AbstractMustacheTestCase extends ESTestCase {
                 new ScriptEngineRegistry(Collections.singletonList(
                                 new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class,
                                                                                   MustacheScriptEngineService.NAME,
-                                                                                  ScriptMode.ON)));
+                                                                                  true)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         ScriptService scriptService = new ScriptService(settings, new Environment(settings), Collections.singleton(mustache), null,

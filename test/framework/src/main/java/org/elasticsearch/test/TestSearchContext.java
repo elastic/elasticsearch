@@ -38,7 +38,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.percolator.PercolatorQueryCache;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -73,7 +72,6 @@ public class TestSearchContext extends SearchContext {
     final IndexService indexService;
     final IndexFieldDataService indexFieldDataService;
     final BitsetFilterCache fixedBitSetFilterCache;
-    final PercolatorQueryCache percolatorQueryCache;
     final ThreadPool threadPool;
     final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
     final IndexShard indexShard;
@@ -101,7 +99,6 @@ public class TestSearchContext extends SearchContext {
         this.indexService = indexService;
         this.indexFieldDataService = indexService.fieldData();
         this.fixedBitSetFilterCache = indexService.cache().bitsetFilterCache();
-        this.percolatorQueryCache = indexService.cache().getPercolatorQueryCache();
         this.threadPool = threadPool;
         this.indexShard = indexService.getShardOrNull(0);
         this.scriptService = scriptService;
@@ -116,7 +113,6 @@ public class TestSearchContext extends SearchContext {
         this.indexFieldDataService = null;
         this.threadPool = null;
         this.fixedBitSetFilterCache = null;
-        this.percolatorQueryCache = null;
         this.indexShard = null;
         scriptService = null;
         this.queryShardContext = queryShardContext;
@@ -321,11 +317,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public IndexFieldDataService fieldData() {
         return indexFieldDataService;
-    }
-
-    @Override
-    public PercolatorQueryCache percolatorQueryCache() {
-        return percolatorQueryCache;
     }
 
     @Override

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
@@ -32,36 +31,37 @@ public final class EExplicit extends AExpression {
     final String type;
     AExpression child;
 
-    public EExplicit(final int line, final String location, final String type, final AExpression child) {
-        super(line, location);
+    public EExplicit(int line, int offset, String location, String type, AExpression child) {
+        super(line, offset, location);
 
         this.type = type;
         this.child = child;
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Variables variables) {
         try {
-            actual = definition.getType(this.type);
-        } catch (final IllegalArgumentException exception) {
+            actual = Definition.getType(this.type);
+        } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
         }
 
         child.expected = actual;
         child.explicit = true;
-        child.analyze(settings, definition, variables);
-        child = child.cast(settings, definition, variables);
+        child.analyze(variables);
+        child = child.cast(variables);
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter writer) {
         throw new IllegalArgumentException(error("Illegal tree structure."));
     }
 
-    AExpression cast(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    AExpression cast(Variables variables) {
         child.expected = expected;
         child.explicit = explicit;
+        child.internal = internal;
 
-        return child.cast(settings, definition, variables);
+        return child.cast(variables);
     }
 }

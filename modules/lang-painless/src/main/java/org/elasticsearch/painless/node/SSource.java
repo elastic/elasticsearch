@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Opcodes;
 import org.elasticsearch.painless.MethodWriter;
@@ -35,25 +33,29 @@ public final class SSource extends AStatement {
 
     final List<AStatement> statements;
 
-    public SSource(final int line, final String location, final List<AStatement> statements) {
-        super(line, location);
+    public SSource(int line, int offset, String location, List<AStatement> statements) {
+        super(line, offset, location);
 
         this.statements = Collections.unmodifiableList(statements);
     }
 
     @Override
-    public void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    public void analyze(Variables variables) {
+        if (statements == null || statements.isEmpty()) {
+            throw new IllegalArgumentException(error("Cannot generate an empty script."));
+        }
+
         variables.incrementScope();
 
         final AStatement last = statements.get(statements.size() - 1);
 
-        for (final AStatement statement : statements) {
+        for (AStatement statement : statements) {
             if (allEscape) {
                 throw new IllegalArgumentException(error("Unreachable statement."));
             }
 
             statement.lastSource = statement == last;
-            statement.analyze(settings, definition, variables);
+            statement.analyze(variables);
 
             methodEscape = statement.methodEscape;
             allEscape = statement.allEscape;
@@ -63,14 +65,14 @@ public final class SSource extends AStatement {
     }
 
     @Override
-    public void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        for (final AStatement statement : statements) {
-            statement.write(settings, definition, adapter);
+    public void write(MethodWriter writer) {
+        for (AStatement statement : statements) {
+            statement.write(writer);
         }
 
         if (!methodEscape) {
-            adapter.visitInsn(Opcodes.ACONST_NULL);
-            adapter.returnValue();
+            writer.visitInsn(Opcodes.ACONST_NULL);
+            writer.returnValue();
         }
     }
 }

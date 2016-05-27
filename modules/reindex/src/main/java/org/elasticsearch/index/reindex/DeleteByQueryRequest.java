@@ -20,7 +20,9 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -41,7 +43,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *     <li>it's results won't be visible until the index is refreshed.</li>
  * </ul>
  */
-public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQueryRequest> {
+public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQueryRequest> implements IndicesRequest {
 
     public DeleteByQueryRequest() {
     }
@@ -75,5 +77,17 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         b.append("delete-by-query ");
         searchToString(b);
         return b.toString();
+    }
+
+    @Override
+    public String[] indices() {
+        assert getSearchRequest() != null;
+        return getSearchRequest().indices();
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        assert getSearchRequest() != null;
+        return getSearchRequest().indicesOptions();
     }
 }

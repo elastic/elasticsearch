@@ -19,13 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.Variables.Variable;
 import org.objectweb.asm.Opcodes;
-import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a variable load/store.
@@ -36,55 +33,42 @@ public final class LVariable extends ALink {
 
     int slot;
 
-    public LVariable(final int line, final String location, final String name) {
-        super(line, location, 0);
+    public LVariable(int line, int offset, String location, String name) {
+        super(line, offset, location, 0);
 
         this.name = name;
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(Variables variables) {
         if (before != null) {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw new IllegalArgumentException(error("Illegal variable [" + name + "] access with target already defined."));
         }
 
-        Type type = null;
+        Variable variable = variables.getVariable(location, name);
 
-        try {
-            type = definition.getType(name);
-        } catch (final IllegalArgumentException exception) {
-            // Do nothing.
+        if (store && variable.readonly) {
+            throw new IllegalArgumentException(error("Variable [" + variable.name + "] is read-only."));
         }
 
-        if (type != null) {
-            statik = true;
-            after = type;
-        } else {
-            final Variable variable = variables.getVariable(location, name);
-
-            if (store && variable.readonly) {
-                throw new IllegalArgumentException(error("Variable [" + variable.name + "] is read-only."));
-            }
-
-            slot = variable.slot;
-            after = variable.type;
-        }
+        slot = variable.slot;
+        after = variable.type;
 
         return this;
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        adapter.visitVarInsn(after.type.getOpcode(Opcodes.ILOAD), slot);
+    void load(MethodWriter writer) {
+        writer.visitVarInsn(after.type.getOpcode(Opcodes.ILOAD), slot);
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        adapter.visitVarInsn(after.type.getOpcode(Opcodes.ISTORE), slot);
+    void store(MethodWriter writer) {
+        writer.visitVarInsn(after.type.getOpcode(Opcodes.ISTORE), slot);
     }
 }

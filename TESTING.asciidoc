@@ -18,24 +18,18 @@ gradle assemble
 
 == Other test options
 
-To disable and enable network transport, set the `Des.node.mode`.
+To disable and enable network transport, set the `tests.es.node.mode` system property.
 
 Use network transport:
 
 ------------------------------------
--Des.node.mode=network
+-Dtests.es.node.mode=network
 ------------------------------------
 
 Use local transport (default since 1.3):
 
 -------------------------------------
--Des.node.mode=local
--------------------------------------
-
-Alternatively, you can set the `ES_TEST_LOCAL` environment variable:
-
--------------------------------------
-export ES_TEST_LOCAL=true && gradle test
+-Dtests.es.node.mode=local
 -------------------------------------
 
 === Running Elasticsearch from a checkout
@@ -201,7 +195,7 @@ gradle test -Dtests.timeoutSuite=5000! ...
 Change the logging level of ES (not gradle)
 
 --------------------------------
-gradle test -Des.logger.level=DEBUG
+gradle test -Dtests.es.logger.level=DEBUG
 --------------------------------
 
 Print all the logging output from the test runs to the commandline

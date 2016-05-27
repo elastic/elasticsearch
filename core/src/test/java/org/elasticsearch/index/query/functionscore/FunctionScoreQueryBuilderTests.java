@@ -36,8 +36,11 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.AbstractQueryTestCase;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -53,9 +56,11 @@ import org.elasticsearch.search.MultiValueMode;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
@@ -74,10 +79,10 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<FunctionScoreQueryBuilder> {
-    @BeforeClass
-    public static void registerTestRandomScoreFunction() {
-        getSearchModule().registerScoreFunction(RandomScoreFunctionBuilderWithFixedSeed::new,
-                RandomScoreFunctionBuilderWithFixedSeed::fromXContent, RandomScoreFunctionBuilderWithFixedSeed.FUNCTION_NAME_FIELD);
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(TestPlugin.class);
     }
 
     @Override
@@ -730,5 +735,24 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             replacement.seed(builder.getSeed());
             return replacement;
         }
+    }
+
+    public static class TestPlugin extends Plugin {
+
+        @Override
+        public String name() {
+            return "test-plugin";
+        }
+
+        @Override
+        public String description() {
+            return "Adds random function with fixed seed";
+        }
+
+        public void onModule(SearchModule module) {
+            module.registerScoreFunction(RandomScoreFunctionBuilderWithFixedSeed::new,
+                    RandomScoreFunctionBuilderWithFixedSeed::fromXContent, RandomScoreFunctionBuilderWithFixedSeed.FUNCTION_NAME_FIELD);
+        }
+
     }
 }

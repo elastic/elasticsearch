@@ -21,7 +21,6 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -46,7 +45,7 @@ public class ScriptContextTests extends ESTestCase {
             .build();
         Set<ScriptEngineService> engines = new HashSet<>(Collections.singletonList(new MockScriptEngine()));
         ScriptEngineRegistry.ScriptEngineRegistration registration =
-                new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.NAME, ScriptMode.ON);
+                new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.NAME, true);
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(registration));
         List<ScriptContext.Plugin> customContexts = Arrays.asList(
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"),
@@ -65,7 +64,7 @@ public class ScriptContextTests extends ESTestCase {
                 Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
                 scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"), Collections.emptyMap(), null);
                 fail("script compilation should have been rejected");
-            } catch (ScriptException e) {
+            } catch (IllegalStateException e) {
                 assertThat(e.getMessage(), containsString("scripts of type [" + scriptType + "], operation [" + PLUGIN_NAME + "_custom_globally_disabled_op] and lang [" + MockScriptEngine.NAME + "] are disabled"));
             }
         }
@@ -77,7 +76,7 @@ public class ScriptContextTests extends ESTestCase {
         try {
             scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"), Collections.emptyMap(), null);
             fail("script compilation should have been rejected");
-        } catch (ScriptException e) {
+        } catch (IllegalStateException e) {
             assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [inline], operation [" + PLUGIN_NAME + "_custom_exp_disabled_op] and lang [" + MockScriptEngine.NAME + "] are disabled"));
         }
 

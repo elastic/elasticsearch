@@ -316,6 +316,7 @@ public final class ShardRouting implements Writeable, ToXContent {
 
     public ShardRouting updateUnassignedInfo(UnassignedInfo unassignedInfo) {
         assert this.unassignedInfo != null : "can only update unassign info if they are already set";
+        assert this.unassignedInfo.isDelayed() || (unassignedInfo.isDelayed() == false) : "cannot transition from non-delayed to delayed";
         return new ShardRouting(shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state,
             unassignedInfo, allocationId, expectedShardSize);
     }

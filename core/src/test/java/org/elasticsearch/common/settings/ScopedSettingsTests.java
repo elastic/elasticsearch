@@ -302,11 +302,8 @@ public class ScopedSettingsTests extends ESTestCase {
     public void testLoggingUpdates() {
         final String level = ESLoggerFactory.getRootLogger().getLevel();
         final String testLevel = ESLoggerFactory.getLogger("test").getLevel();
-        String property = System.getProperty("es.logger.level");
-        Settings.Builder builder = Settings.builder();
-        if (property != null) {
-            builder.put("logger.level", property);
-        }
+        String property = randomFrom(ESLoggerFactory.LogLevel.values()).toString();
+        Settings.Builder builder = Settings.builder().put("logger.level", property);
         try {
             ClusterSettings settings = new ClusterSettings(builder.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             try {
@@ -319,7 +316,7 @@ public class ScopedSettingsTests extends ESTestCase {
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
             assertEquals("TRACE", ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().build());
-            assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(property, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger.test", "TRACE").build());
             assertEquals("TRACE", ESLoggerFactory.getLogger("test").getLevel());
             settings.applySettings(Settings.builder().build());

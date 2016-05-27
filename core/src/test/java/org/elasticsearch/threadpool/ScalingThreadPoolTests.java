@@ -59,7 +59,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
         final int expectedSize;
         if (sizeBasedOnNumberOfProcessors < min || randomBoolean()) {
-            expectedSize = randomIntBetween(min, 16);
+            expectedSize = randomIntBetween(Math.max(1, min), 16);
             builder.put("threadpool." + threadPoolName + ".size", expectedSize);
         }  else {
             expectedSize = sizeBasedOnNumberOfProcessors;
@@ -177,7 +177,8 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
                     }
                 });
             }
-            assertThat(stats(threadPool, threadPoolName).getThreads(), equalTo(128));
+            int threads = stats(threadPool, threadPoolName).getThreads();
+            assertEquals(128, threads);
             latch.countDown();
             // this while loop is the core of this test; if threads
             // are correctly idled down by the pool, the number of

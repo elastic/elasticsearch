@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
+import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -49,6 +50,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
@@ -62,6 +64,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.tasks.TaskResultsService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -79,6 +82,7 @@ public class ClusterModule extends AbstractModule {
         new Setting<>("cluster.routing.allocation.type", BALANCED_ALLOCATOR, Function.identity(), Property.NodeScope);
     public static final List<Class<? extends AllocationDecider>> DEFAULT_ALLOCATION_DECIDERS =
         Collections.unmodifiableList(Arrays.asList(
+            MaxRetryAllocationDecider.class,
             SameShardAllocationDecider.class,
             FilterAllocationDecider.class,
             ReplicaAfterPrimaryActiveAllocationDecider.class,
@@ -149,9 +153,11 @@ public class ClusterModule extends AbstractModule {
         bind(MetaDataIndexTemplateService.class).asEagerSingleton();
         bind(IndexNameExpressionResolver.class).asEagerSingleton();
         bind(RoutingService.class).asEagerSingleton();
+        bind(DelayedAllocationService.class).asEagerSingleton();
         bind(ShardStateAction.class).asEagerSingleton();
         bind(NodeIndexDeletedAction.class).asEagerSingleton();
         bind(NodeMappingRefreshAction.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
+        bind(TaskResultsService.class).asEagerSingleton();
     }
 }

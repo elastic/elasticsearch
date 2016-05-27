@@ -277,9 +277,9 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
 
     public void testJoin() throws ExecutionException, InterruptedException {
         // only wait for the cluster to form
-        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(2)).get());
+        ensureClusterSizeConsistency();
         // add one more node and wait for it to join
         internalCluster().startDataOnlyNodeAsync().get();
-        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(3)).get());
+        ensureClusterSizeConsistency();
     }
 }

@@ -21,7 +21,6 @@ package org.elasticsearch.script.expression;
 
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptEngineRegistry;
-import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptModule;
 
 public class ExpressionPlugin extends Plugin {
@@ -38,6 +37,6 @@ public class ExpressionPlugin extends Plugin {
 
     public void onModule(ScriptModule module) {
         module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExpressionScriptEngineService.class,
-                        ExpressionScriptEngineService.NAME, ScriptMode.ON));
+                        ExpressionScriptEngineService.NAME, true));
     }
 }

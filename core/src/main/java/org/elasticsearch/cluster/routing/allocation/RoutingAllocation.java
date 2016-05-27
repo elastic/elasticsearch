@@ -56,7 +56,7 @@ public class RoutingAllocation {
 
         private final MetaData metaData;
 
-        private RoutingExplanations explanations = new RoutingExplanations();
+        private final RoutingExplanations explanations;
 
         /**
          * Creates a new {@link RoutingAllocation.Result}
@@ -65,9 +65,7 @@ public class RoutingAllocation {
          * @param metaData the {@link MetaData} this Result references
          */
         public Result(boolean changed, RoutingTable routingTable, MetaData metaData) {
-            this.changed = changed;
-            this.routingTable = routingTable;
-            this.metaData = metaData;
+            this(changed, routingTable, metaData, new RoutingExplanations());
         }
 
         /**
@@ -134,6 +132,8 @@ public class RoutingAllocation {
 
     private boolean ignoreDisable = false;
 
+    private final boolean retryFailed;
+
     private boolean debugDecision = false;
 
     private boolean hasPendingAsyncFetch = false;
@@ -148,7 +148,7 @@ public class RoutingAllocation {
      * @param clusterState cluster state before rerouting
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      */
-    public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, ClusterState clusterState, ClusterInfo clusterInfo, long currentNanoTime) {
+    public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, ClusterState clusterState, ClusterInfo clusterInfo, long currentNanoTime, boolean retryFailed) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
         this.metaData = clusterState.metaData();
@@ -156,6 +156,7 @@ public class RoutingAllocation {
         this.customs = clusterState.customs();
         this.clusterInfo = clusterInfo;
         this.currentNanoTime = currentNanoTime;
+        this.retryFailed = retryFailed;
     }
 
     /** returns the nano time captured at the beginning of the allocation. used to make sure all time based decisions are aligned */
@@ -296,5 +297,9 @@ public class RoutingAllocation {
      */
     public void setHasPendingAsyncFetch() {
         this.hasPendingAsyncFetch = true;
+    }
+
+    public boolean isRetryFailed() {
+        return retryFailed;
     }
 }

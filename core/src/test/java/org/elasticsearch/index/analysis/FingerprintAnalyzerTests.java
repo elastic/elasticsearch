@@ -26,13 +26,13 @@ import org.elasticsearch.test.ESTokenStreamTestCase;
 public class FingerprintAnalyzerTests extends ESTokenStreamTestCase {
 
     public void testFingerprint() throws Exception {
-        Analyzer a = new FingerprintAnalyzer(CharArraySet.EMPTY_SET, ' ', 255, false);
+        Analyzer a = new FingerprintAnalyzer(CharArraySet.EMPTY_SET, ' ', 255);
         assertAnalyzesTo(a, "foo bar@baz Baz $ foo foo FOO. FoO",
             new String[]{"bar baz foo"});
     }
 
     public void testReusableTokenStream() throws Exception {
-        Analyzer a = new FingerprintAnalyzer(CharArraySet.EMPTY_SET, ' ', 255, false);
+        Analyzer a = new FingerprintAnalyzer(CharArraySet.EMPTY_SET, ' ', 255);
         assertAnalyzesTo(a, "foo bar baz Baz foo foo FOO. FoO",
             new String[]{"bar baz foo"});
         assertAnalyzesTo(a, "xyz XYZ abc 123.2 abc",
@@ -40,7 +40,7 @@ public class FingerprintAnalyzerTests extends ESTokenStreamTestCase {
     }
 
     public void testAsciifolding() throws Exception {
-        Analyzer a = new FingerprintAnalyzer(CharArraySet.EMPTY_SET, ' ', 255, false);
+        Analyzer a = new FingerprintAnalyzer(CharArraySet.EMPTY_SET, ' ', 255);
         assertAnalyzesTo(a, "gödel escher bach",
             new String[]{"bach escher godel"});
 
@@ -48,25 +48,13 @@ public class FingerprintAnalyzerTests extends ESTokenStreamTestCase {
             new String[]{"bach escher godel"});
     }
 
-    public void testPreserveOriginal() throws Exception {
-        Analyzer a = new FingerprintAnalyzer(CharArraySet.EMPTY_SET, ' ', 255, true);
-        assertAnalyzesTo(a, "gödel escher bach",
-            new String[]{"bach escher godel gödel"});
-    }
-
     public void testLimit() throws Exception {
-        Analyzer a = new FingerprintAnalyzer(CharArraySet.EMPTY_SET, ' ', 3, false);
+        Analyzer a = new FingerprintAnalyzer(CharArraySet.EMPTY_SET, ' ', 3);
         assertAnalyzesTo(a, "e d c b a",
             new String[]{});
 
         assertAnalyzesTo(a, "b a",
             new String[]{"a b"});
-    }
-
-    public void testSeparator() throws Exception {
-        Analyzer a = new FingerprintAnalyzer(CharArraySet.EMPTY_SET, '_', 255, true);
-        assertAnalyzesTo(a, "b c a",
-            new String[]{"a_b_c"});
     }
 
 }

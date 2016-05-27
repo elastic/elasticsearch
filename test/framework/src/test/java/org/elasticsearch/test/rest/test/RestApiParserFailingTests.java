@@ -28,7 +28,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.containsString;
 
 /**
- *
+ * These tests are not part of {@link RestApiParserTests} because the tested failures don't allow to consume the whole yaml stream
  */
 public class RestApiParserFailingTests extends ESTestCase {
     public void testBrokenSpecShouldThrowUsefulExceptionWhenParsingFailsOnParams() throws Exception {
@@ -42,7 +42,7 @@ public class RestApiParserFailingTests extends ESTestCase {
     private void parseAndExpectFailure(String brokenJson, String expectedErrorMessage) throws Exception {
         XContentParser parser = JsonXContent.jsonXContent.createParser(brokenJson);
         try {
-            new RestApiParser().parse(parser);
+            new RestApiParser().parse("location", parser);
             fail("Expected to fail parsing but did not happen");
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString(expectedErrorMessage));

@@ -39,7 +39,6 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
@@ -154,7 +153,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     /**
      * returns true if there are buffered ops
      */
-    public boolean syncNeeded() { return totalOffset != lastSyncedOffset; }
+    public boolean syncNeeded() {
+        return totalOffset != lastSyncedOffset;
+    }
 
     @Override
     public int totalOperations() {
@@ -169,40 +170,55 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     /**
      * closes this writer and transfers it's underlying file channel to a new immutable reader
      */
-    public synchronized TranslogReader closeIntoReader() throws IOException {
-        try {
-            sync(); // sync before we close..
-        } catch (IOException e) {
-            closeWithTragicEvent(e);
-            throw e;
-        }
-        if (closed.compareAndSet(false, true)) {
-            boolean success = false;
-            try {
-                final TranslogReader reader = new TranslogReader(generation, channel, path, firstOperationOffset, getWrittenOffset(), operationCounter);
-                success = true;
-                return reader;
-            } finally {
-                if (success == false) {
-                    // close the channel, as we are closed and failed to create a new reader
-                    IOUtils.closeWhileHandlingException(channel);
+    public TranslogReader closeIntoReader() throws IOException {
+        // make sure to acquire the sync lock first, to prevent dead locks with threads calling
+        // syncUpTo() , where the sync lock is acquired first, following by the synchronize(this)
+        //
+        // Note: While this is not strictly needed as this method is called while blocking all ops on the translog,
+        //       we do this to for correctness and preventing future issues.
+        synchronized (syncLock) {
+            synchronized (this) {
+                try {
+                    sync(); // sync before we close..
+                } catch (IOException e) {
+                    closeWithTragicEvent(e);
+                    throw e;
+                }
+                if (closed.compareAndSet(false, true)) {
+                    boolean success = false;
+                    try {
+                        final TranslogReader reader = new TranslogReader(generation, channel, path, firstOperationOffset, getWrittenOffset(), operationCounter);
+                        success = true;
+                        return reader;
+                    } finally {
+                        if (success == false) {
+                            // close the channel, as we are closed and failed to create a new reader
+                            IOUtils.closeWhileHandlingException(channel);
+                        }
+                    }
+                } else {
+                    throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed (path [" + path + "]", tragedy);
                 }
             }
-        } else {
-            throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed (path [" + path + "]", tragedy);
         }
     }
 
 
     @Override
-    public synchronized Translog.Snapshot newSnapshot() {
-        ensureOpen();
-        try {
-            sync();
-        } catch (IOException e) {
-            throw new TranslogException(shardId, "exception while syncing before creating a snapshot", e);
+    public Translog.Snapshot newSnapshot() {
+        // make sure to acquire the sync lock first, to prevent dead locks with threads calling
+        // syncUpTo() , where the sync lock is acquired first, following by the synchronize(this)
+        synchronized (syncLock) {
+            synchronized (this) {
+                ensureOpen();
+                try {
+                    sync();
+                } catch (IOException e) {
+                    throw new TranslogException(shardId, "exception while syncing before creating a snapshot", e);
+                }
+                return super.newSnapshot();
+            }
         }
-        return super.newSnapshot();
     }
 
     private long getWrittenOffset() throws IOException {

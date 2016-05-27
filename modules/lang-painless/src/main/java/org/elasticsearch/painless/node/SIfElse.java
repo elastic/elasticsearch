@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
@@ -31,12 +30,11 @@ import org.elasticsearch.painless.MethodWriter;
 public final class SIfElse extends AStatement {
 
     AExpression condition;
-    final AStatement ifblock;
-    final AStatement elseblock;
+    final SBlock ifblock;
+    final SBlock elseblock;
 
-    public SIfElse(final int line, final String location,
-                   final AExpression condition, final AStatement ifblock, final AStatement elseblock) {
-        super(line, location);
+    public SIfElse(int line, int offset, String location, AExpression condition, SBlock ifblock, SBlock elseblock) {
+        super(line, offset, location);
 
         this.condition = condition;
         this.ifblock = ifblock;
@@ -44,12 +42,16 @@ public final class SIfElse extends AStatement {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        condition.expected = definition.booleanType;
-        condition.analyze(settings, definition, variables);
-        condition = condition.cast(settings, definition, variables);
+    void analyze(Variables variables) {
+        condition.expected = Definition.BOOLEAN_TYPE;
+        condition.analyze(variables);
+        condition = condition.cast(variables);
 
         if (condition.constant != null) {
+            throw new IllegalArgumentException(error("Extraneous if statement."));
+        }
+
+        if (ifblock == null) {
             throw new IllegalArgumentException(error("Extraneous if statement."));
         }
 
@@ -58,56 +60,56 @@ public final class SIfElse extends AStatement {
         ifblock.lastLoop = lastLoop;
 
         variables.incrementScope();
-        ifblock.analyze(settings, definition, variables);
+        ifblock.analyze(variables);
         variables.decrementScope();
 
         anyContinue = ifblock.anyContinue;
         anyBreak = ifblock.anyBreak;
         statementCount = ifblock.statementCount;
 
-        if (elseblock != null) {
-            elseblock.lastSource = lastSource;
-            elseblock.inLoop = inLoop;
-            elseblock.lastLoop = lastLoop;
-
-            variables.incrementScope();
-            elseblock.analyze(settings, definition, variables);
-            variables.decrementScope();
-
-            methodEscape = ifblock.methodEscape && elseblock.methodEscape;
-            loopEscape = ifblock.loopEscape && elseblock.loopEscape;
-            allEscape = ifblock.allEscape && elseblock.allEscape;
-            anyContinue |= elseblock.anyContinue;
-            anyBreak |= elseblock.anyBreak;
-            statementCount = Math.max(ifblock.statementCount, elseblock.statementCount);
+        if (elseblock == null) {
+            throw new IllegalArgumentException(error("Extraneous else statement."));
         }
+
+        elseblock.lastSource = lastSource;
+        elseblock.inLoop = inLoop;
+        elseblock.lastLoop = lastLoop;
+
+        variables.incrementScope();
+        elseblock.analyze(variables);
+        variables.decrementScope();
+
+        methodEscape = ifblock.methodEscape && elseblock.methodEscape;
+        loopEscape = ifblock.loopEscape && elseblock.loopEscape;
+        allEscape = ifblock.allEscape && elseblock.allEscape;
+        anyContinue |= elseblock.anyContinue;
+        anyBreak |= elseblock.anyBreak;
+        statementCount = Math.max(ifblock.statementCount, elseblock.statementCount);
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        final Label end = new Label();
-        final Label fals = elseblock != null ? new Label() : end;
+    void write(MethodWriter writer) {
+        writer.writeStatementOffset(offset);
+        Label end = new Label();
+        Label fals = elseblock != null ? new Label() : end;
 
         condition.fals = fals;
-        condition.write(settings, definition, adapter);
+        condition.write(writer);
 
         ifblock.continu = continu;
         ifblock.brake = brake;
-        ifblock.write(settings, definition, adapter);
+        ifblock.write(writer);
 
-        if (elseblock != null) {
-            if (!ifblock.allEscape) {
-                adapter.goTo(end);
-            }
-
-            adapter.mark(fals);
-
-            elseblock.continu = continu;
-            elseblock.brake = brake;
-            elseblock.write(settings, definition, adapter);
+        if (!ifblock.allEscape) {
+            writer.goTo(end);
         }
 
-        adapter.mark(end);
+        writer.mark(fals);
+
+        elseblock.continu = continu;
+        elseblock.brake = brake;
+        elseblock.write(writer);
+
+        writer.mark(end);
     }
 }

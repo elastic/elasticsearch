@@ -19,7 +19,6 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
@@ -109,8 +108,8 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesRequestCache;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -124,7 +123,6 @@ import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -1028,7 +1026,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         logger.info("memory: {}", XContentHelper.toString(client().admin().cluster().prepareNodesStats().clear().setJvm(true).get()));
     }
 
-    void ensureClusterSizeConsistency() {
+    protected void ensureClusterSizeConsistency() {
         if (cluster() != null) { // if static init fails the cluster can be null
             logger.trace("Check consistency for [{}] nodes", cluster().size());
             assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(cluster().size())).get());
@@ -1480,16 +1478,23 @@ public abstract class ESIntegTestCase extends ESTestCase {
         int numDataNodes() default -1;
 
         /**
-         * Returns the minimum number of nodes in the cluster. Default is <tt>-1</tt>.
+         * Returns the minimum number of data nodes in the cluster. Default is <tt>-1</tt>.
          * Ignored when {@link ClusterScope#numDataNodes()} is set.
          */
         int minNumDataNodes() default -1;
 
         /**
-         * Returns the maximum number of nodes in the cluster.  Default is <tt>-1</tt>.
+         * Returns the maximum number of data nodes in the cluster.  Default is <tt>-1</tt>.
          * Ignored when {@link ClusterScope#numDataNodes()} is set.
          */
         int maxNumDataNodes() default -1;
+
+        /**
+         * Indicates whether the cluster can have dedicated master nodes. If <tt>false</tt> means data nodes will serve as master nodes
+         * and there will be no dedicated master (and data) nodes. Default is <tt>true</tt> which means
+         * dedicated master nodes will be randomly used.
+         */
+        boolean supportsDedicatedMasters() default true;
 
         /**
          * Returns the number of client nodes in the cluster. Default is {@link InternalTestCluster#DEFAULT_NUM_CLIENT_NODES}, a
@@ -1573,7 +1578,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return getAnnotation(clazz.getSuperclass(), annotationClass);
     }
 
-
     private Scope getCurrentClusterScope() {
         return getCurrentClusterScope(this.getClass());
     }
@@ -1582,6 +1586,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         ClusterScope annotation = getAnnotation(clazz, ClusterScope.class);
         // if we are not annotated assume suite!
         return annotation == null ? Scope.SUITE : annotation.scope();
+    }
+
+    private boolean getSupportsDedicatedMasters() {
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
+        return annotation == null ? true : annotation.supportsDedicatedMasters();
     }
 
     private int getNumDataNodes() {
@@ -1719,6 +1728,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         };
 
+        boolean supportsDedicatedMasters = getSupportsDedicatedMasters();
         int numDataNodes = getNumDataNodes();
         int minNumDataNodes;
         int maxNumDataNodes;
@@ -1741,7 +1751,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         Collection<Class<? extends Plugin>> mockPlugins = getMockPlugins();
 
-        return new InternalTestCluster(nodeMode, seed, createTempDir(), minNumDataNodes, maxNumDataNodes,
+        return new InternalTestCluster(nodeMode, seed, createTempDir(), supportsDedicatedMasters, minNumDataNodes, maxNumDataNodes,
                 InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
                 InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, mockPlugins, getClientWrapper());
     }
@@ -1824,23 +1834,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         assert perTestRatio >= 0.0 && perTestRatio <= 1.0;
         return perTestRatio;
-    }
-
-    /**
-     * Returns a random JODA Time Zone based on Java Time Zones
-     */
-    public static DateTimeZone randomDateTimeZone() {
-        DateTimeZone timeZone;
-
-        // It sounds like some Java Time Zones are unknown by JODA. For example: Asia/Riyadh88
-        // We need to fallback in that case to a known time zone
-        try {
-            timeZone = DateTimeZone.forTimeZone(RandomizedTest.randomTimeZone());
-        } catch (IllegalArgumentException e) {
-            timeZone = DateTimeZone.forOffsetHours(randomIntBetween(-12, 12));
-        }
-
-        return timeZone;
     }
 
     /**
@@ -1968,7 +1961,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assert INSTANCE == null;
         if (isSuiteScopedTest(targetClass)) {
             // note we need to do this this way to make sure this is reproducible
-            INSTANCE = (ESIntegTestCase) targetClass.newInstance();
+            INSTANCE = (ESIntegTestCase) targetClass.getConstructor().newInstance();
             boolean success = false;
             try {
                 INSTANCE.printTestMessage("setup");

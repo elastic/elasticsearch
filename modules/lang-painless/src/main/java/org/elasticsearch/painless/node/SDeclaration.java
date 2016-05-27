@@ -19,9 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Sort;
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.Variables.Variable;
 import org.objectweb.asm.Opcodes;
@@ -38,8 +37,8 @@ public final class SDeclaration extends AStatement {
 
     Variable variable;
 
-    public SDeclaration(final int line, final String location, final String type, final String name, final AExpression expression) {
-        super(line, location);
+    public SDeclaration(int line, int offset, String location, String type, String name, AExpression expression) {
+        super(line, offset, location);
 
         this.type = type;
         this.name = name;
@@ -47,41 +46,44 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        variable = variables.addVariable(location, type, name, false, false);
+    void analyze(Variables variables) {
+        final Type type;
+
+        try {
+            type = Definition.getType(this.type);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
+        }
 
         if (expression != null) {
-            expression.expected = variable.type;
-            expression.analyze(settings, definition, variables);
-            expression = expression.cast(settings, definition, variables);
+            expression.expected = type;
+            expression.analyze(variables);
+            expression = expression.cast(variables);
         }
+
+        variable = variables.addVariable(location, type, name, false, false);
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        final org.objectweb.asm.Type type = variable.type.type;
-        final Sort sort = variable.type.sort;
-
-        final boolean initialize = expression == null;
-
-        if (!initialize) {
-            expression.write(settings, definition, adapter);
+    void write(MethodWriter writer) {
+        writer.writeStatementOffset(offset);
+        if (expression == null) {
+            switch (variable.type.sort) {
+                case VOID:   throw new IllegalStateException(error("Illegal tree structure."));
+                case BOOL:
+                case BYTE:
+                case SHORT:
+                case CHAR:
+                case INT:    writer.push(0);    break;
+                case LONG:   writer.push(0L);   break;
+                case FLOAT:  writer.push(0.0F); break;
+                case DOUBLE: writer.push(0.0);  break;
+                default:     writer.visitInsn(Opcodes.ACONST_NULL);
+            }
+        } else {
+            expression.write(writer);
         }
 
-        switch (sort) {
-            case VOID:   throw new IllegalStateException(error("Illegal tree structure."));
-            case BOOL:
-            case BYTE:
-            case SHORT:
-            case CHAR:
-            case INT:    if (initialize) adapter.push(0);    break;
-            case LONG:   if (initialize) adapter.push(0L);   break;
-            case FLOAT:  if (initialize) adapter.push(0.0F); break;
-            case DOUBLE: if (initialize) adapter.push(0.0);  break;
-            default:     if (initialize) adapter.visitInsn(Opcodes.ACONST_NULL);
-        }
-
-        adapter.visitVarInsn(type.getOpcode(Opcodes.ISTORE), variable.slot);
+        writer.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.slot);
     }
 }

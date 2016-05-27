@@ -192,6 +192,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
                 builder.endObject();
                 builder.endObject();
             }
+            builder.endObject();
         } else if ("parents".equals(groupBy)) {
             builder.startObject("tasks");
             for (TaskGroup group : getTaskGroups()) {

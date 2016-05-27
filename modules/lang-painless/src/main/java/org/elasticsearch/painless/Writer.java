@@ -33,20 +33,19 @@ import static org.elasticsearch.painless.WriterConstants.EXECUTE;
 import static org.elasticsearch.painless.WriterConstants.MAP_GET;
 import static org.elasticsearch.painless.WriterConstants.MAP_TYPE;
 
+import java.util.BitSet;
+
 /**
  * Runs the writing phase of compilation using the Painless AST.
  */
 final class Writer {
 
-    static byte[] write(final CompilerSettings settings, final Definition definition,
-                               String name, final String source, final Variables variables, final SSource root) {
-        final Writer writer = new Writer(settings, definition, name, source, variables, root);
-
+    static byte[] write(CompilerSettings settings, String name, String source, Variables variables, SSource root, BitSet expressions) {
+        Writer writer = new Writer(settings, name, source, variables, root, expressions);
         return writer.getBytes();
     }
 
     private final CompilerSettings settings;
-    private final Definition definition;
     private final String scriptName;
     private final String source;
     private final Variables variables;
@@ -55,10 +54,8 @@ final class Writer {
     private final ClassWriter writer;
     private final MethodWriter adapter;
 
-    private Writer(final CompilerSettings settings, final Definition definition,
-                     String name, final String source, final Variables variables, final SSource root) {
+    private Writer(CompilerSettings settings, String name, String source, Variables variables, SSource root, BitSet expressions) {
         this.settings = settings;
-        this.definition = definition;
         this.scriptName = name;
         this.source = source;
         this.variables = variables;
@@ -69,7 +66,7 @@ final class Writer {
         writeBegin();
         writeConstructor();
 
-        adapter = new MethodWriter(Opcodes.ACC_PUBLIC, EXECUTE, null, writer);
+        adapter = new MethodWriter(Opcodes.ACC_PUBLIC, EXECUTE, null, writer, expressions);
 
         writeExecute();
         writeEnd();
@@ -117,7 +114,7 @@ final class Writer {
             // if we truncated, make it obvious
             if (limit != source.length()) {
                 fileName.append(" ...");
-            }            
+            }
             fileName.append(" @ <inline script>");
         } else {
             // its a named script, just use the name
@@ -177,7 +174,7 @@ final class Writer {
             adapter.visitVarInsn(Opcodes.ISTORE, loop.slot);
         }
 
-        root.write(settings, definition, adapter);
+        root.write(adapter);
         adapter.endMethod();
     }
 

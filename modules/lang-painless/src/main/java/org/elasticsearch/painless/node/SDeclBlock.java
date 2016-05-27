@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -34,25 +32,25 @@ public final class SDeclBlock extends AStatement {
 
     final List<SDeclaration> declarations;
 
-    public SDeclBlock(final int line, final String location, final List<SDeclaration> declarations) {
-        super(line, location);
+    public SDeclBlock(int line, int offset, String location, List<SDeclaration> declarations) {
+        super(line, offset, location);
 
         this.declarations = Collections.unmodifiableList(declarations);
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        for (final SDeclaration declaration : declarations) {
-            declaration.analyze(settings, definition, variables);
+    void analyze(Variables variables) {
+        for (SDeclaration declaration : declarations) {
+            declaration.analyze(variables);
         }
 
         statementCount = declarations.size();
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        for (final SDeclaration declaration : declarations) {
-            declaration.write(settings, definition, adapter);
+    void write(MethodWriter writer) {
+        for (SDeclaration declaration : declarations) {
+            declaration.write(writer);
         }
     }
 }

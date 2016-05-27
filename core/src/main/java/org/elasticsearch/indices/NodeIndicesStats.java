@@ -37,7 +37,6 @@ import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.percolator.PercolatorQueryCacheStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -100,11 +99,6 @@ public class NodeIndicesStats implements Streamable, ToXContent {
     @Nullable
     public SearchStats getSearch() {
         return stats.getSearch();
-    }
-
-    @Nullable
-    public PercolatorQueryCacheStats getPercolate() {
-        return stats.getPercolatorCache();
     }
 
     @Nullable

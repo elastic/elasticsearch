@@ -30,6 +30,8 @@ import java.util.List;
  */
 public class BlobPath implements Iterable<String> {
 
+    private static final String SEPARATOR = "/";
+
     private final List<String> paths;
 
     public BlobPath() {
@@ -60,15 +62,12 @@ public class BlobPath implements Iterable<String> {
         return new BlobPath(Collections.unmodifiableList(paths));
     }
 
-    public String buildAsString(String separator) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < paths.size(); i++) {
-            sb.append(paths.get(i));
-            if (i < (paths.size() - 1)) {
-                sb.append(separator);
-            }
+    public String buildAsString() {
+        String p = String.join(SEPARATOR, paths);
+        if (p.isEmpty()) {
+            return p;
         }
-        return sb.toString();
+        return p + SEPARATOR;
     }
 
     @Override

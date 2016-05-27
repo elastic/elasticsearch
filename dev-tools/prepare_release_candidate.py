@@ -56,7 +56,7 @@ The packages may be downloaded from the following URLs:
 
 Plugins can be installed as follows:
 
-    bin/elasticsearch-plugin -Des.plugins.staging=true install cloud-aws
+    ES_JAVA_OPTS="-Des.plugins.staging=true" bin/elasticsearch-plugin install cloud-aws
 
 The same goes for the x-plugins:
 

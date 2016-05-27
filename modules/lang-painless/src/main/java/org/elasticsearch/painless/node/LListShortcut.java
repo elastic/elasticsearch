@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
@@ -35,14 +34,14 @@ final class LListShortcut extends ALink {
     Method getter;
     Method setter;
 
-    LListShortcut(final int line, final String location, final AExpression index) {
-        super(line, location, 2);
+    LListShortcut(int line, int offset, String location, AExpression index) {
+        super(line, offset, location, 2);
 
         this.index = index;
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(Variables variables) {
         getter = before.struct.methods.get(new Definition.MethodKey("get", 1));
         setter = before.struct.methods.get(new Definition.MethodKey("set", 2));
 
@@ -61,9 +60,9 @@ final class LListShortcut extends ALink {
         }
 
         if ((load || store) && (!load || getter != null) && (!store || setter != null)) {
-            index.expected = definition.intType;
-            index.analyze(settings, definition, variables);
-            index = index.cast(settings, definition, variables);
+            index.expected = Definition.INT_TYPE;
+            index.analyze(variables);
+            index = index.cast(variables);
 
             after = setter != null ? setter.arguments.get(1) : getter.rtn;
         } else {
@@ -74,31 +73,33 @@ final class LListShortcut extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        index.write(settings, definition, adapter);
+    void write(MethodWriter writer) {
+        index.write(writer);
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void load(MethodWriter writer) {
+        writer.writeDebugInfo(offset);
         if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
-            adapter.invokeInterface(getter.owner.type, getter.method);
+            writer.invokeInterface(getter.owner.type, getter.method);
         } else {
-            adapter.invokeVirtual(getter.owner.type, getter.method);
+            writer.invokeVirtual(getter.owner.type, getter.method);
         }
 
         if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
-            adapter.checkCast(getter.rtn.type);
+            writer.checkCast(getter.rtn.type);
         }
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void store(MethodWriter writer) {
+        writer.writeDebugInfo(offset);
         if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {
-            adapter.invokeInterface(setter.owner.type, setter.method);
+            writer.invokeInterface(setter.owner.type, setter.method);
         } else {
-            adapter.invokeVirtual(setter.owner.type, setter.method);
+            writer.invokeVirtual(setter.owner.type, setter.method);
         }
 
-        adapter.writePop(setter.rtn.sort.size);
+        writer.writePop(setter.rtn.sort.size);
     }
 }

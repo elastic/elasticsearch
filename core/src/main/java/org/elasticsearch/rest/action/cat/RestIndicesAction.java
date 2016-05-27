@@ -77,27 +77,41 @@ public class RestIndicesAction extends AbstractCatAction {
         clusterStateRequest.clear().indices(indices).metaData(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        final IndicesOptions strictExpandIndicesOptions = IndicesOptions.strictExpand();
+        clusterStateRequest.indicesOptions(strictExpandIndicesOptions);
 
         client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                ClusterState state = clusterStateResponse.getState();
-                final IndicesOptions concreteIndicesOptions = IndicesOptions.fromOptions(false, true, true, true);
-                final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, concreteIndicesOptions, indices);
-                final String[] openIndices = indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), indices);
-                ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest(openIndices);
+                final ClusterState state = clusterStateResponse.getState();
+                final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, strictExpandIndicesOptions, indices);
+                // concreteIndices should contain exactly the indices in state.metaData() that were selected by clusterStateRequest using
+                // IndicesOptions.strictExpand(). We select the indices again here so that they can be displayed in the resulting table
+                // in the requesting order.
+                assert concreteIndices.length == state.metaData().getIndices().size();
+
+                // Indices that were successfully resolved during the cluster state request might be deleted when the subsequent cluster
+                // health and indices stats requests execute. We have to distinguish two cases:
+                // 1) the deleted index was explicitly passed as parameter to the /_cat/indices request. In this case we want the subsequent
+                //    requests to fail.
+                // 2) the deleted index was resolved as part of a wildcard or _all. In this case, we want the subsequent requests not to
+                //    fail on the deleted index (as we want to ignore wildcards that cannot be resolved).
+                // This behavior can be ensured by letting the cluster health and indices stats requests re-resolve the index names with the
+                // same indices options that we used for the initial cluster state request (strictExpand). Unfortunately cluster health
+                // requests hard-code their indices options and the best we can do is apply strictExpand to the indices stats request.
+                ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest(indices);
                 clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
                 client.admin().cluster().health(clusterHealthRequest, new RestActionListener<ClusterHealthResponse>(channel) {
                     @Override
                     public void processResponse(final ClusterHealthResponse clusterHealthResponse) {
                         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
-                        indicesStatsRequest.indices(concreteIndices);
-                        indicesStatsRequest.indicesOptions(concreteIndicesOptions);
+                        indicesStatsRequest.indices(indices);
+                        indicesStatsRequest.indicesOptions(strictExpandIndicesOptions);
                         indicesStatsRequest.all();
                         client.admin().indices().stats(indicesStatsRequest, new RestResponseListener<IndicesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(IndicesStatsResponse indicesStatsResponse) throws Exception {
-                                Table tab = buildTable(request, concreteIndices, clusterHealthResponse, indicesStatsResponse, clusterStateResponse.getState().metaData());
+                                Table tab = buildTable(request, concreteIndices, clusterHealthResponse, indicesStatsResponse, state.metaData());
                                 return RestTable.buildResponse(tab, channel);
                             }
                         });
@@ -221,9 +235,6 @@ public class RestIndicesAction extends AbstractCatAction {
 
         table.addCell("merges.total_time", "sibling:pri;alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges");
         table.addCell("pri.merges.total_time", "default:false;text-align:right;desc:time spent in merges");
-
-        table.addCell("percolate.queries", "sibling:pri;alias:pq,percolateQueries;default:false;text-align:right;desc:number of registered percolation queries");
-        table.addCell("pri.percolate.queries", "default:false;text-align:right;desc:number of registered percolation queries");
 
         table.addCell("refresh.total", "sibling:pri;alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("pri.refresh.total", "default:false;text-align:right;desc:total refreshes");
@@ -423,9 +434,6 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getMerge().getTotalTime());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getMerge().getTotalTime());
-
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolatorCache().getNumQueries());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolatorCache().getNumQueries());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getRefresh().getTotal());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getRefresh().getTotal());

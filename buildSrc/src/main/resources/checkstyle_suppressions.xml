@@ -37,8 +37,6 @@
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]cluster[/\\]repositories[/\\]put[/\\]TransportPutRepositoryAction.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]cluster[/\\]repositories[/\\]verify[/\\]TransportVerifyRepositoryAction.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]cluster[/\\]repositories[/\\]verify[/\\]VerifyRepositoryRequestBuilder.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]cluster[/\\]reroute[/\\]ClusterRerouteRequest.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]cluster[/\\]reroute[/\\]ClusterRerouteRequestBuilder.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]cluster[/\\]reroute[/\\]TransportClusterRerouteAction.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]cluster[/\\]settings[/\\]ClusterUpdateSettingsAction.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]cluster[/\\]settings[/\\]ClusterUpdateSettingsRequestBuilder.java" checks="LineLength" />
@@ -179,12 +177,6 @@
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]ingest[/\\]SimulatePipelineRequest.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]ingest[/\\]SimulatePipelineRequestBuilder.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]ingest[/\\]SimulatePipelineTransportAction.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]percolate[/\\]MultiPercolateRequest.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]percolate[/\\]MultiPercolateRequestBuilder.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]percolate[/\\]PercolateShardResponse.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]percolate[/\\]TransportMultiPercolateAction.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]percolate[/\\]TransportPercolateAction.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]percolate[/\\]TransportShardMultiPercolateAction.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]search[/\\]MultiSearchRequestBuilder.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]search[/\\]SearchPhaseExecutionException.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]search[/\\]SearchResponse.java" checks="LineLength" />
@@ -453,9 +445,6 @@
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]mapper[/\\]object[/\\]ObjectMapper.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]mapper[/\\]object[/\\]RootObjectMapper.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]merge[/\\]MergeStats.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]percolator[/\\]ExtractQueryTermsService.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]percolator[/\\]PercolatorFieldMapper.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]percolator[/\\]PercolatorQueriesRegistry.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]query[/\\]AbstractQueryBuilder.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]query[/\\]MatchQueryParser.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]query[/\\]QueryBuilders.java" checks="LineLength" />
@@ -520,7 +509,6 @@
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]monitor[/\\]jvm[/\\]JvmStats.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]node[/\\]Node.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]node[/\\]internal[/\\]InternalSettingsPreparer.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]percolator[/\\]PercolatorQuery.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugins[/\\]DummyPluginInfo.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugins[/\\]PluginsService.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugins[/\\]RemovePluginCommand.java" checks="LineLength" />
@@ -566,7 +554,6 @@
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]rest[/\\]action[/\\]cat[/\\]RestThreadPoolAction.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]rest[/\\]action[/\\]get[/\\]RestMultiGetAction.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]rest[/\\]action[/\\]index[/\\]RestIndexAction.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]rest[/\\]action[/\\]percolate[/\\]RestPercolateAction.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]rest[/\\]action[/\\]script[/\\]RestDeleteIndexedScriptAction.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]rest[/\\]action[/\\]script[/\\]RestPutIndexedScriptAction.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]rest[/\\]action[/\\]search[/\\]RestClearScrollAction.java" checks="LineLength" />
@@ -745,7 +732,6 @@
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]ingest[/\\]SimulatePipelineRequestParsingTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]ingest[/\\]SimulatePipelineResponseTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]ingest[/\\]WriteableIngestDocumentTests.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]percolate[/\\]MultiPercolatorRequestTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]search[/\\]MultiSearchRequestTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]search[/\\]SearchRequestBuilderTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]support[/\\]AutoCreateIndexTests.java" checks="LineLength" />
@@ -981,8 +967,6 @@
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]mapper[/\\]typelevels[/\\]ParseDocumentTypeLevelsTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]mapper[/\\]update[/\\]UpdateMappingOnClusterIT.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]mapper[/\\]update[/\\]UpdateMappingTests.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]percolator[/\\]PercolatorFieldMapperTests.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]query[/\\]AbstractQueryTestCase.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]query[/\\]BoolQueryBuilderTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]query[/\\]BoostingQueryBuilderTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]query[/\\]CommonTermsQueryBuilderTests.java" checks="LineLength" />
@@ -1071,9 +1055,6 @@
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]monitor[/\\]os[/\\]OsProbeTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]nodesinfo[/\\]NodeInfoStreamingTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]options[/\\]detailederrors[/\\]DetailedErrorsEnabledIT.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]percolator[/\\]MultiPercolatorIT.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]percolator[/\\]PercolatorIT.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]percolator[/\\]PercolatorQueryTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugins[/\\]PluginInfoTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugins[/\\]PluginsServiceTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]recovery[/\\]FullRollingRestartIT.java" checks="LineLength" />
@@ -1222,6 +1203,16 @@
   <suppress files="modules[/\\]lang-mustache[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]package-info.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-mustache[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]mustache[/\\]MustacheScriptEngineTests.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-mustache[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]mustache[/\\]MustacheTests.java" checks="LineLength" />
+  <suppress files="modules[/\\]percolator[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]percolator[/\\]MultiPercolateRequest.java" checks="LineLength" />
+  <suppress files="modules[/\\]percolator[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]percolator[/\\]MultiPercolateRequestBuilder.java" checks="LineLength" />
+  <suppress files="modules[/\\]percolator[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]percolator[/\\]PercolateShardResponse.java" checks="LineLength" />
+  <suppress files="modules[/\\]percolator[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]percolator[/\\]TransportMultiPercolateAction.java" checks="LineLength" />
+  <suppress files="modules[/\\]percolator[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]percolator[/\\]TransportPercolateAction.java" checks="LineLength" />
+  <suppress files="modules[/\\]percolator[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]percolator[/\\]TransportShardMultiPercolateAction.java" checks="LineLength" />
+  <suppress files="modules[/\\]percolator[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]percolator[/\\]RestPercolateAction.java" checks="LineLength" />
+  <suppress files="modules[/\\]percolator[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]percolator[/\\]MultiPercolatorIT.java" checks="LineLength" />
+  <suppress files="modules[/\\]percolator[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]percolator[/\\]PercolatorIT.java" checks="LineLength" />
+  <suppress files="modules[/\\]percolator[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]percolator[/\\]MultiPercolatorRequestTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]analysis-icu[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]analysis[/\\]IcuCollationTokenFilterFactory.java" checks="LineLength" />
   <suppress files="plugins[/\\]analysis-icu[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]analysis[/\\]IcuFoldingTokenFilterFactory.java" checks="LineLength" />
   <suppress files="plugins[/\\]analysis-icu[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]analysis[/\\]IcuNormalizerTokenFilterFactory.java" checks="LineLength" />
@@ -1232,13 +1223,6 @@
   <suppress files="plugins[/\\]analysis-phonetic[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]analysis[/\\]PhoneticTokenFilterFactory.java" checks="LineLength" />
   <suppress files="plugins[/\\]analysis-smartcn[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]analysis[/\\]SimpleSmartChineseAnalysisTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]analysis-stempel[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]analysis[/\\]PolishAnalysisTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]delete-by-query[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]deletebyquery[/\\]DeleteByQueryRequest.java" checks="LineLength" />
-  <suppress files="plugins[/\\]delete-by-query[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]deletebyquery[/\\]DeleteByQueryRequestBuilder.java" checks="LineLength" />
-  <suppress files="plugins[/\\]delete-by-query[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]deletebyquery[/\\]DeleteByQueryResponse.java" checks="LineLength" />
-  <suppress files="plugins[/\\]delete-by-query[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]deletebyquery[/\\]TransportDeleteByQueryAction.java" checks="LineLength" />
-  <suppress files="plugins[/\\]delete-by-query[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]deletebyquery[/\\]IndexDeleteByQueryResponseTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]delete-by-query[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]deletebyquery[/\\]TransportDeleteByQueryActionTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]delete-by-query[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugin[/\\]deletebyquery[/\\]DeleteByQueryTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-azure[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]azure[/\\]AbstractAzureTestCase.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-azure[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]azure[/\\]AzureMinimumMasterNodesTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-azure[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]azure[/\\]AzureSimpleTests.java" checks="LineLength" />
@@ -1309,6 +1293,7 @@
   <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]common[/\\]cli[/\\]CliToolTestCase.java" checks="LineLength" />
   <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]common[/\\]util[/\\]MockBigArrays.java" checks="LineLength" />
   <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]search[/\\]aggregations[/\\]bucket[/\\]script[/\\]NativeSignificanceScoreScriptWithParams.java" checks="LineLength" />
+  <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]test[/\\]AbstractQueryTestCase.java" checks="LineLength" />
   <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]test[/\\]BackgroundIndexer.java" checks="LineLength" />
   <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]test[/\\]CompositeTestCluster.java" checks="LineLength" />
   <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]test[/\\]CorruptionUtils.java" checks="LineLength" />
@@ -1335,7 +1320,6 @@
   <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]test[/\\]junit[/\\]listeners[/\\]LoggingListener.java" checks="LineLength" />
   <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]test[/\\]rest[/\\]ESRestTestCase.java" checks="LineLength" />
   <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]test[/\\]rest[/\\]RestTestExecutionContext.java" checks="LineLength" />
-  <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]test[/\\]rest[/\\]client[/\\]RestClient.java" checks="LineLength" />
   <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]test[/\\]rest[/\\]client[/\\]http[/\\]HttpRequestBuilder.java" checks="LineLength" />
   <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]test[/\\]rest[/\\]json[/\\]JsonPath.java" checks="LineLength" />
   <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]test[/\\]rest[/\\]parser[/\\]GreaterThanEqualToParser.java" checks="LineLength" />

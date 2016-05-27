@@ -1436,11 +1436,10 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("test").setQuery(
                 spanNearQuery(spanTermQuery("description", "foo"), 3)
-                        .clause(spanTermQuery("description", "other"))).get();
+                        .addClause(spanTermQuery("description", "other"))).get();
         assertHitCount(searchResponse, 3L);
     }
 
-    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 4.0
     public void testSpanMultiTermQuery() throws IOException {
         createIndex("test");
 
@@ -1481,17 +1480,17 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(spanNotQuery(spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1)
-                        .clause(QueryBuilders.spanTermQuery("description", "fox")), spanTermQuery("description", "brown"))).get();
+                        .addClause(QueryBuilders.spanTermQuery("description", "fox")), spanTermQuery("description", "brown"))).get();
         assertHitCount(searchResponse, 1L);
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(spanNotQuery(spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1)
-                        .clause(QueryBuilders.spanTermQuery("description", "fox")), spanTermQuery("description", "sleeping")).dist(5)).get();
+                        .addClause(QueryBuilders.spanTermQuery("description", "fox")), spanTermQuery("description", "sleeping")).dist(5)).get();
         assertHitCount(searchResponse, 1L);
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(spanNotQuery(spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1)
-                        .clause(QueryBuilders.spanTermQuery("description", "fox")), spanTermQuery("description", "jumped")).pre(1).post(1)).get();
+                        .addClause(QueryBuilders.spanTermQuery("description", "fox")), spanTermQuery("description", "jumped")).pre(1).post(1)).get();
         assertHitCount(searchResponse, 1L);
     }
 
@@ -1711,7 +1710,8 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testAllDisabledButQueried() throws Exception {
         createIndex("myindex");
         assertAcked(client().admin().indices().preparePutMapping("myindex").setType("mytype").setSource(
-                jsonBuilder().startObject().startObject("mytype").startObject("_all").field("enabled", false)));
+                jsonBuilder().startObject().startObject("mytype").startObject("_all").field("enabled", false)
+                .endObject().endObject().endObject()));
         client().prepareIndex("myindex", "mytype").setId("1").setSource("bar", "foo").setRefresh(true).get();
         SearchResponse response = client().prepareSearch("myindex").setQuery(matchQuery("_all", "foo")).get();
         assertNoFailures(response);

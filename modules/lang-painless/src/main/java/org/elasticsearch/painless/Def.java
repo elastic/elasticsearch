@@ -52,9 +52,10 @@ public final class Def {
     // TODO: Once Java has a factory for those in java.lang.invoke.MethodHandles, use it:
 
     /** Helper class for isolating MethodHandles and methods to get the length of arrays
-     * (to emulate a "arraystore" byteoode using MethodHandles).
+     * (to emulate a "arraystore" bytecode using MethodHandles).
      * This should really be a method in {@link MethodHandles} class!
      */
+    @SuppressWarnings("unused") // getArrayLength() methods are are actually used, javac just does not know :)
     private static final class ArrayLengthHelper {
         private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
 
@@ -134,17 +135,16 @@ public final class Def {
      * @param receiverClass Class of the object to invoke the method on.
      * @param name Name of the method.
      * @param type Callsite signature. Need not match exactly, except the number of parameters.
-     * @param definition Whitelist to check.
      * @return pointer to matching method to invoke. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      */
-     static MethodHandle lookupMethod(Class<?> receiverClass, String name, MethodType type, Definition definition) {
+     static MethodHandle lookupMethod(Class<?> receiverClass, String name, MethodType type) {
          // we don't consider receiver an argument/counting towards arity
          type = type.dropParameterTypes(0, 1);
          Definition.MethodKey key = new Definition.MethodKey(name, type.parameterCount());
          // check whitelist for matching method
          for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-             RuntimeClass struct = definition.runtimeMap.get(clazz);
+             RuntimeClass struct = Definition.getRuntimeClass(clazz);
 
              if (struct != null) {
                  Method method = struct.methods.get(key);
@@ -154,7 +154,7 @@ public final class Def {
              }
 
              for (final Class<?> iface : clazz.getInterfaces()) {
-                 struct = definition.runtimeMap.get(iface);
+                 struct = Definition.getRuntimeClass(iface);
 
                  if (struct != null) {
                      Method method = struct.methods.get(key);
@@ -192,14 +192,13 @@ public final class Def {
      * <p>
      * @param receiverClass Class of the object to retrieve the field from.
      * @param name Name of the field.
-     * @param definition Whitelist to check.
      * @return pointer to matching field. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted field was found.
      */
-    static MethodHandle lookupGetter(Class<?> receiverClass, String name, Definition definition) {
+    static MethodHandle lookupGetter(Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            RuntimeClass struct = definition.runtimeMap.get(clazz);
+            RuntimeClass struct = Definition.getRuntimeClass(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.getters.get(name);
@@ -209,7 +208,7 @@ public final class Def {
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.runtimeMap.get(iface);
+                struct = Definition.getRuntimeClass(iface);
 
                 if (struct != null) {
                     MethodHandle handle = struct.getters.get(name);
@@ -263,14 +262,13 @@ public final class Def {
      * <p>
      * @param receiverClass Class of the object to retrieve the field from.
      * @param name Name of the field.
-     * @param definition Whitelist to check.
      * @return pointer to matching field. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted field was found.
      */
-    static MethodHandle lookupSetter(Class<?> receiverClass, String name, Definition definition) {
+    static MethodHandle lookupSetter(Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            RuntimeClass struct = definition.runtimeMap.get(clazz);
+            RuntimeClass struct = Definition.getRuntimeClass(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.setters.get(name);
@@ -280,7 +278,7 @@ public final class Def {
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.runtimeMap.get(iface);
+                struct = Definition.getRuntimeClass(iface);
 
                 if (struct != null) {
                     MethodHandle handle = struct.setters.get(name);
@@ -971,6 +969,10 @@ public final class Def {
 
     // Conversion methods for Def to primitive types.
 
+    public static boolean DefToboolean(final Object value) {
+        return (boolean)value;
+    }
+
     public static byte DefTobyteImplicit(final Object value) {
         return (byte)value;
     }
@@ -1051,79 +1053,6 @@ public final class Def {
         }
     }
 
-    public static Byte DefToByteImplicit(final Object value) {
-        return (Byte)value;
-    }
-
-    public static Short DefToShortImplicit(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Byte) {
-            return ((Byte)value).shortValue();
-        } else {
-            return (Short)value;
-        }
-    }
-
-    public static Character DefToCharacterImplicit(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Byte) {
-            return (char)(byte)value;
-        } else {
-            return (Character)value;
-        }
-    }
-
-    public static Integer DefToIntegerImplicit(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Byte || value instanceof Short) {
-            return ((Number)value).intValue();
-        } else if (value instanceof Character) {
-            return (int)(char)value;
-        } else {
-            return (Integer)value;
-        }
-    }
-
-    public static Long DefToLongImplicit(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Byte || value instanceof Short || value instanceof Integer) {
-            return ((Number)value).longValue();
-        } else if (value instanceof Character) {
-            return (long)(char)value;
-        } else {
-            return (Long)value;
-        }
-    }
-
-    public static Float DefToFloatImplicit(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long) {
-            return ((Number)value).floatValue();
-        } else if (value instanceof Character) {
-            return (float)(char)value;
-        } else {
-            return (Float)value;
-        }
-    }
-
-    public static Double DefToDoubleImplicit(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Byte || value instanceof Short ||
-            value instanceof Integer || value instanceof Long || value instanceof  Float) {
-            return ((Number)value).doubleValue();
-        } else if (value instanceof Character) {
-            return (double)(char)value;
-        } else {
-            return (Double)value;
-        }
-    }
-
     public static byte DefTobyteExplicit(final Object value) {
         if (value instanceof Character) {
             return (byte)(char)value;
@@ -1175,76 +1104,6 @@ public final class Def {
     public static double DefTodoubleExplicit(final Object value) {
         if (value instanceof Character) {
             return (char)value;
-        } else {
-            return ((Number)value).doubleValue();
-        }
-    }
-
-    public static Byte DefToByteExplicit(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Character) {
-            return (byte)(char)value;
-        } else {
-            return ((Number)value).byteValue();
-        }
-    }
-
-    public static Short DefToShortExplicit(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Character) {
-            return (short)(char)value;
-        } else {
-            return ((Number)value).shortValue();
-        }
-    }
-
-    public static Character DefToCharacterExplicit(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Character) {
-            return ((Character)value);
-        } else {
-            return (char)((Number)value).intValue();
-        }
-    }
-
-    public static Integer DefToIntegerExplicit(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Character) {
-            return (int)(char)value;
-        } else {
-            return ((Number)value).intValue();
-        }
-    }
-
-    public static Long DefToLongExplicit(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Character) {
-            return (long)(char)value;
-        } else {
-            return ((Number)value).longValue();
-        }
-    }
-
-    public static Float DefToFloatExplicit(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Character) {
-            return (float)(char)value;
-        } else {
-            return ((Number)value).floatValue();
-        }
-    }
-
-    public static Double DefToDoubleExplicit(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Character) {
-            return (double)(char)value;
         } else {
             return ((Number)value).doubleValue();
         }

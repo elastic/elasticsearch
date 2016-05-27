@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 

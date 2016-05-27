@@ -52,16 +52,13 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     public AzureBlobContainer(String repositoryName, BlobPath path, AzureBlobStore blobStore) {
         super(path);
         this.blobStore = blobStore;
-        String keyPath = path.buildAsString("/");
-        if (!keyPath.isEmpty()) {
-            keyPath = keyPath + "/";
-        }
-        this.keyPath = keyPath;
+        this.keyPath = path.buildAsString();
         this.repositoryName = repositoryName;
     }
 
     @Override
     public boolean blobExists(String blobName) {
+        logger.trace("blobExists({})", blobName);
         try {
             return blobStore.blobExists(blobStore.container(), buildKey(blobName));
         } catch (URISyntaxException | StorageException e) {
@@ -72,6 +69,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     @Override
     public InputStream readBlob(String blobName) throws IOException {
+        logger.trace("readBlob({})", blobName);
         try {
             return blobStore.getInputStream(blobStore.container(), buildKey(blobName));
         } catch (StorageException e) {
@@ -86,6 +84,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+        logger.trace("writeBlob({}, stream, {})", blobName, blobSize);
         try (OutputStream stream = createOutput(blobName)) {
             Streams.copy(inputStream, stream);
         }
@@ -93,6 +92,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlob(String blobName, BytesReference bytes) throws IOException {
+        logger.trace("writeBlob({}, bytes)", blobName);
         try (OutputStream stream = createOutput(blobName)) {
             bytes.writeTo(stream);
         }
@@ -115,6 +115,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlob(String blobName) throws IOException {
+        logger.trace("deleteBlob({})", blobName);
         try {
             blobStore.deleteBlob(blobStore.container(), buildKey(blobName));
         } catch (URISyntaxException | StorageException e) {
@@ -125,6 +126,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(@Nullable String prefix) throws IOException {
+        logger.trace("listBlobsByPrefix({})", prefix);
 
         try {
             return blobStore.listBlobsByPrefix(blobStore.container(), keyPath, prefix);
@@ -136,6 +138,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void move(String sourceBlobName, String targetBlobName) throws IOException {
+        logger.trace("move({}, {})", sourceBlobName, targetBlobName);
         try {
             String source = keyPath + sourceBlobName;
             String target = keyPath + targetBlobName;
@@ -143,10 +146,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             logger.debug("moving blob [{}] to [{}] in container {{}}", source, target, blobStore.container());
 
             blobStore.moveBlob(blobStore.container(), source, target);
-        } catch (URISyntaxException e) {
-            logger.warn("can not move blob [{}] to [{}] in container {{}}: {}", sourceBlobName, targetBlobName, blobStore.container(), e.getMessage());
-            throw new IOException(e);
-        } catch (StorageException e) {
+        } catch (URISyntaxException | StorageException e) {
             logger.warn("can not move blob [{}] to [{}] in container {{}}: {}", sourceBlobName, targetBlobName, blobStore.container(), e.getMessage());
             throw new IOException(e);
         }
@@ -154,6 +154,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     @Override
     public Map<String, BlobMetaData> listBlobs() throws IOException {
+        logger.trace("listBlobs()");
         return listBlobsByPrefix(null);
     }
 

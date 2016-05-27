@@ -36,7 +36,7 @@ import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.ClusterServiceUtils;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -87,8 +87,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-
-import static java.util.Collections.emptyMap;
 
 public class IndexModuleTests extends ESTestCase {
     private Index index;

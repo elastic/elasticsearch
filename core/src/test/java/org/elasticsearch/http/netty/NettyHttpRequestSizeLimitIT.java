@@ -29,6 +29,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.jboss.netty.handler.codec.http.HttpResponse;
 import org.jboss.netty.handler.codec.http.HttpResponseStatus;
 
@@ -40,7 +41,7 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  *
  */
-@ClusterScope(scope = Scope.TEST, numDataNodes = 1)
+@ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
 public class NettyHttpRequestSizeLimitIT extends ESIntegTestCase {
     private static final ByteSizeValue LIMIT = new ByteSizeValue(2, ByteSizeUnit.KB);
 
@@ -53,6 +54,7 @@ public class NettyHttpRequestSizeLimitIT extends ESIntegTestCase {
             .build();
     }
 
+    @TestLogging("_root:DEBUG,org.elasticsearch.common.breaker:TRACE,org.elasticsearch.test:TRACE,org.elasticsearch.transport:TRACE")
     public void testLimitsInFlightRequests() throws Exception {
         ensureGreen();
 

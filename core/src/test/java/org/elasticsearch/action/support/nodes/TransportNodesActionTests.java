@@ -55,8 +55,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.mockito.Mockito.mock;
 
 public class TransportNodesActionTests extends ESTestCase {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.node;
 
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
@@ -96,6 +97,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportService;
@@ -168,7 +170,20 @@ public class Node implements Closeable {
 
         ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(tmpSettings));
         final String displayVersion = version + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
-        logger.info("version[{}], pid[{}], build[{}/{}]", displayVersion, JvmInfo.jvmInfo().pid(), Build.CURRENT.shortHash(), Build.CURRENT.date());
+        final JvmInfo jvmInfo = JvmInfo.jvmInfo();
+        logger.info(
+            "version[{}], pid[{}], build[{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
+            displayVersion,
+            jvmInfo.pid(),
+            Build.CURRENT.shortHash(),
+            Build.CURRENT.date(),
+            Constants.OS_NAME,
+            Constants.OS_VERSION,
+            Constants.OS_ARCH,
+            Constants.JVM_VENDOR,
+            Constants.JVM_NAME,
+            Constants.JAVA_VERSION,
+            Constants.JVM_VERSION);
 
         logger.info("initializing ...");
 
@@ -318,6 +333,7 @@ public class Node implements Closeable {
 
         // Start the transport service now so the publish address will be added to the local disco node in ClusterService
         TransportService transportService = injector.getInstance(TransportService.class);
+        transportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskResultsService.class));
         transportService.start();
 
         validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress());

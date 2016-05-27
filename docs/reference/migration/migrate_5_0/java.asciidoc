@@ -84,12 +84,14 @@ static factory methods in QueryBuilders accordingly.
 
 Making sure that query contains at least one clause by making initial clause mandatory
 in constructor.
+Renaming method to add clauses from `clause(SpanQueryBuilder)` to `addClause(SpanQueryBuilder)`. 
 
 ===== SpanNearQueryBuilder
 
 Removed setter for mandatory slop parameter, needs to be set in constructor now. Also
 making sure that query contains at least one clause by making initial clause mandatory
 in constructor. Updated the static factory methods in QueryBuilders accordingly.
+Renaming method to add clauses from `clause(SpanQueryBuilder)` to `addClause(SpanQueryBuilder)`. 
 
 ===== SpanNotQueryBuilder
 

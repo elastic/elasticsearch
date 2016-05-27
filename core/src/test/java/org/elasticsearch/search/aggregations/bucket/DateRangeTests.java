@@ -22,11 +22,8 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregationBuilder;
-import org.joda.time.DateTimeZone;
 
 public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregationBuilder> {
-
-    private final static String[] timeZoneIds = DateTimeZone.getAvailableIDs().toArray(new String[DateTimeZone.getAvailableIDs().size()]);
 
     @Override
     protected DateRangeAggregationBuilder createTestAggregatorBuilder() {
@@ -60,7 +57,7 @@ public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregation
             factory.missing(randomIntBetween(0, 10));
         }
         if (randomBoolean()) {
-            factory.timeZone(DateTimeZone.forID(randomFrom(timeZoneIds)));
+            factory.timeZone(randomDateTimeZone());
         }
         return factory;
     }

@@ -61,6 +61,7 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -399,6 +400,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * generate a random DateTimeZone from the ones available in joda library
+     */
+    public static DateTimeZone randomDateTimeZone() {
+        List<String> ids = new ArrayList<>(DateTimeZone.getAvailableIDs());
+        Collections.sort(ids);
+        return DateTimeZone.forID(randomFrom(ids));
+    }
+
+    /**
      * helper to randomly perform on <code>consumer</code> with <code>value</code>
      */
     public static <T> void maybeSet(Consumer<T> consumer, T value) {
@@ -433,24 +443,13 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Runs the code block for 10 seconds waiting for no assertion to trip.
      */
     public static void assertBusy(Runnable codeBlock) throws Exception {
-        assertBusy(Executors.callable(codeBlock), 10, TimeUnit.SECONDS);
-    }
-
-    public static void assertBusy(Runnable codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
-        assertBusy(Executors.callable(codeBlock), maxWaitTime, unit);
-    }
-
-    /**
-     * Runs the code block for 10 seconds waiting for no assertion to trip.
-     */
-    public static <V> V assertBusy(Callable<V> codeBlock) throws Exception {
-        return assertBusy(codeBlock, 10, TimeUnit.SECONDS);
+        assertBusy(codeBlock, 10, TimeUnit.SECONDS);
     }
 
     /**
      * Runs the code block for the provided interval, waiting for no assertions to trip.
      */
-    public static <V> V assertBusy(Callable<V> codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
+    public static void assertBusy(Runnable codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
         long iterations = Math.max(Math.round(Math.log10(maxTimeInMillis) / Math.log10(2)), 1);
         long timeInMillis = 1;
@@ -458,7 +457,8 @@ public abstract class ESTestCase extends LuceneTestCase {
         List<AssertionError> failures = new ArrayList<>();
         for (int i = 0; i < iterations; i++) {
             try {
-                return codeBlock.call();
+                codeBlock.run();
+                return;
             } catch (AssertionError e) {
                 failures.add(e);
             }
@@ -469,7 +469,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         timeInMillis = maxTimeInMillis - sum;
         Thread.sleep(Math.max(timeInMillis, 0));
         try {
-            return codeBlock.call();
+            codeBlock.run();
         } catch (AssertionError e) {
             for (AssertionError failure : failures) {
                 e.addSuppressed(failure);

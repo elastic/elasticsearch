@@ -113,25 +113,26 @@ fi
     fi
 }
 
-@test "[$GROUP] install jvm-example plugin with a custom path.plugins" {
+@test "[$GROUP] install jvm-example plugin with a symlinked plugins path" {
     # Clean up after the last time this test was run
     rm -rf /tmp/plugins.*
+    rm -rf /tmp/old_plugins.*
 
-    local oldPlugins="$ESPLUGINS"
-    export ESPLUGINS=$(mktemp -d -t 'plugins.XXXX')
-
-    # Modify the path.plugins setting in configuration file
-    echo "path.plugins: $ESPLUGINS" >> "$ESCONFIG/elasticsearch.yml"
-    chown -R elasticsearch:elasticsearch "$ESPLUGINS"
+    rm -rf "$ESPLUGINS"
+    local es_plugins=$(mktemp -d -t 'plugins.XXXX')
+    chown -R elasticsearch:elasticsearch "$es_plugins"
+    ln -s "$es_plugins" "$ESPLUGINS"
 
     install_jvm_example
     start_elasticsearch_service
-    # check that configuration was actually picked up
+    # check that symlinked plugin was actually picked up
     curl -s localhost:9200/_cat/configured_example | sed 's/ *$//' > /tmp/installed
     echo "foo" > /tmp/expected
     diff /tmp/installed /tmp/expected
     stop_elasticsearch_service
     remove_jvm_example
+
+    unlink "$ESPLUGINS"
 }
 
 @test "[$GROUP] install jvm-example plugin with a custom CONFIG_DIR" {
@@ -208,10 +209,6 @@ fi
     install_and_check_plugin discovery gce google-api-client-*.jar
 }
 
-@test "[$GROUP] install delete by query plugin" {
-    install_and_check_plugin - delete-by-query
-}
-
 @test "[$GROUP] install discovery-azure plugin" {
     install_and_check_plugin discovery azure azure-core-*.jar
 }
@@ -221,10 +218,10 @@ fi
 }
 
 @test "[$GROUP] install ingest-attachment plugin" {
-    # we specify the version on the poi-3.13.jar so that the test does
+    # we specify the version on the poi-3.15-beta1.jar so that the test does
     # not spuriously pass if the jar is missing but the other poi jars
     # are present
-    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-3.13.jar
+    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-3.15-beta1.jar poi-ooxml-3.15-beta1.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
 }
 
 @test "[$GROUP] install ingest-geoip plugin" {
@@ -345,10 +342,6 @@ fi
 
 @test "[$GROUP] remove gce plugin" {
     remove_plugin discovery-gce
-}
-
-@test "[$GROUP] remove delete by query plugin" {
-    remove_plugin delete-by-query
 }
 
 @test "[$GROUP] remove discovery-azure plugin" {

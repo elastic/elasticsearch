@@ -77,7 +77,6 @@ public class EvilSecurityTests extends ESTestCase {
         settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.resolve("home").toString());
         settingsBuilder.put(Environment.PATH_CONF_SETTING.getKey(), esHome.resolve("conf").toString());
         settingsBuilder.put(Environment.PATH_SCRIPTS_SETTING.getKey(), esHome.resolve("scripts").toString());
-        settingsBuilder.put(Environment.PATH_PLUGINS_SETTING.getKey(), esHome.resolve("plugins").toString());
         settingsBuilder.putArray(Environment.PATH_DATA_SETTING.getKey(), esHome.resolve("data1").toString(), esHome.resolve("data2").toString());
         settingsBuilder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), esHome.resolve("custom").toString());
         settingsBuilder.put(Environment.PATH_LOGS_SETTING.getKey(), esHome.resolve("logs").toString());

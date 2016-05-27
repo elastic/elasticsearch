@@ -113,6 +113,7 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
+                .endObject()
                 .endObject();
 
         byte[] mapping = mappingBuilder.bytes().toBytes();

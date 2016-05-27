@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -44,6 +45,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -108,7 +111,7 @@ public class TestTaskPlugin extends Plugin {
         }
     }
 
-    public static class NodesResponse extends BaseNodesResponse<NodeResponse> {
+    public static class NodesResponse extends BaseNodesResponse<NodeResponse> implements ToXContent {
 
         NodesResponse() {
 
@@ -128,23 +131,31 @@ public class TestTaskPlugin extends Plugin {
             out.writeStreamableList(nodes);
         }
 
-        public int failureCount() {
+        public int getFailureCount() {
             return failures().size();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field("failure_count", getFailureCount());
+            return builder;
         }
     }
 
     public static class NodeRequest extends BaseNodeRequest {
         protected String requestName;
         protected String nodeId;
+        protected boolean shouldBlock;
 
         public NodeRequest() {
             super();
         }
 
-        public NodeRequest(NodesRequest request, String nodeId) {
+        public NodeRequest(NodesRequest request, String nodeId, boolean shouldBlock) {
             super(nodeId);
             requestName = request.requestName;
             this.nodeId = nodeId;
+            this.shouldBlock = shouldBlock;
         }
 
         @Override
@@ -152,6 +163,7 @@ public class TestTaskPlugin extends Plugin {
             super.readFrom(in);
             requestName = in.readString();
             nodeId = in.readString();
+            shouldBlock = in.readBoolean();
         }
 
         @Override
@@ -159,6 +171,7 @@ public class TestTaskPlugin extends Plugin {
             super.writeTo(out);
             out.writeString(requestName);
             out.writeString(nodeId);
+            out.writeBoolean(shouldBlock);
         }
 
         @Override
@@ -174,6 +187,9 @@ public class TestTaskPlugin extends Plugin {
 
     public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
         private String requestName;
+        private boolean shouldPersistResult = false;
+        private boolean shouldBlock = true;
+        private boolean shouldFail = false;
 
         NodesRequest() {
             super();
@@ -184,16 +200,47 @@ public class TestTaskPlugin extends Plugin {
             this.requestName = requestName;
         }
 
+        public void setShouldPersistResult(boolean shouldPersistResult) {
+            this.shouldPersistResult = shouldPersistResult;
+        }
+
+        @Override
+        public boolean getShouldPersistResult() {
+            return shouldPersistResult;
+        }
+
+        public void setShouldBlock(boolean shouldBlock) {
+            this.shouldBlock = shouldBlock;
+        }
+
+        public boolean getShouldBlock() {
+            return shouldBlock;
+        }
+
+        public void setShouldFail(boolean shouldFail) {
+            this.shouldFail = shouldFail;
+        }
+
+        public boolean getShouldFail() {
+            return shouldFail;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             requestName = in.readString();
+            shouldPersistResult = in.readBoolean();
+            shouldBlock = in.readBoolean();
+            shouldFail = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(requestName);
+            out.writeBoolean(shouldPersistResult);
+            out.writeBoolean(shouldBlock);
+            out.writeBoolean(shouldFail);
         }
 
         @Override
@@ -219,6 +266,9 @@ public class TestTaskPlugin extends Plugin {
 
         @Override
         protected NodesResponse newResponse(NodesRequest request, List<NodeResponse> responses, List<FailedNodeException> failures) {
+            if (request.getShouldFail()) {
+                throw new IllegalStateException("Simulating operation failure");
+            }
             return new NodesResponse(clusterName, responses, failures);
         }
 
@@ -226,7 +276,7 @@ public class TestTaskPlugin extends Plugin {
         protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
             List<String> list = new ArrayList<>();
             for (String node : nodesIds) {
-                if (nodes.getDataNodes().containsKey(node)) {
+                if (nodes.nodeExists(node)) {
                     list.add(node);
                 }
             }
@@ -235,7 +285,7 @@ public class TestTaskPlugin extends Plugin {
 
         @Override
         protected NodeRequest newNodeRequest(String nodeId, NodesRequest request) {
-            return new NodeRequest(request, nodeId);
+            return new NodeRequest(request, nodeId, request.getShouldBlock());
         }
 
         @Override
@@ -251,15 +301,17 @@ public class TestTaskPlugin extends Plugin {
         @Override
         protected NodeResponse nodeOperation(NodeRequest request, Task task) {
             logger.info("Test task started on the node {}", clusterService.localNode());
-            try {
-                awaitBusy(() -> {
-                    if (((CancellableTask) task).isCancelled()) {
-                        throw new RuntimeException("Cancelled!");
-                    }
-                    return ((TestTask) task).isBlocked() == false;
-                });
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
+            if (request.shouldBlock) {
+                try {
+                    awaitBusy(() -> {
+                        if (((CancellableTask) task).isCancelled()) {
+                            throw new RuntimeException("Cancelled!");
+                        }
+                        return ((TestTask) task).isBlocked() == false;
+                    });
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
             }
             logger.info("Test task finished on the node {}", clusterService.localNode());
             return new NodeResponse(clusterService.localNode());
@@ -296,10 +348,26 @@ public class TestTaskPlugin extends Plugin {
         }
     }
 
-    public static class NodesRequestBuilder extends ActionRequestBuilder<NodesRequest, NodesResponse, NodesRequestBuilder> {
+    public static class NodesRequestBuilder extends NodesOperationRequestBuilder<NodesRequest, NodesResponse, NodesRequestBuilder> {
 
         protected NodesRequestBuilder(ElasticsearchClient client, Action<NodesRequest, NodesResponse, NodesRequestBuilder> action) {
             super(client, action, new NodesRequest("test"));
+        }
+
+
+        public NodesRequestBuilder setShouldPersistResult(boolean shouldPersistResult) {
+            request().setShouldPersistResult(shouldPersistResult);
+            return this;
+        }
+
+        public NodesRequestBuilder setShouldBlock(boolean shouldBlock) {
+            request().setShouldBlock(shouldBlock);
+            return this;
+        }
+
+        public NodesRequestBuilder setShouldFail(boolean shouldFail) {
+            request().setShouldFail(shouldFail);
+            return this;
         }
     }
 

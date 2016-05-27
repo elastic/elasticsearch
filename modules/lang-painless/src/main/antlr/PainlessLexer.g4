@@ -19,6 +19,10 @@
 
 lexer grammar PainlessLexer;
 
+@header {
+import org.elasticsearch.painless.Definition;
+}
+
 WS: [ \t\n\r]+ -> skip;
 COMMENT: ( '//' .*? [\n\r] | '/*' .*? '*/' ) -> skip;
 
@@ -28,7 +32,7 @@ LBRACE:    '[';
 RBRACE:    ']';
 LP:        '(';
 RP:        ')';
-DOT:       '.' -> mode(EXT);
+DOT:       '.' -> mode(AFTER_DOT);
 COMMA:     ',';
 SEMICOLON: ';';
 IF:        'if';
@@ -69,6 +73,7 @@ BOOLAND: '&&';
 BOOLOR:  '||';
 COND:    '?';
 COLON:   ':';
+REF:     '::';
 INCR:    '++';
 DECR:    '--';
 
@@ -88,7 +93,7 @@ AUSH:   '>>>=';
 OCTAL: '0' [0-7]+ [lL]?;
 HEX: '0' [xX] [0-9a-fA-F]+ [lL]?;
 INTEGER: ( '0' | [1-9] [0-9]* ) [lLfFdD]?;
-DECIMAL: ( '0' | [1-9] [0-9]* ) DOT [0-9]* ( [eE] [+\-]? [0-9]+ )? [fF]?;
+DECIMAL: ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? ( [eE] [+\-]? [0-9]+ )? [fF]?;
 
 STRING: ( '"' ( '\\"' | '\\\\' | ~[\\"] )*? '"' ) | ( '\'' ( '\\\'' | '\\\\' | ~[\\"] )*? '\'' );
 
@@ -97,8 +102,16 @@ FALSE: 'false';
 
 NULL: 'null';
 
+// The predicate here allows us to remove ambiguities when
+// dealing with types versus identifiers.  We check against
+// the current whitelist to determine whether a token is a type
+// or not.  Note this works by processing one character at a time
+// and the rule is added or removed as this happens.  This is also known
+// as "the lexer hack."  See (https://en.wikipedia.org/wiki/The_lexer_hack).
+TYPE: ID ( DOT ID )* { Definition.isSimpleType(getText()) }?;
 ID: [_a-zA-Z] [_a-zA-Z0-9]*;
 
-mode EXT;
-EXTINTEGER: ( '0' | [1-9] [0-9]* ) -> mode(DEFAULT_MODE);
-EXTID: [_a-zA-Z] [_a-zA-Z0-9]* -> mode(DEFAULT_MODE);
+mode AFTER_DOT;
+
+DOTINTEGER: ( '0' | [1-9] [0-9]* )                        -> mode(DEFAULT_MODE);
+DOTID: [_a-zA-Z] [_a-zA-Z0-9]*                            -> mode(DEFAULT_MODE);

@@ -23,7 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.AbstractDoubleSearchScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.test.ESTestCase;
 
@@ -57,7 +57,7 @@ public class ScriptScoreFunctionTests extends ESTestCase {
             }
         });
         LeafScoreFunction leafScoreFunction = scoreFunction.getLeafScoreFunction(null);
-        ScriptException expected = expectThrows(ScriptException.class, () -> {
+        GeneralScriptException expected = expectThrows(GeneralScriptException.class, () -> {
             leafScoreFunction.score(randomInt(), randomFloat());
         });
         assertTrue(expected.getMessage().contains("returned NaN"));

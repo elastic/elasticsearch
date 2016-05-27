@@ -1038,8 +1038,9 @@ Grok expression.
 |======
 | Name                   | Required  | Default             | Description
 | `field`                | yes       | -                   | The field to use for grok expression parsing
-| `pattern`              | yes       | -                   | The grok expression to match and extract named captures with
+| `patterns`             | yes       | -                   | An ordered list of grok expression to match and extract named captures with. Returns on the first expression in the list that matches.
 | `pattern_definitions`  | no        | -                   | A map of pattern-name and pattern tuples defining custom patterns to be used by the current processor. Patterns matching existing names will override the pre-existing definition.
+| `trace_match`          | no        | false               | when true, `_ingest._grok_match_index` will be inserted into your matched document's metadata with the index into the pattern found in `patterns` that matched.
 |======
 
 Here is an example of using the provided patterns to extract out and name structured fields from a string field in
@@ -1069,7 +1070,7 @@ Here is an example pipeline for processing the above document by using Grok:
     {
       "grok": {
         "field": "message",
-        "pattern": "%{IP:client} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes} %{NUMBER:duration}"
+        "patterns": ["%{IP:client} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes} %{NUMBER:duration}"]
       }
     }
   ]
@@ -1107,7 +1108,7 @@ Here is an example of a pipeline specifying custom pattern definitions:
     {
       "grok": {
         "field": "message",
-        "pattern": "my %{FAVORITE_DOG:dog} is colored %{RGB:color}"
+        "patterns": ["my %{FAVORITE_DOG:dog} is colored %{RGB:color}"]
         "pattern_definitions" : {
           "FAVORITE_DOG" : "beagle",
           "RGB" : "RED|GREEN|BLUE"

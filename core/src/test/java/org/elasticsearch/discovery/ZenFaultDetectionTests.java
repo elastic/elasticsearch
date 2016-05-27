@@ -58,8 +58,8 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 

@@ -51,7 +51,6 @@ import java.util.concurrent.TimeUnit;
 final class ExternalNode implements Closeable {
 
     public static final Settings REQUIRED_SETTINGS = Settings.builder()
-            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen")
             .put(Node.NODE_MODE_SETTING.getKey(), "network").build(); // we need network mode for this
 
@@ -100,8 +99,8 @@ final class ExternalNode implements Closeable {
         } else {
             params.add("bin/elasticsearch.bat");
         }
-        params.add("-Des.cluster.name=" + clusterName);
-        params.add("-Des.node.name=" + nodeName);
+        params.add("-Ecluster.name=" + clusterName);
+        params.add("-Enode.name=" + nodeName);
         Settings.Builder externaNodeSettingsBuilder = Settings.builder();
         for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
             switch (entry.getKey()) {
@@ -122,11 +121,11 @@ final class ExternalNode implements Closeable {
         }
         this.externalNodeSettings = externaNodeSettingsBuilder.put(REQUIRED_SETTINGS).build();
         for (Map.Entry<String, String> entry : externalNodeSettings.getAsMap().entrySet()) {
-            params.add("-Des." + entry.getKey() + "=" + entry.getValue());
+            params.add("-E" + entry.getKey() + "=" + entry.getValue());
         }
 
-        params.add("-Des.path.home=" + PathUtils.get(".").toAbsolutePath());
-        params.add("-Des.path.conf=" + path + "/config");
+        params.add("-Epath.home=" + PathUtils.get(".").toAbsolutePath());
+        params.add("-Epath.conf=" + path + "/config");
 
         ProcessBuilder builder = new ProcessBuilder(params);
         builder.directory(path.toFile());

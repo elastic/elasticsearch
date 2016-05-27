@@ -37,6 +37,7 @@ import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
 import org.elasticsearch.index.search.MatchQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Variables;
@@ -35,34 +34,36 @@ final class LDefField extends ALink implements IDefLink {
 
     final String value;
 
-    LDefField(final int line, final String location, final String value) {
-        super(line, location, 1);
+    LDefField(int line, int offset, String location, String value) {
+        super(line, offset, location, 1);
 
         this.value = value;
     }
 
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        after = definition.defType;
+    ALink analyze(Variables variables) {
+        after = Definition.DEF_TYPE;
 
         return this;
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        final String desc = Type.getMethodDescriptor(after.type, definition.defType.type);
-        adapter.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.LOAD);
+    void load(MethodWriter writer) {
+        writer.writeDebugInfo(offset);
+        String desc = Type.getMethodDescriptor(after.type, Definition.DEF_TYPE.type);
+        writer.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.LOAD);
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        final String desc = Type.getMethodDescriptor(definition.voidType.type, definition.defType.type, after.type);
-        adapter.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.STORE);
+    void store(MethodWriter writer) {
+        writer.writeDebugInfo(offset);
+        String desc = Type.getMethodDescriptor(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, after.type);
+        writer.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.STORE);
     }
 }

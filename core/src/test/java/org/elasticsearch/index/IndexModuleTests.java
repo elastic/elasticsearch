@@ -77,6 +77,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.engine.MockEngineFactory;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
@@ -111,7 +112,7 @@ public class IndexModuleTests extends ESTestCase {
 
     static NodeServicesProvider newNodeServiceProvider(Settings settings, Environment environment, Client client, ScriptEngineService... scriptEngineServices) throws IOException {
         // TODO this can be used in other place too - lets first refactor the IndicesQueriesRegistry
-        ThreadPool threadPool = new ThreadPool("test");
+        ThreadPool threadPool = new TestThreadPool("test");
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         PageCacheRecycler recycler = new PageCacheRecycler(settings);
         BigArrays bigArrays = new BigArrays(recycler, circuitBreakerService);

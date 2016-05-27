@@ -872,6 +872,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     .put(ParseFieldMatcher.PARSE_STRICT, true)
                     .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated).build();
             final ThreadPool threadPool = new ThreadPool(settings);
+            threadPool.start();
             index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
             ClusterServiceUtils.setState(clusterService, new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder().put(

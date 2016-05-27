@@ -42,11 +42,12 @@ public class FixedThreadPoolTests extends ESThreadPoolTestCase {
         final Settings nodeSettings =
             Settings.builder()
                 .put("node.name", "testRejectedExecutionCounter")
-                .put("threadpool." + threadPoolName + ".size", size)
-                .put("threadpool." + threadPoolName + ".queue_size", queueSize)
+                .put("thread_pool." + threadPoolName + ".size", size)
+                .put("thread_pool." + threadPoolName + ".queue_size", queueSize)
                 .build();
         try {
             threadPool = new ThreadPool(nodeSettings);
+            threadPool.start();
 
             // these tasks will consume the thread pool causing further
             // submissions to queue
@@ -94,7 +95,7 @@ public class FixedThreadPoolTests extends ESThreadPoolTestCase {
             threadPool.setClusterSettings(clusterSettings);
             clusterSettings.applySettings(
                 Settings.builder()
-                    .put("threadpool." + threadPoolName + ".queue_size", queueSize + 1)
+                    .put("thread_pool." + threadPoolName + ".queue_size", queueSize + 1)
                     .build());
             assertThat(stats(threadPool, threadPoolName).getRejected(), equalTo(0L));
 

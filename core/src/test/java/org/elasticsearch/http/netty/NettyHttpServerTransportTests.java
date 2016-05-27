@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.http.netty.cors.CorsConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.junit.After;
@@ -56,7 +57,7 @@ public class NettyHttpServerTransportTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Settings.EMPTY);
-        threadPool = new ThreadPool("test");
+        threadPool = new TestThreadPool("test");
         mockPageCacheRecycler = new MockPageCacheRecycler(Settings.EMPTY);
         bigArrays = new MockBigArrays(mockPageCacheRecycler, new NoneCircuitBreakerService());
     }

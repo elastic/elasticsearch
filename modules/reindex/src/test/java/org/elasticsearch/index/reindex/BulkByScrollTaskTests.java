@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
@@ -168,7 +169,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
         task.rethrottle(originalRequestsPerSecond);
         TimeValue maxDelay = timeValueSeconds(between(1, 5));
         assertThat(maxDelay.nanos(), greaterThanOrEqualTo(0L));
-        ThreadPool threadPool = new ThreadPool(getTestName()) {
+        ThreadPool threadPool = new TestThreadPool(getTestName()) {
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
                 assertThat(delay.nanos(), both(greaterThanOrEqualTo(0L)).and(lessThanOrEqualTo(maxDelay.nanos())));
@@ -220,7 +221,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
 
     public void testDelayNeverNegative() throws IOException {
         // Thread pool that returns a ScheduledFuture that claims to have a negative delay
-        ThreadPool threadPool = new ThreadPool("test") {
+        ThreadPool threadPool = new TestThreadPool("test") {
             public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
                 return new ScheduledFuture<Void>() {
                     @Override

@@ -65,6 +65,7 @@ public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
     @Before
     public void startThreadPool() {
         threadPool = new ThreadPool(settings);
+        threadPool.start();
         threadPool.setClusterSettings(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         NetworkService networkService = new NetworkService(settings);
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(settings), new NoneCircuitBreakerService());

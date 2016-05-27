@@ -40,35 +40,35 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
         final Settings.Builder builder = Settings.builder();
 
-        final int min;
+        final int core;
         if (randomBoolean()) {
-            min = randomIntBetween(0, 8);
-            builder.put("threadpool." + threadPoolName + ".min", min);
+            core = randomIntBetween(0, 8);
+            builder.put("thread_pool." + threadPoolName + ".core", core);
         } else {
-            min = "generic".equals(threadPoolName) ? 4 : 1; // the defaults
+            core = "generic".equals(threadPoolName) ? 4 : 1; // the defaults
         }
 
-        final int sizeBasedOnNumberOfProcessors;
+        final int maxBasedOnNumberOfProcessors;
         if (randomBoolean()) {
             final int processors = randomIntBetween(1, 64);
-            sizeBasedOnNumberOfProcessors = expectedSize(threadPoolName, processors);
+            maxBasedOnNumberOfProcessors = expectedSize(threadPoolName, processors);
             builder.put("processors", processors);
         } else {
-            sizeBasedOnNumberOfProcessors = expectedSize(threadPoolName, Math.min(32, Runtime.getRuntime().availableProcessors()));
+            maxBasedOnNumberOfProcessors = expectedSize(threadPoolName, Math.min(32, Runtime.getRuntime().availableProcessors()));
         }
 
-        final int expectedSize;
-        if (sizeBasedOnNumberOfProcessors < min || randomBoolean()) {
-            expectedSize = randomIntBetween(Math.max(1, min), 16);
-            builder.put("threadpool." + threadPoolName + ".size", expectedSize);
+        final int expectedMax;
+        if (maxBasedOnNumberOfProcessors < core || randomBoolean()) {
+            expectedMax = randomIntBetween(Math.max(1, core), 16);
+            builder.put("thread_pool." + threadPoolName + ".max", expectedMax);
         }  else {
-            expectedSize = sizeBasedOnNumberOfProcessors;
+            expectedMax = maxBasedOnNumberOfProcessors;
         }
 
         final long keepAlive;
         if (randomBoolean()) {
             keepAlive = randomIntBetween(1, 300);
-            builder.put("threadpool." + threadPoolName + ".keep_alive", keepAlive + "s");
+            builder.put("thread_pool." + threadPoolName + ".keep_alive", keepAlive + "s");
         } else {
             keepAlive = "generic".equals(threadPoolName) ? 30 : 300; // the defaults
         }
@@ -88,10 +88,10 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             assertNull(info.getQueueSize());
             assertThat(esThreadPoolExecutor.getQueue().remainingCapacity(), equalTo(Integer.MAX_VALUE));
 
-            assertThat(info.getMin(), equalTo(min));
-            assertThat(esThreadPoolExecutor.getCorePoolSize(), equalTo(min));
-            assertThat(info.getMax(), equalTo(expectedSize));
-            assertThat(esThreadPoolExecutor.getMaximumPoolSize(), equalTo(expectedSize));
+            assertThat(info.getMin(), equalTo(core));
+            assertThat(esThreadPoolExecutor.getCorePoolSize(), equalTo(core));
+            assertThat(info.getMax(), equalTo(expectedMax));
+            assertThat(esThreadPoolExecutor.getMaximumPoolSize(), equalTo(expectedMax));
         });
     }
 
@@ -118,7 +118,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         runScalingThreadPoolTest(Settings.EMPTY, (clusterSettings, threadPool) -> {
             final Executor beforeExecutor = threadPool.executor(threadPoolName);
             final long seconds = randomIntBetween(1, 300);
-            clusterSettings.applySettings(settings("threadpool." + threadPoolName + ".keep_alive", seconds + "s"));
+            clusterSettings.applySettings(settings("thread_pool." + threadPoolName + ".keep_alive", seconds + "s"));
             final Executor afterExecutor = threadPool.executor(threadPoolName);
             assertSame(beforeExecutor, afterExecutor);
             final ThreadPool.Info info = info(threadPool, threadPoolName);
@@ -129,7 +129,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
     public void testScalingThreadPoolIsBounded() throws InterruptedException {
         final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
         final int size = randomIntBetween(32, 512);
-        final Settings settings = Settings.builder().put("threadpool." + threadPoolName + ".size", size).build();
+        final Settings settings = Settings.builder().put("thread_pool." + threadPoolName + ".max", size).build();
         runScalingThreadPoolTest(settings, (clusterSettings, threadPool) -> {
             final CountDownLatch latch = new CountDownLatch(1);
             final int numberOfTasks = 2 * size;
@@ -161,8 +161,8 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         final int min = "generic".equals(threadPoolName) ? 4 : 1;
         final Settings settings =
                 Settings.builder()
-                        .put("threadpool." + threadPoolName + ".size", 128)
-                        .put("threadpool." + threadPoolName + ".keep_alive", "1ms")
+                        .put("thread_pool." + threadPoolName + ".max", 128)
+                        .put("thread_pool." + threadPoolName + ".keep_alive", "1ms")
                         .build();
         runScalingThreadPoolTest(settings, ((clusterSettings, threadPool) -> {
             final CountDownLatch latch = new CountDownLatch(1);
@@ -203,7 +203,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             final Executor beforeExecutor = threadPool.executor(threadPoolName);
             int expectedMin = "generic".equals(threadPoolName) ? 4 : 1;
             final int size = randomIntBetween(expectedMin, Integer.MAX_VALUE);
-            clusterSettings.applySettings(settings("threadpool." + threadPoolName + ".size", size));
+            clusterSettings.applySettings(settings("thread_pool." + threadPoolName + ".max", size));
             final Executor afterExecutor = threadPool.executor(threadPoolName);
             assertSame(beforeExecutor, afterExecutor);
             final ThreadPool.Info info = info(threadPool, threadPoolName);
@@ -217,20 +217,6 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         });
     }
 
-    public void testResizingScalingThreadPoolQueue() throws InterruptedException {
-        final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
-        runScalingThreadPoolTest(Settings.EMPTY, (clusterSettings, threadPool) -> {
-            final int size = randomIntBetween(1, Integer.MAX_VALUE);
-            final IllegalArgumentException e = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> clusterSettings.applySettings(settings("threadpool." + threadPoolName + ".queue_size", size)));
-            assertThat(e, hasToString(
-                    "java.lang.IllegalArgumentException: thread pool [" + threadPoolName +
-                        "] of type scaling can not have its queue re-sized but was [" +
-                            size + "]"));
-        });
-    }
-
     public void runScalingThreadPoolTest(
             final Settings settings,
             final BiConsumer<ClusterSettings, ThreadPool> consumer) throws InterruptedException {
@@ -239,6 +225,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             final String test = Thread.currentThread().getStackTrace()[2].getMethodName();
             final Settings nodeSettings = Settings.builder().put(settings).put("node.name", test).build();
             threadPool = new ThreadPool(nodeSettings);
+            threadPool.start();
             final ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             threadPool.setClusterSettings(clusterSettings);
             consumer.accept(clusterSettings, threadPool);

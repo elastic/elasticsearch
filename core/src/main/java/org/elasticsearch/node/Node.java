@@ -211,6 +211,7 @@ public class Node implements Closeable {
         }
         final NetworkService networkService = new NetworkService(settings);
         final ThreadPool threadPool = new ThreadPool(settings);
+
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         boolean success = false;
         try {
@@ -232,7 +233,8 @@ public class Node implements Closeable {
             modules.add(scriptModule);
             modules.add(new NodeEnvironmentModule(nodeEnvironment));
             modules.add(new ClusterNameModule(this.settings));
-            modules.add(new ThreadPoolModule(threadPool));
+            final ThreadPoolModule threadPoolModule = new ThreadPoolModule(threadPool);
+            modules.add(threadPoolModule);
             modules.add(new DiscoveryModule(this.settings));
             modules.add(new ClusterModule(this.settings));
             modules.add(new IndicesModule());
@@ -246,7 +248,12 @@ public class Node implements Closeable {
             modules.add(new AnalysisModule(environment));
 
             pluginsService.processModules(modules);
+
             scriptModule.prepareSettings(settingsModule);
+
+            threadPoolModule.prepareSettings(settingsModule);
+            threadPool.start();
+
             injector = modules.createInjector();
 
             client = injector.getInstance(Client.class);

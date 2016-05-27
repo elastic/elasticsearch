@@ -1,0 +1,138 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.threadpool;
+
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.node.Node;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+
+public class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecutorBuilder.ScalingExecutorSettings> {
+
+    private final Setting<Integer> coreSetting;
+    private final Setting<Integer> maxSetting;
+    private final Setting<TimeValue> keepAliveSetting;
+
+    public ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive) {
+        this(name, core, max, keepAlive, "thread_pool");
+    }
+
+    public ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive, final String prefix) {
+        super(name);
+        this.coreSetting =
+            Setting.intSetting(settingsKey(prefix, name, "core"), core, Setting.Property.Dynamic, Setting.Property.NodeScope);
+        this.maxSetting = Setting.intSetting(settingsKey(prefix, name, "max"), max, Setting.Property.Dynamic, Setting.Property.NodeScope);
+        this.keepAliveSetting =
+            Setting.timeSetting(settingsKey(prefix, name, "keep_alive"), keepAlive, Setting.Property.Dynamic, Setting.Property.NodeScope);
+    }
+
+    @Override
+    public List<Setting<?>> registerSettings() {
+        return Arrays.asList(coreSetting, maxSetting, keepAliveSetting);
+    }
+
+    @Override
+    public ScalingExecutorSettings settings(Settings settings) {
+        final String nodeName = Node.NODE_NAME_SETTING.get(settings);
+        final int coreThreads = coreSetting.get(settings);
+        final int maxThreads = maxSetting.get(settings);
+        final TimeValue keepAlive = keepAliveSetting.get(settings);
+        return new ScalingExecutorSettings(nodeName, coreThreads, maxThreads, keepAlive);
+    }
+
+    public ThreadPool.ExecutorHolder holder(
+        final ThreadPool.ExecutorHolder previousHolder,
+        final ScalingExecutorSettings settings,
+        final ThreadContext threadContext) {
+        final ThreadPool.Info previousInfo = previousHolder != null ? previousHolder.info : null;
+        if (previousHolder != null) {
+            TimeValue updatedKeepAlive = settings.keepAlive;
+            int updatedCore = settings.core;
+            int updatedMax = settings.max;
+            if (!previousInfo.getKeepAlive().equals(updatedKeepAlive) ||
+                previousInfo.getMin() != updatedCore ||
+                previousInfo.getMax() != updatedMax) {
+                final EsThreadPoolExecutor executor = (EsThreadPoolExecutor) previousHolder.executor();
+                if (!previousInfo.getKeepAlive().equals(updatedKeepAlive)) {
+                    executor.setKeepAliveTime(updatedKeepAlive.millis(), TimeUnit.MILLISECONDS);
+                }
+                if (previousInfo.getMin() != updatedCore) {
+                    executor.setCorePoolSize(updatedCore);
+                }
+                if (previousInfo.getMax() != updatedMax) {
+                    executor.setMaximumPoolSize(updatedMax);
+                }
+                final ThreadPool.Info info =
+                    new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.SCALING, updatedCore, updatedMax, updatedKeepAlive, null);
+                return new ThreadPool.ExecutorHolder(previousHolder.executor(), info);
+            }
+            return previousHolder;
+        }
+        TimeValue keepAlive = settings.keepAlive;
+        int core = settings.core;
+        int max = settings.max;
+        final ThreadPool.Info info = new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.SCALING, core, max, keepAlive, null);
+        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(EsExecutors.threadName(settings.nodeName, name()));
+        final Executor executor =
+            EsExecutors.newScaling(name(), core, max, keepAlive.millis(), TimeUnit.MILLISECONDS, threadFactory, threadContext);
+        return new ThreadPool.ExecutorHolder(executor, info);
+    }
+
+    @Override
+    public String formatInfo(ThreadPool.Info info) {
+        return String.format(
+            Locale.ROOT,
+            "name [%s], core [%d], max [%d], keep alive [%s]",
+            info.getName(),
+            info.getMin(),
+            info.getMax(),
+            info.getKeepAlive());
+    }
+
+    static class ScalingExecutorSettings extends ExecutorBuilder.ExecutorSettings {
+
+        private final int core;
+        private final int max;
+        private final TimeValue keepAlive;
+
+        public ScalingExecutorSettings(final String nodeName, final int core, final int max, final TimeValue keepAlive) {
+            super(nodeName);
+            this.core = core;
+            this.max = max;
+            this.keepAlive = keepAlive;
+        }
+    }
+
+}
+
+
+
+
+

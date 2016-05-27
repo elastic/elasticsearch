@@ -112,6 +112,7 @@ public class AggregatorParsingTests extends ESTestCase {
         index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         final ThreadPool threadPool = new ThreadPool(settings);
+        threadPool.start();
         final ClusterService clusterService = createClusterService(threadPool);
         setState(clusterService, new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder()
                 .put(new IndexMetaData.Builder(index.getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));

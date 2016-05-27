@@ -20,20 +20,37 @@
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.SettingsModule;
 
-/**
- *
- */
+import java.util.ArrayList;
+import java.util.List;
+
 public class ThreadPoolModule extends AbstractModule {
 
+    private final List<ExecutorBuilder> builders = new ArrayList<>();
     private final ThreadPool threadPool;
 
-    public ThreadPoolModule(ThreadPool threadPool) {
+    public ThreadPoolModule(final ThreadPool threadPool) {
         this.threadPool = threadPool;
+    }
+
+    public void prepareSettings(SettingsModule settingsModule) {
+        for (final ExecutorBuilder<?> builder : threadPool.builders()) {
+            builder.registerSettings().forEach(settingsModule::registerSetting);
+        }
+        for (final ExecutorBuilder<?> builder : builders) {
+            builder.registerSettings().forEach(settingsModule::registerSetting);
+            threadPool.add(builder);
+        }
+    }
+
+    public void registerExecutor(final ExecutorBuilder<?> builder) {
+        builders.add(builder);
     }
 
     @Override
     protected void configure() {
         bind(ThreadPool.class).toInstance(threadPool);
     }
+
 }

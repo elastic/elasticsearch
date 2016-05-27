@@ -130,7 +130,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         ThreadPool threadPool = internalCluster().getDataNodeInstance(ThreadPool.class);
         // Check that settings are changed
         assertThat(((ThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getQueue().remainingCapacity(), equalTo(1000));
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("threadpool.search.queue_size", 2000).build()).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("thread_pool.search.queue_size", 2000).build()).execute().actionGet();
         assertThat(((ThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getQueue().remainingCapacity(), equalTo(2000));
 
         // Make sure that threads continue executing when executor is replaced
@@ -145,7 +145,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                         //
                     }
                 });
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("threadpool.search.queue_size", 1000).build()).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("thread_pool.search.queue_size", 1000).build()).execute().actionGet();
         assertThat(threadPool.executor(Names.SEARCH), not(sameInstance(oldExecutor)));
         assertThat(((ThreadPoolExecutor) oldExecutor).isShutdown(), equalTo(true));
         assertThat(((ThreadPoolExecutor) oldExecutor).isTerminating(), equalTo(true));
@@ -163,7 +163,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                     }
                 }
         );
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("threadpool.search.queue_size", 500)).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("thread_pool.search.queue_size", 500)).execute().actionGet();
         barrier.await(10, TimeUnit.SECONDS);
 
         // Check that node info is correct

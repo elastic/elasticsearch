@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.test.ESAllocationTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -73,7 +74,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
 
     @Before
     public void createDelayedAllocationService() {
-        threadPool = new ThreadPool(getTestName());
+        threadPool = new TestThreadPool(getTestName());
         clusterService = mock(ClusterService.class);
         allocationService = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
         delayedAllocationService = new TestDelayAllocationService(Settings.EMPTY, threadPool, clusterService, allocationService);

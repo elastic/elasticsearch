@@ -43,6 +43,11 @@ public final class Definition {
                       "java.lang.txt",
                       "java.math.txt",
                       "java.text.txt",
+                      "java.time.txt",
+                      "java.time.chrono.txt",
+                      "java.time.format.txt",
+                      "java.time.temporal.txt",
+                      "java.time.zone.txt",
                       "java.util.txt",
                       "java.util.function.txt",
                       "java.util.stream.txt"));

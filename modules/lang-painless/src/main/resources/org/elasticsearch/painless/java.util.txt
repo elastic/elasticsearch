@@ -491,6 +491,7 @@ class Calendar -> java.util.Calendar extends Comparable,Object {
   void setTimeInMillis(long)
   void setTimeZone(TimeZone)
   void setWeekDate(int,int,int)
+  Instant toInstant()
 }
 
 class Calendar.Builder -> java.util.Calendar$Builder extends Object {
@@ -583,6 +584,7 @@ class Date -> java.util.Date extends Comparable,Object {
   boolean after(Date)
   boolean before(Date)
   def clone()
+  Date from(Instant)
   long getTime()
   void setTime(long)
 }
@@ -976,6 +978,8 @@ class TimeZone -> java.util.TimeZone extends Object {
   boolean hasSameRules(TimeZone)
   boolean inDaylightTime(Date)
   boolean observesDaylightTime()
+  void setRawOffset(int)
+  ZoneId toZoneId()
   boolean useDaylightTime()
 }
 

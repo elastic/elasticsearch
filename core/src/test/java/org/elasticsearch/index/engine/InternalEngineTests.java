@@ -44,6 +44,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
@@ -590,6 +591,42 @@ public class InternalEngineTests extends ESTestCase {
         doc = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         engine.index(new Engine.Index(newUid("2"), doc));
         engine.flush();
+    }
+
+    public void testTranslogMultipleOperationsSameDocument() throws IOException {
+        final int ops = randomIntBetween(1, 32);
+        Engine initialEngine;
+        final List<Engine.Operation> operations = new ArrayList<>();
+        try {
+            initialEngine = engine;
+            for (int i = 0; i < ops; i++) {
+                final ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+                if (randomBoolean()) {
+                    final Engine.Index operation = new Engine.Index(newUid("test#1"), doc, i, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime());
+                    operations.add(operation);
+                    initialEngine.index(operation);
+                } else {
+                    final Engine.Delete operation = new Engine.Delete("test", "1", newUid("test#1"), i, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false);
+                    operations.add(operation);
+                    initialEngine.delete(operation);
+                }
+            }
+        } finally {
+            IOUtils.close(engine);
+        }
+
+        Engine recoveringEngine = null;
+        try {
+            recoveringEngine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
+            recoveringEngine.recoverFromTranslog();
+            try (Engine.Searcher searcher = recoveringEngine.acquireSearcher("test")) {
+                final TotalHitCountCollector collector = new TotalHitCountCollector();
+                searcher.searcher().search(new MatchAllDocsQuery(), collector);
+                assertThat(collector.getTotalHits(), equalTo(operations.get(operations.size() - 1) instanceof Engine.Delete ? 0 : 1));
+            }
+        } finally {
+            IOUtils.close(recoveringEngine);
+        }
     }
 
     public void testTranslogRecoveryDoesNotReplayIntoTranslog() throws IOException {

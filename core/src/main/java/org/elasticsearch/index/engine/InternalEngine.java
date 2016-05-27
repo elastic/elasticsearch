@@ -395,6 +395,12 @@ public class InternalEngine extends Engine {
                 final Translog.Location translogLocation = translog.add(new Translog.Index(index));
                 index.setTranslogLocation(translogLocation);
                 versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, index.getTranslogLocation()));
+            } else {
+                // we do not replay in to the translog, so there is no
+                // translog location; that is okay because real-time
+                // gets are not possible during recovery and we will
+                // flush when the recovery is complete
+                versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, null));
             }
 
             return created;
@@ -498,6 +504,12 @@ public class InternalEngine extends Engine {
                 final Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
                 delete.setTranslogLocation(translogLocation);
                 versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), delete.getTranslogLocation()));
+            } else {
+                // we do not replay in to the translog, so there is no
+                // translog location; that is okay because real-time
+                // gets are not possible during recovery and we will
+                // flush when the recovery is complete
+                versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), null));
             }
         }
     }

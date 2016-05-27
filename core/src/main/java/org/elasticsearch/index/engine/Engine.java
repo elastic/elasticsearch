@@ -178,14 +178,6 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Adds all indices in the given directories to the engine
-     */
-    public void addIndexes(Directory... directories) throws IOException {
-        // this bascially delegates to IndexWriter#addIndices
-        throw new UnsupportedOperationException();
-    }
-
-    /**
      * A throttling class that can be activated, causing the
      * {@code acquireThrottle} method to block on a lock when throttling
      * is enabled

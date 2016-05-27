@@ -178,7 +178,7 @@ final class StoreRecovery {
                     index.addFileDetail(dest, l, false);
                     copies.set(true);
                     final IndexInput input = in.openInput(name, context);
-                    return new IndexInput(name) {
+                    return new IndexInput("StatsDirectoryWrapper(" + input.toString() + ")") {
                         @Override
                         public void close() throws IOException {
                             input.close();

@@ -394,6 +394,8 @@ public class InternalEngine extends Engine {
                 final Translog.Location translogLocation = translog.add(new Translog.Index(index));
                 index.setTranslogLocation(translogLocation);
                 versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, index.getTranslogLocation()));
+            } else {
+                versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, null));
             }
 
             return created;
@@ -497,6 +499,8 @@ public class InternalEngine extends Engine {
                 final Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
                 delete.setTranslogLocation(translogLocation);
                 versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), delete.getTranslogLocation()));
+            } else {
+                versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), null));
             }
         }
     }

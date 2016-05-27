@@ -117,9 +117,9 @@ public class S3Repository extends BlobStoreRepository {
          */
         Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("repositories.s3.max_retries", 3, Property.NodeScope);
         /**
-         * repositories.s3.throttle_retries: Set to `true` if you want to throttle retries. Defaults to AWS SDK default value (`false`).
+         * repositories.s3.use_throttle_retries: Set to `true` if you want to throttle retries. Defaults to AWS SDK default value (`false`).
          */
-        Setting<Boolean> THROTTLE_RETRIES_SETTING = Setting.boolSetting("repositories.s3.throttle_retries",
+        Setting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.boolSetting("repositories.s3.use_throttle_retries",
             ClientConfiguration.DEFAULT_THROTTLE_RETRIES, Property.NodeScope);
         /**
          * repositories.s3.chunk_size: Big files can be broken down into chunks during snapshotting if needed. Defaults to 1g.
@@ -203,10 +203,10 @@ public class S3Repository extends BlobStoreRepository {
          */
         Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("max_retries", 3, Property.NodeScope);
         /**
-         * throttle_retries
-         * @see  Repositories#THROTTLE_RETRIES_SETTING
+         * use_throttle_retries
+         * @see  Repositories#USE_THROTTLE_RETRIES_SETTING
          */
-        Setting<Boolean> THROTTLE_RETRIES_SETTING = Setting.boolSetting("throttle_retries",
+        Setting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.boolSetting("use_throttle_retries",
             ClientConfiguration.DEFAULT_THROTTLE_RETRIES, Property.NodeScope);
         /**
          * chunk_size
@@ -274,7 +274,7 @@ public class S3Repository extends BlobStoreRepository {
         boolean serverSideEncryption = getValue(repositorySettings, Repository.SERVER_SIDE_ENCRYPTION_SETTING, Repositories.SERVER_SIDE_ENCRYPTION_SETTING);
         ByteSizeValue bufferSize = getValue(repositorySettings, Repository.BUFFER_SIZE_SETTING, Repositories.BUFFER_SIZE_SETTING);
         Integer maxRetries = getValue(repositorySettings, Repository.MAX_RETRIES_SETTING, Repositories.MAX_RETRIES_SETTING);
-        boolean throttleRetries = getValue(repositorySettings, Repository.THROTTLE_RETRIES_SETTING, Repositories.THROTTLE_RETRIES_SETTING);
+        boolean useThrottleRetries = getValue(repositorySettings, Repository.USE_THROTTLE_RETRIES_SETTING, Repositories.USE_THROTTLE_RETRIES_SETTING);
         this.chunkSize = getValue(repositorySettings, Repository.CHUNK_SIZE_SETTING, Repositories.CHUNK_SIZE_SETTING);
         this.compress = getValue(repositorySettings, Repository.COMPRESS_SETTING, Repositories.COMPRESS_SETTING);
 
@@ -290,13 +290,13 @@ public class S3Repository extends BlobStoreRepository {
 
         logger.debug("using bucket [{}], region [{}], endpoint [{}], protocol [{}], chunk_size [{}], server_side_encryption [{}], " +
             "buffer_size [{}], max_retries [{}], throttle_retries [{}], cannedACL [{}], storageClass [{}]",
-            bucket, region, endpoint, protocol, chunkSize, serverSideEncryption, bufferSize, maxRetries, throttleRetries, cannedACL,
+            bucket, region, endpoint, protocol, chunkSize, serverSideEncryption, bufferSize, maxRetries, useThrottleRetries, cannedACL,
             storageClass);
 
         String key = getValue(repositorySettings, Repository.KEY_SETTING, Repositories.KEY_SETTING);
         String secret = getValue(repositorySettings, Repository.SECRET_SETTING, Repositories.SECRET_SETTING);
 
-        blobStore = new S3BlobStore(settings, s3Service.client(endpoint, protocol, region, key, secret, maxRetries, throttleRetries),
+        blobStore = new S3BlobStore(settings, s3Service.client(endpoint, protocol, region, key, secret, maxRetries, useThrottleRetries),
                 bucket, region, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass);
 
         String basePath = getValue(repositorySettings, Repository.BASE_PATH_SETTING, Repositories.BASE_PATH_SETTING);

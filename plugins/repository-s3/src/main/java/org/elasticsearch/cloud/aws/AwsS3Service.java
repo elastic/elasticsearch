@@ -154,5 +154,5 @@ public interface AwsS3Service extends LifecycleComponent<AwsS3Service> {
     }
 
     AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries,
-                    boolean throttleRetries);
+                    boolean useThrottleRetries);
 }

@@ -218,7 +218,7 @@ The following settings are supported:
 
     Number of retries in case of S3 errors. Defaults to `3`.
 
-`throttle_retries`::
+`use_throttle_retries`::
 
     Set to `true` if you want to throttle retries. Defaults to AWS SDK default value (`false`).
 
@@ -243,7 +243,8 @@ The following settings are supported:
     different classes, see http://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS Storage Classes Guide]
 
 Note that you can define S3 repository settings for all S3 repositories in `elasticsearch.yml` configuration file.
-They are all prefixed with `repositories.s3.`.
+They are all prefixed with `repositories.s3.`. For example, you can define compression for all S3 repositories
+by setting `repositories.s3.compress: true` in `elasticsearch.yml`.
 
 The S3 repositories use the same credentials as the rest of the AWS services
 provided by this plugin (`discovery`). See <<repository-s3-usage>> for details.

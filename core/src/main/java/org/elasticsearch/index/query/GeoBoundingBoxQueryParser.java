@@ -188,6 +188,13 @@ public class GeoBoundingBoxQueryParser implements QueryParser {
             }
         }
 
+        // validate top.lat > bottom.lat
+        if (topLeft.lat() < bottomRight.lat()) {
+            throw new QueryParsingException(parseContext, "top is below bottom corner: [{}] vs [{}]", topLeft.lat(), bottomRight.lat());
+        } else if (topLeft.lat() == bottomRight.lat()) {
+            throw new QueryParsingException(parseContext, "top latitude cannot equal bottom latitude: [{}] vs [{}]", topLeft.lat(), bottomRight.lat());
+        }
+
         MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
         if (fieldType == null) {
             throw new QueryParsingException(parseContext, "failed to parse [{}] query. could not find [{}] field [{}]", NAME, GeoPointFieldMapper.CONTENT_TYPE, fieldName);

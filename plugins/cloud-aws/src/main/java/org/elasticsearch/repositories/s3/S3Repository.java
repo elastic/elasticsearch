@@ -127,7 +127,7 @@ public class S3Repository extends BlobStoreRepository {
         String cannedACL = repositorySettings.settings().get("canned_acl", settings.get(REPOSITORY_S3.CANNED_ACL, null));
 
         logger.debug("using bucket [{}], region [{}], endpoint [{}], protocol [{}], chunk_size [{}], server_side_encryption [{}], " +
-                "buffer_size [{}], max_retries [{}], throttle_retries [{}], cannedACL [{}], storageClass [{}]",
+                "buffer_size [{}], max_retries [{}], use_throttle_retries [{}], cannedACL [{}], storageClass [{}]",
             bucket, region, endpoint, protocol, chunkSize, serverSideEncryption, bufferSize, maxRetries, useThrottleRetries, cannedACL,
             storageClass);
 

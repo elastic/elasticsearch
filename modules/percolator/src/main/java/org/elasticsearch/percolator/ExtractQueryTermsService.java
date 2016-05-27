@@ -116,7 +116,7 @@ public final class ExtractQueryTermsService {
             for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
                 terms.add(new Term(iterator.field(), term));
             }
-            return  terms;
+            return terms;
         } else if (query instanceof PhraseQuery) {
             Term[] terms = ((PhraseQuery) query).getTerms();
             if (terms.length == 0) {
@@ -142,6 +142,7 @@ public final class ExtractQueryTermsService {
                 }
             }
             if (hasRequiredClauses) {
+                UnsupportedQueryException uqe = null;
                 Set<Term> bestClause = null;
                 for (BooleanClause clause : clauses) {
                     if (clause.isRequired() == false) {
@@ -151,12 +152,21 @@ public final class ExtractQueryTermsService {
                         continue;
                     }
 
-                    Set<Term> temp = extractQueryTerms(clause.getQuery());
+                    Set<Term> temp;
+                    try {
+                        temp = extractQueryTerms(clause.getQuery());
+                    } catch (UnsupportedQueryException e) {
+                        uqe = e;
+                        continue;
+                    }
                     bestClause = selectTermListWithTheLongestShortestTerm(temp, bestClause);
                 }
                 if (bestClause != null) {
                     return bestClause;
                 } else {
+                    if (uqe != null) {
+                        throw uqe;
+                    }
                     return Collections.emptySet();
                 }
             } else {

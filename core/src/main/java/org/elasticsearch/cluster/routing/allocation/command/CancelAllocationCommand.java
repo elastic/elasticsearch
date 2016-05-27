@@ -146,7 +146,6 @@ public class CancelAllocationCommand implements AllocationCommand {
                     }
                 } else if (shardRouting.relocating()) {
 
-                    // the shard is relocating to another node, cancel the recovery on the other node, and deallocate this one
                     if (!allowPrimary && shardRouting.primary()) {
                         // can't cancel a primary shard being initialized
                         if (explain) {
@@ -156,16 +155,29 @@ public class CancelAllocationCommand implements AllocationCommand {
                         throw new IllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " +
                                 discoNode + ", shard is primary and initializing its state");
                     }
-                    shardRouting = it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null));
-                    // now, go and find the shard that is initializing on the target node, and cancel it as well...
+                    it.remove();
+                    boolean addAsUnassigned = true;
+                    // now, find the shard that is initializing on the target node
                     RoutingNodes.RoutingNodeIterator initializingNode = allocation.routingNodes().routingNodeIter(shardRouting.relocatingNodeId());
                     if (initializingNode != null) {
                         while (initializingNode.hasNext()) {
                             ShardRouting initializingShardRouting = initializingNode.next();
                             if (initializingShardRouting.isRelocationTargetOf(shardRouting)) {
-                                initializingNode.remove();
+                                if (shardRouting.primary()) {
+                                    // cancel and remove target shard
+                                    initializingNode.remove();
+                                } else {
+                                    // promote to initializing shard without relocation source and ensure that removed relocation source
+                                    // is not added back as unassigned shard
+                                    initializingNode.removeRelocationSource();
+                                    addAsUnassigned = false;
+                                }
+                                break;
                             }
                         }
+                    }
+                    if (addAsUnassigned) {
+                        it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null));
                     }
                 }
             } else {

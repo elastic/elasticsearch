@@ -126,12 +126,6 @@ public class BulkByScrollTask extends CancellableTask {
          */
         public static final String INCLUDE_UPDATED = "include_updated";
 
-        /**
-         * XContent param name to indicate if "deleted" count must be included
-         * in the response.
-         */
-        public static final String INCLUDE_DELETED = "include_deleted";
-
         private final long total;
         private final long updated;
         private final long created;
@@ -213,9 +207,7 @@ public class BulkByScrollTask extends CancellableTask {
             if (params.paramAsBoolean(INCLUDE_CREATED, true)) {
                 builder.field("created", created);
             }
-            if (params.paramAsBoolean(INCLUDE_DELETED, true)) {
-                builder.field("deleted", deleted);
-            }
+            builder.field("deleted", deleted);
             builder.field("batches", batches);
             builder.field("version_conflicts", versionConflicts);
             builder.field("noops", noops);

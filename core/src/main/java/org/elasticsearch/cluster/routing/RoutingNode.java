@@ -69,10 +69,6 @@ public class RoutingNode implements Iterable<ShardRouting> {
         return Collections.unmodifiableCollection(shards.values()).iterator();
     }
 
-    Iterator<ShardRouting> mutableIterator() {
-        return shards.values().iterator();
-    }
-
     /**
      * Returns the nodes {@link DiscoveryNode}.
      *
@@ -117,6 +113,11 @@ public class RoutingNode implements Iterable<ShardRouting> {
         }
         ShardRouting previousValue = shards.put(newShard.shardId(), newShard);
         assert previousValue == oldShard : "expected shard " + previousValue + " but was " + oldShard;
+    }
+
+    void remove(ShardRouting shard) {
+        ShardRouting previousValue = shards.remove(shard.shardId());
+        assert previousValue == shard : "expected shard " + previousValue + " but was " + shard;
     }
 
     /**

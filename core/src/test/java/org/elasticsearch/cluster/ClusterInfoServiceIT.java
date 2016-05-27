@@ -170,8 +170,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         }
         ClusterService clusterService = internalTestCluster.getInstance(ClusterService.class, internalTestCluster.getMasterName());
         ClusterState state = clusterService.state();
-        RoutingNodes routingNodes = state.getRoutingNodes();
-        for (ShardRouting shard : routingNodes.getRoutingTable().allShards()) {
+        for (ShardRouting shard : state.routingTable().allShards()) {
             String dataPath = info.getDataPath(shard);
             assertNotNull(dataPath);
 

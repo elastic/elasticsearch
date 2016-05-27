@@ -59,10 +59,8 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
     public boolean processExistingRecoveries(RoutingAllocation allocation) {
         boolean changed = false;
         MetaData metaData = allocation.metaData();
-        for (RoutingNodes.RoutingNodesIterator nodes = allocation.routingNodes().nodes(); nodes.hasNext(); ) {
-            nodes.next();
-            for (RoutingNodes.RoutingNodeIterator it = nodes.nodeShards(); it.hasNext(); ) {
-                ShardRouting shard = it.next();
+        for (RoutingNode routingNode : allocation.routingNodes()) {
+            for (ShardRouting shard : routingNode) {
                 if (shard.primary() == true) {
                     continue;
                 }
@@ -85,7 +83,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                     continue; // still fetching
                 }
 
-                ShardRouting primaryShard = allocation.routingNodes().activePrimary(shard);
+                ShardRouting primaryShard = allocation.routingNodes().activePrimary(shard.shardId());
                 assert primaryShard != null : "the replica shard can be allocated on at least one node, so there must be an active primary";
                 TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore = findStore(primaryShard, allocation, shardStores);
                 if (primaryStore == null || primaryStore.allocated() == false) {
@@ -106,7 +104,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                         // so we found a better one, cancel this one
                         logger.debug("cancelling allocation of replica on [{}], sync id match found on node [{}]",
                                 currentNode, nodeWithHighestMatch);
-                        it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
+                        allocation.routingNodes().moveToUnassigned(shard, new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
                                 "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node [" + nodeWithHighestMatch + "]",
                                 null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false));
                         changed = true;
@@ -149,7 +147,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 continue; // still fetching
             }
 
-            ShardRouting primaryShard = routingNodes.activePrimary(shard);
+            ShardRouting primaryShard = routingNodes.activePrimary(shard.shardId());
             assert primaryShard != null : "the replica shard can be allocated on at least one node, so there must be an active primary";
             TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore = findStore(primaryShard, allocation, shardStores);
             if (primaryStore == null || primaryStore.allocated() == false) {

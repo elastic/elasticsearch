@@ -418,7 +418,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                     toId, routingNodes.node(toId).node().getVersion());
                 assertTrue(routingNodes.node(toId).node().getVersion().onOrAfter(routingNodes.node(fromId).node().getVersion()));
             } else {
-                ShardRouting primary = routingNodes.activePrimary(r);
+                ShardRouting primary = routingNodes.activePrimary(r.shardId());
                 assertThat(primary, notNullValue());
                 String fromId = primary.currentNodeId();
                 String toId = r.relocatingNodeId();
@@ -431,7 +431,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         mutableShardRoutings = routingNodes.shardsWithState(ShardRoutingState.INITIALIZING);
         for (ShardRouting r : mutableShardRoutings) {
             if (!r.primary()) {
-                ShardRouting primary = routingNodes.activePrimary(r);
+                ShardRouting primary = routingNodes.activePrimary(r.shardId());
                 assertThat(primary, notNullValue());
                 String fromId = primary.currentNodeId();
                 String toId = r.currentNodeId();

@@ -1,0 +1,67 @@
+[[indices-shrink-index]]
+== Shrink Index
+
+The shrink index API allows to shrink an existing index into a new index with a single shard.
+In order to shrink an index, all its shards must be allocated on a single node in the cluster.
+This is required since the shrink command will copy all shards index files into the target index
+data folder when the primary of the target index is initially allocated.
+
+When an index is shrinked no write operations should happen to the source index. Elasticsearch will
+enforce the `read-only` property when the shrink command is executed. All operations necessary to shrink the
+source index are executed during initial primary recovery. Once the target index primary shard is started the
+shrink operation has successfully finished. To monitor status and progress use <<cat-recovery>>
+
+
+To shrink and index all shards of that index must be allocated on a single node.
+
+[source,js]
+--------------------------------------------------
+$ curl -XPUT 'http://localhost:9200/logs/' -d '{
+    "settings" : {
+        "index.routing.allocation.require._name" : "shrink_node_name" <1>
+        "index.blocks.write" : true <2>
+    }
+}'
+--------------------------------------------------
+<1> Forces the relocation of all of the indices shards to the node `shrink_node_name`
+<2> Prevents write operations to this index while still allowing metadata changes like deleting the index.
+
+The above second curl example shows how an index called `logs` can be
+forced to allocate at least one copy of each shard on a specific node in the cluster.
+
+The `_shrink` API is similar to <<indices-create-index>> and accepts `settings` and `aliases` for the target index.
+
+[source,js]
+--------------------------------------------------
+$ curl -XPUT 'http://localhost:9200/logs/_shrink/logs_single_shard' -d '{
+    "settings" : {
+        "index.codec" : "best_compression", <1>
+        "index.number_of_replicas" : 1 <2>
+    },
+}'
+--------------------------------------------------
+<1> Enables `best_compression` codec on the target index
+<2> Sets the number of replicas on the target index to `1`, the default is `0`
+
+The API call above returns immediately once the target index is created but doesn't wait
+for the shrink operation to start. Once the target indices primary shard moves to state `initializing`
+the shrink operation has started.
+
+[float]
+[[shrink-index-limitations]]
+=== Limitations
+
+Indices can only be shrinked into a single shard if they fully the following requirements:
+
+ * an instance of all of the indices shards must be allocated on a single node
+ * the index must not contain more than `2.14 billion` documents (`2147483519`) in total (sum of all shards)
+  This is the maximum shard size elasticsearch can support.
+ * the index must have more than one shard
+ * the index must be `read-only`, ie. have a cluster block set `index.blocks.write=true`
+ * the target index must not exist
+ * all `index.analysis.*` and `index.similarity.*` settings passed to the `_shrink` call will be overwritten with the
+  source indices settings.
+ * the target index will be created with `index.number_of_replicas=0` by default
+ * if the target index can't be allocated on the shrink node, due to throttling or other allocation deciders,
+  its primary shard will stay `unassigned` until it can be allocated on that node
+

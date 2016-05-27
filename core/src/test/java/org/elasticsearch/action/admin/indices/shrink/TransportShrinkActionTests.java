@@ -182,6 +182,7 @@ public class TransportShrinkActionTests extends ESTestCase {
         assertEquals("analysis settings must be copied",
             "keyword", request.settings().get("index.analysis.analyzer.my_analyzer.tokenizer"));
         assertEquals("node1", request.settings().get("index.routing.allocation.include._id"));
+        assertEquals("1", request.settings().get("index.allocation.max_retries"));
         assertEquals("shrink_index", request.cause());
 
         target.getShrinkIndexReqeust().settings(Settings.builder().put("number_of_replicas", 1));
@@ -191,6 +192,7 @@ public class TransportShrinkActionTests extends ESTestCase {
         assertEquals(indexName, request.shrinkFrom().getName());
         assertEquals("1", request.settings().get("index.number_of_shards"));
         assertEquals("1", request.settings().get("index.number_of_replicas"));
+        assertEquals("1", request.settings().get("index.allocation.max_retries"));
 
         assertEquals("similarity settings must be copied", "BM25", request.settings().get("index.similarity.default.type"));
         assertEquals("analysis settings must be copied",

@@ -189,6 +189,8 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
                 IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(tragetIndexSettings) : 0)
             // we use "i.r.a.include" rather than "i.r.a.require" since it's allows one of the nodes holding an instance of all shards.
             .put("index.routing.allocation.include._id", Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
+            // we only try once and then give up with a shrink index
+            .put("index.allocation.max_retries", 1)
             // now copy all similarity / analysis settings - this overrides all settings from the user unless they wanna add extra settings
             .put(metaData.getSettings().filter(analysisSimilarityPredicate))
         );

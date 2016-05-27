@@ -24,6 +24,7 @@ import org.apache.http.Consts;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
+import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
@@ -59,6 +60,19 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Client that connects to an elasticsearch cluster through http.
+ * Must be created using {@link Builder}, which allows to set all the different options or just rely on defaults.
+ * The hosts that are part of the cluster need to be provided at creation time, but can also be replaced later
+ * by calling {@link #setHosts(HttpHost...)}.
+ * The method {@link #performRequest(String, String, Map, HttpEntity, Header...)} allows to send a request to the cluster. When
+ * sending a request, a host gets selected out of the provided ones in a round-robin fashion. Failing hosts are marked dead and
+ * retried after a certain amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times they previously
+ * failed (the more failures, the later they will be retried). In case of failures all of the alive nodes (or dead nodes that
+ * deserve a retry) are retried till one responds or none of them does, in which case an {@link IOException} will be thrown.
+ *
+ * Requests can be traced by enabling trace logging for "tracer". The trace logger outputs requests and responses in curl format.
+ */
 public final class RestClient implements Closeable {
 
     private static final Log logger = LogFactory.getLog(RestClient.class);
@@ -77,6 +91,10 @@ public final class RestClient implements Closeable {
         setHosts(hosts);
     }
 
+    /**
+     * Replaces the hosts that the client communicates with.
+     * @see HttpHost
+     */
     public synchronized void setHosts(HttpHost... hosts) {
         Set<HttpHost> httpHosts = new HashSet<>();
         for (HttpHost host : hosts) {
@@ -87,6 +105,23 @@ public final class RestClient implements Closeable {
         this.blacklist.clear();
     }
 
+    /**
+     * Sends a request to the elasticsearch cluster that the current client points to.
+     * Selects a host out of the provided ones in a round-robin fashion. Failing hosts are marked dead and retried after a certain
+     * amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times they previously failed (the more failures,
+     * the later they will be retried). In case of failures all of the alive nodes (or dead nodes that deserve a retry) are retried
+     * till one responds or none of them does, in which case an {@link IOException} will be thrown.
+     *
+     * @param method the http method
+     * @param endpoint the path of the request (without host and port)
+     * @param params the query_string parameters
+     * @param entity the body of the request, null if not applicable
+     * @param headers the optional request headers
+     * @return the response returned by elasticsearch
+     * @throws IOException in case of a problem or the connection was aborted
+     * @throws ClientProtocolException in case of an http protocol error
+     * @throws ElasticsearchResponseException in case elasticsearch responded with a status code that indicated an error
+     */
     public ElasticsearchResponse performRequest(String method, String endpoint, Map<String, String> params,
                                                 HttpEntity entity, Header... headers) throws IOException {
         URI uri = buildUri(endpoint, params);

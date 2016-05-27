@@ -37,9 +37,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Calls nodes info api and returns a list of http hosts extracted from it.
+ * Class responsible for sniffing nodes from an elasticsearch cluster and setting them to a provided instance of {@link RestClient}.
+ * Must be created via {@link Builder}, which allows to set all of the different options or rely on defaults.
+ * A background task fetches the nodes from elasticsearch and updates them periodically.
+ * Supports sniffing on failure, meaning that the client will notify the sniffer at each host failure, so that nodes can be updated
+ * straightaway.
  */
-//TODO This could potentially be using _cat/nodes which wouldn't require jackson as a dependency, but we'd have bw comp problems with 2.x
 public final class Sniffer extends RestClient.FailureListener implements Closeable {
 
     private static final Log logger = LogFactory.getLog(Sniffer.class);
@@ -47,7 +50,7 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
     private final boolean sniffOnFailure;
     private final Task task;
 
-    public Sniffer(RestClient restClient, int sniffRequestTimeout, String scheme, int sniffInterval,
+    private Sniffer(RestClient restClient, int sniffRequestTimeout, String scheme, int sniffInterval,
                    boolean sniffOnFailure, int sniffAfterFailureDelay) {
         HostsSniffer hostsSniffer = new HostsSniffer(restClient, sniffRequestTimeout, scheme);
         this.task = new Task(hostsSniffer, restClient, sniffInterval, sniffAfterFailureDelay);

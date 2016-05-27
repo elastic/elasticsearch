@@ -6,6 +6,7 @@ List projects = [
   'core',
   'docs',
   'client',
+  'client-sniffer',
   'distribution:integ-test-zip',
   'distribution:zip',
   'distribution:tar',

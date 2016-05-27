@@ -144,6 +144,8 @@ public class FiltersFunctionScoreQuery extends Query {
         for (int i = 0; i < filterFunctions.length; ++i) {
             subQueryNeedsScores |= filterFunctions[i].function.needsScores();
             filterWeights[i] = searcher.createNormalizedWeight(filterFunctions[i].filter, false);
+            //TODO: Not sure if we should add such a method because it does nothing for any score function except for query_function but
+            // I don't have a good idea where else to put it
             filterFunctions[i].function.initWeight(searcher, needsScores);
         }
         Weight subQueryWeight = subQuery.createWeight(searcher, subQueryNeedsScores);

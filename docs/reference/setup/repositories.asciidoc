@@ -29,7 +29,7 @@ Save the repository definition to  +/etc/apt/sources.list.d/elasticsearch-{major
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb http://packages.elastic.co/elasticsearch/{major-version}/debian stable main" | sudo tee -a /etc/apt/sources.list.d/elasticsearch-{major-version}.list
+echo "deb https://packages.elastic.co/elasticsearch/{major-version}/debian stable main" | sudo tee -a /etc/apt/sources.list.d/elasticsearch-{major-version}.list
 --------------------------------------------------
 
 [WARNING]
@@ -57,7 +57,7 @@ If two entries exist for the same Elasticsearch repository, you will see an erro
 
 ["literal",subs="attributes,callouts"]
 
-Duplicate sources.list entry http://packages.elastic.co/elasticsearch/{major-version}/debian/ ...`
+Duplicate sources.list entry https://packages.elastic.co/elasticsearch/{major-version}/debian/ ...`
 
 Examine +/etc/apt/sources.list.d/elasticsearch-{major-version}.list+ for the duplicate entry or locate the duplicate entry amongst the files in `/etc/apt/sources.list.d/` and the `/etc/apt/sources.list` file.
 ==================================================

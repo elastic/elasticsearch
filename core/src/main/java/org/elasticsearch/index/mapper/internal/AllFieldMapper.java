@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 
@@ -169,7 +170,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static final class AllFieldType extends MappedFieldType {
+    static final class AllFieldType extends MappedFieldType implements StringFieldType {
 
         public AllFieldType() {
             setFieldDataType(new FieldDataType("string"));

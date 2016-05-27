@@ -19,10 +19,17 @@ That will return something like this:
 [source,js]
 --------------------------------------------------
 {
-  "took" : 639,
-  "updated": 1235,
-  "batches": 13,
-  "version_conflicts": 2,
+  "took" : 147,
+  "timed_out": false,
+  "updated": 120,
+  "batches": 1,
+  "version_conflicts": 0,
+  "noops": 0,
+  "retries": 0,
+  "throttled_millis": 0,
+  "requests_per_second": "unlimited",
+  "throttled_until_millis": 0,
+  "total": 120,
   "failures" : [ ]
 }
 --------------------------------------------------
@@ -132,12 +139,12 @@ POST /twitter/_update_by_query?routing=1
 --------------------------------------------------
 // AUTOSENSE
 
-By default `_update_by_query` uses scroll batches of 100. You can change the
+By default `_update_by_query` uses scroll batches of 1000. You can change the
 batch size with the `scroll_size` URL parameter:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/_update_by_query?scroll_size=1000
+POST twitter/_update_by_query?scroll_size=100
 --------------------------------------------------
 // AUTOSENSE
 
@@ -163,8 +170,15 @@ request. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
 <<docs-bulk,Bulk API>>.
 
-`timeout` controls how long each batch waits for the target shard to become
-available. It works exactly how it works in the {ref}/docs-bulk.html[Bulk API].
+`requests_per_second` can be set to any decimal number (`1.4`, `6`, `1000`, etc)
+and throttles the number of requests per second that the update by query issues.
+The throttling is done waiting between bulk batches so that it can manipulate
+the scroll timeout. The wait time is the difference between the time it took the
+batch to complete and the time `requests_per_second * requests_in_the_batch`.
+Since the batch isn't broken into multiple bulk requests large batch sizes will
+cause Elasticsearch to create many requests and then wait for a while before
+starting the next set. This is "bursty" instead of "smooth". The default is
+`unlimited` which is also the only non-number value that it accepts.
 
 [float]
 === Response body
@@ -178,6 +192,8 @@ The JSON response looks like this:
   "updated": 0,
   "batches": 1,
   "version_conflicts": 2,
+  "retries": 0,
+  "throttled_millis": 0,
   "failures" : [ ]
 }
 --------------------------------------------------
@@ -197,6 +213,14 @@ The number of scroll responses pulled back by the the update by query.
 `version_conflicts`::
 
 The number of version conflicts that the update by query hit.
+
+`retries`::
+
+The number of retries that the update by query did in response to a full queue.
+
+`throttled_millis`::
+
+Number of milliseconds the request slept to conform to `requests_per_second`.
 
 `failures`::
 
@@ -244,9 +268,11 @@ The responses looks like:
             "updated" : 3500,
             "created" : 0,
             "deleted" : 0,
-            "batches" : 36,
+            "batches" : 4,
             "version_conflicts" : 0,
-            "noops" : 0
+            "noops" : 0,
+            "retries": 0,
+            "throttled_millis": 0
           },
           "description" : ""
         }
@@ -261,6 +287,46 @@ with the important addition of the `total` field. `total` is the total number
 of operations that the reindex expects to perform. You can estimate the
 progress by adding the `updated`, `created`, and `deleted` fields. The request
 will finish when their sum is equal to the `total` field.
+
+
+[float]
+[[docs-update-by-query-cancel-task-api]]
+=== Works with the Cancel Task API
+
+Any Update By Query can be canceled using the <<tasks,Task Cancel API>>:
+
+[source,js]
+--------------------------------------------------
+POST /_tasks/{task_id}/_cancel
+--------------------------------------------------
+// AUTOSENSE
+
+The `task_id` can be found using the tasks API above.
+
+Cancelation should happen quickly but might take a few seconds. The task status
+API above will continue to list the task until it is wakes to cancel itself.
+
+
+[float]
+[[docs-update-by-query-rethrottle]]
+=== Rethrottling
+
+The value of `requests_per_second` can be changed on a running update by query
+using the `_rethrottle` API:
+
+[source,js]
+--------------------------------------------------
+POST /_update_by_query/{task_id}/_rethrottle?requests_per_second=unlimited
+--------------------------------------------------
+// AUTOSENSE
+
+The `task_id` can be found using the tasks API above.
+
+Just like when setting it on the `_update_by_query` API `requests_per_second`
+can be either `unlimited` to disable throttling or any decimal number like `1.7`
+or `12` to throttle to that level. Rethrottling that speeds up the query takes
+effect immediately but rethrotting that slows down the query will take effect
+on after completing the current batch. This prevents scroll timeouts.
 
 
 [float]

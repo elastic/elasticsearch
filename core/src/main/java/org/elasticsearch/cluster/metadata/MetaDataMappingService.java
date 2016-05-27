@@ -269,8 +269,11 @@ public class MetaDataMappingService extends AbstractComponent {
                         if (Version.indexCreated(indexService.indexSettings()).onOrAfter(Version.V_2_0_0_beta1) && newMapper.parentFieldMapper().active()) {
                             IndexMetaData indexMetaData = currentState.metaData().index(index);
                             for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
-                                if (newMapper.parentFieldMapper().type().equals(mapping.value.type())) {
-                                    throw new IllegalArgumentException("can't add a _parent field that points to an already existing type");
+                                String parentType = newMapper.parentFieldMapper().type();
+                                if (parentType.equals(mapping.value.type()) &&
+                                        indexService.mapperService().getParentTypes().contains(parentType) == false) {
+                                    throw new IllegalArgumentException("can't add a _parent field that points to an " +
+                                            "already existing type, that isn't already a parent");
                                 }
                             }
                         }

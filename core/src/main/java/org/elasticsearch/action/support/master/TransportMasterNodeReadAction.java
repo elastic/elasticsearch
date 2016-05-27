@@ -44,6 +44,13 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
         this.forceLocal = settings.getAsBoolean(FORCE_LOCAL_SETTING, null);
     }
 
+    protected TransportMasterNodeReadAction(Settings settings, String actionName, boolean checkSizeLimit, TransportService transportService,
+                                            ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
+                                            IndexNameExpressionResolver indexNameExpressionResolver, Class<Request> request) {
+        super(settings, actionName, checkSizeLimit, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,request);
+        this.forceLocal = settings.getAsBoolean(FORCE_LOCAL_SETTING, null);
+    }
+
     @Override
     protected final boolean localExecute(Request request) {
         if (forceLocal != null) {

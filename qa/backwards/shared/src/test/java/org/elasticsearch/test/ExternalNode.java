@@ -35,6 +35,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.TransportModule;
 
 import java.io.BufferedReader;
@@ -217,7 +218,11 @@ final class ExternalNode implements Closeable {
                     .put("name", "transport_client_" + nodeInfo.getNode().name())
                     .put("path.home", PathUtils.get(".").toAbsolutePath())
                     .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", false).build();
-            TransportClient client = TransportClient.builder().settings(clientSettings).build();
+            TransportClient.Builder builder = TransportClient.builder().settings(clientSettings);
+            for (Class<? extends Plugin> pluginClass: nodeConfigurationSource.transportClientPlugins()) {
+                builder.addPlugin(pluginClass);
+            }
+            TransportClient client = builder.build();
             client.addTransportAddress(addr);
             this.client = client;
         }

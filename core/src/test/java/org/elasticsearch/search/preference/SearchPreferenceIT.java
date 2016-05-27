@@ -19,20 +19,31 @@
 
 package org.elasticsearch.search.preference;
 
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SearchPreferenceIT extends ESIntegTestCase {
@@ -74,7 +85,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
                 settingsBuilder().put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, between(1, maximumNumberOfReplicas()))
         ));
         ensureGreen();
-        
+
         client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
         refresh();
 
@@ -152,5 +163,64 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         ensureGreen();
 
         client().prepareSearch().setQuery(matchAllQuery()).setPreference("_only_node:DOES-NOT-EXIST").execute().actionGet();
+    }
+
+    public void testNodesOnlyRandom() throws Exception {
+        assertAcked(prepareCreate("test").setSettings(
+            //this test needs at least a replica to make sure two consecutive searches go to two different copies of the same data
+            Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, between(1, maximumNumberOfReplicas()))));
+        ensureGreen();
+        client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
+        refresh();
+
+        final Client client = internalCluster().smartClient();
+        SearchRequestBuilder request = client.prepareSearch("test")
+            .setQuery(matchAllQuery()).setPreference("_only_nodes:*,nodes*"); // multiple wildchar  to cover multi-param usecase
+        assertSearchOnRandomNodes(request);
+
+        request = client.prepareSearch("test")
+            .setQuery(matchAllQuery()).setPreference("_only_nodes:*");
+        assertSearchOnRandomNodes(request);
+
+        ArrayList<String> allNodeIds = new ArrayList<>();
+        ArrayList<String> allNodeNames = new ArrayList<>();
+        ArrayList<String> allNodeHosts = new ArrayList<>();
+        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().execute().actionGet();
+        for (NodeStats node : nodeStats.getNodes()) {
+            allNodeIds.add(node.getNode().getId());
+            allNodeNames.add(node.getNode().getName());
+            allNodeHosts.add(node.getHostname());
+        }
+
+        String node_expr = "_only_nodes:" + Strings.arrayToCommaDelimitedString(allNodeIds.toArray());
+        request = client.prepareSearch("test").setQuery(matchAllQuery()).setPreference(node_expr);
+        assertSearchOnRandomNodes(request);
+
+        node_expr = "_only_nodes:" + Strings.arrayToCommaDelimitedString(allNodeNames.toArray());
+        request = client.prepareSearch("test").setQuery(matchAllQuery()).setPreference(node_expr);
+        assertSearchOnRandomNodes(request);
+
+        node_expr = "_only_nodes:" + Strings.arrayToCommaDelimitedString(allNodeHosts.toArray());
+        request = client.prepareSearch("test").setQuery(matchAllQuery()).setPreference(node_expr);
+        assertSearchOnRandomNodes(request);
+
+        node_expr = "_only_nodes:" + Strings.arrayToCommaDelimitedString(allNodeHosts.toArray());
+        request = client.prepareSearch("test").setQuery(matchAllQuery()).setPreference(node_expr);
+        assertSearchOnRandomNodes(request);
+
+        // Mix of valid and invalid nodes
+        node_expr = "_only_nodes:*,invalidnode";
+        request = client.prepareSearch("test").setQuery(matchAllQuery()).setPreference(node_expr);
+        assertSearchOnRandomNodes(request);
+    }
+
+    private void assertSearchOnRandomNodes(SearchRequestBuilder request) {
+        Set<String> hitNodes = new HashSet<>();
+        for (int i = 0; i < 2; i++) {
+            SearchResponse searchResponse = request.execute().actionGet();
+            assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
+            hitNodes.add(searchResponse.getHits().getAt(0).shard().nodeId());
+        }
+        assertThat(hitNodes.size(), greaterThan(1));
     }
 }

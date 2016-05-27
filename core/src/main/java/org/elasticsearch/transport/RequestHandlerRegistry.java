@@ -34,21 +34,23 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     private final String action;
     private final TransportRequestHandler<Request> handler;
     private final boolean forceExecution;
+    private final boolean canTripCircuitBreaker;
     private final String executor;
     private final Callable<Request> requestFactory;
     private final TaskManager taskManager;
 
     RequestHandlerRegistry(String action, Class<Request> request, TaskManager taskManager, TransportRequestHandler<Request> handler,
-                           String executor, boolean forceExecution) {
-        this(action, new ReflectionFactory<>(request), taskManager, handler, executor, forceExecution);
+                           String executor, boolean forceExecution, boolean canTripCircuitBreaker) {
+        this(action, new ReflectionFactory<>(request), taskManager, handler, executor, forceExecution, canTripCircuitBreaker);
     }
 
-    public RequestHandlerRegistry(String action, Callable<Request> requestFactory, TaskManager taskManager, TransportRequestHandler<Request> handler, String executor, boolean forceExecution) {
+    public RequestHandlerRegistry(String action, Callable<Request> requestFactory, TaskManager taskManager, TransportRequestHandler<Request> handler, String executor, boolean forceExecution, boolean canTripCircuitBreaker) {
         this.action = action;
         this.requestFactory = requestFactory;
         assert newRequest() != null;
         this.handler = handler;
         this.forceExecution = forceExecution;
+        this.canTripCircuitBreaker = canTripCircuitBreaker;
         this.executor = executor;
         this.taskManager = taskManager;
     }
@@ -84,6 +86,10 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
 
     public boolean isForceExecution() {
         return forceExecution;
+    }
+
+    public boolean canTripCircuitBreaker() {
+        return canTripCircuitBreaker;
     }
 
     public String getExecutor() {

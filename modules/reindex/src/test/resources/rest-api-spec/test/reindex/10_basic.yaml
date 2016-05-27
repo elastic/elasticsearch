@@ -22,6 +22,7 @@
   - match: {batches: 1}
   - match: {failures: []}
   - gte: { took: 0 }
+  - match: {throttled_millis: 0}
   - is_false: task
 
 ---
@@ -54,6 +55,7 @@
   - match: {batches: 1}
   - match: {failures: []}
   - gte: { took: 0 }
+  - match: {throttled_millis: 0}
   - is_false: task
 
 ---
@@ -84,12 +86,14 @@
   - is_false: failures
   - is_false: noops
   - is_false: took
+  - is_false: throttled_millis
   - is_false: created
 
   - do:
       tasks.list:
         wait_for_completion: true
         task_id: $task
+  - is_false: node_failures
 
 ---
 "Response format for version conflict":
@@ -163,6 +167,7 @@
   - match: {batches: 1}
   - match: {failures: []}
   - gte: { took: 0 }
+  - match: {throttled_millis: 0}
 
 ---
 "Simplest example in docs":

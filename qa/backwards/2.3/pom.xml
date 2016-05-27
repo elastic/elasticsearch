@@ -17,8 +17,6 @@
     <properties>
         <tests.bwc.version>2.3.1</tests.bwc.version>
         <skip.integ.tests>${skipTests}</skip.integ.tests>
-        <es.logger.level>DEBUG</es.logger.level>
-        <es.logger._root>DEBUG</es.logger._root>
     </properties>
     <build>
         <!-- just added for debugging why this is skipped on jenkins. remove later -->

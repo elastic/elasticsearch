@@ -58,7 +58,7 @@ public class ReindexFailureTests extends ReindexTestCase {
         copy.source().setSize(1);
 
         ReindexResponse response = copy.get();
-        assertThat(response, responseMatcher()
+        assertThat(response, reindexResponseMatcher()
                 .batches(1)
                 .failures(both(greaterThan(0)).and(lessThanOrEqualTo(maximumNumberOfShards()))));
         for (Failure failure: response.getIndexingFailures()) {
@@ -78,7 +78,7 @@ public class ReindexFailureTests extends ReindexTestCase {
         copy.destination().setOpType(CREATE);
 
         ReindexResponse response = copy.get();
-        assertThat(response, responseMatcher().batches(1).versionConflicts(1).failures(1).created(99));
+        assertThat(response, reindexResponseMatcher().batches(1).versionConflicts(1).failures(1).created(99));
         for (Failure failure: response.getIndexingFailures()) {
             assertThat(failure.getMessage(), containsString("DocumentAlreadyExistsException[[test]["));
         }

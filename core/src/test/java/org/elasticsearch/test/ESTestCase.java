@@ -287,6 +287,34 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextDouble();
     }
 
+    /**
+     * Returns a double value in the interval [start, end) if lowerInclusive is set to true, (start, end) otherwise.
+     *
+     * @param start          lower bound of interval to draw uniformly distributed random numbers from
+     * @param end            upper bound
+     * @param lowerInclusive whether or not to include lower end of the interval
+     */
+    public static double randomDoubleBetween(double start, double end, boolean lowerInclusive) {
+        double result = 0.0;
+
+        if (start == -Double.MAX_VALUE || end == Double.MAX_VALUE) {
+            // formula below does not work with very large doubles
+            result = Double.longBitsToDouble(randomLong());
+            while (result < start || result > end || Double.isNaN(result)) {
+                result = Double.longBitsToDouble(randomLong());
+            }
+        } else {
+            result = randomDouble();
+            if (lowerInclusive == false) {
+                while (result <= 0.0) {
+                    result = randomDouble();
+                }
+            }
+            result = result * end + (1.0 - result) * start;
+        }
+        return result;
+    }
+
     public static long randomLong() {
         return random().nextLong();
     }
@@ -357,9 +385,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         return array;
     }
 
+    public static String randomTimeValue(int lower, int upper) {
+        return randomIntBetween(lower, upper) + randomFrom(new String[]{"d", "H", "ms", "s", "S", "w"});
+    }
+
     public static String randomTimeValue() {
-        final String[] values = new String[]{"d", "H", "ms", "s", "S", "w"};
-        return randomIntBetween(0, 1000) + randomFrom(values);
+        return randomTimeValue(0, 1000);
+    }
+
+    public static String randomPositiveTimeValue() {
+        return randomTimeValue(1, 1000);
     }
 
     /**

@@ -55,6 +55,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -63,12 +64,13 @@ import static java.lang.Math.min;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.bulk.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 
 /**
- * Abstract base for scrolling across a search and executing bulk actions on all
- * results.
+ * Abstract base for scrolling across a search and executing bulk actions on all results. All package private methods are package private so
+ * their tests can use them. Most methods run in the listener thread pool because the are meant to be fast and don't expect to block.
  */
 public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>, Response> {
     /**
@@ -80,6 +82,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     private final AtomicLong startTime = new AtomicLong(-1);
     private final AtomicReference<String> scroll = new AtomicReference<>();
+    private final AtomicLong lastBatchStartTime = new AtomicLong(-1);
     private final Set<String> destinationIndices = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
 
     private final ESLogger logger;
@@ -111,15 +114,10 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     protected abstract Response buildResponse(TimeValue took, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures,
             boolean timedOut);
 
+    /**
+     * Start the action by firing the initial search request.
+     */
     public void start() {
-        initialSearch();
-    }
-
-    public BulkByScrollTask getTask() {
-        return task;
-    }
-
-    void initialSearch() {
         if (task.isCancelled()) {
             finishHim(null);
             return;
@@ -138,7 +136,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 @Override
                 public void onResponse(SearchResponse response) {
                     logger.debug("[{}] documents match query", response.getHits().getTotalHits());
-                    onScrollResponse(response);
+                    onScrollResponse(timeValueSeconds(0), response);
                 }
 
                 @Override
@@ -152,13 +150,11 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     /**
-     * Set the last returned scrollId. Package private for testing.
+     * Process a scroll response.
+     * @param delay how long to delay processesing the response. This delay is how throttling is applied to the action.
+     * @param searchResponse the scroll response to process
      */
-    void setScroll(String scroll) {
-        this.scroll.set(scroll);
-    }
-
-    void onScrollResponse(final SearchResponse searchResponse) {
+    void onScrollResponse(TimeValue delay, final SearchResponse searchResponse) {
         if (task.isCancelled()) {
             finishHim(null);
             return;
@@ -178,48 +174,66 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             total = min(total, mainRequest.getSize());
         }
         task.setTotal(total);
-        threadPool.generic().execute(new AbstractRunnable() {
+        AbstractRunnable prepareBulkRequestRunnable = new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
-                SearchHit[] docs = searchResponse.getHits().getHits();
-                logger.debug("scroll returned [{}] documents with a scroll id of [{}]", docs.length, searchResponse.getScrollId());
-                if (docs.length == 0) {
-                    startNormalTermination(Collections.<Failure>emptyList(), Collections.<ShardSearchFailure>emptyList(), false);
-                    return;
-                }
-                task.countBatch();
-                List<SearchHit> docsIterable = Arrays.asList(docs);
-                if (mainRequest.getSize() != SIZE_ALL_MATCHES) {
-                    // Truncate the docs if we have more than the request size
-                    long remaining = max(0, mainRequest.getSize() - task.getSuccessfullyProcessed());
-                    if (remaining < docs.length) {
-                        docsIterable = docsIterable.subList(0, (int) remaining);
-                    }
-                }
-                BulkRequest request = buildBulk(docsIterable);
-                if (request.requests().isEmpty()) {
-                    /*
-                     * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
-                     */
-                    startNextScroll();
-                    return;
-                }
-                request.timeout(mainRequest.getTimeout());
-                request.consistencyLevel(mainRequest.getConsistency());
-                if (logger.isDebugEnabled()) {
-                    logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
-                            new ByteSizeValue(request.estimatedSizeInBytes()));
-                }
-                sendBulkRequest(request);
+                prepareBulkRequest(searchResponse);
             }
 
             @Override
             public void onFailure(Throwable t) {
                 finishHim(t);
             }
-        });
+        };
+        task.delayPrepareBulkRequest(threadPool, delay, prepareBulkRequestRunnable);
     }
 
+    /**
+     * Prepare the bulk request. Called on the generic thread pool after some preflight checks have been done one the SearchResponse and any
+     * delay has been slept. Uses the generic thread pool because reindex is rare enough not to need its own thread pool and because the
+     * thread may be blocked by the user script.
+     */
+    void prepareBulkRequest(SearchResponse searchResponse) {
+        if (task.isCancelled()) {
+            finishHim(null);
+            return;
+        }
+        lastBatchStartTime.set(System.nanoTime());
+        SearchHit[] docs = searchResponse.getHits().getHits();
+        logger.debug("scroll returned [{}] documents with a scroll id of [{}]", docs.length, searchResponse.getScrollId());
+        if (docs.length == 0) {
+            startNormalTermination(Collections.<Failure>emptyList(), Collections.<ShardSearchFailure>emptyList(), false);
+            return;
+        }
+        task.countBatch();
+        List<SearchHit> docsIterable = Arrays.asList(docs);
+        if (mainRequest.getSize() != SIZE_ALL_MATCHES) {
+            // Truncate the docs if we have more than the request size
+            long remaining = max(0, mainRequest.getSize() - task.getSuccessfullyProcessed());
+            if (remaining < docs.length) {
+                docsIterable = docsIterable.subList(0, (int) remaining);
+            }
+        }
+        BulkRequest request = buildBulk(docsIterable);
+        if (request.requests().isEmpty()) {
+            /*
+             * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
+             */
+            startNextScroll(0);
+            return;
+        }
+        request.timeout(mainRequest.getTimeout());
+        request.consistencyLevel(mainRequest.getConsistency());
+        if (logger.isDebugEnabled()) {
+            logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
+                    new ByteSizeValue(request.estimatedSizeInBytes()));
+        }
+        sendBulkRequest(request);
+    }
+
+    /**
+     * Send a bulk request, handling retries.
+     */
     void sendBulkRequest(BulkRequest request) {
         if (task.isCancelled()) {
             finishHim(null);
@@ -238,6 +252,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         });
     }
 
+    /**
+     * Processes bulk responses, accounting for failures.
+     */
     void onBulkResponse(BulkResponse response) {
         if (task.isCancelled()) {
             finishHim(null);
@@ -283,23 +300,32 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 startNormalTermination(Collections.<Failure>emptyList(), Collections.<ShardSearchFailure>emptyList(), false);
                 return;
             }
-            startNextScroll();
+            startNextScroll(response.getItems().length);
         } catch (Throwable t) {
             finishHim(t);
         }
     }
 
-    void startNextScroll() {
+    /**
+     * Start the next scroll request.
+     *
+     * @param lastBatchSize the number of requests sent in the last batch. This is used to calculate the throttling values which are applied
+     *        when the scroll returns
+     */
+    void startNextScroll(int lastBatchSize) {
         if (task.isCancelled()) {
             finishHim(null);
             return;
         }
+        final long earliestNextBatchStartTime = lastBatchStartTime.get() + (long) perfectlyThrottledBatchTime(lastBatchSize);
+        long waitTime = max(0, earliestNextBatchStartTime - System.nanoTime());
         SearchScrollRequest request = new SearchScrollRequest(mainRequest);
-        request.scrollId(scroll.get()).scroll(firstSearchRequest.scroll());
+        // Add the wait time into the scroll timeout so it won't timeout while we wait for throttling
+        request.scrollId(scroll.get()).scroll(timeValueNanos(firstSearchRequest.scroll().keepAlive().nanos() + waitTime));
         client.searchScroll(request, new ActionListener<SearchResponse>() {
             @Override
             public void onResponse(SearchResponse response) {
-                onScrollResponse(response);
+                onScrollResponse(timeValueNanos(max(0, earliestNextBatchStartTime - System.nanoTime())), response);
             }
 
             @Override
@@ -307,6 +333,21 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 finishHim(e);
             }
         });
+    }
+
+    /**
+     * How many nanoseconds should a batch of lastBatchSize have taken if it were perfectly throttled? Package private for testing.
+     */
+    float perfectlyThrottledBatchTime(int lastBatchSize) {
+        if (task.getRequestsPerSecond() == Float.POSITIVE_INFINITY) {
+            return 0;
+        }
+        //       requests
+        // ------------------- == seconds
+        // request per seconds
+        float targetBatchTimeInSeconds = lastBatchSize / task.getRequestsPerSecond();
+        // nanoseconds per seconds * seconds == nanoseconds
+        return TimeUnit.SECONDS.toNanos(1) * targetBatchTimeInSeconds;
     }
 
     private void recordFailure(Failure failure, List<Failure> failures) {
@@ -390,7 +431,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     /**
-     * Build the backoff policy for use with retries. Package private for testing.
+     * Build the backoff policy for use with retries.
      */
     BackoffPolicy backoffPolicy() {
         return exponentialBackoff(mainRequest.getRetryBackoffInitialTime(), mainRequest.getMaxRetries());
@@ -402,6 +443,27 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      */
     void addDestinationIndices(Collection<String> indices) {
         destinationIndices.addAll(indices);
+    }
+
+    /**
+     * Set the last returned scrollId. Exists entirely for testing.
+     */
+    void setScroll(String scroll) {
+        this.scroll.set(scroll);
+    }
+
+    /**
+     * Set the last batch's start time. Exists entirely for testing.
+     */
+    void setLastBatchStartTime(long newValue) {
+        lastBatchStartTime.set(newValue);
+    }
+
+    /**
+     * Get the last batch's start time. Exists entirely for testing.
+     */
+    long getLastBatchStartTime() {
+        return lastBatchStartTime.get();
     }
 
     /**

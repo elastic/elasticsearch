@@ -42,8 +42,8 @@ public abstract class TimeZoneRounding extends Rounding {
 
     public static class Builder {
 
-        private DateTimeUnit unit;
-        private long interval = -1;
+        private final DateTimeUnit unit;
+        private final long interval;
 
         private DateTimeZone timeZone = DateTimeZone.UTC;
 
@@ -138,10 +138,15 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long nextRoundingValue(long time) {
-            long timeLocal = time;
-            timeLocal = timeZone.convertUTCToLocal(time);
-            long nextInLocalTime = durationField.add(timeLocal, 1);
-            return timeZone.convertLocalToUTC(nextInLocalTime, false);
+            if (DateTimeUnit.isDayOrLonger(unit)) {
+                time = timeZone.convertUTCToLocal(time);
+            }
+            long next = durationField.add(time, 1);
+            if (DateTimeUnit.isDayOrLonger(unit)) {
+                return timeZone.convertLocalToUTC(next, false);
+            } else {
+                return next;
+            }
         }
 
         @Override

@@ -29,6 +29,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -45,6 +47,8 @@ import java.util.Objects;
  * This defines the core properties and functions to operate on a field.
  */
 public abstract class MappedFieldType extends FieldType {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(MappedFieldType.class));
 
     public static class Names {
 
@@ -470,6 +474,10 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+        if (this instanceof StringFieldType == false) {
+            DEPRECATION_LOGGER.deprecated("Range query on field [{}] of type [{}] is deprecated. The next version will only support it " +
+                    "on text/keyword/numeric/date/ip fields", names().fullName(), typeName());
+        }
         return new TermRangeQuery(names().indexName(),
             lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
             upperTerm == null ? null : indexedValueForSearch(upperTerm),
@@ -477,10 +485,18 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+        if (this instanceof StringFieldType == false) {
+            DEPRECATION_LOGGER.deprecated("Fuzzy query on field [{}] of type [{}] is deprecated. The next version will only support it " +
+                    "on text/keyword fields", names().fullName(), typeName());
+        }
         return new FuzzyQuery(createTerm(value), fuzziness.asDistance(BytesRefs.toString(value)), prefixLength, maxExpansions, transpositions);
     }
 
     public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+        if (this instanceof StringFieldType == false) {
+            DEPRECATION_LOGGER.deprecated("Prefix query on field [{}] of type [{}] is deprecated. The next version will only support it " +
+                    "on text/keyword fields", names().fullName(), typeName());
+        }
         PrefixQuery query = new PrefixQuery(createTerm(value));
         if (method != null) {
             query.setRewriteMethod(method);
@@ -491,6 +507,10 @@ public abstract class MappedFieldType extends FieldType {
     public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
         if (numericType() != null) {
             throw new IllegalArgumentException("Cannot use regular expression to filter numeric field [" + names.fullName + "]");
+        }
+        if (this instanceof StringFieldType == false) {
+            DEPRECATION_LOGGER.deprecated("Regexp query on field [{}] of type [{}] is deprecated. The next version will only support it " +
+                    "on text/keyword fields", names().fullName(), typeName());
         }
 
         RegexpQuery query = new RegexpQuery(createTerm(value), flags, maxDeterminizedStates);

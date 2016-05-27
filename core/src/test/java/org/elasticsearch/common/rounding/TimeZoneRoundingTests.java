@@ -26,6 +26,7 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -156,21 +157,37 @@ public class TimeZoneRoundingTests extends ESTestCase {
         Rounding tzRounding;
         // testing savings to non savings switch
         tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(DateTimeZone.forID("UTC")).build();
-        assertThat(tzRounding.round(time("2014-10-26T01:01:01", DateTimeZone.forID("CET"))),
-                equalTo(time("2014-10-26T01:00:00", DateTimeZone.forID("CET"))));
+        assertThat(tzRounding.round(time("2014-10-26T01:01:01", DateTimeZone.forOffsetHours(2))),  // CEST = UTC+2
+                equalTo(time("2014-10-26T01:00:00", DateTimeZone.forOffsetHours(2))));
+        assertThat(tzRounding.nextRoundingValue(time("2014-10-26T01:00:00", DateTimeZone.forOffsetHours(2))),
+                equalTo(time("2014-10-26T02:00:00", DateTimeZone.forOffsetHours(2))));
+        assertThat(tzRounding.nextRoundingValue(time("2014-10-26T02:00:00", DateTimeZone.forOffsetHours(2))),
+                equalTo(time("2014-10-26T03:00:00", DateTimeZone.forOffsetHours(2))));
 
         tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(DateTimeZone.forID("CET")).build();
-        assertThat(tzRounding.round(time("2014-10-26T01:01:01", DateTimeZone.forID("CET"))),
-                equalTo(time("2014-10-26T01:00:00", DateTimeZone.forID("CET"))));
+        assertThat(tzRounding.round(time("2014-10-26T01:01:01", DateTimeZone.forOffsetHours(2))),  // CEST = UTC+2
+                equalTo(time("2014-10-26T01:00:00", DateTimeZone.forOffsetHours(2))));
+        assertThat(tzRounding.nextRoundingValue(time("2014-10-26T01:00:00", DateTimeZone.forOffsetHours(2))),
+                equalTo(time("2014-10-26T02:00:00", DateTimeZone.forOffsetHours(2))));
+        assertThat(tzRounding.nextRoundingValue(time("2014-10-26T02:00:00", DateTimeZone.forOffsetHours(2))),
+                equalTo(time("2014-10-26T03:00:00", DateTimeZone.forOffsetHours(2))));
 
         // testing non savings to savings switch
         tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(DateTimeZone.forID("UTC")).build();
-        assertThat(tzRounding.round(time("2014-03-30T01:01:01", DateTimeZone.forID("CET"))),
-                equalTo(time("2014-03-30T01:00:00", DateTimeZone.forID("CET"))));
+        assertThat(tzRounding.round(time("2014-03-30T01:01:01", DateTimeZone.forOffsetHours(1))),  // CET = UTC+1
+                equalTo(time("2014-03-30T01:00:00", DateTimeZone.forOffsetHours(1))));
+        assertThat(tzRounding.nextRoundingValue(time("2014-03-30T01:00:00", DateTimeZone.forOffsetHours(1))),
+                equalTo(time("2014-03-30T02:00:00", DateTimeZone.forOffsetHours(1))));
+        assertThat(tzRounding.nextRoundingValue(time("2014-03-30T02:00:00", DateTimeZone.forOffsetHours(1))),
+                equalTo(time("2014-03-30T03:00:00", DateTimeZone.forOffsetHours(1))));
 
         tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(DateTimeZone.forID("CET")).build();
-        assertThat(tzRounding.round(time("2014-03-30T01:01:01", DateTimeZone.forID("CET"))),
-                equalTo(time("2014-03-30T01:00:00", DateTimeZone.forID("CET"))));
+        assertThat(tzRounding.round(time("2014-03-30T01:01:01", DateTimeZone.forOffsetHours(1))),  // CET = UTC+1
+                equalTo(time("2014-03-30T01:00:00", DateTimeZone.forOffsetHours(1))));
+        assertThat(tzRounding.nextRoundingValue(time("2014-03-30T01:00:00", DateTimeZone.forOffsetHours(1))),
+                equalTo(time("2014-03-30T02:00:00", DateTimeZone.forOffsetHours(1))));
+        assertThat(tzRounding.nextRoundingValue(time("2014-03-30T02:00:00", DateTimeZone.forOffsetHours(1))),
+                equalTo(time("2014-03-30T03:00:00", DateTimeZone.forOffsetHours(1))));
 
         // testing non savings to savings switch (America/Chicago)
         tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(DateTimeZone.forID("UTC")).build();
@@ -217,6 +234,31 @@ public class TimeZoneRoundingTests extends ESTestCase {
             assertThat("Rounded value smaller or equal than unrounded, regardless of timezone", roundedDate, lessThanOrEqualTo(date));
             assertThat("NextRounding value should be greater than date", nextRoundingValue, greaterThan(roundedDate));
             assertThat("NextRounding value should be a rounded date", nextRoundingValue, equalTo(rounding.round(nextRoundingValue)));
+        }
+    }
+
+    /**
+     * Test that nextRoundingValue() for hour rounding (and smaller) is equally spaced (see #18326)
+     * Start at a random date in a random time zone, then find the next zone offset transition (if any).
+     * From there, check that when we advance by using rounding#nextRoundingValue(), we always advance by the same
+     * amount of milliseconds.
+     */
+    public void testSubHourNextRoundingEquallySpaced() {
+        String timeZone = randomFrom(new ArrayList<>(DateTimeZone.getAvailableIDs()));
+        DateTimeUnit unit = randomFrom(new DateTimeUnit[] { DateTimeUnit.HOUR_OF_DAY, DateTimeUnit.MINUTES_OF_HOUR,
+                DateTimeUnit.SECOND_OF_MINUTE });
+        DateTimeZone tz = DateTimeZone.forID(timeZone);
+        TimeZoneRounding rounding = new TimeZoneRounding.TimeUnitRounding(unit, tz);
+        // move the random date to transition for timezones that have offset change due to dst transition
+        long nextTransition = tz.nextTransition(Math.abs(randomLong() % ((long) 10e11)));
+        final long millisPerUnit = unit.field().getDurationField().getUnitMillis();
+        // start ten units before transition
+        long roundedDate = rounding.round(nextTransition - (10 * millisPerUnit));
+        while (roundedDate < nextTransition + 10 * millisPerUnit) {
+            long delta = rounding.nextRoundingValue(roundedDate) - roundedDate;
+            assertEquals("Difference between rounded values not equally spaced for [" + unit.name() + "], [" + timeZone + "] at "
+                    + new DateTime(roundedDate), millisPerUnit, delta);
+            roundedDate = rounding.nextRoundingValue(roundedDate);
         }
     }
 

@@ -17,8 +17,6 @@
         <!-- The tests in this project are meant to be used by the backwards
             compatibility tests for each version. -->
         <skipTests>true</skipTests>
-        <es.logger.level>DEBUG</es.logger.level>
-        <es.logger._root>DEBUG</es.logger._root>
     </properties>
 
     <dependencies>
@@ -30,6 +28,11 @@
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.elasticsearch.module</groupId>
+            <artifactId>reindex</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <!-- These are automatically a dependency with test scope - but we need
             them in compile scope. -->
@@ -79,7 +82,7 @@
                                     <arguments>
                                         <argument>kill</argument>
                                     </arguments>
-                                    <!-- Use the test scop to pick up log4j configuration -->
+                                    <!-- Use the test scope to pick up log4j configuration -->
                                     <classpathScope>test</classpathScope>
                                 </configuration>
                             </execution>

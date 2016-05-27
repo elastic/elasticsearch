@@ -28,7 +28,7 @@ before doing so. It will run on Elasticsearch versions 0.90.x to 1.x.
 A number of plugins have been contributed by our community:
 
 * https://github.com/lukas-vlcek/bigdesk[BigDesk Plugin] (by Lukáš Vlček)
-
+* https://github.com/appbaseio/dejaVu[Dejavu, Data Browser Plugin] (by appbase.io)
 * https://github.com/spinscale/elasticsearch-graphite-plugin[Elasticsearch Graphite Plugin]:
   Regularly updates a graphite host with indices stats and nodes stats (by Alexander Reelsen)
 

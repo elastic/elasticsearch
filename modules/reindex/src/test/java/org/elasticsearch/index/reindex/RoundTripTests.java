@@ -19,12 +19,14 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
@@ -33,21 +35,33 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+import static java.lang.Math.abs;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 /**
  * Round trip tests for all Streamable things declared in this plugin.
  */
 public class RoundTripTests extends ESTestCase {
+    private Version version;
+
+    @Before
+    public void randomizeVersion() {
+        version = VersionUtils.randomVersionBetween(random(), Version.V_2_3_0, Version.CURRENT);
+    }
+
     public void testReindexRequest() throws IOException {
         ReindexRequest reindex = new ReindexRequest(new SearchRequest(), new IndexRequest());
         randomRequest(reindex);
@@ -77,6 +91,7 @@ public class RoundTripTests extends ESTestCase {
         request.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), null, "test"));
         request.setConsistency(randomFrom(WriteConsistencyLevel.values()));
         request.setScript(random().nextBoolean() ? null : randomScript());
+        request.setRequestsPerSecond(between(0, Integer.MAX_VALUE));
     }
 
     private void assertRequestEquals(AbstractBulkIndexByScrollRequest<?> request,
@@ -90,13 +105,21 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(request.getScript(), tripped.getScript());
         assertEquals(request.getRetryBackoffInitialTime(), tripped.getRetryBackoffInitialTime());
         assertEquals(request.getMaxRetries(), tripped.getMaxRetries());
+        if (version.onOrAfter(Version.V_2_4_0)) {
+            assertEquals(request.getRequestsPerSecond(), tripped.getRequestsPerSecond(), 0d);
+        } else {
+            assertEquals(Float.POSITIVE_INFINITY, tripped.getRequestsPerSecond(), 0d);
+        }
     }
 
     public void testBulkByTaskStatus() throws IOException {
         BulkByScrollTask.Status status = randomStatus();
         BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(version);
         status.writeTo(out);
-        BulkByScrollTask.Status tripped = new BulkByScrollTask.Status(out.bytes().streamInput());
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(version);
+        BulkByScrollTask.Status tripped = new BulkByScrollTask.Status(in);
         assertTaskStatusEquals(status, tripped);
     }
 
@@ -116,10 +139,26 @@ public class RoundTripTests extends ESTestCase {
         assertResponseEquals(response, tripped);
     }
 
+    public void testRethrottleRequest() throws IOException {
+        RethrottleRequest request = new RethrottleRequest();
+        request.setRequestsPerSecond((float) randomDoubleBetween(0, Float.POSITIVE_INFINITY, false));
+        if (randomBoolean()) {
+            request.setActions(randomFrom(UpdateByQueryAction.NAME, ReindexAction.NAME));
+        } else {
+            request.setTaskId(new TaskId(randomAsciiOfLength(5), randomLong()));
+        }
+        RethrottleRequest tripped = new RethrottleRequest();
+        roundTrip(request, tripped);
+        assertEquals(request.getRequestsPerSecond(), tripped.getRequestsPerSecond(), 0.00001);
+        assertArrayEquals(request.getActions(), tripped.getActions());
+        assertEquals(request.getTaskId(), tripped.getTaskId());
+    }
+
     private BulkByScrollTask.Status randomStatus() {
         return new BulkByScrollTask.Status(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                randomPositiveInt(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                random().nextBoolean() ? null : randomSimpleString(random()));
+                randomInt(Integer.MAX_VALUE), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                parseTimeValue(randomPositiveTimeValue(), null, "test"), abs(random().nextFloat()),
+                random().nextBoolean() ? null : randomSimpleString(random()), parseTimeValue(randomPositiveTimeValue(), null, "test"));
     }
 
     private List<Failure> randomIndexingFailures() {
@@ -138,8 +177,11 @@ public class RoundTripTests extends ESTestCase {
 
     private void roundTrip(Streamable example, Streamable empty) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(version);
         example.writeTo(out);
-        empty.readFrom(out.bytes().streamInput());
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(version);
+        empty.readFrom(in);
     }
 
     private Script randomScript() {
@@ -155,10 +197,6 @@ public class RoundTripTests extends ESTestCase {
             l = randomLong();
         } while (l < 0);
         return l;
-    }
-
-    private int randomPositiveInt() {
-        return randomInt(Integer.MAX_VALUE);
     }
 
     private void assertResponseEquals(BulkIndexByScrollResponse expected, BulkIndexByScrollResponse actual) {
@@ -193,5 +231,18 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(expected.getVersionConflicts(), actual.getVersionConflicts());
         assertEquals(expected.getNoops(), actual.getNoops());
         assertEquals(expected.getRetries(), actual.getRetries());
+        if (version.onOrAfter(Version.V_2_4_0)) {
+            assertEquals(expected.getThrottled(), actual.getThrottled());
+            assertEquals(expected.getRequestsPerSecond(), actual.getRequestsPerSecond(), 0f);
+        } else {
+            assertEquals(timeValueMillis(0), actual.getThrottled());
+            assertEquals(Float.POSITIVE_INFINITY, actual.getRequestsPerSecond(), 0f);
+        }
+        assertEquals(expected.getReasonCancelled(), actual.getReasonCancelled());
+        if (version.onOrAfter(Version.V_2_4_0)) {
+            assertEquals(expected.getThrottledUntil(), actual.getThrottledUntil());
+        } else {
+            assertEquals(timeValueMillis(0), actual.getThrottledUntil());
+        }
     }
 }

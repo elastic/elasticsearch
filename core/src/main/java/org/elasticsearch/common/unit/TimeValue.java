@@ -241,7 +241,7 @@ public class TimeValue implements Streamable {
             if (lowerSValue.endsWith("ms")) {
                 millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 2)));
             } else if (lowerSValue.endsWith("s")) {
-                millis = (long) Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 1000;
+                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 1000);
             } else if (lowerSValue.endsWith("m")) {
                 millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 60 * 1000);
             } else if (lowerSValue.endsWith("h")) {

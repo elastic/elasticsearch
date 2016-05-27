@@ -37,6 +37,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -880,7 +881,14 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             ReleaseChannelFutureListener listener = new ReleaseChannelFutureListener(bytes);
             future.addListener(listener);
             addedReleaseListener = true;
-            transportServiceAdapter.onRequestSent(node, requestId, action, request, options);
+            final TransportRequestOptions finalOptions = options;
+            ChannelFutureListener channelFutureListener = new ChannelFutureListener() {
+                @Override
+                public void operationComplete(ChannelFuture future) throws Exception {
+                    transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions);
+                }
+            };
+            future.addListener(channelFutureListener);
         } finally {
             if (!addedReleaseListener) {
                 Releasables.close(bStream.bytes());
@@ -912,8 +920,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
         globalLock.readLock().lock();
         try {
-            connectionLock.acquire(node.id());
-            try {
+            try (Releasable ignored = connectionLock.acquire(node.id())) {
                 if (!lifecycle.started()) {
                     throw new IllegalStateException("can't add nodes to a stopped transport");
                 }
@@ -946,8 +953,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 } catch (Exception e) {
                     throw new ConnectTransportException(node, "general node connection failure", e);
                 }
-            } finally {
-                connectionLock.release(node.id());
             }
         } finally {
             globalLock.readLock().unlock();
@@ -1070,8 +1075,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     public void disconnectFromNode(DiscoveryNode node) {
-        connectionLock.acquire(node.id());
-        try {
+        try (Releasable ignored = connectionLock.acquire(node.id())) {
             NodeChannels nodeChannels = connectedNodes.remove(node);
             if (nodeChannels != null) {
                 try {
@@ -1082,8 +1086,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     transportServiceAdapter.raiseNodeDisconnected(node);
                 }
             }
-        } finally {
-            connectionLock.release(node.id());
         }
     }
 
@@ -1095,8 +1097,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         // check outside of the lock
         NodeChannels nodeChannels = connectedNodes.get(node);
         if (nodeChannels != null && nodeChannels.hasChannel(channel)) {
-            connectionLock.acquire(node.id());
-            try {
+            try (Releasable ignored = connectionLock.acquire(node.id())) {
                 nodeChannels = connectedNodes.get(node);
                 // check again within the connection lock, if its still applicable to remove it
                 if (nodeChannels != null && nodeChannels.hasChannel(channel)) {
@@ -1110,8 +1111,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     }
                     return true;
                 }
-            } finally {
-                connectionLock.release(node.id());
             }
         }
         return false;

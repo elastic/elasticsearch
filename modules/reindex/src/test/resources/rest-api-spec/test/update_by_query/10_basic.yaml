@@ -19,6 +19,7 @@
   - match: {failures: []}
   - match: {noops: 0}
   - gte: { took: 0 }
+  - match: {throttled_millis: 0}
   # Update by query can't create
   - is_false: created
   - is_false: task
@@ -52,6 +53,7 @@
       tasks.list:
         wait_for_completion: true
         task_id: $task
+  - is_false: node_failures
 
 ---
 "Response for version conflict":

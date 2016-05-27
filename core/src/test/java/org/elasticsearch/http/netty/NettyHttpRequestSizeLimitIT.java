@@ -70,17 +70,11 @@ public class NettyHttpRequestSizeLimitIT extends ESIntegTestCase {
         }
 
         @SuppressWarnings("unchecked")
-        Tuple<String, CharSequence>[] requests = new Tuple[] {
-            Tuple.tuple("/index/type/_bulk", bulkRequest),
-            Tuple.tuple("/index/type/_bulk", bulkRequest),
-            Tuple.tuple("/index/type/_bulk", bulkRequest),
-            Tuple.tuple("/index/type/_bulk", bulkRequest),
-            Tuple.tuple("/index/type/_bulk", bulkRequest),
-            Tuple.tuple("/index/type/_bulk", bulkRequest),
-            Tuple.tuple("/index/type/_bulk", bulkRequest),
-            Tuple.tuple("/index/type/_bulk", bulkRequest),
-            Tuple.tuple("/index/type/_bulk", bulkRequest)
-        };
+        Tuple<String, CharSequence>[] requests = new Tuple[1000];
+        for (int i = 0; i < requests.length; i++) {
+            requests[i] = Tuple.tuple("/index/type/_bulk", (CharSequence) bulkRequest);
+        }
+
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress
@@ -100,6 +94,7 @@ public class NettyHttpRequestSizeLimitIT extends ESIntegTestCase {
     private void assertAtLeastOnceExpectedStatus(Collection<HttpResponse> responses, HttpResponseStatus expectedStatus) {
         long countResponseErrors = 0;
         for (HttpResponse response : responses) {
+            System.err.println(response.getStatus());
             if (response.getStatus().equals(expectedStatus)) {
                 countResponseErrors++;
             }

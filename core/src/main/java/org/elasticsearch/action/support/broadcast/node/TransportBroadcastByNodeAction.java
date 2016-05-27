@@ -95,6 +95,21 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             IndexNameExpressionResolver indexNameExpressionResolver,
             Class<Request> request,
             String executor) {
+        this(settings, actionName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, request,
+            executor, true);
+    }
+
+        public TransportBroadcastByNodeAction(
+            Settings settings,
+            String actionName,
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Class<Request> request,
+            String executor,
+            boolean canTripCircuitBreaker) {
         super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
 
         this.clusterService = clusterService;
@@ -107,7 +122,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             public NodeRequest call() throws Exception {
                 return new NodeRequest();
             }
-        }, executor, new BroadcastByNodeTransportRequestHandler());
+        }, executor, false, canTripCircuitBreaker, new BroadcastByNodeTransportRequestHandler());
     }
 
     private final Response newResponse(

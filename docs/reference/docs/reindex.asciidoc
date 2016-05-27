@@ -25,9 +25,11 @@ That will return something like this:
 [source,js]
 --------------------------------------------------
 {
-  "took" : 639,
-  "updated": 112,
-  "batches": 130,
+  "took" : 147,
+  "timed_out": false,
+  "created": 120,
+  "updated": 0,
+  "batches": 1,
   "version_conflicts": 0,
   "failures" : [ ],
   "created": 12344
@@ -273,10 +275,29 @@ POST /_reindex
         "company": "cat"
       }
     }
-  }
+  },
   "dest": {
     "index": "dest",
     "routing": "=cat"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
+
+By default `_reindex` uses scroll batches of 1000. You can change the
+batch size with the `size` field in the `source` element:
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "source",
+    "size": 100
+  },
+  "dest": {
+    "index": "dest",
   }
 }
 --------------------------------------------------
@@ -287,7 +308,8 @@ POST /_reindex
 === URL Parameters
 
 In addition to the standard parameters like `pretty`, the Reindex API also
-supports `refresh`, `wait_for_completion`, `consistency`, and `timeout`.
+supports `refresh`, `wait_for_completion`, `consistency`, `timeout`, and
+`requests_per_second`.
 
 Sending the `refresh` url parameter will cause all indexes to which the request
 wrote to be refreshed. This is different than the Index API's `refresh`
@@ -305,6 +327,16 @@ request. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
 <<docs-bulk,Bulk API>>.
 
+`requests_per_second` can be set to any decimal number (`1.4`, `6`, `1000`, etc)
+and throttles the number of requests per second that the reindex issues. The
+throttling is done waiting between bulk batches so that it can manipulate the
+scroll timeout. The wait time is the difference between the time it took the
+batch to complete and the time `requests_per_second * requests_in_the_batch`.
+Since the batch isn't broken into multiple bulk requests large batch sizes will
+cause Elasticsearch to create many requests and then wait for a while before
+starting the next set. This is "bursty" instead of "smooth". The default is
+`unlimited` which is also the only non-number value that it accepts.
+
 [float]
 === Response body
 
@@ -318,6 +350,8 @@ The JSON response looks like this:
   "created": 123,
   "batches": 1,
   "version_conflicts": 2,
+  "retries": 0,
+  "throttled_millis": 0,
   "failures" : [ ]
 }
 --------------------------------------------------
@@ -341,6 +375,14 @@ The number of scroll responses pulled back by the the reindex.
 `version_conflicts`::
 
 The number of version conflicts that reindex hit.
+
+`retries`::
+
+The number of retries that the reindex did in response to a full queue.
+
+`throttled_millis`::
+
+Number of milliseconds the request slept to conform to `requests_per_second`.
 
 `failures`::
 
@@ -387,9 +429,11 @@ The responses looks like:
             "updated" : 3500,
             "created" : 0,
             "deleted" : 0,
-            "batches" : 36,
+            "batches" : 4,
             "version_conflicts" : 0,
-            "noops" : 0
+            "noops" : 0,
+            "retries": 0,
+            "throttled_millis": 0
           },
           "description" : ""
         }
@@ -404,6 +448,46 @@ with the important addition of the `total` field. `total` is the total number
 of operations that the reindex expects to perform. You can estimate the
 progress by adding the `updated`, `created`, and `deleted` fields. The request
 will finish when their sum is equal to the `total` field.
+
+
+[float]
+[[docs-reindex-cancel-task-api]]
+=== Works with the Cancel Task API
+
+Any Reindex can be canceled using the <<tasks,Task Cancel API>>:
+
+[source,js]
+--------------------------------------------------
+POST /_tasks/{task_id}/_cancel
+--------------------------------------------------
+// AUTOSENSE
+
+The `task_id` can be found using the tasks API above.
+
+Cancelation should happen quickly but might take a few seconds. The task status
+API above will continue to list the task until it is wakes to cancel itself.
+
+
+[float]
+[[docs-reindex-rethrottle]]
+=== Rethrottling
+
+The value of `requests_per_second` can be changed on a running reindex using
+the `_rethrottle` API:
+
+[source,js]
+--------------------------------------------------
+POST /_reindex/{task_id}/_rethrottle?requests_per_second=unlimited
+--------------------------------------------------
+// AUTOSENSE
+
+The `task_id` can be found using the tasks API above.
+
+Just like when setting it on the `_reindex` API `requests_per_second` can be
+either `unlimited` to disable throttling or any decimal number like `1.7` or
+`12` to throttle to that level. Rethrottling that speeds up the query takes
+effect immediately but rethrotting that slows down the query will take effect
+on after completing the current batch. This prevents scroll timeouts.
 
 
 [float]

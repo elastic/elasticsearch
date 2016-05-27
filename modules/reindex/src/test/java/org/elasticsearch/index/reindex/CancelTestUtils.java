@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -51,7 +50,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 
 /**
- * Utilities for testing reindex and update-by-query cancelation. This whole class isn't thread safe. Luckily we run out tests in separate
+ * Utilities for testing reindex and update-by-query cancellation. This whole class isn't thread safe. Luckily we run our tests in separate
  * jvms.
  */
 public class CancelTestUtils {
@@ -62,7 +61,7 @@ public class CancelTestUtils {
     private static final CyclicBarrier barrier = new CyclicBarrier(2);
 
     public static <Request extends AbstractBulkIndexByScrollRequest<Request>,
-                    Response extends ActionResponse,
+                    Response extends BulkIndexByScrollResponse,
                     Builder extends AbstractBulkIndexByScrollRequestBuilder<Request, Response, Builder>>
             Response testCancel(ESIntegTestCase test, Builder request, String actionToCancel) throws Exception {
 

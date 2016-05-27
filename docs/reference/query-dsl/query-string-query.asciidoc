@@ -38,7 +38,7 @@ character. Defaults to `true`.
 
 |`lowercase_expanded_terms` |Whether terms of wildcard, prefix, fuzzy,
 and range queries are to be automatically lower-cased or not (since they
-are not analyzed). Default it `true`.
+are not analyzed). Defaults to `true`.
 
 |`enable_position_increments` |Set to `true` to enable position
 increments in result queries. Defaults to `true`.

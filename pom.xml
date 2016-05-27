@@ -26,6 +26,14 @@
         </license>
     </licenses>
 
+    <developers>
+        <developer>
+            <name>Elastic</name>
+            <url>https://github.com/elastic/elasticsearch</url>
+            <organizationUrl>https://www.elastic.co</organizationUrl>
+        </developer>
+    </developers>
+
     <scm>
         <connection>scm:git:git@github.com:elastic/elasticsearch.git</connection>
         <developerConnection>scm:git:git@github.com:elastic/elasticsearch.git</developerConnection>
@@ -52,7 +60,7 @@
         <securemock.version>1.1</securemock.version>
         <securesm.version>1.0</securesm.version>
 
-        <jackson.version>2.6.2</jackson.version>
+        <jackson.version>2.6.6</jackson.version>
         <slf4j.version>1.6.2</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
         <jacoco.version>0.7.5.201505241946</jacoco.version>
@@ -510,6 +518,24 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-antrun-plugin</artifactId>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-javadoc-plugin</artifactId>
+                    <version>2.10.3</version>
+                    <executions>
+                        <execution>
+                            <id>attach-javadocs</id>
+                            <goals>
+                                <goal>jar</goal>
+                            </goals>
+                            <configuration>
+                                <quiet>true</quiet>
+                                <additionalparam>${doclint.all}</additionalparam>
+                                <additionalparam>${doclint.missing}</additionalparam>
+                            </configuration>
+                        </execution>
+                    </executions>
                 </plugin>
             </plugins>
         <pluginManagement>
@@ -1291,12 +1317,6 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-invoker-plugin</artifactId>
                     <version>2.0.0</version>
-                </plugin>
-                <plugin>
-                    <!-- We just declare which plugin version to use. Each project can have then its own settings -->
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-javadoc-plugin</artifactId>
-                    <version>2.10.3</version>
                 </plugin>
                 <plugin>
                     <!-- We just declare which plugin version to use. Each project can have then its own settings -->

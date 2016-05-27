@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -50,7 +51,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         extends ActionRequest<Self> {
     public static final int SIZE_ALL_MATCHES = -1;
     private static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
-    private static final int DEFAULT_SCROLL_SIZE = 100;
+    private static final int DEFAULT_SCROLL_SIZE = 1000;
 
     /**
      * Default search source.
@@ -99,6 +100,13 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Total number of retries attempted for rejections. There is no way to ask for unlimited retries.
      */
     private int maxRetries = 11;
+
+    /**
+     * The throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
+     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * make sure that it contains any time that we might wait.
+     */
+    private float requestsPerSecond = Float.POSITIVE_INFINITY;
 
     public AbstractBulkByScrollRequest() {
     }
@@ -279,9 +287,32 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         return self();
     }
 
+    /**
+     * The throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
+     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * make sure that it contains any time that we might wait.
+     */
+    public float getRequestsPerSecond() {
+        return requestsPerSecond;
+    }
+
+    /**
+     * Set the throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
+     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * make sure that it contains any time that we might wait.
+     */
+    public Self setRequestsPerSecond(float requestsPerSecond) {
+        if (requestsPerSecond <= 0) {
+            throw new IllegalArgumentException(
+                    "[requests_per_second] must be greater than 0. Use Float.POSITIVE_INFINITY to disable throttling.");
+        }
+        this.requestsPerSecond = requestsPerSecond;
+        return self();
+    }
+
     @Override
     public Task createTask(long id, String type, String action) {
-        return new BulkByScrollTask(id, type, action, getDescription());
+        return new BulkByScrollTask(id, type, action, getDescription(), requestsPerSecond);
     }
 
     @Override
@@ -296,6 +327,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         consistency = WriteConsistencyLevel.fromId(in.readByte());
         retryBackoffInitialTime = TimeValue.readTimeValue(in);
         maxRetries = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_2_4_0)) {
+            requestsPerSecond = in.readFloat();
+        }
     }
 
     @Override
@@ -309,6 +343,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         out.writeByte(consistency.id());
         retryBackoffInitialTime.writeTo(out);
         out.writeVInt(maxRetries);
+        if (out.getVersion().onOrAfter(Version.V_2_4_0)) {
+            out.writeFloat(requestsPerSecond);
+        }
     }
 
     /**

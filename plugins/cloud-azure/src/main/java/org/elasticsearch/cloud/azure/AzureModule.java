@@ -93,6 +93,7 @@ public class AzureModule extends AbstractModule {
 
     /**
      * Check if discovery is meant to start
+     * @param settings settings to extract cloud enabled parameter from
      * @return true if we can start discovery features
      */
     public static boolean isCloudReady(Settings settings) {
@@ -101,6 +102,8 @@ public class AzureModule extends AbstractModule {
 
     /**
      * Check if discovery is meant to start
+     * @param settings settings to extract cloud enabled parameter from
+     * @param logger the logger to be used
      * @return true if we can start discovery features
      */
     public static boolean isDiscoveryReady(Settings settings, ESLogger logger) {
@@ -137,6 +140,8 @@ public class AzureModule extends AbstractModule {
 
     /**
      * Check if we have repository azure settings available
+     * @param settings settings to extract cloud enabled parameter from
+     * @param logger the logger to be used
      * @return true if we can use snapshot and restore
      */
     public static boolean isSnapshotReady(Settings settings, ESLogger logger) {

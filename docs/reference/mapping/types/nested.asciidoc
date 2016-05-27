@@ -137,7 +137,7 @@ GET my_index/_search
             "user.first": {}
           }
         }
-
+      }
     }
   }
 }

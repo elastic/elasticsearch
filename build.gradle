@@ -257,7 +257,6 @@ allprojects {
 
 idea {
   project {
-    languageLevel = org.elasticsearch.gradle.BuildPlugin.minimumJava.toString()
     vcs = 'Git'
   }
 }

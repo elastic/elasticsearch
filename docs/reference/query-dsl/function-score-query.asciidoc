@@ -82,6 +82,64 @@ First, each document is scored by the defined functions. The parameter
                 is applied
 `max`::         maximum score is used
 `min`::         minimum score is used
+`script`::      use script to determine the final score
+
+In the last case `score_mode: script` a script must be defined in the `score_script` parameter, see <<modules-scripting-using>> for the
+format. When using `score_mode: script`, each function must contain a parameter `var_name` which can then be used to refer to the function score from the script. Additinally a `no_match_score` can be added to each function. If the function's filter does not match a particular document, then the `no_match_score` will be used as the score for that function. If `no_match_score` is not specified, then the default score of 0 is used whenever the document does not match the filter.
+
+As an example of `score_mode: script`, the following query will multiply the result of the first two functions and then subtract the result of the third:
+
+[source,js]
+--------------------------------------------------
+POST test/_search
+{
+  "query": {
+    "function_score": {
+      "functions": [
+        {
+          "filter": {
+            "term": {
+              "text": "happy"
+            }
+          },
+          "weight": 10,
+          "var_name": "first", <1>
+          "no_match_score": 5 <2>
+        },
+        {
+          "filter": {
+            "term": {
+              "text": "hippo"
+            }
+          },
+          "weight": 10,
+          "var_name": "second", <1>
+          "no_match_score": 4 <2>
+        },
+        {
+          "weight": 10,
+          "var_name": "third" <1>
+        }
+      ],
+      "score_script": { <3>
+        "lang": "groovy",
+        "script": "first / second - third"
+      },
+      "score_mode": "script", <4>
+      "boost_mode": "replace"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> name that is later used as variable name in the `score_script`
+<2> default score for the filtered function when the filter does not match
+<3> the script to use when the individual scores are combined
+<4> score_mode "script" must be set in this case
+
+The language for `score_script` cannot be `expression`. In case you use painless the name of the varaible has to be prefixed with
+`params.` in the script (not the `var_name`).
 
 Because scores can be on different scales (for example, between 0 and 1 for decay functions but arbitrary for `field_value_factor`) and also
 because sometimes a different impact of functions on the score is desirable, the score of each function can be adjusted with a user defined

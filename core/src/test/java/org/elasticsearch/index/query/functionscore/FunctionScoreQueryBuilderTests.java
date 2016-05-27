@@ -86,12 +86,54 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     @Override
     protected FunctionScoreQueryBuilder doCreateTestQueryBuilder() {
-        FunctionScoreQueryBuilder functionScoreQueryBuilder = createRandomFunctionScoreBuilder();
+        FunctionScoreQueryBuilder functionScoreQueryBuilder = null;
+        switch (randomIntBetween(0, 3)) {
+            case 0:
+                boolean scoreModeScript = randomBoolean();
+                FilterFunctionBuilder[] functions = new FilterFunctionBuilder[randomIntBetween(0, 3)];
+                for (int i = 0; i < functions.length; i++) {
+                    String varName = "var" + Integer.toString(i);
+                    Float noMatchScore = null;
+                    if (scoreModeScript && randomBoolean()) {
+                        noMatchScore = 1.5f;
+                    }
+                    functions[i] = new FilterFunctionBuilder(RandomQueryBuilder.createQuery(random()), randomScoreFunction(), varName,
+                        noMatchScore);
+                }
+                if (scoreModeScript) {
+                    Map<String, Object> params = Collections.emptyMap();
+                    Script script = new Script("some smart script", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, params);
+                    functionScoreQueryBuilder =  new FunctionScoreQueryBuilder(RandomQueryBuilder.createQuery(random()), functions, script);
+                } else {
+                    functionScoreQueryBuilder = new FunctionScoreQueryBuilder(functions);
+                }
+                break;
+            case 1:
+                functionScoreQueryBuilder = new FunctionScoreQueryBuilder(randomScoreFunction());
+                break;
+            case 2:
+                functionScoreQueryBuilder = new FunctionScoreQueryBuilder(RandomQueryBuilder.createQuery(random()), randomScoreFunction());
+                break;
+            case 3:
+                functionScoreQueryBuilder = new FunctionScoreQueryBuilder(RandomQueryBuilder.createQuery(random()));
+                break;
+            default:
+                throw new UnsupportedOperationException();
+        }
+
         if (randomBoolean()) {
             functionScoreQueryBuilder.boostMode(randomFrom(CombineFunction.values()));
         }
         if (randomBoolean()) {
-            functionScoreQueryBuilder.scoreMode(randomFrom(FiltersFunctionScoreQuery.ScoreMode.values()));
+            // set the scoreMode - but only if scoreScript is null (otherwise scoreMode must be 'script')
+            if (functionScoreQueryBuilder.getScoreScript() == null ) {
+                FiltersFunctionScoreQuery.ScoreMode scoreMode = randomFrom(FiltersFunctionScoreQuery.ScoreMode.values());
+                if (scoreMode == FiltersFunctionScoreQuery.ScoreMode.SCRIPT) {
+                    // since we don't have a script we can't set scoreMode to script - just use average
+                    scoreMode = FiltersFunctionScoreQuery.ScoreMode.AVG;
+                }
+                functionScoreQueryBuilder.scoreMode(scoreMode);
+            }
         }
         if (randomBoolean()) {
             functionScoreQueryBuilder.maxBoost(randomFloat());
@@ -100,32 +142,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             functionScoreQueryBuilder.setMinScore(randomFloat());
         }
         return functionScoreQueryBuilder;
-    }
-
-    /**
-     * Creates a random function score query using only constructor params. The caller is responsible for randomizing fields set outside of
-     * the constructor.
-     */
-    private static FunctionScoreQueryBuilder createRandomFunctionScoreBuilder() {
-        switch (randomIntBetween(0, 3)) {
-        case 0:
-            FilterFunctionBuilder[] functions = new FilterFunctionBuilder[randomIntBetween(0, 3)];
-            for (int i = 0; i < functions.length; i++) {
-                functions[i] = new FilterFunctionBuilder(RandomQueryBuilder.createQuery(random()), randomScoreFunction());
-            }
-            if (randomBoolean()) {
-                return new FunctionScoreQueryBuilder(RandomQueryBuilder.createQuery(random()), functions);
-            }
-            return new FunctionScoreQueryBuilder(functions);
-        case 1:
-            return new FunctionScoreQueryBuilder(randomScoreFunction());
-        case 2:
-            return new FunctionScoreQueryBuilder(RandomQueryBuilder.createQuery(random()), randomScoreFunction());
-        case 3:
-            return new FunctionScoreQueryBuilder(RandomQueryBuilder.createQuery(random()));
-        default:
-            throw new UnsupportedOperationException();
-        }
     }
 
     private static ScoreFunctionBuilder<?> randomScoreFunction() {
@@ -249,16 +265,46 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((FilterFunctionBuilder[]) null));
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(null, randomFunction(123)));
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(matchAllQuery(), (ScoreFunctionBuilder<?>) null));
-        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(matchAllQuery(), (FilterFunctionBuilder[]) null));
-        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(null, new FilterFunctionBuilder[0]));
+        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(matchAllQuery(), (FilterFunctionBuilder[]) null,
+            null));
+        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(null, new FilterFunctionBuilder[0], null));
         expectThrows(IllegalArgumentException.class,
-                () -> new FunctionScoreQueryBuilder(matchAllQuery(), new FilterFunctionBuilder[] { null }));
+            () -> new FunctionScoreQueryBuilder(matchAllQuery(), new FilterFunctionBuilder[] { null }, null));
         expectThrows(IllegalArgumentException.class, () -> new FilterFunctionBuilder((ScoreFunctionBuilder<?>) null));
         expectThrows(IllegalArgumentException.class, () -> new FilterFunctionBuilder(null, randomFunction(123)));
         expectThrows(IllegalArgumentException.class, () -> new FilterFunctionBuilder(matchAllQuery(), null));
         FunctionScoreQueryBuilder builder = new FunctionScoreQueryBuilder(matchAllQuery());
         expectThrows(IllegalArgumentException.class, () -> builder.scoreMode(null));
         expectThrows(IllegalArgumentException.class, () -> builder.boostMode(null));
+    }
+
+    public void testIllegalArgumentsRelatedToScriptScoring() {
+        // FunctionScoreQueryBuilder with script should error if any of the functions doesn't have a var_name
+        FilterFunctionBuilder[] functionBuilders = new FilterFunctionBuilder[]{
+            new FilterFunctionBuilder(matchAllQuery(), fieldValueFactorFunction("test")),
+            new FilterFunctionBuilder(matchAllQuery(), weightFactorFunction(2f), "beta", null),
+        };
+        Script script = new Script("alpha+beta", ScriptService.ScriptType.INLINE, "mock_script", null);
+        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(matchAllQuery(), functionBuilders, script));
+
+        // FunctionScoreQueryBuilder with script should error if any of the functions have the same name
+        FilterFunctionBuilder[] functionBuilders2 = new FilterFunctionBuilder[]{
+            new FilterFunctionBuilder(matchAllQuery(), fieldValueFactorFunction("test"), "alpha", null),
+            new FilterFunctionBuilder(matchAllQuery(), weightFactorFunction(2f), "alpha", null),
+        };
+        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(matchAllQuery(), functionBuilders2, script));
+
+        // FunctionScoreQueryBuilder with script should error if scoreMode is set to anything besides scoreMode
+        FilterFunctionBuilder[] functionBuilders3 = new FilterFunctionBuilder[]{
+            new FilterFunctionBuilder(matchAllQuery(), fieldValueFactorFunction("test"), "alpha", null),
+            new FilterFunctionBuilder(matchAllQuery(), weightFactorFunction(2f), "beta", null),
+        };
+        FunctionScoreQueryBuilder builder = new FunctionScoreQueryBuilder(matchAllQuery(), functionBuilders3, script);
+        expectThrows(IllegalArgumentException.class, () -> builder.scoreMode(FiltersFunctionScoreQuery.ScoreMode.AVG));
+
+        // FunctionScoreQueryBuilder without script should error if scoreMode is set to script
+        FunctionScoreQueryBuilder builder2 = new FunctionScoreQueryBuilder(matchAllQuery(), functionBuilders3, null);
+        expectThrows(IllegalArgumentException.class, () -> builder2.scoreMode(FiltersFunctionScoreQuery.ScoreMode.SCRIPT));
     }
 
     public void testParseFunctionsArray() throws IOException {
@@ -350,6 +396,266 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 queryBuilder = parseQuery(((AbstractQueryBuilder) queryBuilder).buildAsBytes(XContentType.values()[i]));
             }
         }
+    }
+
+    public void testParseFunctionScoreWithScriptCombine() throws IOException {
+        String functionScoreQuery = "{\n" +
+            "    \"function_score\": {\n" +
+            "      \"score_mode\": \"script\",\n" +
+            "      \"functions\": [\n" +
+            "        {\n" +
+            "          \"filter\": {\n" +
+            "            \"match\": {\n" +
+            "              \"some_other_field\": \"foo\"\n" +
+            "            }\n" +
+            "          },\n" +
+            "          \"field_value_factor\": {\n" +
+            "            \"field\": \"num_field\"\n" +
+            "          },\n" +
+            "          \"weight\": 2,\n" +
+            "          \"no_match_score\": 1.5,\n" +
+            "          \"var_name\": \"score_a\"\n" +
+            "        },\n" +
+            "        {\n" +
+            "          \"filter\": {\n" +
+            "            \"match\": {\n" +
+            "              \"some_other_field\": \"foo\"\n" +
+            "            }\n" +
+            "          },\n" +
+            "          \"field_value_factor\": {\n" +
+            "            \"field\": \"another_num_field\"\n" +
+            "          },\n" +
+            "          \"weight\": 2,\n" +
+            "          \"var_name\": \"score_b\"\n" +
+            "        }\n" +
+            "      ],\n" +
+            "      \"score_script\": {\n" +
+            "        \"lang\": \"mockscript\",\n" +
+            "        \"inline\": \"score_a*score_b+42+c\",\n" +
+            "        \"params\": {\n" +
+            "          \"c\": 13\n" +
+            "        }\n" +
+            "      },\n" +
+            "      \"boost_mode\": \"replace\"\n" +
+            "    }\n" +
+            "}";
+
+        FunctionScoreQueryBuilder queryBuilder = (FunctionScoreQueryBuilder)parseQuery(functionScoreQuery);
+        assertThat(queryBuilder.scoreMode(), equalTo(FiltersFunctionScoreQuery.ScoreMode.SCRIPT));
+        assertNotNull(queryBuilder.getScoreScript());
+        assertThat(queryBuilder.getScoreScript().getLang(), equalTo("mockscript"));
+        assertThat(queryBuilder.getScoreScript().getScript(), equalTo("score_a*score_b+42+c"));
+        assertThat(queryBuilder.getScoreScript().getParams().get("c"), equalTo(13));
+        assertThat(queryBuilder.getScoreScript().getType(), equalTo(ScriptService.ScriptType.INLINE));
+        assertThat(queryBuilder.filterFunctionBuilders()[0].getNoMatchScore(), equalTo(1.5f));
+    }
+
+    public void testParseFunctionScoreWithScriptCombineWithCrazyVarNames() throws IOException {
+        String functionScoreQuery = "{\n" +
+            "    \"function_score\": {\n" +
+            "      \"score_mode\": \"script\",\n" +
+            "      \"functions\": [\n" +
+            "        {\n" +
+            "          \"filter\": {\n" +
+            "            \"match\": {\n" +
+            "              \"some_other_field\": \"foo\"\n" +
+            "            }\n" +
+            "          },\n" +
+            "          \"field_value_factor\": {\n" +
+            "            \"field\": \"num_field\"\n" +
+            "          },\n" +
+            "          \"weight\": 2,\n" +
+            "          \"var_name\": \"123\"\n" +
+            "        },\n" +
+            "        {\n" +
+            "          \"filter\": {\n" +
+            "            \"match\": {\n" +
+            "              \"some_other_field\": \"foo\"\n" +
+            "            }\n" +
+            "          },\n" +
+            "          \"field_value_factor\": {\n" +
+            "            \"field\": \"$!@#!\"\n" +
+            "          },\n" +
+            "          \"weight\": 2,\n" +
+            "          \"var_name\": \"score_b\"\n" +
+            "        }\n" +
+            "      ],\n" +
+            "      \"score_script\": {\n" +
+            "        \"lang\": \"mockscript\",\n" +
+            "        \"inline\": \"score_a*score_b+42+c\",\n" +
+            "        \"params\": {\n" +
+            "          \"c\": 13\n" +
+            "        }\n" +
+            "      },\n" +
+            "      \"boost_mode\": \"replace\"\n" +
+            "    }\n" +
+            "}";
+
+        expectParsingException(functionScoreQuery, "[var_name] must be must only contain letters, numbers, " +
+            "or underscore and must start with a letter.");
+    }
+
+    public void testParseFunctionScoreWithScriptCombineMissingVarName() throws IOException {
+        String functionScoreQuery = "{\n" +
+            "    \"function_score\": {\n" +
+            "      \"score_mode\": \"script\",\n" +
+            "      \"functions\": [\n" +
+            "        {\n" +
+            "          \"filter\": {\n" +
+            "            \"match\": {\n" +
+            "              \"some_other_field\": \"foo\"\n" +
+            "            }\n" +
+            "          },\n" +
+            "          \"field_value_factor\": {\n" +
+            "            \"field\": \"num_field\"\n" +
+            "          },\n" +
+            "          \"weight\": 2\n" +  //missing var_name here
+            "        },\n" +
+            "        {\n" +
+            "          \"filter\": {\n" +
+            "            \"match\": {\n" +
+            "              \"some_other_field\": \"foo\"\n" +
+            "            }\n" +
+            "          },\n" +
+            "          \"field_value_factor\": {\n" +
+            "            \"field\": \"another_num_field\"\n" +
+            "          },\n" +
+            "          \"weight\": 2,\n" +
+            "          \"var_name\": \"score_b\"\n" +
+            "        }\n" +
+            "      ],\n" +
+            "      \"score_script\": {\n" +
+            "        \"lang\": \"mockscript\",\n" +
+            "        \"inline\": \"score_a*score_b+42+c\",\n" +
+            "        \"params\": {\n" +
+            "          \"c\": 13\n" +
+            "        }\n" +
+            "      },\n" +
+            "      \"boost_mode\": \"replace\"\n" +
+            "    }\n" +
+            "}";
+
+        expectParsingException(functionScoreQuery, "if [score_mode] is [SCRIPT] then a [var_name] must be specified " +
+            "for each function.");
+    }
+
+    public void testParseFunctionScoreNoMatchScoreWithoutScoreModeScript() throws IOException {
+        String functionScoreQuery = "{\n" +
+            "    \"function_score\": {\n" +
+            "      \"score_mode\": \"sum\",\n" +
+            "      \"functions\": [\n" +
+            "        {\n" +
+            "          \"filter\": {\n" +
+            "            \"match\": {\n" +
+            "              \"some_other_field\": \"foo\"\n" +
+            "            }\n" +
+            "          },\n" +
+            "          \"field_value_factor\": {\n" +
+            "            \"field\": \"num_field\"\n" +
+            "          },\n" +
+            "          \"weight\": 2,\n" +
+            "          \"no_match_score\": 1.5,\n" +  // no_match_score shouldn't be specified except with score_mode=script
+            "          \"var_name\": \"score_a\"\n" +
+            "        },\n" +
+            "        {\n" +
+            "          \"filter\": {\n" +
+            "            \"match\": {\n" +
+            "              \"some_other_field\": \"foo\"\n" +
+            "            }\n" +
+            "          },\n" +
+            "          \"field_value_factor\": {\n" +
+            "            \"field\": \"another_num_field\"\n" +
+            "          },\n" +
+            "          \"weight\": 2,\n" +
+            "          \"var_name\": \"score_b\"\n" +
+            "        }\n" +
+            "      ],\n" +
+            "      \"boost_mode\": \"replace\"\n" +
+            "    }\n" +
+            "}";
+
+        expectParsingException(functionScoreQuery, "[no_match_score] may only be specified when [score_mode = SCRIPT].");
+    }
+
+    public void testParseFunctionScoreScoreScriptWithoutScoreModeScript() throws IOException {
+        String functionScoreQuery = "{\n" +
+            "    \"function_score\": {\n" +
+            "      \"score_mode\": \"sum\",\n" +
+            "      \"functions\": [\n" +
+            "        {\n" +
+            "          \"filter\": {\n" +
+            "            \"match\": {\n" +
+            "              \"some_other_field\": \"foo\"\n" +
+            "            }\n" +
+            "          },\n" +
+            "          \"field_value_factor\": {\n" +
+            "            \"field\": \"num_field\"\n" +
+            "          },\n" +
+            "          \"weight\": 2\n" +
+            "        },\n" +
+            "        {\n" +
+            "          \"filter\": {\n" +
+            "            \"match\": {\n" +
+            "              \"some_other_field\": \"foo\"\n" +
+            "            }\n" +
+            "          },\n" +
+            "          \"field_value_factor\": {\n" +
+            "            \"field\": \"another_num_field\"\n" +
+            "          },\n" +
+            "          \"weight\": 2\n" +
+            "        }\n" +
+            "      ],\n" +
+            "      \"score_script\": {\n" + // this shouldn't be specified when score_mode is sum
+            "        \"lang\": \"mockscript\",\n" +
+            "        \"inline\": \"score_a*score_b+42+c\",\n" +
+            "        \"params\": {\n" +
+            "          \"c\": 13\n" +
+            "        }\n" +
+            "      },\n" +
+            "      \"boost_mode\": \"replace\"\n" +
+            "    }\n" +
+            "}";
+
+        expectParsingException(functionScoreQuery, "[score_script] may only be specified for [score_mode = SCRIPT].");
+    }
+
+    public void testParseFunctionScoreScoreModeScriptWithoutScoreScript() throws IOException {
+        String functionScoreQuery = "{\n" +
+            "    \"function_score\": {\n" +
+            "      \"score_mode\": \"script\",\n" +
+            "      \"functions\": [\n" +
+            "        {\n" +
+            "          \"filter\": {\n" +
+            "            \"match\": {\n" +
+            "              \"some_other_field\": \"foo\"\n" +
+            "            }\n" +
+            "          },\n" +
+            "          \"field_value_factor\": {\n" +
+            "            \"field\": \"num_field\"\n" +
+            "          },\n" +
+            "          \"weight\": 2,\n" +
+            "          \"var_name\": \"score_a\"\n" +
+            "        },\n" +
+            "        {\n" +
+            "          \"filter\": {\n" +
+            "            \"match\": {\n" +
+            "              \"some_other_field\": \"foo\"\n" +
+            "            }\n" +
+            "          },\n" +
+            "          \"field_value_factor\": {\n" +
+            "            \"field\": \"another_num_field\"\n" +
+            "          },\n" +
+            "          \"weight\": 2,\n" +
+            "          \"var_name\": \"score_b\"\n" +
+            "        }\n" +
+            "      ],\n" +
+            "      \"boost_mode\": \"replace\"\n" +
+            "    }\n" +
+            "}";
+
+
+        expectParsingException(functionScoreQuery,
+            "if [score_mode] is [SCRIPT] then a script must be specified in the [score_script] field.");
     }
 
     public void testParseSingleFunction() throws IOException {
@@ -651,7 +957,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(queryBuilder,
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(firstFunction, new RandomScoreFunctionBuilder()),
-                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(secondFunction, new RandomScoreFunctionBuilder()) });
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(secondFunction, new RandomScoreFunctionBuilder()) }, null);
         FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createShardContext());
         assertNotSame(functionScoreQueryBuilder, rewrite);
         assertEquals(rewrite.query(), new TermQueryBuilder("foo", "bar"));

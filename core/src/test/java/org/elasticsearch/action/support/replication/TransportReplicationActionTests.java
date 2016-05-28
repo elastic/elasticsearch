@@ -549,8 +549,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertEquals(shardRoutingEntry.getShardRouting(), replica);
         if (randomBoolean()) {
             // simulate success
-            transport.handleResponse(shardFailedRequest.requestId,
-                new TransportReplicationAction.ReplicaResponse(randomAsciiOfLength(10), randomLong()));
+            transport.handleResponse(shardFailedRequest.requestId, TransportResponse.Empty.INSTANCE);
             assertTrue(success.get());
             assertNull(failure.get());
             assertNull(ignoredFailure.get());

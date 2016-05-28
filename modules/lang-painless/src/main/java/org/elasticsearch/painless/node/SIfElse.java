@@ -30,8 +30,8 @@ import org.elasticsearch.painless.MethodWriter;
 public final class SIfElse extends AStatement {
 
     AExpression condition;
-    final SBlock ifblock;
-    final SBlock elseblock;
+    AStatement ifblock;
+    AStatement elseblock;
 
     public SIfElse(int line, int offset, String location, AExpression condition, SBlock ifblock, SBlock elseblock) {
         super(line, offset, location);
@@ -42,7 +42,7 @@ public final class SIfElse extends AStatement {
     }
 
     @Override
-    void analyze(Variables variables) {
+    AStatement analyze(Variables variables) {
         condition.expected = Definition.BOOLEAN_TYPE;
         condition.analyze(variables);
         condition = condition.cast(variables);
@@ -60,7 +60,7 @@ public final class SIfElse extends AStatement {
         ifblock.lastLoop = lastLoop;
 
         variables.incrementScope();
-        ifblock.analyze(variables);
+        ifblock = ifblock.analyze(variables);
         variables.decrementScope();
 
         anyContinue = ifblock.anyContinue;
@@ -76,7 +76,7 @@ public final class SIfElse extends AStatement {
         elseblock.lastLoop = lastLoop;
 
         variables.incrementScope();
-        elseblock.analyze(variables);
+        elseblock = elseblock.analyze(variables);
         variables.decrementScope();
 
         methodEscape = ifblock.methodEscape && elseblock.methodEscape;
@@ -85,11 +85,14 @@ public final class SIfElse extends AStatement {
         anyContinue |= elseblock.anyContinue;
         anyBreak |= elseblock.anyBreak;
         statementCount = Math.max(ifblock.statementCount, elseblock.statementCount);
+
+        return this;
     }
 
     @Override
     void write(MethodWriter writer) {
         writer.writeStatementOffset(offset);
+
         Label end = new Label();
         Label fals = elseblock != null ? new Label() : end;
 

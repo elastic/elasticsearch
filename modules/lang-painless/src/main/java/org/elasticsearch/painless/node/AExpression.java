@@ -122,9 +122,19 @@ public abstract class AExpression extends ANode {
 
         if (cast == null) {
             if (constant == null || this instanceof EConstant) {
+                // For the case where a cast is not required and a constant is not set
+                // or the node is already an EConstant no changes are required to the tree.
+
                 return this;
             } else {
-                final EConstant econstant = new EConstant(line, offset, location, constant);
+                // For the case where a cast is not required but a
+                // constant is set, an EConstant replaces this node
+                // with the constant copied from this node.  Note that
+                // for constants output data does not need to be copied
+                // from this node because the output data for the EConstant
+                // will already be the same.
+
+                EConstant econstant = new EConstant(line, offset, location, constant);
                 econstant.analyze(variables);
 
                 if (!expected.equals(econstant.actual)) {
@@ -135,7 +145,12 @@ public abstract class AExpression extends ANode {
             }
         } else {
             if (constant == null) {
-                final ECast ecast = new ECast(line, offset, location, this, cast);
+                // For the case where a cast is required and a constant is not set.
+                // Modify the tree to add an ECast between this node and its parent.
+                // The output data from this node is copied to the ECast for
+                // further reads done by the parent.
+
+                ECast ecast = new ECast(line, offset, location, this, cast);
                 ecast.statement = statement;
                 ecast.actual = expected;
                 ecast.isNull = isNull;
@@ -143,9 +158,17 @@ public abstract class AExpression extends ANode {
                 return ecast;
             } else {
                 if (expected.sort.constant) {
+                    // For the case where a cast is required, a constant is set,
+                    // and the constant can be immediately cast to the expected type.
+                    // An EConstant replaces this node with the constant cast appropriately
+                    // from the constant value defined by this node.  Note that
+                    // for constants output data does not need to be copied
+                    // from this node because the output data for the EConstant
+                    // will already be the same.
+
                     constant = AnalyzerCaster.constCast(location, constant, cast);
 
-                    final EConstant econstant = new EConstant(line, offset, location, constant);
+                    EConstant econstant = new EConstant(line, offset, location, constant);
                     econstant.analyze(variables);
 
                     if (!expected.equals(econstant.actual)) {
@@ -154,19 +177,36 @@ public abstract class AExpression extends ANode {
 
                     return econstant;
                 } else if (this instanceof EConstant) {
-                    final ECast ecast = new ECast(line, offset, location, this, cast);
+                    // For the case where a cast is required, a constant is set,
+                    // the constant cannot be immediately cast to the expected type,
+                    // and this node is already an EConstant.  Modify the tree to add
+                    // an ECast between this node and its parent.  Note that
+                    // for constants output data does not need to be copied
+                    // from this node because the output data for the EConstant
+                    // will already be the same.
+
+                    ECast ecast = new ECast(line, offset, location, this, cast);
                     ecast.actual = expected;
 
                     return ecast;
                 } else {
-                    final EConstant econstant = new EConstant(line, offset, location, constant);
+                    // For the case where a cast is required, a constant is set,
+                    // the constant cannot be immediately cast to the expected type,
+                    // and this node is not an EConstant.  Replace this node with
+                    // an Econstant node copying the constant from this node.
+                    // Modify the tree to add an ECast between the EConstant node
+                    // and its parent.  Note that for constants output data does not
+                    // need to be copied from this node because the output data for
+                    // the EConstant will already be the same.
+
+                    EConstant econstant = new EConstant(line, offset, location, constant);
                     econstant.analyze(variables);
 
                     if (!actual.equals(econstant.actual)) {
                         throw new IllegalStateException(error("Illegal tree structure."));
                     }
 
-                    final ECast ecast = new ECast(line, offset, location, econstant, cast);
+                    ECast ecast = new ECast(line, offset, location, econstant, cast);
                     ecast.actual = expected;
 
                     return ecast;

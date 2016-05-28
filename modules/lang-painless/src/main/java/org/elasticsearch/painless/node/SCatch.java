@@ -34,7 +34,7 @@ public final class SCatch extends AStatement {
 
     final String type;
     final String name;
-    final SBlock block;
+    AStatement block;
 
     Variable variable;
 
@@ -51,7 +51,7 @@ public final class SCatch extends AStatement {
     }
 
     @Override
-    void analyze(Variables variables) {
+    AStatement analyze(Variables variables) {
         final Type type;
 
         try {
@@ -71,7 +71,7 @@ public final class SCatch extends AStatement {
             block.inLoop = inLoop;
             block.lastLoop = lastLoop;
 
-            block.analyze(variables);
+            block = block.analyze(variables);
 
             methodEscape = block.methodEscape;
             loopEscape = block.loopEscape;
@@ -80,11 +80,14 @@ public final class SCatch extends AStatement {
             anyBreak = block.anyBreak;
             statementCount = block.statementCount;
         }
+
+        return this;
     }
 
     @Override
     void write(MethodWriter writer) {
         writer.writeStatementOffset(offset);
+
         Label jump = new Label();
 
         writer.mark(jump);

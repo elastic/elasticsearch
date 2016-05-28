@@ -38,7 +38,7 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    void analyze(Variables variables) {
+    AStatement analyze(Variables variables) {
         expression.read = lastSource;
         expression.analyze(variables);
 
@@ -56,6 +56,8 @@ public final class SExpression extends AStatement {
         loopEscape = rtn;
         allEscape = rtn;
         statementCount = 1;
+
+        return this;
     }
 
     @Override

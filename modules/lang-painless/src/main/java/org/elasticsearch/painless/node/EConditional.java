@@ -79,6 +79,7 @@ public final class EConditional extends AExpression {
     @Override
     void write(MethodWriter writer) {
         writer.writeDebugInfo(offset);
+
         Label localfals = new Label();
         Label end = new Label();
 

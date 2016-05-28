@@ -83,5 +83,4 @@ public final class LBrace extends ALink {
         writer.writeDebugInfo(offset);
         writer.arrayStore(after.type);
     }
-
 }

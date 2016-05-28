@@ -104,17 +104,16 @@ final class Compiler {
         SSource root = Walker.buildPainlessTree(source, reserved, settings);
         Variables variables = Analyzer.analyze(reserved, root);
         BitSet expressions = new BitSet(source.length());
-
         byte[] bytes = Writer.write(settings, name, source, variables, root, expressions);
+
         try {
             Class<? extends Executable> clazz = loader.define(CLASS_NAME, bytes);
-            java.lang.reflect.Constructor<? extends Executable> constructor = 
+            java.lang.reflect.Constructor<? extends Executable> constructor =
                     clazz.getConstructor(String.class, String.class, BitSet.class);
 
             return constructor.newInstance(name, source, expressions);
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
-            throw new IllegalStateException(
-                    "An internal error occurred attempting to define the script [" + name + "].", exception);
+            throw new IllegalStateException("An internal error occurred attempting to define the script [" + name + "].", exception);
         }
     }
 

@@ -33,7 +33,7 @@ public final class SFor extends AStatement {
     ANode initializer;
     AExpression condition;
     AExpression afterthought;
-    final SBlock block;
+    AStatement block;
 
     public SFor(int line, int offset, String location, int maxLoopCounter,
                 ANode initializer, AExpression condition, AExpression afterthought, SBlock block) {
@@ -47,14 +47,14 @@ public final class SFor extends AStatement {
     }
 
     @Override
-    void analyze(Variables variables) {
+    AStatement analyze(Variables variables) {
         variables.incrementScope();
 
         boolean continuous = false;
 
         if (initializer != null) {
-            if (initializer instanceof SDeclBlock) {
-                ((SDeclBlock)initializer).analyze(variables);
+            if (initializer instanceof AStatement) {
+                initializer = ((AStatement)initializer).analyze(variables);
             } else if (initializer instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializer;
 
@@ -102,7 +102,7 @@ public final class SFor extends AStatement {
             block.beginLoop = true;
             block.inLoop = true;
 
-            block.analyze(variables);
+            block = block.analyze(variables);
 
             if (block.loopEscape && !block.anyContinue) {
                 throw new IllegalArgumentException(error("Extraneous for loop."));
@@ -123,11 +123,14 @@ public final class SFor extends AStatement {
         }
 
         variables.decrementScope();
+
+        return this;
     }
 
     @Override
     void write(MethodWriter writer) {
         writer.writeStatementOffset(offset);
+
         Label start = new Label();
         Label begin = afterthought == null ? start : new Label();
         Label end = new Label();

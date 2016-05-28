@@ -113,8 +113,11 @@ public abstract class AStatement extends ANode {
 
     /**
      * Checks for errors and collects data for the writing phase.
+     * @return The new child node for the parent node calling this method.
+     * Possibly returns a different {@link AStatement} node if a type is
+     * def or if a different specialization is used. Otherwise, returns itself.
      */
-    abstract void analyze(Variables variables);
+    abstract AStatement analyze(Variables variables);
 
     /**
      * Writes ASM based on the data collected during the analysis phase.

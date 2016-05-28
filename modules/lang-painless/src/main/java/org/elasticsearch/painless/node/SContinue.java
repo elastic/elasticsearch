@@ -32,7 +32,7 @@ public final class SContinue extends AStatement {
     }
 
     @Override
-    void analyze(Variables variables) {
+    AStatement analyze(Variables variables) {
         if (!inLoop) {
             throw new IllegalArgumentException(error("Continue statement outside of a loop."));
         }
@@ -44,6 +44,8 @@ public final class SContinue extends AStatement {
         allEscape = true;
         anyContinue = true;
         statementCount = 1;
+
+        return this;
     }
 
     @Override

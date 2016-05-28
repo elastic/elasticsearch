@@ -106,6 +106,7 @@ public final class LField extends ALink {
     @Override
     void load(MethodWriter writer) {
         writer.writeDebugInfo(offset);
+
         if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
             writer.getStatic(field.owner.type, field.javaName, field.type.type);
         } else {
@@ -116,6 +117,7 @@ public final class LField extends ALink {
     @Override
     void store(MethodWriter writer) {
         writer.writeDebugInfo(offset);
+
         if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
             writer.putStatic(field.owner.type, field.javaName, field.type.type);
         } else {

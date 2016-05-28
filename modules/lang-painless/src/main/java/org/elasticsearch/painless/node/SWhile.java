@@ -31,7 +31,7 @@ public final class SWhile extends AStatement {
 
     final int maxLoopCounter;
     AExpression condition;
-    final SBlock block;
+    AStatement block;
 
     public SWhile(int line, int offset, String location, int maxLoopCounter, AExpression condition, SBlock block) {
         super(line, offset, location);
@@ -42,7 +42,7 @@ public final class SWhile extends AStatement {
     }
 
     @Override
-    void analyze(Variables variables) {
+    AStatement analyze(Variables variables) {
         variables.incrementScope();
 
         condition.expected = Definition.BOOLEAN_TYPE;
@@ -67,7 +67,7 @@ public final class SWhile extends AStatement {
             block.beginLoop = true;
             block.inLoop = true;
 
-            block.analyze(variables);
+            block = block.analyze(variables);
 
             if (block.loopEscape && !block.anyContinue) {
                 throw new IllegalArgumentException(error("Extraneous while loop."));
@@ -88,11 +88,14 @@ public final class SWhile extends AStatement {
         }
 
         variables.decrementScope();
+
+        return this;
     }
 
     @Override
     void write(MethodWriter writer) {
         writer.writeStatementOffset(offset);
+
         Label begin = new Label();
         Label end = new Label();
 

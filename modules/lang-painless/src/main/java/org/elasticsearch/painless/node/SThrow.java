@@ -37,7 +37,7 @@ public final class SThrow extends AStatement {
     }
 
     @Override
-    void analyze(Variables variables) {
+    AStatement analyze(Variables variables) {
         expression.expected = Definition.EXCEPTION_TYPE;
         expression.analyze(variables);
         expression = expression.cast(variables);
@@ -46,6 +46,8 @@ public final class SThrow extends AStatement {
         loopEscape = true;
         allEscape = true;
         statementCount = 1;
+
+        return this;
     }
 
     @Override

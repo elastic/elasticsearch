@@ -23,7 +23,6 @@ import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
 
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -31,18 +30,18 @@ import java.util.List;
  */
 public final class STry extends AStatement {
 
-    final SBlock block;
+    AStatement block;
     final List<SCatch> catches;
 
-    public STry(int line, int offset, String location, SBlock block, List<SCatch> traps) {
+    public STry(int line, int offset, String location, SBlock block, List<SCatch> catches) {
         super(line, offset, location);
 
         this.block = block;
-        this.catches = Collections.unmodifiableList(traps);
+        this.catches = catches;
     }
 
     @Override
-    void analyze(Variables variables) {
+    AStatement analyze(Variables variables) {
         if (block == null) {
             throw new IllegalArgumentException(error("Extraneous try statement."));
         }
@@ -52,7 +51,7 @@ public final class STry extends AStatement {
         block.lastLoop = lastLoop;
 
         variables.incrementScope();
-        block.analyze(variables);
+        block = block.analyze(variables);
         variables.decrementScope();
 
         methodEscape = block.methodEscape;
@@ -63,13 +62,15 @@ public final class STry extends AStatement {
 
         int statementCount = 0;
 
-        for (SCatch catc : catches) {
+        for (int index = 0; index < catches.size(); ++index) {
+            SCatch catc = catches.get(index);
+
             catc.lastSource = lastSource;
             catc.inLoop = inLoop;
             catc.lastLoop = lastLoop;
 
             variables.incrementScope();
-            catc.analyze(variables);
+            catches.set(index, (SCatch)catc.analyze(variables));
             variables.decrementScope();
 
             methodEscape &= catc.methodEscape;
@@ -82,11 +83,14 @@ public final class STry extends AStatement {
         }
 
         this.statementCount = block.statementCount + statementCount;
+
+        return this;
     }
 
     @Override
     void write(MethodWriter writer) {
         writer.writeStatementOffset(offset);
+
         Label begin = new Label();
         Label end = new Label();
         Label exception = new Label();

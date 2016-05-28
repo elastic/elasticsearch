@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
 
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -35,27 +34,27 @@ public final class SBlock extends AStatement {
     public SBlock(int line, int offset, String location, List<AStatement> statements) {
         super(line, offset, location);
 
-        this.statements = Collections.unmodifiableList(statements);
+        this.statements = statements;
     }
 
     @Override
-    void analyze(Variables variables) {
+    AStatement analyze(Variables variables) {
         if (statements == null || statements.isEmpty()) {
             throw new IllegalArgumentException(error("A block must contain at least one statement."));
         }
 
-        final AStatement last = statements.get(statements.size() - 1);
-
-        for (AStatement statement : statements) {
+        for (int index = 0; index < statements.size(); ++index) {
             if (allEscape) {
                 throw new IllegalArgumentException(error("Unreachable statement."));
             }
 
-            statement.inLoop = inLoop;
-            statement.lastSource = lastSource && statement == last;
-            statement.lastLoop = (beginLoop || lastLoop) && statement == last;
+            AStatement statement = statements.get(index);
 
-            statement.analyze(variables);
+            statement.inLoop = inLoop;
+            statement.lastSource = lastSource && index == statements.size() - 1;
+            statement.lastLoop = (beginLoop || lastLoop) && index == statements.size() - 1;
+
+            statements.set(index, statement.analyze(variables));
 
             methodEscape = statement.methodEscape;
             loopEscape = statement.loopEscape;
@@ -64,6 +63,8 @@ public final class SBlock extends AStatement {
             anyBreak |= statement.anyBreak;
             statementCount += statement.statementCount;
         }
+
+        return this;
     }
 
     @Override

@@ -46,7 +46,7 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    void analyze(Variables variables) {
+    AStatement analyze(Variables variables) {
         final Type type;
 
         try {
@@ -62,11 +62,14 @@ public final class SDeclaration extends AStatement {
         }
 
         variable = variables.addVariable(location, type, name, false, false);
+
+        return this;
     }
 
     @Override
     void write(MethodWriter writer) {
         writer.writeStatementOffset(offset);
+
         if (expression == null) {
             switch (variable.type.sort) {
                 case VOID:   throw new IllegalStateException(error("Illegal tree structure."));

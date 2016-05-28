@@ -35,7 +35,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,7 +84,8 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
 
     void execute() throws Exception {
         final String writeConsistencyFailure = checkWriteConsistency ? checkWriteConsistency() : null;
-        final ShardId shardId = primary.routingEntry().shardId();
+        final ShardRouting primaryRouting = primary.routingEntry();
+        final ShardId shardId = primaryRouting.shardId();
         if (writeConsistencyFailure != null) {
             finishAsFailed(new UnavailableShardsException(shardId,
                 "{} Timeout: [{}], request: [{}]", writeConsistencyFailure, request.timeout(), request));
@@ -96,6 +96,7 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
         pendingShards.incrementAndGet(); // increase by 1 until we finish all primary coordination
         Tuple<Response, ReplicaRequest> primaryResponse = primary.perform(request);
         successfulShards.incrementAndGet(); // mark primary as successful
+        primary.updateLocalCheckpointForShard(primaryRouting.allocationId().getId(), primary.localCheckpoint());
         finalResponse = primaryResponse.v1();
         ReplicaRequest replicaRequest = primaryResponse.v2();
         assert replicaRequest.primaryTerm() > 0 : "replicaRequest doesn't have a primary term";
@@ -107,7 +108,7 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
         // to the recovery target. If we use an old cluster state, we may miss a relocation that has started since then.
         // If the index gets deleted after primary operation, we skip replication
         List<ShardRouting> shards = getShards(shardId, clusterStateSupplier.get());
-        final String localNodeId = primary.routingEntry().currentNodeId();
+        final String localNodeId = primaryRouting.currentNodeId();
         for (final ShardRouting shard : shards) {
             if (executeOnReplicas == false || shard.unassigned()) {
                 if (shard.primary() == false) {
@@ -136,10 +137,11 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
 
         totalShards.incrementAndGet();
         pendingShards.incrementAndGet();
-        replicasProxy.performOn(shard, replicaRequest, new ActionListener<TransportResponse.Empty>() {
+        replicasProxy.performOn(shard, replicaRequest, new ActionListener<ReplicaResponse>() {
             @Override
-            public void onResponse(TransportResponse.Empty empty) {
+            public void onResponse(ReplicaResponse response) {
                 successfulShards.incrementAndGet();
+                primary.updateLocalCheckpointForShard(response.allocationId(), response.localCheckpoint());
                 decPendingAndFinishIfNeeded();
             }
 
@@ -301,18 +303,20 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
          */
         Tuple<Response, ReplicaRequest> perform(Request request) throws Exception;
 
+        void updateLocalCheckpointForShard(String allocationId, long checkpoint);
+
+        long localCheckpoint();
     }
 
     interface Replicas<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> {
 
         /**
          * performs the the given request on the specified replica
-         *
          * @param replica {@link ShardRouting} of the shard this request should be executed on
          * @param replicaRequest operation to peform
          * @param listener a callback to call once the operation has been complicated, either successfully or with an error.
          */
-        void performOn(ShardRouting replica, ReplicaRequest replicaRequest, ActionListener<TransportResponse.Empty> listener);
+        void performOn(ShardRouting replica, ReplicaRequest replicaRequest, ActionListener<ReplicaResponse> listener);
 
         /**
          * Fail the specified shard, removing it from the current set of active shards
@@ -329,6 +333,12 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
          */
         void failShard(ShardRouting replica, ShardRouting primary, String message, Throwable throwable, Runnable onSuccess,
                        Consumer<Throwable> onPrimaryDemoted, Consumer<Throwable> onIgnoredFailure);
+    }
+
+    interface ReplicaResponse {
+        long localCheckpoint();
+
+        String allocationId();
     }
 
     public static class RetryOnPrimaryException extends ElasticsearchException {

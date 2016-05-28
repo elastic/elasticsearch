@@ -53,7 +53,8 @@ public final class ShadowIndexShard extends IndexShard {
                             ThreadPool threadPool, BigArrays bigArrays, Engine.Warmer engineWarmer,
                             List<SearchOperationListener> searchOperationListeners) throws IOException {
         super(shardRouting, indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldDataService, engineFactory,
-            indexEventListener, wrapper, threadPool, bigArrays, engineWarmer, s -> {},searchOperationListeners, Collections.emptyList());
+            indexEventListener, wrapper, threadPool, bigArrays, engineWarmer, () -> {
+            }, searchOperationListeners, Collections.emptyList());
     }
 
     /**

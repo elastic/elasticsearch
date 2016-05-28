@@ -129,7 +129,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 public class IndexShard extends AbstractIndexShardComponent {
 
@@ -197,7 +196,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final IndexSearcherWrapper searcherWrapper;
 
-    private final Consumer<ShardId> globalCheckpointSyncer;
+    private final Runnable globalCheckpointSyncer;
 
     /**
      * True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
@@ -209,7 +208,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                       MapperService mapperService, SimilarityService similarityService, IndexFieldDataService indexFieldDataService,
                       @Nullable EngineFactory engineFactory,
                       IndexEventListener indexEventListener, IndexSearcherWrapper indexSearcherWrapper, ThreadPool threadPool, BigArrays bigArrays,
-                      Engine.Warmer warmer, Consumer<ShardId> globalCheckpointSyncer,
+                      Engine.Warmer warmer, Runnable globalCheckpointSyncer,
                       List<SearchOperationListener> searchOperationListener, List<IndexingOperationListener> listeners) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -1277,7 +1276,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         verifyPrimary();
         getEngine().seqNoService().markAllocationIdAsInSync(allocationId, localCheckpoint);
         // make sure the in sync shard gets an up to date global checkpoint in the case that there is no ongoing indexing
-        globalCheckpointSyncer.accept(shardId);
+        globalCheckpointSyncer.run();
     }
 
     public long getLocalCheckpoint() {
@@ -1296,7 +1295,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     public void updateGlobalCheckpointOnPrimary() {
         verifyPrimary();
         if (getEngine().seqNoService().updateGlobalCheckpointOnPrimary()) {
-            globalCheckpointSyncer.accept(shardId);
+            globalCheckpointSyncer.run();
         }
     }
 
@@ -1716,7 +1715,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     // for tests
-    Consumer<ShardId> getGlobalCheckpointSyncer() {
+    Runnable getGlobalCheckpointSyncer() {
         return globalCheckpointSyncer;
     }
 

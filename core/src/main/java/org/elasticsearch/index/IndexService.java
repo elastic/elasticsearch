@@ -345,7 +345,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             } else {
                 indexShard = new IndexShard(routing, this.indexSettings, path, store, indexCache, mapperService, similarityService,
                     indexFieldData, engineFactory, eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
-                    globalCheckpointSyncer,
+                    () -> globalCheckpointSyncer.accept(shardId),
                     searchOperationListeners, indexingOperationListeners);
             }
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");

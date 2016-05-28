@@ -1304,7 +1304,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      * updates the global checkpoint on a replica shard (after it has been updated by the primary).
      */
     public void updateGlobalCheckpointOnReplica(long checkpoint) {
-        verifyPrimary();
+        verifyReplicationTarget();
         getEngine().seqNoService().updateGlobalCheckpointOnReplica(checkpoint);
     }
 

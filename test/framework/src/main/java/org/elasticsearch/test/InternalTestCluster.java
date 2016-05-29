@@ -80,7 +80,6 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
@@ -162,7 +161,9 @@ public final class InternalTestCluster extends TestCluster {
 
     private static final int JVM_ORDINAL = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
 
-    /** a per-JVM unique offset to be used for calculating unique port ranges. */
+    /**
+     * a per-JVM unique offset to be used for calculating unique port ranges.
+     */
     public static final int JVM_BASE_PORT_OFFSET = PORTS_PER_JVM * (JVM_ORDINAL + 1);
 
     private static final AtomicInteger clusterOrdinal = new AtomicInteger();
@@ -349,7 +350,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
         Builder builder = Settings.builder().put(defaultSettings)
-                .put(getRandomNodeSettings(nodeSeed));
+            .put(getRandomNodeSettings(nodeSeed));
         Settings settings = nodeConfigurationSource.nodeSettings(nodeOrdinal);
         if (settings != null) {
             if (settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) != null) {
@@ -536,7 +537,7 @@ public final class InternalTestCluster extends TestCluster {
         }
         // prevent killing the master if possible and client nodes
         final Stream<NodeAndClient> collection =
-                n == 0 ? nodes.values().stream() : nodes.values().stream().filter(new DataNodePredicate().and(new MasterNodePredicate(getMasterName()).negate()));
+            n == 0 ? nodes.values().stream() : nodes.values().stream().filter(new DataNodePredicate().and(new MasterNodePredicate(getMasterName()).negate()));
         final Iterator<NodeAndClient> values = collection.iterator();
 
         logger.info("changing cluster size from {} to {}, {} data nodes", size(), n + numShareCoordOnlyNodes, n);
@@ -574,11 +575,11 @@ public final class InternalTestCluster extends TestCluster {
         String name = buildNodeName(nodeId);
         assert !nodes.containsKey(name);
         Settings finalSettings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), baseDir) // allow overriding path.home
-                .put(settings)
-                .put("node.name", name)
-                .put(DiscoveryNodeService.NODE_ID_SEED_SETTING.getKey(), seed)
-                .build();
+            .put(Environment.PATH_HOME_SETTING.getKey(), baseDir) // allow overriding path.home
+            .put(settings)
+            .put("node.name", name)
+            .put(DiscoveryNodeService.NODE_ID_SEED_SETTING.getKey(), seed)
+            .build();
         MockNode node = new MockNode(finalSettings, version, plugins);
         return new NodeAndClient(name, node);
     }
@@ -874,14 +875,14 @@ public final class InternalTestCluster extends TestCluster {
             TransportAddress addr = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
             Settings nodeSettings = node.settings();
             Builder builder = Settings.builder()
-                    .put("client.transport.nodes_sampler_interval", "1s")
-                    .put(Environment.PATH_HOME_SETTING.getKey(), baseDir)
-                    .put("node.name", TRANSPORT_CLIENT_PREFIX + node.settings().get("node.name"))
-                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).put("client.transport.sniff", sniff)
-                    .put(Node.NODE_MODE_SETTING.getKey(), Node.NODE_MODE_SETTING.exists(nodeSettings) ? Node.NODE_MODE_SETTING.get(nodeSettings) : nodeMode)
-                    .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
-                    .put("logger.level", nodeSettings.get("logger.level", "INFO"))
-                    .put(settings);
+                .put("client.transport.nodes_sampler_interval", "1s")
+                .put(Environment.PATH_HOME_SETTING.getKey(), baseDir)
+                .put("node.name", TRANSPORT_CLIENT_PREFIX + node.settings().get("node.name"))
+                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).put("client.transport.sniff", sniff)
+                .put(Node.NODE_MODE_SETTING.getKey(), Node.NODE_MODE_SETTING.exists(nodeSettings) ? Node.NODE_MODE_SETTING.get(nodeSettings) : nodeMode)
+                .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
+                .put("logger.level", nodeSettings.get("logger.level", "INFO"))
+                .put(settings);
 
             if (Node.NODE_LOCAL_SETTING.exists(nodeSettings)) {
                 builder.put(Node.NODE_LOCAL_SETTING.getKey(), Node.NODE_LOCAL_SETTING.get(nodeSettings));
@@ -1028,7 +1029,14 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    assertThat("index shard counter on shard " + indexShard.shardId() + " on node " + nodeAndClient.name + " not 0", indexShard.getActiveOperationsCount(), equalTo(0));
+                    // we assert busy as we can have background global checkpoint activity
+                    try {
+                        assertBusy(() -> {
+                            assertThat("index shard counter on shard " + indexShard.shardId() + " on node " + nodeAndClient.name + " not 0", indexShard.getActiveOperationsCount(), equalTo(0));
+                        });
+                    } catch (Exception e) {
+                        throw new RuntimeException("unexpected error while checking for shard counters", e);
+                    }
                 }
             }
         }
@@ -1377,11 +1385,11 @@ public final class InternalTestCluster extends TestCluster {
     private synchronized Set<String> nRandomDataNodes(int numNodes) {
         assert size() >= numNodes;
         Map<String, NodeAndClient> dataNodes =
-                nodes
-                        .entrySet()
-                        .stream()
-                        .filter(new EntryNodePredicate(new DataNodePredicate()))
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            nodes
+                .entrySet()
+                .stream()
+                .filter(new EntryNodePredicate(new DataNodePredicate()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         final HashSet<String> set = new HashSet<>();
         final Iterator<String> iterator = dataNodes.keySet().iterator();
         for (int i = 0; i < numNodes; i++) {
@@ -1634,10 +1642,10 @@ public final class InternalTestCluster extends TestCluster {
 
     private synchronized Collection<NodeAndClient> filterNodes(Map<String, InternalTestCluster.NodeAndClient> map, Predicate<NodeAndClient> predicate) {
         return map
-                .values()
-                .stream()
-                .filter(predicate)
-                .collect(Collectors.toCollection(ArrayList::new));
+            .values()
+            .stream()
+            .filter(predicate)
+            .collect(Collectors.toCollection(ArrayList::new));
     }
 
     private static final class DataNodePredicate implements Predicate<NodeAndClient> {
@@ -1651,7 +1659,7 @@ public final class InternalTestCluster extends TestCluster {
         @Override
         public boolean test(NodeAndClient nodeAndClient) {
             return DiscoveryNode.isDataNode(nodeAndClient.node.settings()) ||
-                    DiscoveryNode.isMasterNode(nodeAndClient.node.settings());
+                DiscoveryNode.isMasterNode(nodeAndClient.node.settings());
         }
     }
 
@@ -1889,6 +1897,7 @@ public final class InternalTestCluster extends TestCluster {
 
     /**
      * Simple interface that allows to wait for an async operation to finish
+     *
      * @param <T> the result of the async execution
      */
     public interface Async<T> {

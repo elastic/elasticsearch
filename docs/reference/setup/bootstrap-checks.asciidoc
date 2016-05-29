@@ -16,6 +16,7 @@ checks that fail appear as warnings in the Elasticsearch log. If
 Elasticsearch is in production mode, any bootstrap checks that fail will
 cause Elasticsearch to refuse to start.
 
+[float]
 === Development vs. production mode
 
 By default, Elasticsearch binds and publishes to `localhost`. This is
@@ -45,7 +46,7 @@ check, you must configure the <<heap-size,heap size>>.
 File descriptors are a Unix construct for tracking open "files". In Unix
 though, https://en.wikipedia.org/wiki/Everything_is_a_file[everything is
 a file]. For example, "files" could be a physical file, a virtual file
-(e.g., ``/proc/loadavg`), or network sockets. Elasticsearch requires
+(e.g., `/proc/loadavg`), or network sockets. Elasticsearch requires
 lots file descriptors (e.g., every shard is composed of multiple
 segments and other files, plus connections to other nodes, etc.). This
 bootstrap check is enforced on OS X and Linux. To pass the file

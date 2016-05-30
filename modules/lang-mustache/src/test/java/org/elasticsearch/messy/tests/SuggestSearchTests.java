@@ -169,7 +169,8 @@ public class SuggestSearchTests extends ESIntegTestCase {
                 .string();
 
         PhraseSuggestionBuilder filteredFilterSuggest = suggest.collateQuery(filterStringAsFilter);
-        searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", "title", filteredFilterSuggest);
+        searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", "title",
+            filteredFilterSuggest);
         assertSuggestionSize(searchSuggest, 0, 2, "title");
 
         // collate suggest with bad query
@@ -213,12 +214,15 @@ public class SuggestSearchTests extends ESIntegTestCase {
         params.put("query_field", "title");
 
         PhraseSuggestionBuilder phraseSuggestWithParams = suggest.collateQuery(collateWithParams).collateParams(params);
-        searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", "title", phraseSuggestWithParams);
+        searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", "title",
+            phraseSuggestWithParams);
         assertSuggestionSize(searchSuggest, 0, 2, "title");
 
         // collate query request with prune set to true
-        PhraseSuggestionBuilder phraseSuggestWithParamsAndReturn = suggest.collateQuery(collateWithParams).collateParams(params).collatePrune(true);
-        searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", "title", phraseSuggestWithParamsAndReturn);
+        PhraseSuggestionBuilder phraseSuggestWithParamsAndReturn = suggest.collateQuery(collateWithParams).collateParams(params)
+            .collatePrune(true);
+        searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", "title",
+            phraseSuggestWithParamsAndReturn);
         assertSuggestionSize(searchSuggest, 0, 10, "title");
         assertSuggestionPhraseCollateMatchExists(searchSuggest, "title", 2);
     }

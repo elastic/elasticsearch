@@ -193,7 +193,8 @@ public class SuggestSearchTests extends ESIntegTestCase {
         index("test", "type1", "3", "name", "I like ice cream.");
         refresh();
 
-        DirectCandidateGeneratorBuilder generator = candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2);
+        DirectCandidateGeneratorBuilder generator = candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always")
+            .maxEdits(2);
         PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion("name.shingled")
                 .addCandidateGenerator(generator)
                 .gramSize(3);
@@ -575,7 +576,8 @@ public class SuggestSearchTests extends ESIntegTestCase {
         //test reverse suggestions with pre & post filter
         phraseSuggest
             .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always"))
-            .addCandidateGenerator(candidateGenerator("body_reverse").minWordLength(1).suggestMode("always").preFilter("reverse").postFilter("reverse"));
+            .addCandidateGenerator(candidateGenerator("body_reverse").minWordLength(1).suggestMode("always").preFilter("reverse")
+                .postFilter("reverse"));
         searchSuggest = searchSuggest( "Artur, Ging of the Britons",  "simple_phrase", phraseSuggest);
         assertSuggestion(searchSuggest, 0, "simple_phrase", "arthur king of the britons");
 
@@ -675,7 +677,8 @@ public class SuggestSearchTests extends ESIntegTestCase {
                 .realWordErrorLikelihood(0.95f)
                 .gramSize(2)
                 .analyzer("body")
-                .addCandidateGenerator(candidateGenerator("body").minWordLength(1).prefixLength(1).suggestMode("always").size(1).accuracy(0.1f))
+                .addCandidateGenerator(candidateGenerator("body").minWordLength(1).prefixLength(1).suggestMode("always").size(1)
+                    .accuracy(0.1f))
                 .smoothingModel(new StupidBackoff(0.1))
                 .maxErrors(1.0f)
                 .size(5);
@@ -684,7 +687,8 @@ public class SuggestSearchTests extends ESIntegTestCase {
 
         // we allow a size of 2 now on the shard generator level so "god" will be found since it's LD2
         phraseSuggestion.clearCandidateGenerators()
-                .addCandidateGenerator(candidateGenerator("body").minWordLength(1).prefixLength(1).suggestMode("always").size(2).accuracy(0.1f));
+                .addCandidateGenerator(candidateGenerator("body").minWordLength(1).prefixLength(1).suggestMode("always").size(2)
+                    .accuracy(0.1f));
         searchSuggest = searchSuggest( "Xorr the Gut-Jewel", "simple_phrase", phraseSuggestion);
         assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
     }
@@ -833,7 +837,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         index("test", "type2", "5", "foo", "bar");
         index("test", "type2", "1", "name", "Just testing the suggestions api");
         index("test", "type2", "2", "name", "An other title about equal length");
-        // Note that the last document has to have about the same length as the other or cutoff rechecking will remove the useful suggestion.
+        // Note that the last document has to have about the same length as the other or cutoff rechecking will remove the useful suggestion
         refresh();
 
         // When searching on a shard with a non existing mapping, we should fail
@@ -898,7 +902,8 @@ public class SuggestSearchTests extends ESIntegTestCase {
      * score during the reduce phase.  Failures don't occur every time - maybe two out of five tries but we don't repeat it to save time.
      */
     public void testSearchForRarePhrase() throws IOException {
-        // If there isn't enough chaf per shard then shards can become unbalanced, making the cutoff recheck this is testing do more harm then good.
+        // If there isn't enough chaf per shard then shards can become unbalanced, making the cutoff recheck this is testing do more harm
+        // then good.
         int chafPerShard = 100;
 
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()

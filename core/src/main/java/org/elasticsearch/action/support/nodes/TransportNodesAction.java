@@ -179,7 +179,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
             nodesIds = filterNodeIds(clusterState.nodes(), resolveNodes(request, clusterState));
             this.nodes = new DiscoveryNode[nodesIds.length];
             for (int i = 0; i < nodesIds.length; i++) {
-                this.nodes[i] = clusterState.nodes().getNodes().get(nodesIds[i]);
+                this.nodes[i] = clusterState.nodes().get(nodesIds[i]);
             }
             this.responses = new AtomicReferenceArray<>(this.nodesIds.length);
         }

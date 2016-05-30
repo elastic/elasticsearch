@@ -282,7 +282,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
     public void testGlobalCheckpointTaskIsRunning() throws IOException {
         IndexService indexService = createIndex("test", Settings.EMPTY);
-        IndexService.AsyncGlobalCheckpointTask task = indexService.getGlobalchekcpointTask();
+        IndexService.AsyncGlobalCheckpointTask task = indexService.getGlobalCheckpointTask();
         assertNotNull(task);
         assertEquals(IndexSettings.INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL.getDefault(Settings.EMPTY), task.getInterval());
         assertTrue(task.mustReschedule());

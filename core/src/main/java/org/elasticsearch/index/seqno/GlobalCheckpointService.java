@@ -122,6 +122,9 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
      */
     synchronized public boolean updateCheckpointOnPrimary() {
         long minCheckpoint = Long.MAX_VALUE;
+        if (activeLocalCheckpoints.isEmpty() &&  inSyncLocalCheckpoints.isEmpty()) {
+            return false;
+        }
         for (ObjectLongCursor<String> cp : activeLocalCheckpoints) {
             if (cp.value == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
                 logger.trace("unknown local checkpoint for active allocationId [{}], requesting a sync", cp.key);

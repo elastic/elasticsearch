@@ -918,7 +918,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         return fsyncTask;
     }
 
-    AsyncGlobalCheckpointTask getGlobalchekcpointTask() { // for tests
+    AsyncGlobalCheckpointTask getGlobalCheckpointTask() { // for tests
         return globalCheckpointTask;
     }
 }

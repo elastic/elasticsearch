@@ -44,6 +44,11 @@ public class GlobalCheckpointTests extends ESTestCase {
             IndexSettingsModule.newIndexSettings("test", Settings.EMPTY));
     }
 
+    public void testEmptyShards() {
+        assertFalse("no started shards means we should update the checkpoint",checkpointService.updateCheckpointOnPrimary());
+        assertThat(checkpointService.getCheckpoint(), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+    }
+
     public void testGlobalCheckpointUpdate() {
         Map<String, Long> allocations = new HashMap<>();
         Set<String> active = new HashSet<>();

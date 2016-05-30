@@ -133,7 +133,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final TimeValue shardsClosedTimeout;
     private final AnalysisRegistry analysisRegistry;
     private final IndicesQueriesRegistry indicesQueriesRegistry;
-    private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexScopedSettings indexScopeSetting;
     private final IndicesFieldDataCache indicesFieldDataCache;
@@ -162,7 +161,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv,
                           ClusterSettings clusterSettings, AnalysisRegistry analysisRegistry,
                           IndicesQueriesRegistry indicesQueriesRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
-                          ClusterService clusterService, MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry,
+                          MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry,
                           ThreadPool threadPool, IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService,
                           MetaStateService metaStateService) {
         super(settings);
@@ -173,7 +172,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         this.indexStoreConfig = new IndexStoreConfig(settings);
         this.analysisRegistry = analysisRegistry;
         this.indicesQueriesRegistry = indicesQueriesRegistry;
-        this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indicesRequestCache = new IndicesRequestCache(settings);
         this.indicesQueryCache = new IndicesQueryCache(settings);
@@ -379,6 +377,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      */
     private synchronized IndexService createIndexService(final String reason, final NodeServicesProvider nodeServicesProvider, IndexMetaData indexMetaData, IndicesQueryCache indicesQueryCache, IndicesFieldDataCache indicesFieldDataCache, List<IndexEventListener> builtInListeners, IndexingOperationListener... indexingOperationListeners) throws IOException {
         final Index index = indexMetaData.getIndex();
+        final ClusterService clusterService = nodeServicesProvider.getClusterService();
         final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(index.getName(), indexExpression, clusterService.state());
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexNameMatcher, indexScopeSetting);
         logger.debug("creating Index [{}], shards [{}]/[{}{}] - reason [{}]",

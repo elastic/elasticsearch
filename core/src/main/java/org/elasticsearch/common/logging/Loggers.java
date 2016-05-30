@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.lucene.util.SuppressForbidden;
 import org.elasticsearch.common.Classes;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;

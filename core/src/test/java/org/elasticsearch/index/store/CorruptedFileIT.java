@@ -332,6 +332,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put("index.routing.allocation.include._name", primariesNode.getNode().getName())
             .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+            .put("index.allocation.max_retries", Integer.MAX_VALUE) // keep on retrying
 
         ));
         ensureGreen(); // allocated with empty commit

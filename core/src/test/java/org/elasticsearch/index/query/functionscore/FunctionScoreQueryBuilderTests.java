@@ -713,11 +713,9 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             "              \"FIELD\": \"VALUE\"\n" +
             "            }\n" +
             "          },\n" +
-            "          \"query_function\": {\n" +
-            "            \"query\": {\n" +
-            "              \"match\": {\n" +
-            "                \"FIELD\": \"TEXT\"\n" +
-            "              }\n" +
+            "          \"query\": {\n" +
+            "            \"match\": {\n" +
+            "              \"FIELD\": \"TEXT\"\n" +
             "            }\n" +
             "          }\n" +
             "        }\n" +
@@ -730,6 +728,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         FilterFunctionBuilder[] filterFunctionBuilders = queryBuilder.filterFunctionBuilders();
         assertThat(filterFunctionBuilders[0].getScoreFunction(), instanceOf(QueryFunctionBuilder.class));
         assertThat(((QueryFunctionBuilder)filterFunctionBuilders[0].getScoreFunction()).queryBuilder, instanceOf(MatchQueryBuilder.class));
+        assertThat(queryBuilder.boostMode(), equalTo(CombineFunction.SUM));
+        assertThat(queryBuilder.scoreMode(), equalTo(FiltersFunctionScoreQuery.ScoreMode.MAX));
     }
 
     private void expectParsingException(String json, Matcher<String> messageMatcher) {

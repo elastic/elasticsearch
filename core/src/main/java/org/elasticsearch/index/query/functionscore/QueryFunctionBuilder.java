@@ -38,7 +38,7 @@ import java.util.Objects;
  * A function that computes a score according to the provided query.
  */
 public class QueryFunctionBuilder extends ScoreFunctionBuilder<QueryFunctionBuilder> {
-    public static final String NAME = "query_function";
+    public static final String NAME = "query";
     public static final ParseField FUNCTION_NAME_FIELD = new ParseField(NAME);
     QueryBuilder queryBuilder;
 
@@ -63,10 +63,8 @@ public class QueryFunctionBuilder extends ScoreFunctionBuilder<QueryFunctionBuil
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(getName());
-        builder.field("query");
+        builder.field(getName());
         queryBuilder.toXContent(builder, params);
-        builder.endObject();
     }
 
     @Override
@@ -88,17 +86,13 @@ public class QueryFunctionBuilder extends ScoreFunctionBuilder<QueryFunctionBuil
     public static QueryFunctionBuilder fromXContent(QueryParseContext parseContext)
         throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
-        XContentParser.Token token = parser.nextToken();
-        if (token.isValue()) {
-            throw new ParsingException(parser.getTokenLocation(), "Expected field \"query\"");
-        }
-        if (parser.currentName().equals("query") == false) {
-            throw new ParsingException(parser.getTokenLocation(), "Expected field \"query\"");
+        XContentParser.Token token = parser.currentToken();
+        if (token.compareTo(XContentParser.Token.START_OBJECT) != 0) {
+            throw new ParsingException(parser.getTokenLocation(), "Expected START OBJECT");
         }
         QueryBuilder queryBuilder = parseContext.parseInnerQueryBuilder();
-        token = parser.nextToken();
-        if (token.compareTo(XContentParser.Token.END_OBJECT) != 0) {
-            throw new ParsingException(parser.getTokenLocation(), "Expected }");
+        if (parser.currentToken().compareTo(XContentParser.Token.END_OBJECT) != 0) {
+            throw new ParsingException(parser.getTokenLocation(), "Expected } but got " + parser.currentToken());
         }
         return new QueryFunctionBuilder(queryBuilder);
     }

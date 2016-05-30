@@ -1390,10 +1390,8 @@ public class IndexShard extends AbstractIndexShardComponent {
                 recoverFromLocalShards ? RecoveryState.Type.LOCAL_SHARDS : RecoveryState.Type.STORE, localNode, localNode);
             if (recoverFromLocalShards) {
                 final List<IndexShard> startedShards = new ArrayList<>();
-                // look up if the index actually exists - we throw the right exception below instead of failing with ISE
-                final IndexMetaData sourceIndexMetaData = indicesService.getIndexMetaData(mergeSourceIndex);
                 final IndexService sourceIndexService = indicesService.indexService(mergeSourceIndex);
-                final int numShards = sourceIndexMetaData != null ? sourceIndexMetaData.getNumberOfShards() : -1;
+                final int numShards = sourceIndexService != null ? sourceIndexService.getIndexSettings().getNumberOfShards() : -1;
                 if (sourceIndexService != null) {
                     for (IndexShard shard : sourceIndexService) {
                         if (shard.state() == IndexShardState.STARTED) {
@@ -1415,7 +1413,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                     });
                 } else {
                     final Throwable t;
-                    if (sourceIndexMetaData == null) {
+                    if (numShards == -1) {
                         t = new IndexNotFoundException(mergeSourceIndex);
                     } else {
                         t = new IllegalStateException("not all shards from index " + mergeSourceIndex

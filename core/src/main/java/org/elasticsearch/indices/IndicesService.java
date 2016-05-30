@@ -1129,8 +1129,4 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         (Index index, IndexSettings indexSettings) -> canDeleteIndexContents(index, indexSettings);
     private final IndexDeletionAllowedPredicate ALWAYS_TRUE = (Index index, IndexSettings indexSettings) -> true;
 
-    public IndexMetaData getIndexMetaData(Index index) {
-        return clusterService.state().getMetaData().getIndexSafe(index);
-    }
-
 }

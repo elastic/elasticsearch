@@ -26,9 +26,9 @@ index :
             myAnalyzer :
                 type : custom
                 tokenizer : standard
-                filter : [lowercase, protwods, porter_stem]    
+                filter : [lowercase, protwords, porter_stem]    
         filter :
-            protwods :
+            protwords :
                 type : keyword_marker
                 keywords_path : analysis/protwords.txt
 --------------------------------------------------

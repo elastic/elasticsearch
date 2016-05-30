@@ -1,0 +1,55 @@
+setup:
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+---
+"Explain API with empty command list":
+
+  - do:
+      cluster.reroute:
+        explain: true
+        dry_run: true
+        body:
+          commands: []
+
+  - match: {explanations: []}
+
+---
+"Explain API for non-existent node & shard":
+
+  - do:
+      cluster.state:
+        metric: [ master_node ]
+
+  - set: {master_node: node_id}
+
+  - do:
+      cluster.reroute:
+        explain: true
+        dry_run: true
+        body:
+          commands:
+            - cancel:
+                index: test_index
+                shard: 9
+                node: $node_id
+
+  - match: {explanations.0.command: cancel}
+  - match:
+      explanations.0.parameters:
+        index: test_index
+        shard: 9
+        node: $node_id
+        allow_primary: false
+  - match: {explanations.0.decisions.0.decider: cancel_allocation_command}
+  - match: {explanations.0.decisions.0.decision: "NO"}
+  - is_true: explanations.0.decisions.0.explanation

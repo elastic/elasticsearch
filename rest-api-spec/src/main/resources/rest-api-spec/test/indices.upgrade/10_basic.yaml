@@ -1,0 +1,22 @@
+---
+"Basic test for upgrade indices":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      indices.upgrade:
+        index: test_index
+
+  - match: {upgraded_indices.test_index.oldest_lucene_segment_version: '/(\d\.)+\d/'}
+  - is_true: upgraded_indices.test_index.upgrade_version

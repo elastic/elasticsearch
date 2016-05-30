@@ -12,7 +12,8 @@ of the request includes the updated settings, for example:
 {
     "index" : {
         "number_of_replicas" : 4
-    } }
+    }
+}
 --------------------------------------------------
 
 The above will change the number of replicas to 4 from the current
@@ -24,135 +25,12 @@ curl -XPUT 'localhost:9200/my_index/_settings' -d '
 {
     "index" : {
         "number_of_replicas" : 4
-    } }
-'
+    }
+}'
 --------------------------------------------------
 
-Below is the list of settings that can be changed using the update
-settings API:
-
-`index.number_of_replicas`::
-    The number of replicas each shard has.
-
-`index.auto_expand_replicas` (string)::
-    Set to a dash delimited lower and upper bound (e.g. `0-5`)
-    or one may use `all` as the upper bound (e.g. `0-all`), or `false` to disable it.
-
-`index.blocks.read_only`::
-    Set to `true` to have the index read only, `false` to allow writes
-    and metadata changes.
-
-`index.blocks.read`::
-    Set to `true` to disable read operations against the index.
-
-`index.blocks.write`::
-    Set to `true` to disable write operations against the index.
-
-`index.blocks.metadata`::
-    Set to `true` to disable metadata operations against the index.
-
-`index.refresh_interval`::
-    The async refresh interval of a shard.
-
-`index.index_concurrency`::
-    Defaults to `8`.
-
-`index.codec.bloom.load`::
-    Whether to load the bloom filter. Defaults to `false`.
-    See <<codec-bloom-load>>.
-
-`index.fail_on_merge_failure`::
-    Default to `true`.
-
-`index.translog.flush_threshold_ops`::
-    When to flush based on operations.
-
-`index.translog.flush_threshold_size`::
-    When to flush based on translog (bytes) size.
-
-`index.translog.flush_threshold_period`::
-    When to flush based on a period of not flushing.
-
-`index.translog.disable_flush`::
-    Disables flushing. Note, should be set for a short
-    interval and then enabled.
-
-`index.cache.filter.max_size`::
-    The maximum size of filter cache (per segment in shard).
-    Set to `-1` to disable.
-
-`index.cache.filter.expire`::
-    The expire after access time for filter cache.
-    Set to `-1` to disable.
-
-`index.gateway.snapshot_interval`::
-    The gateway snapshot interval (only applies to shared gateways).
-    Defaults to 10s.
-
-<<index-modules-merge,merge policy>>::
-    All the settings for the merge policy currently configured.
-    A different merge policy can't be set.
-
-`index.routing.allocation.include.*`::
-    A node matching any rule will be allowed to host shards from the index.
-
-`index.routing.allocation.exclude.*`::
-    A node matching any rule will NOT be allowed to host shards from the index.
-
-`index.routing.allocation.require.*`::
-    Only nodes matching all rules will be allowed to host shards from the index.
-
-`index.routing.allocation.disable_allocation`::
-    Disable allocation. Defaults to `false`. Deprecated in favour for `index.routing.allocation.enable`.
-
-`index.routing.allocation.disable_new_allocation`::
-    Disable new allocation. Defaults to `false`. Deprecated in favour for `index.routing.allocation.enable`.
-
-`index.routing.allocation.disable_replica_allocation`::
-    Disable replica allocation. Defaults to `false`. Deprecated in favour for `index.routing.allocation.enable`.
-
-`index.routing.allocation.enable`::
-    Enables shard allocation for a specific index. It can be set to:
-    * `all` (default) - Allows shard allocation for all shards.
-    * `primaries` - Allows shard allocation only for primary shards.
-    * `new_primaries` - Allows shard allocation only for primary shards for new indices.
-    * `none` - No shard allocation is allowed.
-
-`index.routing.allocation.total_shards_per_node`::
-    Controls the total number of shards allowed to be allocated on a single node. Defaults to unbounded (`-1`).
-
-`index.recovery.initial_shards`::
-    When using local gateway a particular shard is recovered only if there can be allocated quorum shards in the cluster. It can be set to:
-    * `quorum` (default)
-    * `quorum-1` (or `half`)
-    * `full`
-    * `full-1`.
-    * Number values are also supported, e.g. `1`.
-
-`index.gc_deletes`::
-
-`index.ttl.disable_purge`::
-    Disables temporarily the purge of expired docs.
-
-<<index-modules-store,store level throttling>>::
-    All the settings for the store level throttling policy currently configured.
-
-`index.translog.fs.type`::
-    Either `simple` or `buffered` (default).
-
-`index.compound_format`::
-    See <<index-compound-format,`index.compound_format`>> in
-    <<index-modules-settings>>.
-
-`index.compound_on_flush`::
-    See <<index-compound-on-flush,`index.compound_on_flush>> in
-    <<index-modules-settings>>.
-
-<<index-modules-slowlog>>::
-    All the settings for slow log.
-
-`index.warmer.enabled`::
-    See <<indices-warmers>>. Defaults to `true`.
+The list of per-index settings which can be updated dynamically on live
+indices can be found in <<index-modules>>.
 
 [float]
 [[bulk]]
@@ -185,11 +63,11 @@ curl -XPUT localhost:9200/test/_settings -d '{
     } }'
 --------------------------------------------------
 
-And, an optimize should be called:
+And, a force merge should be called:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'http://localhost:9200/test/_optimize?max_num_segments=5'
+curl -XPOST 'http://localhost:9200/test/_forcemerge?max_num_segments=5'
 --------------------------------------------------
 
 [float]
@@ -220,35 +98,3 @@ curl -XPUT 'localhost:9200/myindex/_settings' -d '{
 
 curl -XPOST 'localhost:9200/myindex/_open'
 --------------------------------------------------
-
-[float]
-[[codec-bloom-load]]
-=== Bloom filters
-
-Up to version 1.3, Elasticsearch used to generate bloom filters for the `_uid`
-field at indexing time and to load them at search time in order to speed-up
-primary-key lookups by savings disk seeks.
-
-As of 1.4, bloom filters are still generated at indexing time, but they are
-no longer loaded at search time by default: they consume RAM in proportion to
-the number of unique terms, which can quickly add up for certain use cases,
-and separate performance improvements have made the performance gains with
-bloom filters very small.
-
-[TIP]
-==================================================
-
-You can enable loading of the bloom filter at search time on a
-per-index basis by updating the index settings:
-
-[source,js]
---------------------------------------------------
-PUT /old_index/_settings?index.codec.bloom.load=true
---------------------------------------------------
-
-This setting, which defaults to `false`, can be updated on a live index. Note,
-however, that changing the value will cause the index to be reopened, which
-will invalidate any existing caches.
-
-==================================================
-

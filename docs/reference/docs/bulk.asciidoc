@@ -56,7 +56,7 @@ newlines. Example:
 $ cat requests
 { "index" : { "_index" : "test", "_type" : "type1", "_id" : "1" } }
 { "field1" : "value1" }
-$ curl -s -XPOST localhost:9200/_bulk --data-binary @requests; echo
+$ curl -s -XPOST localhost:9200/_bulk --data-binary "@requests"; echo
 {"took":7,"items":[{"create":{"_index":"test","_type":"type1","_id":"1","_version":1}}]}
 --------------------------------------------------
 
@@ -131,6 +131,8 @@ operation based on the `_parent` / `_routing` mapping.
 [[bulk-timestamp]]
 === Timestamp
 
+deprecated[2.0.0,The `_timestamp` field is deprecated.  Instead, use a normal <<date,`date`>> field and set its value explicitly]
+
 Each bulk item can include the timestamp value using the
 `_timestamp`/`timestamp` field. It automatically follows the behavior of
 the index operation based on the `_timestamp` mapping.
@@ -138,6 +140,8 @@ the index operation based on the `_timestamp` mapping.
 [float]
 [[bulk-ttl]]
 === TTL
+
+deprecated[2.0.0,The current `_ttl` implementation is deprecated and will be replaced with a different implementation in a future version]
 
 Each bulk item can include the ttl value using the `_ttl`/`ttl` field.
 It automatically follows the behavior of the index operation based on
@@ -157,7 +161,7 @@ For example, in a N shards with 2 replicas index, there will have to be
 at least 2 active shards within the relevant partition (`quorum`) for
 the operation to succeed. In a N shards with 1 replica scenario, there
 will need to be a single shard active (in this case, `one` and `quorum`
-is the same).
+are the same).
 
 [float]
 [[bulk-refresh]]
@@ -167,7 +171,8 @@ The `refresh` parameter can be set to `true` in order to refresh the relevant
 primary and replica shards immediately after the bulk operation has occurred
 and make it searchable, instead of waiting for the normal refresh interval to
 expire. Setting it to `true` can trigger additional load, and may slow down
-indexing.
+indexing. Due to its costly nature, the `refresh` parameter is set on the bulk request level
+and is not supported on each individual bulk item.
 
 [float]
 [[bulk-update]]
@@ -179,7 +184,7 @@ times an update should be retried in the case of a version conflict.
 
 The `update` action payload, supports the following options: `doc`
 (partial document), `upsert`, `doc_as_upsert`, `script`, `params` (for
-script), `lang` (for script). See update documentation for details on
+script), `lang` (for script) and `fields`. See update documentation for details on
 the options. Curl example with update actions:
 
 [source,js]
@@ -187,9 +192,13 @@ the options. Curl example with update actions:
 { "update" : {"_id" : "1", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"} }
 { "update" : { "_id" : "0", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
-{ "script" : "ctx._source.counter += param1", "lang" : "js", "params" : {"param1" : 1}, "upsert" : {"counter" : 1}}
+{ "script" : { "inline": "ctx._source.counter += param1", "lang" : "javascript", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
 { "update" : {"_id" : "2", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"}, "doc_as_upsert" : true }
+{ "update" : {"_id" : "3", "_type" : "type1", "_index" : "index1", "fields" : ["_source"]} }
+{ "doc" : {"field" : "value"} }
+{ "update" : {"_id" : "4", "_type" : "type1", "_index" : "index1"} }
+{ "doc" : {"field" : "value"}, "fields": ["_source"]}
 --------------------------------------------------
 
 [float]

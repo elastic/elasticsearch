@@ -1,0 +1,16 @@
+{"percolate" : {"index" : "my-index1", "type" : "my-type1", "routing" : "my-routing-1", "preference" : "_local", "ignore_unavailable" : false}}
+{"doc" : {"field1" : "value1"}}
+{"percolate" : {"indices" : ["my-index2", "my-index3"], "type" : "my-type1", "routing" : "my-routing-1", "preference" : "_local", "ignore_unavailable" : true}}
+{"doc" : {"field1" : "value2"}}
+{"count" : {"indices" : ["my-index4", "my-index5"], "type" : "my-type1", "routing" : "my-routing-1", "preference" : "_local", "expand_wildcards" : "open,closed"}}
+{"doc" : {"field1" : "value3"}}
+{"percolate" : {"id" : "1", "index" : "my-index6", "type" : "my-type1", "routing" : "my-routing-1", "preference" : "_local", "expand_wildcards" : ["open", "closed"]}}
+{}
+{"count" : {"id" : "2", "index" : "my-index7", "type" : "my-type1", "routing" : "my-routing-1", "preference" : "_local"}}
+{}
+{"percolate" : {"index" : "my-index8", "type" : "my-type1", "routing" : "my-routing-1", "preference" : "primary"}}
+{"doc" : {"field1" : "value4"}}
+{"percolate" : {"id" : "3", "index" : "my-index9", "type" : "my-type1", "percolate_index": "percolate-index1", "percolate_type": "other-type", "percolate_preference": "_local", "percolate_routing": "percolate-routing-1"}}
+{}
+{"percolate" : {"id" : "4", "index" : "my-index10", "type" : "my-type1", "allow_no_indices": false, "expand_wildcards" : ["open"]}}
+{}

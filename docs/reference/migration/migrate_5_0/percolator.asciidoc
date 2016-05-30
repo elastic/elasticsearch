@@ -1,0 +1,106 @@
+[[breaking_50_percolator]]
+=== Percolator changes
+
+==== Percolator is near-real time
+
+Previously percolators were activated in real-time, i.e. as soon as they were
+indexed.  Now, changes to the `percolate` query are visible in near-real time,
+as soon as the index has been refreshed. This change was required because, in
+indices created from 5.0 onwards, the terms used in a percolator query are
+automatically indexed to allow for more efficient query selection during
+percolation.
+
+==== Percolate and multi percolator APIs
+
+Percolator and multi percolate APIs have been deprecated and will be removed in the next major release. These APIs have
+been replaced by the `percolate` query that can be used in the search and multi search APIs.
+
+==== Percolator field mapping
+
+The `.percolator` type can no longer be used to index percolator queries.
+
+Instead a <<percolator,percolator field type>> must be configured prior to indexing percolator queries.
+
+Indices with a `.percolator` type created on a version before 5.0.0 can still be used,
+but new indices no longer accept the `.percolator` type.
+
+==== Percolate document mapping
+
+The `percolate` query no longer modifies the mappings. Before the percolate API
+could be used to dynamically introduce new fields to the mappings based on the
+fields in the document being percolated. This no longer works, because these
+unmapped fields are not persisted in the mapping.
+
+==== Percolator documents returned by search
+
+Documents with the `.percolate` type were previously excluded from the search
+response, unless the `.percolate` type was specified explicitly in the search
+request.  Now, percolator documents are treated in the same way as any other
+document and are returned by search requests.
+
+==== Percolating existing document
+
+When percolating an existing document then also specifying a document as source in the
+`percolate` query is not allowed any more. Before the percolate API allowed and ignored
+the existing document.
+
+==== Percolate Stats
+
+The percolate stats have been removed. This is because the percolator no longer caches the percolator queries.
+
+==== Java client
+
+The percolator is no longer part of the core elasticsearch dependency. It has moved to the percolator module.
+Therefor when using the percolator feature from the Java client the new percolator module should also be on the
+classpath. Also the transport client should load the percolator module as plugin:
+
+[source,java]
+--------------------------------------------------
+TransportClient transportClient = TransportClient.builder()
+        .settings(Settings.builder().put("node.name", "node"))
+        .addPlugin(PercolatorPlugin.class)
+        .build();
+transportClient.addTransportAddress(
+        new InetSocketTransportAddress(new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 9300))
+);
+--------------------------------------------------
+
+The percolator and multi percolate related methods from the `Client` interface have been removed. These APIs have been
+deprecated and it is recommended to use the `percolate` query in either the search or multi search APIs. However the
+percolate and multi percolate APIs can still be used from the Java client.
+
+Using percolate request:
+
+[source,java]
+--------------------------------------------------
+PercolateRequest request = new PercolateRequest();
+// set stuff and then execute:
+PercolateResponse response = transportClient.execute(PercolateAction.INSTANCE, request).actionGet();
+--------------------------------------------------
+
+Using percolate request builder:
+
+[source,java]
+--------------------------------------------------
+PercolateRequestBuilder builder = new PercolateRequestBuilder(transportClient, PercolateAction.INSTANCE);
+// set stuff and then execute:
+PercolateResponse response = builder.get();
+--------------------------------------------------
+
+Using multi percolate request:
+
+[source,java]
+--------------------------------------------------
+MultiPercolateRequest request = new MultiPercolateRequest();
+// set stuff and then execute:
+MultiPercolateResponse response = transportClient.execute(MultiPercolateAction.INSTANCE, request).get();
+--------------------------------------------------
+
+Using multi percolate request builder:
+
+[source,java]
+--------------------------------------------------
+MultiPercolateRequestBuilder builder = new MultiPercolateRequestBuilder(transportClient, MultiPercolateAction.INSTANCE);
+// set stuff and then execute:
+MultiPercolateResponse response = builder.get();
+--------------------------------------------------

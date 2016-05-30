@@ -1,9 +1,0 @@
-{
-    constant_score:{
-        filter:{
-            term:{
-                "name.last":"banon"
-            }
-        }
-    }
-}

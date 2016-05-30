@@ -1,0 +1,119 @@
+[[breaking_50_plugins]]
+=== Plugin changes
+
+The command `bin/plugin` has been renamed to `bin/elasticsearch-plugin`. The
+structure of the plugin ZIP archive has changed. All the plugin files must be
+contained in a top-level directory called `elasticsearch`. If you use the
+gradle build, this structure is automatically generated.
+
+==== Plugins isolation
+
+`isolated` option has been removed. Each plugin will have its own classloader.
+
+==== Site plugins removed
+
+Site plugins have been removed. Site plugins should be reimplemented as Kibana
+plugins.
+
+==== Multicast plugin removed
+
+Multicast has been removed. Use unicast discovery, or one of the cloud
+discovery plugins.
+
+==== Plugins with custom query implementations
+
+Plugins implementing custom queries need to implement the `fromXContent(QueryParseContext)` method in their
+`QueryParser` subclass rather than `parse`. This method will take care of parsing the query from `XContent` format
+into an intermediate query representation that can be streamed between the nodes in binary format, effectively the
+query object used in the java api. Also, the query parser needs to implement the `getBuilderPrototype` method that
+returns a prototype of the `NamedWriteable` query, which allows to deserialize an incoming query by calling
+`readFrom(StreamInput)` against it, which will create a new object, see usages of `Writeable`. The `QueryParser`
+also needs to declare the generic type of the query that it supports and it's able to parse.
+The query object can then transform itself into a lucene query through the new `toQuery(QueryShardContext)` method,
+which returns a lucene query to be executed on the data node.
+
+Similarly, plugins implementing custom score functions need to implement the `fromXContent(QueryParseContext)`
+method in their `ScoreFunctionParser` subclass rather than `parse`. This method will take care of parsing
+the function from `XContent` format into an intermediate function representation that can be streamed between
+the nodes in binary format, effectively the function object used in the java api. Also, the query parser needs
+to implement the `getBuilderPrototype` method that returns a prototype of the `NamedWriteable` function, which
+allows to deserialize an incoming function by calling `readFrom(StreamInput)` against it, which will create a
+new object, see usages of `Writeable`. The `ScoreFunctionParser` also needs to declare the generic type of the
+function that it supports and it's able to parse. The function object can then transform itself into a lucene
+function through the new `toFunction(QueryShardContext)` method, which returns a lucene function to be executed
+on the data node.
+
+==== Cloud AWS plugin changes
+
+Cloud AWS plugin has been split in two plugins:
+
+* {plugins}/discovery-ec2.html[Discovery EC2 plugin]
+* {plugins}/repository-s3.html[Repository S3 plugin]
+
+Proxy settings for both plugins have been renamed:
+
+* from `cloud.aws.proxy_host` to `cloud.aws.proxy.host`
+* from `cloud.aws.ec2.proxy_host` to `cloud.aws.ec2.proxy.host`
+* from `cloud.aws.s3.proxy_host` to `cloud.aws.s3.proxy.host`
+* from `cloud.aws.proxy_port` to `cloud.aws.proxy.port`
+* from `cloud.aws.ec2.proxy_port` to `cloud.aws.ec2.proxy.port`
+* from `cloud.aws.s3.proxy_port` to `cloud.aws.s3.proxy.port`
+
+==== Cloud Azure plugin changes
+
+Cloud Azure plugin has been split in three plugins:
+
+* {plugins}/discovery-azure.html[Discovery Azure plugin]
+* {plugins}/repository-azure.html[Repository Azure plugin]
+* {plugins}/store-smb.html[Store SMB plugin]
+
+If you were using the `cloud-azure` plugin for snapshot and restore, you had in `elasticsearch.yml`:
+
+[source,yaml]
+-----
+cloud:
+    azure:
+        storage:
+            account: your_azure_storage_account
+            key: your_azure_storage_key
+-----
+
+You need to give a unique id to the storage details now as you can define multiple storage accounts:
+
+[source,yaml]
+-----
+cloud:
+    azure:
+        storage:
+            my_account:
+                account: your_azure_storage_account
+                key: your_azure_storage_key
+-----
+
+
+==== Cloud GCE plugin changes
+
+Cloud GCE plugin has been renamed to {plugins}/discovery-gce.html[Discovery GCE plugin].
+
+==== Delete-By-Query plugin removed
+
+The Delete-By-Query plugin has been removed in favor of a new <<docs-delete-by-query,Delete By Query API>>
+implementation in core. It now supports throttling, retries and cancellation but no longer supports timeouts.
+Instead use the <<docs-delete-by-query-cancel-task-api,cancel API>> to cancel deletes that run too long.
+
+==== Mapper Attachments plugin deprecated
+
+Mapper attachments has been deprecated. Users should use now the {plugins}/ingest-attachment.html[`ingest-attachment`]
+plugin.
+
+==== Passing of Java System Properties
+
+Previously, Java system properties could be passed to the plugin
+command by passing `-D` style arguments directly to the plugin script.
+This is no longer permitted and such system properties must be passed
+via ES_JAVA_OPTS.
+
+==== Custom plugins path
+
+The ability to specify a custom plugins path via `path.plugins` has
+been removed.

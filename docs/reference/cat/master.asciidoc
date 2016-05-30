@@ -4,7 +4,7 @@
 `master` doesn't have any extra options. It simply displays the
 master's node ID, bound IP address, and node name.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl 'localhost:9200/_cat/master?v'
 id                     ip            node
@@ -15,7 +15,7 @@ This information is also available via the `nodes` command, but this
 is slightly shorter when all you want to do, for example, is verify
 all nodes agree on the master:
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % pssh -i -h list.of.cluster.hosts curl -s localhost:9200/_cat/master
 [1] 19:16:37 [SUCCESS] es3.vm

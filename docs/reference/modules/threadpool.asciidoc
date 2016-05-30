@@ -1,94 +1,78 @@
 [[modules-threadpool]]
 == Thread Pool
 
-A node holds several thread pools in order to improve how threads are
-managed and memory consumption within a node. There are several thread
-pools, but the important ones include:
+A node holds several thread pools in order to improve how threads memory consumption
+are managed within a node. Many of these pools also have queues associated with them,
+which allow pending requests to be held instead
+of discarded.
 
-[horizontal]
-`index`:: 
-    For index/delete operations, defaults to `fixed`, 
-    size `# of available processors`. 
-    queue_size `200`.
 
-`search`:: 
-    For count/search operations, defaults to `fixed`,
-    size `3x # of available processors`. 
-    queue_size `1000`.
+There are several thread pools, but the important ones include:
 
-`suggest`::
-    For suggest operations, defaults to `fixed`,
-    size `# of available processors`.
-    queue_size `1000`.
+`generic`::
+    For generic operations (e.g., background node discovery).
+    Thread pool type is `scaling`.
 
-`get`:: 
-    For get operations, defaults to `fixed`
-    size `# of available processors`.
-    queue_size `1000`.
+`index`::
+    For index/delete operations. Thread pool type is `fixed`
+    with a size of `# of available processors`,
+    queue_size of `200`.  The maximum size for this pool
+    is `# of available processors`.
+
+`search`::
+    For count/search/suggest operations. Thread pool type is `fixed`
+    with a size of `int((# of available_processors * 3) / 2) + 1`,
+    queue_size of `1000`.
+
+`get`::
+    For get operations. Thread pool type is `fixed`
+    with a size of `# of available processors`,
+    queue_size of `1000`.
 
 `bulk`::
-    For bulk operations, defaults to `fixed`
-    size `# of available processors`.
-    queue_size `50`.
+    For bulk operations. Thread pool type is `fixed`
+    with a size of `# of available processors`,
+    queue_size of `50`.  The maximum size for this pool
+    is `# of available processors`.
 
 `percolate`::
-    For percolate operations, defaults to `fixed`
-    size `# of available processors`.
-    queue_size `1000`.
+    For percolate operations. Thread pool type is `fixed`
+    with a size of `# of available processors`,
+    queue_size of `1000`.
 
 `snapshot`::
-    For snapshot/restore operations, defaults to `scaling`
-    keep-alive `5m`,
-    size `(# of available processors)/2`.
+    For snapshot/restore operations. Thread pool type is `scaling` with a
+    keep-alive of `5m` and a size of `min(5, (# of available processors)/2)`.
 
 `warmer`::
-    For segment warm-up operations, defaults to `scaling`
-    with a `5m` keep-alive. 
+    For segment warm-up operations. Thread pool type is `scaling` with a
+    keep-alive of `5m` and a size of `min(5, (# of available processors)/2)`.
 
-`refresh`:: 
-    For refresh operations, defaults to `scaling`
-    with a `5m` keep-alive.
+`refresh`::
+    For refresh operations. Thread pool type is `scaling` with a
+    keep-alive of `5m` and a size of `min(10, (# of available processors)/2)`.
 
 `listener`::
-    Mainly for java client executing of action when listener threaded is set to true
-    size `(# of available processors)/2` max at 10.
+    Mainly for java client executing of action when listener threaded is set to true.
+    Thread pool type is `scaling` with a default size of `min(10, (# of available processors)/2)`.
 
-Changing a specific thread pool can be done by setting its type and
-specific type parameters, for example, changing the `index` thread pool
-to have more threads:
+Changing a specific thread pool can be done by setting its type-specific parameters; for example, changing the `index`
+thread pool to have more threads:
 
 [source,js]
 --------------------------------------------------
 threadpool:
     index:
-        type: fixed
         size: 30
 --------------------------------------------------
 
-NOTE: you can update threadpool settings live using
-      <<cluster-update-settings>>.
-
+NOTE: you can update thread pool settings dynamically using <<cluster-update-settings>>.
 
 [float]
 [[types]]
 === Thread pool types
 
-The following are the types of thread pools that can be used and their
-respective parameters:
-
-[float]
-==== `cache`
-
-The `cache` thread pool is an unbounded thread pool that will spawn a
-thread if there are pending requests. Here is an example of how to set
-it:
-
-[source,js]
---------------------------------------------------
-threadpool:
-    index:
-        type: cached
---------------------------------------------------
+The following are the types of thread pools and their respective parameters:
 
 [float]
 ==== `fixed`
@@ -109,9 +93,27 @@ full, it will abort the request.
 --------------------------------------------------
 threadpool:
     index:
-        type: fixed
         size: 30
         queue_size: 1000
+--------------------------------------------------
+
+[float]
+==== `scaling`
+
+The `scaling` thread pool holds a dynamic number of threads. This
+number is proportional to the workload and varies between the value of
+the `min` and `size` parameters.
+
+The `keep_alive` parameter determines how long a thread should be kept
+around in the thread pool without it doing any work.
+
+[source,js]
+--------------------------------------------------
+threadpool:
+    warmer:
+        min: 1
+        size: 8
+        keep_alive: 2m
 --------------------------------------------------
 
 [float]

@@ -1,0 +1,32 @@
+{
+    "person":{
+        "dynamic_templates":[
+            {
+                "tempalte_1":{
+                    "match":"multi*",
+                    "mapping":{
+                        "type":"{dynamic_type}",
+                        "index":true,
+                        "store":true,
+                        "fields":{
+                            "org":{
+                                "type":"keyword",
+                                "index":true,
+                                "store":true
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "template_2":{
+                    "match":"*",
+                    "match_mapping_type":"string",
+                    "mapping":{
+                        "type":"keyword"
+                    }
+                }
+            }
+        ]
+    }
+}

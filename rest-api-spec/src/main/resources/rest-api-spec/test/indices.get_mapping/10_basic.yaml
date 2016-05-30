@@ -1,0 +1,161 @@
+---
+setup:
+  - do:
+        indices.create:
+          index: test_1
+          body:
+              mappings:
+                type_1: {}
+                type_2: {}
+  - do:
+        indices.create:
+          index: test_2
+          body:
+              mappings:
+                type_2: {}
+                type_3: {}
+
+---
+"Get /_mapping":
+
+ - do:
+    indices.get_mapping: {}
+
+ - match: { test_1.mappings.type_1: {}}
+ - match: { test_1.mappings.type_2: {}}
+ - match: { test_2.mappings.type_2: {}}
+ - match: { test_2.mappings.type_3: {}}
+
+---
+"Get /{index}/_mapping":
+
+ - do:
+    indices.get_mapping:
+        index: test_1
+
+ - match: { test_1.mappings.type_1: {}}
+ - match: { test_1.mappings.type_2: {}}
+ - is_false: test_2
+
+
+---
+"Get /{index}/_mapping/_all":
+
+ - do:
+    indices.get_mapping:
+        index: test_1
+        type:  _all
+
+ - match: { test_1.mappings.type_1: {}}
+ - match: { test_1.mappings.type_2: {}}
+ - is_false: test_2
+
+---
+"Get /{index}/_mapping/*":
+
+ - do:
+    indices.get_mapping:
+        index: test_1
+        type:  '*'
+
+ - match: { test_1.mappings.type_1: {}}
+ - match: { test_1.mappings.type_2: {}}
+ - is_false: test_2
+
+---
+"Get /{index}/_mapping/{type}":
+
+ - do:
+    indices.get_mapping:
+        index: test_1
+        type:  type_1
+
+ - match: { test_1.mappings.type_1: {}}
+ - is_false: test_1.mappings.type_2
+ - is_false: test_2
+
+---
+"Get /{index}/_mapping/{type,type}":
+
+ - do:
+    indices.get_mapping:
+        index: test_1
+        type:  type_1,type_2
+
+ - match: { test_1.mappings.type_1: {}}
+ - match: { test_1.mappings.type_2: {}}
+ - is_false: test_2
+
+---
+"Get /{index}/_mapping/{type*}":
+
+ - do:
+    indices.get_mapping:
+        index: test_1
+        type:  '*2'
+
+ - match: { test_1.mappings.type_2: {}}
+ - is_false: test_1.mappings.type_1
+ - is_false: test_2
+
+---
+"Get /_mapping/{type}":
+
+ - do:
+    indices.get_mapping:
+        type: type_2
+
+ - match: { test_1.mappings.type_2: {}}
+ - match: { test_2.mappings.type_2: {}}
+ - is_false: test_1.mappings.type_1
+ - is_false: test_2.mappings.type_3
+
+---
+"Get /_all/_mapping/{type}":
+
+ - do:
+    indices.get_mapping:
+        index: _all
+        type: type_2
+
+ - match: { test_1.mappings.type_2: {}}
+ - match: { test_2.mappings.type_2: {}}
+ - is_false: test_1.mappings.type_1
+ - is_false: test_2.mappings.type_3
+
+---
+"Get /*/_mapping/{type}":
+
+ - do:
+    indices.get_mapping:
+        index: '*'
+        type: type_2
+
+ - match: { test_1.mappings.type_2: {}}
+ - match: { test_2.mappings.type_2: {}}
+ - is_false: test_1.mappings.type_1
+ - is_false: test_2.mappings.type_3
+
+---
+"Get /index,index/_mapping/{type}":
+
+ - do:
+    indices.get_mapping:
+        index: test_1,test_2
+        type: type_2
+
+ - match: { test_1.mappings.type_2: {}}
+ - match: { test_2.mappings.type_2: {}}
+ - is_false: test_2.mappings.type_3
+
+---
+"Get /index*/_mapping/{type}":
+
+ - do:
+    indices.get_mapping:
+        index: '*2'
+        type: type_2
+
+ - match: { test_2.mappings.type_2: {}}
+ - is_false: test_1
+ - is_false: test_2.mappings.type_3

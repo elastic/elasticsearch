@@ -1,0 +1,176 @@
+[[rpm]]
+=== Install Elasticsearch with RPM
+
+The RPM for Elasticsearch can be <<install-rpm,downloaded from our website>>
+or from our  <<rpm-repo,RPM repository>>. It can be used to install
+Elasticsearch on any RPM-based system such as OpenSuSE, SLES, Centos, Red Hat,
+and Oracle Enterprise.
+
+NOTE: RPM install is not supported on distributions with old versions of RPM,
+such as SLES 11 and CentOS 5.  Please see <<zip-targz>> instead.
+
+The latest stable version of Elasticsearch can be found on the
+link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can
+be found on the link:/downloads/past-releases[Past Releases page].
+
+[[rpm-key]]
+==== Import the Elasticsearch PGP Key
+
+include::key.asciidoc[]
+
+[source,sh]
+-------------------------
+rpm --import https://packages.elastic.co/GPG-KEY-elasticsearch
+-------------------------
+
+[[rpm-repo]]
+==== Installing from the RPM repository
+
+Create a file called `elasticsearch.repo` in the `/etc/yum.repos.d/` directory
+for RedHat based distributions, or in the `/etc/zypp/repos.d/` directory for
+OpenSuSE based distributions, containing:
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+[elasticsearch-{major-version}]
+name=Elasticsearch repository for {major-version} packages
+baseurl=https://packages.elastic.co/elasticsearch/{major-version}/centos
+gpgcheck=1
+gpgkey=https://packages.elastic.co/GPG-KEY-elasticsearch
+enabled=1
+autorefresh=1
+type=rpm-md
+--------------------------------------------------
+
+And your repository is ready for use. You can now install Elasticsearch with one of the following commands:
+
+[source,sh]
+--------------------------------------------------
+sudo yum install elasticsearch <1>
+sudo dnf install elasticsearch <2>
+sudo zypper install elasticsearch <3>
+--------------------------------------------------
+<1> Use `yum` on CentOS and older Red Hat based distributions.
+<2> Use `dnf` on Fedora and other newer Red Hat distributions.
+<3> Use `zypper` on OpenSUSE based distributions
+
+[[install-rpm]]
+==== Download and install the RPM manually
+
+The RPM for Elastisearch v{version} can be downloaded from the website and installed as follows:
+
+["source","sh",subs="attributes"]
+--------------------------------------------
+wget https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/rpm/elasticsearch/{version}/elasticsearch-{version}.rpm
+sha1sum elasticsearch-{version}.rpm <1>
+sudo rpm --install elasticsearch-{version}.rpm
+--------------------------------------------
+<1> Compare the SHA produced by `sha1sum` or `shasum` with the
+    https://download.elastics.co/elasticsearch/release/org/elasticsearch/distribution/rpm/elasticsearch/{version}/elasticsearch-{version}.rpm.sha1[published SHA].
+
+include::init-systemd.asciidoc[]
+
+[[rpm-running-init]]
+==== Running Elasticsearch with SysV `init`
+
+Use the `chkconfig` command to configure Elasticsearch to start automatically
+when the system boots up:
+
+[source,sh]
+--------------------------------------------------
+sudo chkconfig --add elasticsearch
+--------------------------------------------------
+
+Elasticsearch can be started and stopped using the `service` command:
+
+[source,sh]
+--------------------------------------------
+sudo -i service elasticsearch start
+sudo -i service elasticsearch stop
+--------------------------------------------
+
+If Elasticsearch fails to start for any reason, it will print the reason for
+failure to STDOUT. Log files can be found in `/var/log/elasticsearch/`.
+
+
+[[rpm-running-systemd]]
+include::systemd.asciidoc[]
+
+[[rpm-check-running]]
+include::check-running.asciidoc[]
+
+[[rpm-configuring]]
+==== Configuring Elasticsearch
+
+Elasticsearch loads its configuration from the `/etc/elasticsearch/elasticsearch.yml`
+file by default.  The format of this config file is explained in
+<<settings>>.
+
+The RPM also has a system configuration file (`/etc/sysconfig/elasticsearch`),
+which allows you to set the following parameters:
+
+include::sysconfig-file.asciidoc[]
+
+NOTE: Distributions that use `systemd` require that system resource limits be
+configured via `systemd` rather than via the `/etc/sysconfig/elasticsearch`
+file.  See <<systemd>> for more information.
+
+[[rpm-layout]]
+==== Directory layout of RPM
+
+The RPM places config files, logs, and the data directory in the appropriate
+locations for an RPM-based system:
+
+
+[cols="<h,<,<m,<m",options="header",]
+|=======================================================================
+| Type | Description | Default Location | Setting
+| home
+  | Elasticsearch home directory or `$ES_HOME`
+  | /usr/share/elasticsearch
+ d|
+
+| bin
+  | Binary scripts including `elasticsearch` to start a node
+    and `elasticsearch-plugin` to install plugins
+  | /usr/share/elasticsearch/bin
+ d|
+
+| conf
+  | Configuration files including `elasticsearch.yml`
+  | /etc/elasticsearch
+  | path.conf
+
+| conf
+  | Environment variables including heap size, file descriptors.
+  | /etc/sysconfig/elasticsearch
+ d|
+
+| data
+  | The location of the data files of each index / shard allocated
+    on the node. Can hold multiple locations.
+  | /var/lib/elasticsearch
+  | path.data
+
+| logs
+  | Log files location.
+  | /var/log/elasticsearch
+  | path.logs
+
+| plugins
+  | Plugin files location. Each plugin will be contained in a subdirectory.
+  | /usr/share/elasticsearch/plugins
+
+| repo
+  | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here.
+ d| Not configured
+  | path.repo
+
+| script
+  | Location of script files.
+  | /etc/elasticsearch/scripts
+  | path.script
+
+|=======================================================================
+
+include::next-steps.asciidoc[]

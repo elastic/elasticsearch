@@ -1,0 +1,203 @@
+[[plugin-management]]
+== Plugin Management
+
+The `plugin` script is used to install, list, and remove plugins. It is
+located in the `$ES_HOME/bin` directory by default but it may be in a
+different location depending on which Elasticsearch package you installed:
+
+* {ref}/zip-targz.html#zip-targz-layout[Directory layout of `.zip` and `.tar.gz` archives]
+* {ref}/deb.html#deb-layout[Directory layout of Debian package]
+* {ref}/rpm.html#rpm-layout[Directory layout of RPM]
+
+Run the following command to get usage instructions:
+
+[source,shell]
+-----------------------------------
+sudo bin/elasticsearch-plugin -h
+-----------------------------------
+
+[IMPORTANT]
+.Running as root
+=====================
+If Elasticsearch was installed using the deb or rpm package then run
+`/usr/share/elasticsearch-plugin` as `root` so it can write to the appropriate files on disk.
+Otherwise run `bin/elasticsearch-plugin` as the user that owns all of the Elasticsearch
+files.
+=====================
+
+[[installation]]
+=== Installing Plugins
+
+The documentation for each plugin usually includes specific installation
+instructions for that plugin, but below we document the various available
+options:
+
+[float]
+=== Core Elasticsearch plugins
+
+Core Elasticsearch plugins can be installed as follows:
+
+[source,shell]
+-----------------------------------
+sudo bin/elasticsearch-plugin install [plugin_name]
+-----------------------------------
+
+For instance, to install the core <<analysis-icu,ICU plugin>>, just run the
+following command:
+
+[source,shell]
+-----------------------------------
+sudo bin/elasticsearch-plugin install analysis-icu
+-----------------------------------
+
+This command will install the version of the plugin that matches your
+Elasticsearch version.
+
+[float]
+=== Custom URL or file system
+
+A plugin can also be downloaded directly from a custom location by specifying the URL:
+
+[source,shell]
+-----------------------------------
+sudo bin/elasticsearch-plugin install [url] <1>
+-----------------------------------
+<1> must be a valid URL, the plugin name is determined from its descriptor.
+
+For instance, to install a plugin from your local file system, you could run:
+
+[source,shell]
+-----------------------------------
+sudo bin/elasticsearch-plugin install file:///path/to/plugin.zip
+-----------------------------------
+
+The plugin script will refuse to talk to an HTTPS URL with an untrusted
+certificate. To use a self-signed HTTPS cert, you will need to add the CA cert
+to a local Java truststore and pass the location to the script as follows:
+
+[source,shell]
+-----------------------------------
+sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://....
+-----------------------------------
+
+[[listing-removing]]
+=== Listing and Removing Installed Plugins
+
+[float]
+=== Listing plugins
+
+A list of the currently loaded plugins can be retrieved with the `list` option:
+
+[source,shell]
+-----------------------------------
+sudo bin/elasticsearch-plugin list
+-----------------------------------
+
+Alternatively, use the {ref}/cluster-nodes-info.html[node-info API] to find
+out which plugins are installed on each node in the cluster
+
+[float]
+=== Removing plugins
+
+Plugins can be removed manually, by deleting the appropriate directory under
+`plugins/`, or using the public script:
+
+[source,shell]
+-----------------------------------
+sudo bin/elasticsearch-plugin remove [pluginname]
+-----------------------------------
+
+After a Java plugin has been removed, you will need to restart the node to complete the removal process.
+
+=== Other command line parameters
+
+The `plugin` scripts supports a number of other command line parameters:
+
+[float]
+=== Silent/Verbose mode
+
+The `--verbose` parameter outputs more debug information, while the `--silent`
+parameter turns off all output.  The script may return the following exit
+codes:
+
+[horizontal]
+`0`:: everything was OK
+`64`:: unknown command or incorrect option parameter
+`74`:: IO error
+`70`:: any other error
+
+[float]
+=== Custom config directory
+
+If your `elasticsearch.yml` config file is in a custom location, you will need
+to specify the path to the config file when using the `plugin` script.  You
+can do this as follows:
+
+[source,sh]
+---------------------
+sudo bin/elasticsearch-plugin -Epath.conf=/path/to/custom/config/dir install <plugin name>
+---------------------
+
+You can also set the `CONF_DIR` environment variable to the custom config
+directory path.
+
+[float]
+=== Timeout settings
+
+By default, the `plugin` script will wait indefinitely when downloading before
+failing. The timeout parameter can be used to explicitly specify how long it
+waits. Here is some examples of setting it to different values:
+
+[source,shell]
+-----------------------------------
+# Wait for 30 seconds before failing
+sudo bin/elasticsearch-plugin install analysis-icu --timeout 30s
+
+# Wait for 1 minute before failing
+sudo bin/elasticsearch-plugin install analysis-icu --timeout 1m
+
+# Wait forever (default)
+sudo bin/elasticsearch-plugin install analysis-icu --timeout 0
+-----------------------------------
+
+[float]
+=== Proxy settings
+
+To install a plugin via a proxy, you can pass the proxy details in with the
+Java settings `proxyHost` and `proxyPort`. On Unix based systems, these
+options can be set on the command line:
+
+[source,shell]
+-----------------------------------
+sudo ES_JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number" bin/elasticsearch-plugin install mobz/elasticsearch-head
+-----------------------------------
+
+On Windows, they need to be added to the `ES_JAVA_OPTS` environment variable:
+
+[source,shell]
+-----------------------------------
+set ES_JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number"
+bin/elasticsearch-plugin install analysis-icu
+-----------------------------------
+
+=== Plugins directory
+
+The default location of the `plugins` directory depends on which package you install:
+
+* {ref}/zip-targz.html#zip-targz-layout[Directory layout of `.zip` and `.tar.gz` archives]
+* {ref}/deb.html#deb-layout[Directory layout of Debian package]
+* {ref}/rpm.html#rpm-layout[Directory layout of RPM]
+
+[float]
+=== Mandatory Plugins
+
+If you rely on some plugins, you can define mandatory plugins by adding
+`plugin.mandatory` setting to the `config/elasticsearch.yml` file, for
+example:
+
+[source,yaml]
+--------------------------------------------------
+plugin.mandatory: analysis-icu,lang-js
+--------------------------------------------------
+
+For safety reasons, a node will not start if it is missing a mandatory plugin.

@@ -1,38 +1,42 @@
-.idea/
-.gradle/
-*.iml
-work/
-/data/
-/plugins/
-logs/
-.DS_Store
-build/
-target/
-*-execution-hints.log
-docs/html/
-docs/build.log
-/tmp/
-backwards/
 
-## eclipse ignores (use 'mvn eclipse:eclipse' to build eclipse projects)
-## The only configuration files which are not ignored are certain files in
-## .settings (as listed below) since these files ensure common coding 
-## style across Eclipse and IDEA.
-## Other files (.project, .classpath) should be generated through Maven which
-## will correctly set the classpath based on the declared dependencies.
+# intellij files
+.idea/
+*.iml
+*.ipr
+*.iws
+build-idea/
+
+# eclipse files
 .project
 .classpath
-eclipse-build
-*/.project
-*/.classpath
-*/eclipse-build
-/.settings/
-!/.settings/org.eclipse.core.resources.prefs
-!/.settings/org.eclipse.jdt.core.prefs
-!/.settings/org.eclipse.jdt.ui.prefs
+.settings
+build-eclipse/
 
-## netbeans ignores
+# netbeans files
 nb-configuration.xml
 nbactions.xml
 
-/dependency-reduced-pom.xml
+# gradle stuff
+.gradle/
+build/
+
+# maven stuff (to be removed when trunk becomes 4.x)
+*-execution-hints.log
+target/
+dependency-reduced-pom.xml
+
+# testing stuff
+**/.local*
+.vagrant/
+
+# osx stuff
+.DS_Store
+
+# needed in case docs build is run...maybe we can configure doc build to generate files under build?
+html_docs
+
+# random old stuff that we should look at the necessity of...
+/tmp/
+backwards/
+eclipse-build
+

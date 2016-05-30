@@ -1,0 +1,62 @@
+index :
+  analysis :
+    tokenizer :
+      standard :
+        type : standard
+    char_filter :
+      my_html :
+        type : html_strip
+        escaped_tags : [xxx, yyy]
+        read_ahead : 1024
+      my_pattern :
+        type: pattern_replace
+        pattern: sample(.*)
+        replacement: replacedSample $1
+      my_mapping :
+        type : mapping
+        mappings : [ph=>f, qu=>q]
+    filter :
+      stop :
+        type : stop
+        stopwords : [test-stop]
+      stop2 :
+        type : stop
+        stopwords : [stop2-1, stop2-2]
+      my :
+        type : myfilter
+      dict_dec :
+        type : dictionary_decompounder
+        word_list : [donau, dampf, schiff, spargel, creme, suppe]
+    analyzer :
+      standard :
+        alias: alias1,alias2
+        type : standard
+        stopwords : [test1, test2, test3]
+      custom1 :
+        alias : [alias4, alias5]
+        tokenizer : standard
+        filter : [stop, stop2]
+      custom2 :
+        tokenizer : standard
+        char_filter : [html_strip, my_html]
+      custom3 :
+        tokenizer : standard
+        char_filter : [my_pattern]
+      custom4 :
+        tokenizer : standard
+        filter : [my]
+      custom5 :
+        tokenizer : standard
+        char_filter : [my_mapping]
+      custom6 :
+        tokenizer : standard
+        position_increment_gap: 256
+      custom7 :
+        type : standard
+        version: 3.6
+      czechAnalyzerWithStemmer :
+        tokenizer : standard
+        filter : [standard, lowercase, stop, czech_stem]
+      decompoundingAnalyzer :
+        tokenizer : standard
+        filter : [dict_dec]

@@ -1,0 +1,86 @@
+[[percolator]]
+=== Percolator type
+
+The `percolator` field type parses a json structure into a native query and
+stores that query, so that the <<query-dsl-percolate-query,percolate query>>
+can use it to match provided documents.
+
+Any field that contains a json object can be configured to be a percolator
+field. The percolator field type has no settings. Just configuring the `percolator`
+field type is sufficient to instruct Elasticsearch to treat a field as a
+query.
+
+If the following mapping configures the `percolator` field type for the
+`query` field:
+
+[source,js]
+--------------------------------------------------
+{
+    "properties": {
+        "query": {
+            "type": "percolator"
+        }
+    }
+}
+--------------------------------------------------
+
+Then the following json snippet can be indexed as a native query:
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {
+		"match" : {
+			"field" : "value"
+		}
+	}
+}
+--------------------------------------------------
+
+[IMPORTANT]
+=====================================
+
+Fields referred to in a percolator query must *already* exist in the mapping
+associated with the index used for percolation. In order to make sure these fields exist,
+add or update a mapping via the <<indices-create-index,create index>> or <<indices-put-mapping,put mapping>> APIs.
+Fields referred in a percolator query may exist in any type of the index containing the `percolator` field type.
+
+Also an index can only contain up to one percolator field mapping. Multiple percolator fields will be rejected by the
+put index and put mapping APIs.
+
+=====================================
+
+[float]
+==== Dedicated Percolator Index
+
+Percolate queries can be added to any index. Instead of adding percolate queries to the index the data resides in,
+these queries can also be added to a dedicated index. The advantage of this is that this dedicated percolator index
+can have its own index settings (For example the number of primary and replica shards). If you choose to have a dedicated
+percolate index, you need to make sure that the mappings from the normal index are also available on the percolate index.
+Otherwise percolate queries can be parsed incorrectly.
+
+[float]
+==== Forcing Unmapped Fields to be Handled as Strings
+
+In certain cases it is unknown what kind of percolator queries do get registered, and if no field mapping exists for fields
+that are referred by percolator queries then adding a percolator query fails. This means the mapping needs to be updated
+to have the field with the appropriate settings, and then the percolator query can be added. But sometimes it is sufficient
+if all unmapped fields are handled as if these were default string fields. In those cases one can configure the
+`index.percolator.map_unmapped_fields_as_string` setting to `true` (default to `false`) and then if a field referred in
+a percolator query does not exist, it will be handled as a default string field so that adding the percolator query doesn't
+fail.
+
+[float]
+==== Important Notes
+
+Because the `percolate` query is processing one document at a time, it doesn't support queries and filters that run
+against child documents such as `has_child` and `has_parent`.
+
+There are a number of queries that fetch data via a get call during query parsing. For example the `terms` query when
+using terms lookup, `template` query when using indexed scripts and `geo_shape` when using pre-indexed shapes. When these
+queries are indexed by the `percolator` field type then the get call is executed once. So each time the `percolator`
+query evaluates these queries, the fetches terms, shapes etc. as the were upon index time will be used.
+
+The `wildcard` and `regexp` query natively use a lot of memory and because the percolator keeps the queries into memory
+this can easily take up the available memory in the heap space. If possible try to use a `prefix` query or ngramming to
+achieve the same result (with way less memory being used).

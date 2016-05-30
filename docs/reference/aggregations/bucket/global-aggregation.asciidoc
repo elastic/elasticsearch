@@ -1,0 +1,51 @@
+[[search-aggregations-bucket-global-aggregation]]
+=== Global Aggregation
+
+Defines a single bucket of all the documents within the search execution context. This context is defined by the indices and the document types you're searching on, but is *not* influenced by the search query itself.
+
+NOTE:   Global aggregators can only be placed as top level aggregators (it makes no sense to embed a global aggregator
+        within another bucket aggregator)
+
+Example:
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {
+        "match" : { "title" : "shirt" }
+    },
+    "aggs" : {
+        "all_products" : {
+            "global" : {}, <1>
+            "aggs" : { <2>
+                "avg_price" : { "avg" : { "field" : "price" } }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+<1> The `global` aggregation has an empty body
+<2> The sub-aggregations that are registered for this `global` aggregation
+
+The above aggregation demonstrates how one would compute aggregations (`avg_price` in this example) on all the documents in the search context, regardless of the query (in our example, it will compute the average price over all products in our catalog, not just on the "shirts").
+
+The response for the above aggregation:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations" : {
+        "all_products" : {
+            "doc_count" : 100, <1>
+            "avg_price" : {
+                "value" : 56.3
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+<1> The number of documents that were aggregated (in our case, all documents within the search context)

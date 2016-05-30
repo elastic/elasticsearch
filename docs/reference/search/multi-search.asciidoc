@@ -26,16 +26,16 @@ the `query`, `aggregations`, `from`, `size`, and so on). Here is an example:
 $ cat requests
 {"index" : "test"}
 {"query" : {"match_all" : {}}, "from" : 0, "size" : 10}
-{"index" : "test", "search_type" : "count"}
+{"index" : "test", "search_type" : "dfs_query_then_fetch"}
 {"query" : {"match_all" : {}}}
 {}
 {"query" : {"match_all" : {}}}
 
 {"query" : {"match_all" : {}}}
-{"search_type" : "count"}
+{"search_type" : "dfs_query_then_fetch"}
 {"query" : {"match_all" : {}}}
 
-$ curl -XGET localhost:9200/_msearch --data-binary @requests; echo
+$ curl -XGET localhost:9200/_msearch --data-binary "@requests"; echo
 --------------------------------------------------
 
 Note, the above includes an example of an empty header (can also be just

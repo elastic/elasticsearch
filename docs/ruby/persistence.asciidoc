@@ -80,11 +80,11 @@ The repository module provides a number of features and facilities to configure 
 as well as support for extending your own, custom repository class.
 
 Please refer to the
-https://github.com/elasticsearch/elasticsearch-rails/tree/master/elasticsearch-persistence#the-repository-pattern[documentation]
+https://github.com/elastic/elasticsearch-rails/tree/master/elasticsearch-persistence#the-repository-pattern[documentation]
 for more information.
 
 Also, check out the
-https://github.com/elasticsearch/elasticsearch-rails/tree/master/elasticsearch-persistence#example-application[example application] which demonstrates the usage patterns of the _repository_ approach to persistence.
+https://github.com/elastic/elasticsearch-rails/tree/master/elasticsearch-persistence#example-application[example application] which demonstrates the usage patterns of the _repository_ approach to persistence.
 
 === Active Record
 
@@ -142,7 +142,7 @@ class Article
 
   # Execute code after saving the model.
   #
-  after_save { puts "Successfuly saved: #{self}" }
+  after_save { puts "Successfully saved: #{self}" }
 end
 ------------------------------------
 
@@ -215,12 +215,12 @@ Any callbacks defined in the model will be triggered during the persistence oper
 [source,ruby]
 ------------------------------------
 article.save
-# Successfuly saved: #<Article {...}>
+# Successfully saved: #<Article {...}>
 ------------------------------------
 
 Please see the extensive documentation in the library
-https://github.com/elasticsearch/elasticsearch-rails/tree/master/elasticsearch-persistence#the-activerecord-pattern[README]
+https://github.com/elastic/elasticsearch-rails/tree/master/elasticsearch-persistence#the-activerecord-pattern[README]
 for detailed information.
 
 Also, check out the
-https://github.com/elasticsearch/elasticsearch-rails/tree/master/elasticsearch-persistence#example-application-1[example application] which demonstrates the usage patterns of the _active record_ approach to persistence.
+https://github.com/elastic/elasticsearch-rails/tree/master/elasticsearch-persistence#example-application-1[example application] which demonstrates the usage patterns of the _active record_ approach to persistence.

@@ -1,0 +1,163 @@
+[[zip-targz]]
+=== Install Elasticsearch with `.zip` or `.tar.gz`
+
+Elasticsearch is provided as a `.zip` and as a `.tar.gz` package.  These
+packages can be used to install Elasticsearch on any system and are the
+easiest package format to use when trying out Elasticsearch.
+
+The latest stable version of Elasticsearch can be found on the
+link:/downloads/elasticsearch[Download Elasticsearch] page.
+Other versions can be found on the
+link:/downloads/past-releases[Past Releases page].
+
+[[install-zip]]
+==== Download and install the `.zip` package
+
+The `.zip` archive for Elastisearch v{version} can be downloaded and installed as follows:
+
+["source","sh",subs="attributes"]
+--------------------------------------------
+wget https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/zip/elasticsearch/{version}/elasticsearch-{version}.zip
+sha1sum elasticsearch-{version}.zip <1>
+unzip elasticsearch-{version}.zip
+cd elasticsearch-{version}/ <2>
+--------------------------------------------
+<1> Compare the SHA produced by `sha1sum` or `shasum` with the
+    https://download.elastics.co/elasticsearch/release/org/elasticsearch/distribution/zip/elasticsearch/{version}/elasticsearch-{version}.zip.sha1[published SHA].
+<2> This directory is known as `$ES_HOME`.
+
+[[install-targz]]
+==== Download and install the `.tar.gz` package
+
+The `.tar.gz` archive for Elastisearch v{version} can be downloaded and installed as follows:
+
+["source","sh",subs="attributes"]
+--------------------------------------------
+wget https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/{version}/elasticsearch-{version}.tar.gz
+sha1sum elasticsearch-{version}.tar.gz <1>
+tar -xzf elasticsearch-{version}.tar.gz
+cd elasticsearch-{version}/ <2>
+--------------------------------------------
+<1> Compare the SHA produced by `sha1sum` or `shasum` with the
+    https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/{version}/elasticsearch-{version}.tar.gz.sha1[published SHA].
+<2> This directory is known as `$ES_HOME`.
+
+[[zip-targz-running]]
+==== Running Elasticsearch from the command line
+
+Elasticsearch can be started from the command line as follows:
+
+[source,sh]
+--------------------------------------------
+./bin/elasticsearch
+--------------------------------------------
+
+By default, Elasticsearch runs in the foreground, prints its logs to `STDOUT`,
+and can be stopped by pressing `Ctrl-C`.
+
+include::check-running.asciidoc[]
+
+[[setup-installation-daemon]]
+==== Running as a daemon
+
+To run Elasticsearch as a daemon, specify `-d` on the command line, and record
+the process ID in a file using the `-p` option:
+
+[source,sh]
+--------------------------------------------
+./bin/elasticsearch -d -p pid
+--------------------------------------------
+
+Log messages can be found in the `$ES_HOME/logs/` directory.
+
+To shut down Elasticsearch, kill the process ID recorded in the `pid` file:
+
+[source,sh]
+--------------------------------------------
+kill `cat pid`
+--------------------------------------------
+
+NOTE: The startup scripts provided in the <<rpm,RPM>> and <<deb,Debian>>
+packages take care of starting and stopping the Elasticsearch process for you.
+
+[[zip-targz-configuring]]
+==== Configuring Elasticsearch on the command line
+
+Elasticsearch loads its configuration from the `$ES_HOME/config/elasticsearch.yml`
+file by default.  The format of this config file is explained in
+<<settings>>.
+
+Any settings that can be specified in the config file can also be specified on
+the command line, using the `-E` syntax as follows:
+
+[source,sh]
+--------------------------------------------
+./bin/elasticsearch -d -Ecluster.name=my_cluster -Enode.name=node_1
+--------------------------------------------
+
+TIP: Typically, any cluster-wide settings (like `cluster.name`) should be
+added to the `elasticsearch.yml` config file, while any node-specific settings
+such as `node.name` could be specified on the command line.
+
+[[zip-targz-layout]]
+==== Directory layout of `.zip` and `.tar.gz` archives
+
+The `.zip` and `.tar.gz` packages are entirely self-contained. All files and
+directories are, by default, contained within `$ES_HOME` -- the directory
+created when unpacking the archive.
+
+This is very convenient because you don't have to create any directories to
+start using Elasticsearch, and uninstalling Elasticsearch is as easy as
+removing the `$ES_HOME` directory.  However, it is advisable to change the
+default locations of the config directory, the data directory, and the logs
+directory so that you do not delete important data later on.
+
+
+[cols="<h,<,<m,<m",options="header",]
+|=======================================================================
+| Type | Description | Default Location | Setting
+| home
+  | Elasticsearch home directory or `$ES_HOME`
+ d| Directory created by unpacking the archive
+  |
+
+| bin
+  | Binary scripts including `elasticsearch` to start a node
+    and `elasticsearch-plugin` to install plugins
+  | $ES_HOME/bin
+ d|
+
+| conf
+  | Configuration files including `elasticsearch.yml`
+  | $ES_HOME/config
+  | path.conf
+
+| data
+  | The location of the data files of each index / shard allocated
+    on the node. Can hold multiple locations.
+  | $ES_HOME/data
+  | path.data
+
+| logs
+  | Log files location.
+  | $ES_HOME/logs
+  | path.logs
+
+| plugins
+  | Plugin files location. Each plugin will be contained in a subdirectory.
+  | $ES_HOME/plugins
+
+| repo
+  | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here.
+ d| Not configured
+  | path.repo
+
+| script
+  | Location of script files.
+  | $ES_HOME/scripts
+  | path.script
+
+|=======================================================================
+
+
+include::next-steps.asciidoc[]

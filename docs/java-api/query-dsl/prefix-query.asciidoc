@@ -1,0 +1,16 @@
+[[java-query-dsl-prefix-query]]
+==== Prefix Query
+
+See {ref}/query-dsl-prefix-query.html[Prefix Query]
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = prefixQuery(
+    "brand",    <1>
+    "heine"     <2>
+);
+--------------------------------------------------
+<1> field
+<2> prefix
+
+

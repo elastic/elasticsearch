@@ -21,54 +21,37 @@ it does not take into account term frequencies and other search engine
 information from the other shards. If we want to support accurate
 ranking, we would need to first gather the term frequencies from all
 shards to calculate global term frequencies, then execute the query on
-each shard using these globale frequencies.
+each shard using these global frequencies.
 
 Also, because of the need to sort the results, getting back a large
-document set, or even scrolling it, while maintaing the correct sorting
+document set, or even scrolling it, while maintaining the correct sorting
 behavior can be a very expensive operation. For large result set
-scrolling without sorting, the `scan` search type (explained below) is
-also available.
+scrolling, it is best to sort by `_doc` if the order in which documents
+are returned is not important.
 
 Elasticsearch is very flexible and allows to control the type of search
 to execute on a *per search request* basis. The type can be configured
 by setting the *search_type* parameter in the query string. The types
 are:
 
-[[query-and-fetch]]
-==== Query And Fetch
-
-Parameter value: *query_and_fetch*.
-
-The most naive (and possibly fastest) implementation is to simply
-execute the query on all relevant shards and return the results. Each
-shard returns `size` results. Since each shard already returns `size`
-hits, this type actually returns `size` times `number of shards` results
-back to the caller.
-
 [[query-then-fetch]]
 ==== Query Then Fetch
 
 Parameter value: *query_then_fetch*.
 
-The query is executed against all shards, but only enough information is
-returned (*not the document content*). The results are then sorted and
-ranked, and based on it, *only the relevant shards* are asked for the
-actual document content. The return number of hits is exactly as
-specified in `size`, since they are the only ones that are fetched. This
-is very handy when the index has a lot of shards (not replicas, shard id
-groups).
+The request is processed in two phases. In the first phase, the query
+is forwarded to *all involved shards*. Each shard executes the search
+and generates a sorted list of results, local to that shard. Each
+shard returns *just enough information* to the coordinating node
+to allow it merge and re-sort the shard level results into a globally
+sorted set of results, of maximum length `size`. 
+
+During the second phase, the coordinating node requests the document
+content (and highlighted snippets, if any) from *only the relevant
+shards*.
 
 NOTE: This is the default setting, if you do not specify a `search_type`
       in your request.
-
-[[dfs-query-and-fetch]]
-==== Dfs, Query And Fetch
-
-Parameter value: *dfs_query_and_fetch*.
-
-Same as "Query And Fetch", except for an initial scatter phase which
-goes and computes the distributed term frequencies for more accurate
-scoring.
 
 [[dfs-query-then-fetch]]
 ==== Dfs, Query Then Fetch
@@ -79,21 +62,4 @@ Same as "Query Then Fetch", except for an initial scatter phase which
 goes and computes the distributed term frequencies for more accurate
 scoring.
 
-[[count]]
-==== Count
-
-Parameter value: *count*.
-
-A special search type that returns the count that matched the search
-request without any docs (represented in `total_hits`), and possibly,
-including aggregations as well. In general, this is preferable to the `count`
-API as it provides more options.
-
-[[scan]]
-==== Scan
-
-Parameter value: *scan*.
-
-The `scan` search type disables sorting in order to allow very efficient
-scrolling through large result sets.  See <<scroll-scan>> for more.
 

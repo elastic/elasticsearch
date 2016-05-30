@@ -1,0 +1,76 @@
+[[search-aggregations-bucket-sampler-aggregation]]
+=== Sampler Aggregation
+
+experimental[]
+
+A filtering aggregation used to limit any sub aggregations' processing to a sample of the top-scoring documents.
+
+.Example use cases:
+* Tightening the focus of analytics to high-relevance matches rather than the potentially very long tail of low-quality matches
+* Reducing the running cost of aggregations that can produce useful results using only samples e.g. `significant_terms`
+ 
+
+Example:
+
+[source,js]
+--------------------------------------------------
+{
+    "query": {
+        "match": {
+            "text": "iphone"
+        }
+    },
+    "aggs": {
+        "sample": {
+            "sampler": {
+                "shard_size": 200
+            },
+            "aggs": {
+                "keywords": {
+                    "significant_terms": {
+                        "field": "text"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+        "aggregations": {
+        "sample": {
+            "doc_count": 1000,<1>
+            "keywords": {
+                "doc_count": 1000,
+                "buckets": [
+                    ...
+                    {
+                        "key": "bend",
+                        "doc_count": 58,
+                        "score": 37.982536582524276,
+                        "bg_count": 103
+                    },
+                    ....
+}
+--------------------------------------------------
+
+<1> 1000 documents were sampled in total because we asked for a maximum of 200 from an index with 5 shards. The cost of performing the nested significant_terms aggregation was therefore limited rather than unbounded.
+
+
+==== shard_size
+
+The `shard_size` parameter limits how many top-scoring documents are collected in the sample processed on each shard.
+The default value is 100.
+
+==== Limitations
+
+===== Cannot be nested under `breadth_first` aggregations
+Being a quality-based filter the sampler aggregation needs access to the relevance score produced for each document.
+It therefore cannot be nested under a `terms` aggregation which has the `collect_mode` switched from the default `depth_first` mode to `breadth_first` as this discards scores.
+In this situation an error will be thrown.

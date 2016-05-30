@@ -1,0 +1,37 @@
+---
+"Basic percolation tests on an empty cluster":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            queries:
+              properties:
+                query:
+                  type: percolator
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      percolate:
+        index: test_index
+        type:  test_type
+        body:
+          doc:
+            foo: bar
+
+  - match: {'total': 0}
+  - match: {'matches': []}
+
+  - do:
+      count_percolate:
+        index: test_index
+        type:  test_type
+        body:
+          doc:
+            foo: bar
+
+  - is_false:  matches
+  - match: {'total': 0}

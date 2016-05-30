@@ -1,0 +1,151 @@
+[[breaking_50_mapping_changes]]
+=== Mapping changes
+
+==== `string` fields replaced by `text`/`keyword` fields
+
+The `string` field datatype has been replaced by the `text` field for full
+text analyzed content, and the `keyword` field for not-analyzed exact string
+values.  For backwards compatibility purposes, during the 5.x series:
+
+* `string` fields on pre-5.0 indices will function as before.
+* New `string` fields can be added to pre-5.0 indices as before.
+* `text` and `keyword` fields can also be added to pre-5.0 indices.
+* When adding a `string` field to a new index, the field mapping will be
+  rewritten as a `text` or `keyword` field if possible, otherwise
+  an exception will be thrown.  Certain configurations that were possible
+  with `string` fields are no longer possible with `text`/`keyword` fields
+  such as enabling `term_vectors` on a not-analyzed `keyword` field.
+
+==== Default string mappings
+
+String mappings now have the following default mappings:
+
+[source,js]
+---------------
+{
+  "type": "text",
+  "fields": {
+    "keyword": {
+      "type": "keyword",
+      "ignore_above": 256
+    }
+  }
+}
+---------------
+
+This allows to perform full-text search on the original field name and to sort
+and run aggregations on the sub keyword field.
+
+==== Numeric fields
+
+Numeric fields are now indexed with a completely different data-structure, called
+BKD tree, that is expected to require less disk space and be faster for range
+queries than the previous way that numerics were indexed.
+
+Term queries will return constant scores now, while they used to return higher
+scores for rare terms due to the contribution of the document frequency, which
+this new BKD structure does not record. If scoring is needed, then it is advised
+to map the numeric fields as <<keyword,`keyword`s>> too.
+
+Note that this <<keyword,`keyword`>> mapping do not need to replace the numeric
+mapping. For instance if you need both sorting and scoring on your numeric field,
+you could map it both as a number and a `keyword` using <<multi-fields>>:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "my_number": {
+          "type": "long",
+          "fields": {
+            "keyword": {
+              "type":  "keyword"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+Also the `precision_step` parameter is now irrelevant and will be rejected on
+indices that are created on or after 5.0.
+
+==== `index` property
+
+On all field datatypes (except for the deprecated `string` field), the `index`
+property now only accepts `true`/`false` instead of `not_analyzed`/`no`. The
+`string` field still accepts `analyzed`/`not_analyzed`/`no`.
+
+==== Doc values on unindexed fields
+
+Previously, setting a field to `index:no` would also disable doc-values.  Now,
+doc-values are always enabled on numeric and boolean fields unless
+`doc_values` is set to `false`.
+
+==== Floating points use `float` instead of `double`
+
+When dynamically mapping a field containing a floating point number, the field
+now defaults to using `float` instead of `double`. The reasoning is that
+floats should be more than enough for most cases but would decrease storage
+requirements significantly.
+
+==== `norms`
+
+`norms` now take a boolean instead of an object. This boolean is the replacement
+for `norms.enabled`. There is no replacement for `norms.loading` since eager
+loading of norms is not useful anymore now that norms are disk-based.
+
+==== `fielddata.format`
+
+Setting `fielddata.format: doc_values` in the mappings used to implicitly
+enable doc-values on a field. This no longer works: the only way to enable or
+disable doc-values is by using the `doc_values` property of mappings.
+
+==== `fielddata.filter.regex`
+
+Regex filters are not supported anymore and will be dropped on upgrade.
+
+==== Source-transform removed
+
+The source `transform` feature has been removed. Instead, use an ingest pipeline
+
+==== `_parent` field no longer indexed
+
+The join between parent and child documents no longer relies on indexed fields
+and therefore from 5.0.0 onwards the `_parent` field is no longer indexed. In
+order to find documents that refer to a specific parent id, the new
+`parent_id` query can be used. The GET response and hits inside the search
+response still include the parent id under the `_parent` key.
+
+==== Source `format` option
+
+The `_source` mapping no longer supports the `format` option. It will still be
+accepted for indices created before the upgrade to 5.0 for backwards
+compatibility, but it will have no effect. Indices created on or after 5.0
+will reject this option.
+
+==== Object notation
+
+Core types no longer support the object notation, which was used to provide
+per document boosts as follows:
+
+[source,js]
+---------------
+{
+  "value": "field_value",
+  "boost": 42
+}
+---------------
+
+==== Boost accuracy for queries on `_all`
+
+Per-field boosts on the `_all` are now compressed into a single byte instead
+of the 4 bytes used previously. While this will make the index much more
+space-efficient, it also means that index time boosts will be less accurately
+encoded.

@@ -1,0 +1,56 @@
+[[precision-step]]
+=== `precision_step`
+
+Most <<number,numeric>> datatypes index extra terms representing numeric
+ranges for each number to make <<query-dsl-range-query,`range` queries>>
+faster.  For instance, this `range` query:
+
+[source,js]
+--------------------------------------------------
+  "range": {
+    "number": {
+      "gte": 0
+      "lte": 321
+    }
+  }
+--------------------------------------------------
+
+might be executed internally as a <<query-dsl-terms-query,`terms` query>> that
+looks something like this:
+
+[source,js]
+--------------------------------------------------
+  "terms": {
+    "number": [
+      "0-255",
+      "256-319"
+      "320",
+      "321"
+    ]
+  }
+--------------------------------------------------
+
+These extra terms greatly reduce the number of terms that have to be examined,
+at the cost of increased disk space.
+
+The default value for `precision_step` depends on the `type` of the numeric field:
+
+[horizontal]
+`long`, `double`, `date`, `ip`::  `16` (3 extra terms)
+`integer`, `float`, `short`::     `8` (3 extra terms)
+`byte`::                          `2147483647` (0 extra terms)
+`token_count`::                   `32` (0 extra terms)
+
+The value of the `precision_step` setting indicates the number of bits that
+should be compressed into an extra term.  A `long` value consists of 64 bits,
+so a `precision_step` of 16 results in the following terms:
+
+[horizontal]
+Bits 0-15:: `value & 1111111111111111 0000000000000000 0000000000000000 0000000000000000`
+Bits 0-31:: `value & 1111111111111111 1111111111111111 0000000000000000 0000000000000000`
+Bits 0-47:: `value & 1111111111111111 1111111111111111 1111111111111111 0000000000000000`
+Bits 0-63:: `value`
+
+
+
+

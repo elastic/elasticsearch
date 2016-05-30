@@ -1,0 +1,378 @@
+[[query-dsl-percolate-query]]
+=== Percolate Query
+
+The `percolate` query can be used to match queries
+stored in an index. The `percolate` query itself
+contains the document that will be used as query
+to match with the stored queries.
+
+[float]
+=== Sample Usage
+
+Create an index with two mappings:
+
+[source,js]
+--------------------------------------------------
+PUT /my-index
+{
+    "mappings": {
+        "doctype": {
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "queries": {
+            "properties": {
+                "query": {
+                    "type": "percolator"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+The `doctype` mapping is the mapping used to preprocess
+the document defined in the `percolator` query before it
+gets indexed into a temporary index.
+
+The `queries` mapping is the mapping used for indexing
+the query documents. The `query` field will hold a json
+object that represents an actual Elasticsearch query. The
+`query` field has been configured to use the
+<<percolator,percolator field type>>. This field type understands
+the query dsl and stored the query in such a way that it
+can be used later on to match documents defined on the `percolate` query.
+
+Register a query in the percolator:
+
+[source,js]
+--------------------------------------------------
+PUT /my-index/queries/1
+{
+    "query" : {
+        "match" : {
+            "message" : "bonsai tree"
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Match a document to the registered percolator queries:
+
+[source,js]
+--------------------------------------------------
+GET /my-index/_search
+{
+    "query" : {
+        "percolate" : {
+            "field" : "query",
+            "document_type" : "doctype",
+            "document" : {
+                "message" : "A new bonsai tree in the office"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+The above request will yield the following response:
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 5,
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "failed": 0
+  },
+  "hits": {
+    "total": 1,
+    "max_score": 0.5716521,
+    "hits": [
+      { <1>
+        "_index": "my-index",
+        "_type": "queries",
+        "_id": "1",
+        "_score": 0.5716521,
+        "_source": {
+          "query": {
+            "match": {
+              "message": "bonsai tree"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+
+<1> The query with id `1` matches our document.
+
+[float]
+==== Parameters
+
+The following parameters are required when percolating a document:
+
+[horizontal]
+`field`:: The field of type `percolator` and that holds the indexed queries. This is a required parameter.
+`document_type`:: The type / mapping of the document being percolated. This is a required parameter.
+`document`:: The source of the document being percolated.
+
+Instead of specifying a the source of the document being percolated, the source can also be retrieved from an already
+stored document. The `percolate` query will then internally execute a get request to fetch that document.
+
+In that case the `document` parameter can be substituted with the following parameters:
+
+[horizontal]
+`index`:: The index the document resides in. This is a required parameter.
+`type`:: The type of the document to fetch. This is a required parameter.
+`id`:: The id of the document to fetch. This is a required parameter.
+`routing`:: Optionally, routing to be used to fetch document to percolate.
+`preference`:: Optionally, preference to be used to fetch document to percolate.
+`version`:: Optionally, the expected version of the document to be fetched.
+
+[float]
+==== Percolating an Existing Document
+
+In order to percolate a newly indexed document, the `percolate` query can be used. Based on the response
+from an index request, the `_id` and other meta information can be used to immediately percolate the newly added
+document.
+
+[float]
+===== Example
+
+Based on the previous example.
+
+Index the document we want to percolate:
+
+[source,js]
+--------------------------------------------------
+PUT /my-index/message/1
+{
+  "message" : "A new bonsai tree in the office"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+Index response:
+
+[source,js]
+--------------------------------------------------
+{
+  "_index": "my-index",
+  "_type": "message",
+  "_id": "1",
+  "_version": 1,
+  "_shards": {
+    "total": 2,
+    "successful": 1,
+    "failed": 0
+  },
+  "created": true
+}
+--------------------------------------------------
+
+Percolating an existing document, using the index response as basis to build to new search request:
+
+[source,js]
+--------------------------------------------------
+GET /my-index/_search
+{
+    "query" : {
+        "percolate" : {
+            "field": "query",
+            "document_type" : "doctype",
+            "index" : "my-index",
+            "type" : "message",
+            "id" : "1",
+            "version" : 1 <1>
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> The version is optional, but useful in certain cases. We can then ensure that we are try to percolate
+the document we just have indexed. A change may be made after we have indexed, and if that is the
+case the then the search request would fail with a version conflict error.
+
+The search response returned is identical as in the previous example.
+
+[float]
+==== Percolate query and highlighting
+
+The `percolate` query is handled in a special way when it comes to highlighting. The queries hits are used
+to highlight the document that is provided in the `percolate` query. Whereas with regular highlighting the query in
+the search request is used to highlight the hits.
+
+[float]
+===== Example
+
+This example is based on the mapping of the first example.
+
+Save a query:
+
+[source,js]
+--------------------------------------------------
+PUT /my-index/queries/1
+{
+    "query" : {
+        "match" : {
+            "message" : "brown fox"
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Save another query:
+
+[source,js]
+--------------------------------------------------
+PUT /my-index/queries/2
+{
+    "query" : {
+        "match" : {
+            "message" : "lazy dog"
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Execute a search request with the `percolate` query and highlighting enabled:
+
+[source,js]
+--------------------------------------------------
+GET /my-index/_search
+{
+    "query" : {
+        "percolate" : {
+            "field": "query",
+            "document_type" : "doctype",
+            "document" : {
+                "message" : "The quick brown fox jumps over the lazy dog"
+            }
+        }
+    },
+    "highlight": {
+      "fields": {
+        "message": {}
+      }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+This will yield the following response.
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 83,
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "failed": 0
+  },
+  "hits": {
+    "total": 2,
+    "max_score": 0.5446649,
+    "hits": [
+      {
+        "_index": "my-index",
+        "_type": "queries",
+        "_id": "2",
+        "_score": 0.5446649,
+        "_source": {
+          "query": {
+            "match": {
+              "message": "lazy dog"
+            }
+          }
+        },
+        "highlight": {
+          "message": [
+            "The quick brown fox jumps over the <em>lazy</em> <em>dog</em>" <1>
+          ]
+        }
+      },
+      {
+        "_index": "my-index",
+        "_type": "queries",
+        "_id": "1",
+        "_score": 0.5446649,
+        "_source": {
+          "query": {
+            "match": {
+              "message": "brown fox"
+            }
+          }
+        },
+        "highlight": {
+          "message": [
+            "The quick <em>brown</em> <em>fox</em> jumps over the lazy dog" <1>
+          ]
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+
+Instead of the query in the search request highlighting the percolator hits, the percolator queries are highlighting
+the document defined in the `percolate` query.
+
+[float]
+==== How it Works Under the Hood
+
+When indexing a document into an index that has the <<percolator,percolator field type>> mapping configured, the query
+part of the documents gets parsed into a Lucene query and are stored into the Lucene index. A binary representation
+of the query gets stored, but also the query's terms are analyzed and stored into an indexed field.
+
+At search time, the document specified in the request gets parsed into a Lucene document and is stored in a in-memory
+temporary Lucene index. This in-memory index can just hold this one document and it is optimized for that. After this
+a special query is build based on the terms in the in-memory index that select candidate percolator queries based on
+their indexed query terms. These queries are then evaluated by the in-memory index if they actually match.
+
+The selecting of candidate percolator queries matches is an important performance optimization during the execution
+of the `percolate` query as it can significantly reduce the number of candidate matches the in-memory index needs to
+evaluate. The reason the `percolate` query can do this is because during indexing of the percolator queries the query
+terms are being extracted and indexed with the percolator query. Unfortunately the percolator cannot extract terms from
+all queries (for example the `wildcard` or `geo_shape` query) and as a result of that in certain cases the percolator
+can't do the selecting optimization (for example if an unsupported query is defined in a required clause of a boolean query
+or the unsupported query is the only query in the percolator document).  These queries are marked by the percolator and
+can be found by running the following search:
+
+
+[source,js]
+---------------------------------------------------
+GET /_search
+{
+  "query": {
+    "term" : {
+      "query.unknown_query" : ""
+    }
+  }
+}
+---------------------------------------------------
+// CONSOLE
+
+NOTE: The above example assumes that there is a `query` field of type
+`percolator` in the mappings.

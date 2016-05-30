@@ -1,0 +1,17 @@
+[[query-dsl-type-query]]
+=== Type Query
+
+Filters documents matching the provided document / mapping type.
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "type" : {
+            "value" : "my_type"
+        }
+    }
+}    
+--------------------------------------------------
+// CONSOLE

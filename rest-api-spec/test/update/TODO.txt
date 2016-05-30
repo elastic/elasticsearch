@@ -1,7 +1,0 @@
-Tests missing for:
-
-# consistency
-# percolate
-# replication
-# retry_on_conflict
-# timeout

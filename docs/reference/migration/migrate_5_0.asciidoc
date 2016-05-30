@@ -1,0 +1,83 @@
+[[breaking-changes-5.0]]
+== Breaking changes in 5.0
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 5.0.
+
+[float]
+=== Indices created before 5.0
+
+Elasticsearch 5.0 can read indices created in version 2.0 and above.  If any
+of your indices were created before 2.0 you will need to upgrade to the
+latest 2.x version of Elasticsearch first, in order to upgrade your indices or
+to delete the old indices. Elasticsearch will not start in the presence of old
+indices. To upgrade 2.x indices, first start a node which have access to all
+the data folders and let it upgrade all the indices before starting up rest of
+the cluster.
+
+[IMPORTANT]
+.Reindex indices from Elasticseach 1.x or before
+=========================================
+
+Indices created in Elasticsearch 1.x or before will need to be reindexed with
+Elasticsearch 2.x in order to be readable by Elasticsearch 5.x. The easiest
+way to do this is to upgrade to Elasticsearch 2.3 or later and to use the
+`reindex` API.
+
+=========================================
+
+[float]
+=== Also see:
+
+* <<breaking_50_search_changes>>
+* <<breaking_50_mapping_changes>>
+* <<breaking_50_percolator>>
+* <<breaking_50_suggester>>
+* <<breaking_50_index_apis>>
+* <<breaking_50_document_api_changes>>
+* <<breaking_50_settings_changes>>
+* <<breaking_50_allocation>>
+* <<breaking_50_http_changes>>
+* <<breaking_50_rest_api_changes>>
+* <<breaking_50_cat_api>>
+* <<breaking_50_java_api_changes>>
+* <<breaking_50_packaging>>
+* <<breaking_50_plugins>>
+* <<breaking_50_fs>>
+* <<breaking_50_aggregations_changes>>
+* <<breaking_50_scripting>>
+
+
+include::migrate_5_0/search.asciidoc[]
+
+include::migrate_5_0/mapping.asciidoc[]
+
+include::migrate_5_0/percolator.asciidoc[]
+
+include::migrate_5_0/suggest.asciidoc[]
+
+include::migrate_5_0/index-apis.asciidoc[]
+
+include::migrate_5_0/docs.asciidoc[]
+
+include::migrate_5_0/settings.asciidoc[]
+
+include::migrate_5_0/allocation.asciidoc[]
+
+include::migrate_5_0/http.asciidoc[]
+
+include::migrate_5_0/rest.asciidoc[]
+
+include::migrate_5_0/cat.asciidoc[]
+
+include::migrate_5_0/java.asciidoc[]
+
+include::migrate_5_0/packaging.asciidoc[]
+
+include::migrate_5_0/plugins.asciidoc[]
+
+include::migrate_5_0/fs.asciidoc[]
+
+include::migrate_5_0/aggregations.asciidoc[]
+
+include::migrate_5_0/scripting.asciidoc[]

@@ -1,0 +1,22 @@
+---
+"Help":
+  - do:
+      cat.configured_example:
+        help: true
+
+  - match:
+      $body: |
+               /^  test    .+   \n
+               $/
+
+---
+"Data":
+  - do:
+      cat.configured_example:
+        v: false
+
+  - match:
+      $body: |
+            /^
+               foo       \s+
+            $/

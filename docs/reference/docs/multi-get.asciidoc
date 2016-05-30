@@ -178,6 +178,26 @@ curl 'localhost:9200/_mget' -d '{
 }'
 --------------------------------------------------
 
+Alternatively, you can specify the `fields` parameter in the query string
+as a default to be applied to all documents.
+
+[source,js]
+--------------------------------------------------
+curl 'localhost:9200/test/type/_mget?fields=field1,field2' -d '{
+    "docs" : [
+        {
+            "_id" : "1" <1>
+        },
+        {
+            "_id" : "2",
+            "fields" : ["field3", "field4"] <2>
+        }
+    ]
+}'
+--------------------------------------------------
+<1> Returns `field1` and `field2`
+<2> Returns `field3` and `field4`
+
 [float]
 === Generated fields
 
@@ -187,7 +207,7 @@ See <<generated-fields>> for fields are generated only when indexing.
 [[mget-routing]]
 === Routing
 
-You can specify also specify routing value as a parameter:
+You can also specify routing value as a parameter:
 
 [source,js]
 --------------------------------------------------

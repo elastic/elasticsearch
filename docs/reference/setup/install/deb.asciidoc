@@ -1,0 +1,190 @@
+[[deb]]
+=== Install Elasticsearch with Debian Package
+
+The Debian package for Elasticsearch can be <<install-rpm,downloaded from our website>>
+or from our  <<deb-repo,APT repository>>. It can be used to install
+Elasticsearch on any Debian-based system such as Debian and Ubuntu.
+
+The latest stable version of Elasticsearch can be found on the
+link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can
+be found on the link:/downloads/past-releases[Past Releases page].
+
+[[deb-key]]
+==== Import the Elasticsearch PGP Key
+
+include::key.asciidoc[]
+
+[source,sh]
+-------------------------
+wget -qO - https://packages.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+-------------------------
+
+[[deb-repo]]
+==== Installing from the APT repository
+
+You may need to install the `apt-transport-https` package on Debian before proceeding:
+
+[source,sh]
+--------------------------------------------------
+sudo apt-get install apt-transport-https
+--------------------------------------------------
+
+Save the repository definition to  +/etc/apt/sources.list.d/elasticsearch-{major-version}.list+:
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+echo "deb https://packages.elastic.co/elasticsearch/{major-version}/debian stable main" | sudo tee -a /etc/apt/sources.list.d/elasticsearch-{major-version}.list
+--------------------------------------------------
+
+[WARNING]
+==================================================
+
+Do not use `add-apt-repository` as it will add a `deb-src` entry as well, but
+we do not provide a source package. If you have added the `deb-src` entry, you
+will see an error like the following:
+
+    Unable to find expected entry 'main/source/Sources' in Release file
+    (Wrong sources.list entry or malformed file)
+
+Delete the `deb-src` entry from the `/etc/apt/sources.list` file and the
+installation should work as expected.
+==================================================
+
+You can install the Elasticsearch Debian package with:
+
+[source,sh]
+--------------------------------------------------
+sudo apt-get update && sudo apt-get install elasticsearch
+--------------------------------------------------
+
+[WARNING]
+==================================================
+If two entries exist for the same Elasticsearch repository, you will see an error like this during `apt-get update`:
+
+["literal",subs="attributes,callouts"]
+
+Duplicate sources.list entry https://packages.elastic.co/elasticsearch/{major-version}/debian/ ...`
+
+Examine +/etc/apt/sources.list.d/elasticsearch-{major-version}.list+ for the duplicate entry or locate the duplicate entry amongst the files in `/etc/apt/sources.list.d/` and the `/etc/apt/sources.list` file.
+==================================================
+
+
+[[install-deb]]
+==== Download and install the Debian package manually
+
+The Debian package for Elastisearch v{version} can be downloaded from the website and installed as follows:
+
+["source","sh",subs="attributes"]
+--------------------------------------------
+wget https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/deb/elasticsearch/{version}/elasticsearch-{version}.deb
+sha1sum elasticsearch-{version}.deb <1>
+sudo dpkg -i elasticsearch-{version}.deb
+--------------------------------------------
+<1> Compare the SHA produced by `sha1sum` or `shasum` with the
+    https://download.elastics.co/elasticsearch/release/org/elasticsearch/distribution/deb/elasticsearch/{version}/elasticsearch-{version}.deb.sha1[published SHA].
+
+include::init-systemd.asciidoc[]
+
+[[deb-running-init]]
+==== Running Elasticsearch with SysV `init`
+
+Use the `update-rc.d` command to configure Elasticsearch to start automatically
+when the system boots up:
+
+[source,sh]
+--------------------------------------------------
+sudo update-rc.d elasticsearch defaults 95 10
+--------------------------------------------------
+
+Elasticsearch can be started and stopped using the `service` command:
+
+[source,sh]
+--------------------------------------------
+sudo -i service elasticsearch start
+sudo -i service elasticsearch stop
+--------------------------------------------
+
+If Elasticsearch fails to start for any reason, it will print the reason for
+failure to STDOUT. Log files can be found in `/var/log/elasticsearch/`.
+
+[[deb-running-systemd]]
+include::systemd.asciidoc[]
+
+[[deb-check-running]]
+include::check-running.asciidoc[]
+
+[[deb-configuring]]
+==== Configuring Elasticsearch
+
+Elasticsearch loads its configuration from the `/etc/elasticsearch/elasticsearch.yml`
+file by default.  The format of this config file is explained in
+<<settings>>.
+
+The Debian package also has a system configuration file (`/etc/default/elasticsearch`),
+which allows you to set the following parameters:
+
+include::sysconfig-file.asciidoc[]
+
+NOTE: Distributions that use `systemd` require that system resource limits be
+configured via `systemd` rather than via the `/etc/sysconfig/elasticsearch`
+file.  See <<systemd>> for more information.
+
+[[deb-layout]]
+==== Directory layout of Debian package
+
+The Debian package places config files, logs, and the data directory in the appropriate
+locations for a Debian-based system:
+
+
+[cols="<h,<,<m,<m",options="header",]
+|=======================================================================
+| Type | Description | Default Location | Setting
+| home
+  | Elasticsearch home directory or `$ES_HOME`
+  | /usr/share/elasticsearch
+ d|
+
+| bin
+  | Binary scripts including `elasticsearch` to start a node
+    and `elasticsearch-plugin` to install plugins
+  | /usr/share/elasticsearch/bin
+ d|
+
+| conf
+  | Configuration files including `elasticsearch.yml`
+  | /etc/elasticsearch
+  | path.conf
+
+| conf
+  | Environment variables including heap size, file descriptors.
+  | /etc/default/elasticsearch
+ d|
+
+| data
+  | The location of the data files of each index / shard allocated
+    on the node. Can hold multiple locations.
+  | /var/lib/elasticsearch
+  | path.data
+
+| logs
+  | Log files location.
+  | /var/log/elasticsearch
+  | path.logs
+
+| plugins
+  | Plugin files location. Each plugin will be contained in a subdirectory.
+  | /usr/share/elasticsearch/plugins
+
+| repo
+  | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here.
+ d| Not configured
+  | path.repo
+
+| script
+  | Location of script files.
+  | /etc/elasticsearch/scripts
+  | path.script
+
+|=======================================================================
+
+include::next-steps.asciidoc[]

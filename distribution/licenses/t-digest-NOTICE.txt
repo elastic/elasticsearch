@@ -1,0 +1,4 @@
+The code for the t-digest was originally authored by Ted Dunning
+
+A number of small but very helpful changes have been contributed by Adrien Grand (https://github.com/jpountz)
+

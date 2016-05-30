@@ -1,0 +1,34 @@
+[[java-aggs-bucket-filter]]
+==== Filter Aggregation
+
+Here is how you can use
+{ref}/search-aggregations-bucket-filter-aggregation.html[Filter Aggregation]
+with Java API.
+
+
+===== Prepare aggregation request
+
+Here is an example on how to create the aggregation request:
+
+[source,java]
+--------------------------------------------------
+AggregationBuilders
+    .filter("agg", QueryBuilders.termQuery("gender", "male"));
+--------------------------------------------------
+
+
+===== Use aggregation response
+
+Import Aggregation definition classes:
+
+[source,java]
+--------------------------------------------------
+import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+--------------------------------------------------
+
+[source,java]
+--------------------------------------------------
+// sr is here your SearchResponse object
+Filter agg = sr.getAggregations().get("agg");
+agg.getDocCount(); // Doc count
+--------------------------------------------------

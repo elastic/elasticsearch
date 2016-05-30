@@ -1,0 +1,290 @@
+[[modules-scripting-security]]
+=== Scripting and security
+
+You should never run Elasticsearch as the `root` user, as this would allow a
+script to access or do *anything* on your server, without limitations.
+
+You should not expose Elasticsearch directly to users, but instead have a
+proxy application inbetween. If you *do* intend to expose Elasticsearch
+directly to your users, then you have to decide whether you trust them enough
+to run scripts on your box or not, and apply the appropriate safety measures.
+
+[[enable-dynamic-scripting]]
+[float]
+=== Enabling dynamic scripting
+
+The `script.*` settings allow for <<security-script-fine,fine-grained>>
+control of which script languages (e.g `groovy`, `painless`) are allowed to
+run in which context ( e.g. `search`, `aggs`, `update`), and where the script
+source is allowed to come from (i.e. `inline`, `stored`, `file`).
+
+For instance, the following setting enables `stored` `update` scripts for
+`groovy`:
+
+[source,yaml]
+----------------
+script.engine.groovy.inline.update: true
+----------------
+
+Less fine-grained settings exist which allow you to enable or disable scripts
+for all sources, all languages, or all contexts.  The following settings
+enable `inline` and `stored` scripts for all languages in all contexts:
+
+[source,yaml]
+-----------------------------------
+script.inline: true
+script.stored: true
+-----------------------------------
+
+WARNING:  The above settings mean that anybody who can send requests to your
+Elasticsearch instance can run whatever scripts they choose! This is a
+security risk and may well lead to your Elasticsearch cluster being
+compromised.
+
+[[security-script-source]]
+[float]
+=== Script source settings
+
+Scripts may be enabled or disabled depending on their source: `inline`,
+`stored` in the cluster state, or from a `file` on each node in the cluster.
+Each of these settings takes one of these values:
+
+
+[horizontal]
+`false`::   Scripting is enabled.
+`true`::    Scripting is disabled.
+
+The default values are the following:
+
+[source,yaml]
+-----------------------------------
+script.inline: false
+script.stored: false
+script.file:   true
+-----------------------------------
+
+NOTE: Global scripting settings affect the `mustache` scripting language.
+<<search-template,Search templates>> internally use the `mustache` language,
+and will still be enabled by default as the `mustache` engine is sandboxed,
+but they will be enabled/disabled according to fine-grained settings
+specified in `elasticsearch.yml`.
+
+[[security-script-context]]
+[float]
+=== Script context settings
+
+Scripting may also be enabled or disabled in different contexts in the
+Elasticsearch API. The supported contexts are:
+
+[horizontal]
+`aggs`::    Aggregations
+`search`::  Search api, Percolator API and Suggester API
+`update`::  Update api
+`plugin`::  Any plugin that makes use of scripts under the generic `plugin` category
+
+Plugins can also define custom operations that they use scripts for instead
+of using the generic `plugin` category. Those operations can be referred to
+in the following form: `${pluginName}_${operation}`.
+
+The following example disables scripting for `update` and `plugin` operations,
+regardless of the script source or language. Scripts can still be executed
+from sandboxed languages as part of `aggregations`, `search` and plugins
+execution though, as the above defaults still get applied.
+
+[source,yaml]
+-----------------------------------
+script.update: false
+script.plugin: false
+-----------------------------------
+
+[[security-script-fine]]
+[float]
+=== Fine-grained script settings
+
+First, the high-level script settings described above are applied in order
+(context settings have precedence over source settings).  Then,  fine-grained
+settings which include the script language take precedence over any high-level
+settings.
+
+Fine-grained settings have the form:
+
+[source,yaml]
+------------------------
+script.engine.{lang}.{source}.{context}: true|false
+------------------------
+
+And
+
+[source,yaml]
+------------------------
+script.engine.{lang}.{inline|file|stored}: true|false
+------------------------
+
+For example:
+
+[source,yaml]
+-----------------------------------
+script.inline: false <1>
+script.stored: false <1>
+script.file:   false <1>
+
+script.engine.groovy.inline:          true <2>
+script.engine.groovy.stored.search:   true <3>
+script.engine.groovy.stored.aggs:     true <3>
+
+script.engine.mustache.stored.search: true <4>
+-----------------------------------
+<1> Disable all scripting from any source.
+<2> Allow inline Groovy scripts for all operations
+<3> Allow stored Groovy scripts to be used for search and aggregations.
+<4> Allow stored Mustache templates to be used for search.
+
+[[java-security-manager]]
+[float]
+=== Java Security Manager
+
+Elasticsearch runs with the https://docs.oracle.com/javase/tutorial/essential/environment/security.html[Java Security Manager]
+enabled by default.  The security policy in Elasticsearch locks down the
+permissions granted to each class to the bare minimum required to operate.
+The benefit of doing this is that it severely limits the attack vectors
+available to a hacker.
+
+Restricting permissions is particularly important with scripting languages
+like Groovy and Javascript which are designed to do anything that can be done
+in Java itself, including writing to the file system, opening sockets to
+remote servers, etc.
+
+[float]
+=== Script Classloader Whitelist
+
+Scripting languages are only allowed to load classes which appear in a
+hardcoded whitelist that can be found in
+https://github.com/elastic/elasticsearch/blob/{branch}/core/src/main/java/org/elasticsearch/script/ClassPermission.java[`org.elasticsearch.script.ClassPermission`].
+
+
+In a script, attempting to load a class that does not appear in the whitelist
+_may_ result in a `ClassNotFoundException`, for instance this script:
+
+[source,js]
+------------------------------
+GET _search
+{
+  "script_fields": {
+    "the_hour": {
+      "script": "use(java.math.BigInteger); new BigInteger(1)"
+    }
+  }
+}
+------------------------------
+
+will return the following exception:
+
+[source,js]
+------------------------------
+{
+  "reason": {
+    "type": "script_exception",
+    "reason": "failed to run inline script [use(java.math.BigInteger); new BigInteger(1)] using lang [groovy]",
+    "caused_by": {
+      "type": "no_class_def_found_error",
+      "reason": "java/math/BigInteger",
+      "caused_by": {
+        "type": "class_not_found_exception",
+        "reason": "java.math.BigInteger"
+      }
+    }
+  }
+}
+------------------------------
+
+However, classloader issues may also result in more difficult to interpret
+exceptions.  For instance, this script:
+
+[source,groovy]
+------------------------------
+use(groovy.time.TimeCategory); new Date(123456789).format('HH')
+------------------------------
+
+Returns the following exception:
+
+[source,js]
+------------------------------
+{
+  "reason": {
+    "type": "script_exception",
+    "reason": "failed to run inline script [use(groovy.time.TimeCategory); new Date(123456789).format('HH')] using lang [groovy]",
+    "caused_by": {
+      "type": "missing_property_exception",
+      "reason": "No such property: groovy for class: 8d45f5c1a07a1ab5dda953234863e283a7586240"
+    }
+  }
+}
+------------------------------
+
+[float]
+== Dealing with Java Security Manager issues
+
+If you encounter issues with the Java Security Manager, you have two options
+for resolving these issues:
+
+[float]
+=== Fix the security problem
+
+The safest and most secure long term solution is to change the code causing
+the security issue.  We recognise that this may take time to do correctly and
+so we provide the following two alternatives.
+
+[float]
+=== Customising the classloader whitelist
+
+The classloader whitelist can be customised by tweaking the local Java
+Security Policy either:
+
+* system wide: `$JAVA_HOME/lib/security/java.policy`,
+* for just the `elasticsearch` user: `/home/elasticsearch/.java.policy`
+* by adding a system property to the <<sysconfig,es-java-opts>> configuration: `-Djava.security.policy=someURL`, or
+* via the `ES_JAVA_OPTS` environment variable with `-Djava.security.policy=someURL`:
++
+[source,js]
+---------------------------------
+export ES_JAVA_OPTS="${ES_JAVA_OPTS} -Djava.security.policy=file:///path/to/my.policy`
+./bin/elasticsearch
+---------------------------------
+
+Permissions may be granted at the class, package, or global level.  For instance:
+
+[source,js]
+----------------------------------
+grant {
+    permission org.elasticsearch.script.ClassPermission "java.util.Base64"; // allow class
+    permission org.elasticsearch.script.ClassPermission "java.util.*"; // allow package
+    permission org.elasticsearch.script.ClassPermission "*"; // allow all (disables filtering basically)
+};
+----------------------------------
+
+Here is an example of how to enable the `groovy.time.TimeCategory` class:
+
+[source,js]
+----------------------------------
+grant {
+    permission org.elasticsearch.script.ClassPermission "java.lang.Class";
+    permission org.elasticsearch.script.ClassPermission "groovy.time.TimeCategory";
+};
+----------------------------------
+
+[TIP]
+======================================
+
+Before adding classes to the whitelist, consider the security impact that it
+will have on Elasticsearch. Do you really need an extra class or can your code
+be rewritten in a more secure way?
+
+It is quite possible that we have not whitelisted a generically useful and
+safe class. If you have a class that you think should be whitelisted by
+default, please open an issue on GitHub and we will consider the impact of
+doing so.
+
+======================================
+
+See http://docs.oracle.com/javase/7/docs/technotes/guides/security/PolicyFiles.html for more information.
+

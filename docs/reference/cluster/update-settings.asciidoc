@@ -10,8 +10,8 @@ survive a full cluster restart). Here is an example:
 curl -XPUT localhost:9200/_cluster/settings -d '{
     "persistent" : {
         "discovery.zen.minimum_master_nodes" : 2
-    } 
-}' 
+    }
+}'
 --------------------------------------------------
 
 Or:
@@ -21,8 +21,8 @@ Or:
 curl -XPUT localhost:9200/_cluster/settings -d '{
     "transient" : {
         "discovery.zen.minimum_master_nodes" : 2
-    } 
-}' 
+    }
+}'
 --------------------------------------------------
 
 The cluster responds with the settings updated. So the response for the
@@ -34,8 +34,46 @@ last example will be:
     "persistent" : {},
     "transient" : {
         "discovery.zen.minimum_master_nodes" : "2"
-    } 
-}' 
+    }
+}'
+--------------------------------------------------
+
+Resetting persistent or transient settings can be done by assigning a
+`null` value. If a transient setting is reset, the persistent setting
+is applied if available. Otherwise Elasticsearch will fallback to the setting
+defined at the configuration file or, if not existent, to the default
+value. Here is an example:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/_cluster/settings -d '{
+    "transient" : {
+        "discovery.zen.minimum_master_nodes" : null
+    }
+}'
+--------------------------------------------------
+
+Reset settings will not be included in the cluster response. So
+the response for the last example will be:
+
+[source,js]
+--------------------------------------------------
+{
+    "persistent" : {},
+    "transient" : {}
+}
+--------------------------------------------------
+
+Settings can also be reset using simple wildcards. For instance to reset
+all dynamic `discovery.zen` setting a prefix can be used:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/_cluster/settings -d '{
+    "transient" : {
+        "discovery.zen.*" : null
+    }
+}'
 --------------------------------------------------
 
 Cluster wide settings can be returned using:
@@ -45,186 +83,17 @@ Cluster wide settings can be returned using:
 curl -XGET localhost:9200/_cluster/settings
 --------------------------------------------------
 
-There is a specific list of settings that can be updated, those include:
-
 [float]
-[[cluster-settings]]
-=== Cluster settings
+=== Precedence of settings
 
-[float]
-==== Routing allocation
+Transient cluster settings take precedence over persistent cluster settings,
+which take precedence over settings configured in the `elasticsearch.yml`
+config file.
 
-[float]
-===== Awareness
+For this reason it is preferrable to  use the `elasticsearch.yml` file only
+for local configurations, and set all cluster-wider settings with the
+`settings` API.
 
-`cluster.routing.allocation.awareness.attributes`::
-     See <<modules-cluster>>.
-
-`cluster.routing.allocation.awareness.force.*`::
-     See <<modules-cluster>>.
-
-[float]
-===== Balanced Shards
-All these values are relative to one another.  The first three are used to
-compose a three separate weighting functions into one.  The cluster is balanced
-when no allowed action can bring the weights of each node closer together by
-more then the fourth setting.  Actions might not be allowed, for instance,
-due to forced awareness or allocation filtering.
-
-`cluster.routing.allocation.balance.shard`::
-     Defines the weight factor for shards allocated on a node
-     (float). Defaults to `0.45f`.  Raising this raises the tendency to
-     equalize the number of shards across all nodes in the cluster.
-
-`cluster.routing.allocation.balance.index`::
-     Defines a factor to the number of shards per index allocated
-      on a specific node (float). Defaults to `0.5f`.  Raising this raises the
-      tendency to equalize the number of shards per index across all nodes in
-      the cluster.
-
-`cluster.routing.allocation.balance.primary`::
-     Defines a weight factor for the number of primaries of a specific index
-      allocated on a node (float). `0.05f`.  Raising this raises the tendency
-      to equalize the number of primary shards across all nodes in the cluster.
-
-`cluster.routing.allocation.balance.threshold`::
-     Minimal optimization value of operations that should be performed (non
-      negative float). Defaults to `1.0f`.  Raising this will cause the cluster
-      to be less aggressive about optimizing the shard balance.
-
-[float]
-===== Concurrent Rebalance
-
-`cluster.routing.allocation.cluster_concurrent_rebalance`::
-       Allow to control how many concurrent rebalancing of shards are 
-       allowed cluster wide, and default it to `2` (integer). `-1` for 
-       unlimited. See also <<modules-cluster>>.
-
-[float]
-===== Disable allocation
-
-All the disable allocation settings have been deprecated in favour for
-`cluster.routing.allocation.enable` setting.
-
-`cluster.routing.allocation.disable_allocation`::
-     See <<modules-cluster>>.
-
-`cluster.routing.allocation.disable_replica_allocation`::
-     See <<modules-cluster>>.
-
-`cluster.routing.allocation.disable_new_allocation`::
-     See <<modules-cluster>>.
-
-[float]
-===== Enable allocation
-
-`cluster.routing.allocation.enable`::
-     See <<modules-cluster>>.
-
-[float]
-===== Throttling allocation
-
-`cluster.routing.allocation.node_initial_primaries_recoveries`::
-     See <<modules-cluster>>.
-
-`cluster.routing.allocation.node_concurrent_recoveries`::
-     See <<modules-cluster>>.
-
-[float]
-===== Filter allocation
-
-`cluster.routing.allocation.include.*`::
-     See <<modules-cluster>>.
-
-`cluster.routing.allocation.exclude.*`::
-     See <<modules-cluster>>.
-
-`cluster.routing.allocation.require.*` 
-     See <<modules-cluster>>.
-
-[float]
-==== Metadata
-
-`cluster.blocks.read_only`::
-      Have the whole cluster read only (indices do not accept write operations), metadata is not allowed to be modified (create or delete indices).
-
-[float]
-==== Discovery
-
-`discovery.zen.minimum_master_nodes`::
-     See <<modules-discovery-zen>>
-
-`discovery.zen.publish_timeout`::
-     See <<modules-discovery-zen>>
-
-[float]
-==== Threadpools
-
-`threadpool.*`::
-     See <<modules-threadpool>>
-
-[float]
-[[cluster-index-settings]]
-=== Index settings
-
-[float]
-==== Index filter cache
-
-`indices.cache.filter.size`::
-     See <<index-modules-cache>>
-
-`indices.cache.filter.expire` (time)::
-     See <<index-modules-cache>>
-
-[float]
-==== TTL interval
-
-`indices.ttl.interval` (time):: 
-    See <<mapping-ttl-field>>
-
-[float]
-==== Recovery
-
-`indices.recovery.concurrent_streams`::
-     See <<modules-indices>>
-
-`indices.recovery.file_chunk_size`::
-     See <<modules-indices>>
-
-`indices.recovery.translog_ops`::
-     See <<modules-indices>>
-
-`indices.recovery.translog_size`::
-     See <<modules-indices>>
-
-`indices.recovery.compress`::
-     See <<modules-indices>>
-
-`indices.recovery.max_bytes_per_sec`::
-     See <<modules-indices>>
-
-[float]
-==== Store level throttling
-
-`indices.store.throttle.type`::
-      See <<index-modules-store>>
-
-`indices.store.throttle.max_bytes_per_sec`::
-      See <<index-modules-store>>
-
-[float]
-[[logger]]
-=== Logger
-
-Logger values can also be updated by setting `logger.` prefix. More
-settings will be allowed to be updated.
-
-[float]
-=== Field data circuit breaker
-
-`indices.fielddata.breaker.limit`::
-     See <<index-modules-fielddata>>
-
-`indices.fielddata.breaker.overhead`::
-     See <<index-modules-fielddata>>
+A list of dynamically updatable settings can be found in the
+<<modules,Modules>> documentation.
 

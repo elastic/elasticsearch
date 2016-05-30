@@ -1,0 +1,344 @@
+[[search-aggregations-bucket-children-aggregation]]
+=== Children Aggregation
+
+A special single bucket aggregation that enables aggregating from buckets on parent document types to buckets on child documents.
+
+This aggregation relies on the <<mapping-parent-field,_parent field>> in the mapping. This aggregation has a single option:
+
+* `type` - The what child type the buckets in the parent space should be mapped to.
+
+For example, let's say we have an index of questions and answers. The answer type has the following `_parent` field in the mapping:
+[source,js]
+--------------------------------------------------
+{
+    "answer" : {
+        "_parent" : {
+            "type" : "question"
+        }
+    }
+}
+--------------------------------------------------
+
+The question typed document contain a tag field and the answer typed documents contain an owner field. With the `children`
+aggregation the tag buckets can be mapped to the owner buckets in a single request even though the two fields exist in
+two different kinds of documents.
+
+An example of a question typed document:
+[source,js]
+--------------------------------------------------
+{
+    "body": "<p>I have Windows 2003 server and i bought a new Windows 2008 server...",
+    "title": "Whats the best way to file transfer my site from server to a newer one?",
+    "tags": [
+        "windows-server-2003",
+        "windows-server-2008",
+        "file-transfer"
+    ],
+}
+--------------------------------------------------
+
+An example of an answer typed document:
+[source,js]
+--------------------------------------------------
+{
+    "owner": {
+        "location": "Norfolk, United Kingdom",
+        "display_name": "Sam",
+        "id": 48
+    },
+    "body": "<p>Unfortunately your pretty much limited to FTP...",
+    "creation_date": "2009-05-04T13:45:37.030"
+}
+--------------------------------------------------
+
+The following request can be built that connects the two together:
+
+[source,js]
+--------------------------------------------------
+{
+  "aggs": {
+    "top-tags": {
+      "terms": {
+        "field": "tags",
+        "size": 10
+      },
+      "aggs": {
+        "to-answers": {
+          "children": {
+            "type" : "answer" <1>
+          },
+          "aggs": {
+            "top-names": {
+              "terms": {
+                "field": "owner.display_name",
+                "size": 10
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+<1> The `type` points to type / mapping with the name `answer`.
+
+The above example returns the top question tags and per tag the top answer owners.
+
+Possible response:
+
+[source,js]
+--------------------------------------------------
+{
+  "aggregations": {
+    "top-tags": {
+      "buckets": [
+        {
+          "key": "windows-server-2003",
+          "doc_count": 25365, <1>
+          "to-answers": {
+            "doc_count": 36004, <2>
+            "top-names": {
+              "buckets": [
+                {
+                  "key": "Sam",
+                  "doc_count": 274
+                },
+                {
+                  "key": "chris",
+                  "doc_count": 19
+                },
+                {
+                  "key": "david",
+                  "doc_count": 14
+                },
+                ...
+              ]
+            }
+          }
+        },
+        {
+          "key": "linux",
+          "doc_count": 18342,
+          "to-answers": {
+            "doc_count": 6655,
+            "top-names": {
+              "buckets": [
+                {
+                  "key": "abrams",
+                  "doc_count": 25
+                },
+                {
+                  "key": "ignacio",
+                  "doc_count": 25
+                },
+                {
+                  "key": "vazquez",
+                  "doc_count": 25
+                },
+                ...
+              ]
+            }
+          }
+        },
+        {
+          "key": "windows",
+          "doc_count": 18119,
+          "to-answers": {
+            "doc_count": 24051,
+            "top-names": {
+              "buckets": [
+                {
+                  "key": "molly7244",
+                  "doc_count": 265
+                },
+                {
+                  "key": "david",
+                  "doc_count": 27
+                },
+                {
+                  "key": "chris",
+                  "doc_count": 26
+                },
+                ...
+              ]
+            }
+          }
+        },
+        {
+          "key": "osx",
+          "doc_count": 10971,
+          "to-answers": {
+            "doc_count": 5902,
+            "top-names": {
+              "buckets": [
+                {
+                  "key": "diago",
+                  "doc_count": 4
+                },
+                {
+                  "key": "albert",
+                  "doc_count": 3
+                },
+                {
+                  "key": "asmus",
+                  "doc_count": 3
+                },
+                ...
+              ]
+            }
+          }
+        },
+        {
+          "key": "ubuntu",
+          "doc_count": 8743,
+          "to-answers": {
+            "doc_count": 8784,
+            "top-names": {
+              "buckets": [
+                {
+                  "key": "ignacio",
+                  "doc_count": 9
+                },
+                {
+                  "key": "abrams",
+                  "doc_count": 8
+                },
+                {
+                  "key": "molly7244",
+                  "doc_count": 8
+                },
+                ...
+              ]
+            }
+          }
+        },
+        {
+          "key": "windows-xp",
+          "doc_count": 7517,
+          "to-answers": {
+            "doc_count": 13610,
+            "top-names": {
+              "buckets": [
+                {
+                  "key": "molly7244",
+                  "doc_count": 232
+                },
+                {
+                  "key": "chris",
+                  "doc_count": 9
+                },
+                {
+                  "key": "john",
+                  "doc_count": 9
+                },
+                ...
+              ]
+            }
+          }
+        },
+        {
+          "key": "networking",
+          "doc_count": 6739,
+          "to-answers": {
+            "doc_count": 2076,
+            "top-names": {
+              "buckets": [
+                {
+                  "key": "molly7244",
+                  "doc_count": 6
+                },
+                {
+                  "key": "alnitak",
+                  "doc_count": 5
+                },
+                {
+                  "key": "chris",
+                  "doc_count": 3
+                },
+                ...
+              ]
+            }
+          }
+        },
+        {
+          "key": "mac",
+          "doc_count": 5590,
+          "to-answers": {
+            "doc_count": 999,
+            "top-names": {
+              "buckets": [
+                {
+                  "key": "abrams",
+                  "doc_count": 2
+                },
+                {
+                  "key": "ignacio",
+                  "doc_count": 2
+                },
+                {
+                  "key": "vazquez",
+                  "doc_count": 2
+                },
+                ...
+              ]
+            }
+          }
+        },
+        {
+          "key": "wireless-networking",
+          "doc_count": 4409,
+          "to-answers": {
+            "doc_count": 6497,
+            "top-names": {
+              "buckets": [
+                {
+                  "key": "molly7244",
+                  "doc_count": 61
+                },
+                {
+                  "key": "chris",
+                  "doc_count": 5
+                },
+                {
+                  "key": "mike",
+                  "doc_count": 5
+                },
+                ...
+              ]
+            }
+          }
+        },
+        {
+          "key": "windows-8",
+          "doc_count": 3601,
+          "to-answers": {
+            "doc_count": 4263,
+            "top-names": {
+              "buckets": [
+                {
+                  "key": "molly7244",
+                  "doc_count": 3
+                },
+                {
+                  "key": "msft",
+                  "doc_count": 2
+                },
+                {
+                  "key": "user172132",
+                  "doc_count": 2
+                },
+                ...
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+
+<1> The number of question documents with the tag `windows-server-2003`.
+<2> The number of answer documents that are related to question documents with the tag `windows-server-2003`.

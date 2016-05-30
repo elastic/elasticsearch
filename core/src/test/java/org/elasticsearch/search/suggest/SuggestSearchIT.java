@@ -70,7 +70,7 @@ import static org.hamcrest.Matchers.nullValue;
  * possible these tests should declare for the first request, make the request, modify the configuration for the next request, make that
  * request, modify again, request again, etc.  This makes it very obvious what changes between requests.
  */
-public class SuggestSearchTests extends ESIntegTestCase {
+public class SuggestSearchIT extends ESIntegTestCase {
 
     // see #3196
     public void testSuggestAcrossMultipleIndices() throws IOException {

@@ -53,6 +53,8 @@
       indices.shrink:
         index: "source"
         target: "target"
+        body:
+          index.number_of_replicas: 0
 
   - do:
       cluster.health:

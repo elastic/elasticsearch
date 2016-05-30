@@ -23,7 +23,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.*;
@@ -42,6 +41,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DynamicMappingTests extends ESSingleNodeTestCase {
@@ -504,4 +504,31 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         assertNull(parsed.dynamicMappingsUpdate());
     }
 
+    public void testDynamicTemplateOrder() throws IOException {
+        // https://github.com/elastic/elasticsearch/issues/18625
+        // elasticsearch used to apply templates that do not have a match_mapping_type first
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_templates")
+                    .startObject()
+                        .startObject("type-based")
+                            .field("match_mapping_type", "string")
+                            .startObject("mapping")
+                                .field("type", "string")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                    .startObject()
+                    .startObject("path-based")
+                        .field("path_match", "foo")
+                        .startObject("mapping")
+                            .field("type", "long")
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endArray()
+                .endObject().endObject();
+        IndexService index = createIndex("test", Settings.EMPTY, "type", mapping);
+        client().prepareIndex("test", "type", "1").setSource("foo", "abc").get();
+        assertThat(index.mapperService().fullName("foo"), instanceOf(StringFieldMapper.StringFieldType.class));
+    }
 }

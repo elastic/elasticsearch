@@ -501,16 +501,6 @@ class DocumentParser implements Closeable {
 
     private static Mapper.Builder<?,?> createBuilderFromDynamicValue(final ParseContext context, XContentParser.Token token, String currentFieldName) throws IOException {
         if (token == XContentParser.Token.VALUE_STRING) {
-            // do a quick test to see if its fits a dynamic template, if so, use it.
-            // we need to do it here so we can handle things like attachment templates, where calling
-            // text (to see if its a date) causes the binary value to be cleared
-            {
-                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string", null);
-                if (builder != null) {
-                    return builder;
-                }
-            }
-
             if (context.root().dateDetection()) {
                 String text = context.parser().text();
                 // a safe check since "1" gets parsed as well

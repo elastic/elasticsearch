@@ -43,15 +43,6 @@ import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SearchWhileRelocatingIT extends ESIntegTestCase {
-    @Nightly
-    public void testSearchAndRelocateConcurrently0Replicas() throws Exception {
-        testSearchAndRelocateConcurrently(0);
-    }
-
-    @Nightly
-    public void testSearchAndRelocateConcurrently1Replicas() throws Exception {
-        testSearchAndRelocateConcurrently(1);
-    }
 
     public void testSearchAndRelocateConcurrentlyRanodmReplicas() throws Exception {
         testSearchAndRelocateConcurrently(randomIntBetween(0, 1));

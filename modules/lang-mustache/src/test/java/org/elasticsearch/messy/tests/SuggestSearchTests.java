@@ -493,8 +493,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         assertSuggestion(searchSuggest, 0, "simple_phrase", "hello world");
     }
 
-    @Nightly
-    public void testMarvelHerosPhraseSuggest() throws IOException, URISyntaxException {
+    public void testBasicPhraseSuggest() throws IOException, URISyntaxException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.reverse.tokenizer", "standard")
@@ -506,7 +505,8 @@ public class SuggestSearchTests extends ESIntegTestCase {
                 .put("index.analysis.filter.my_shingle.type", "shingle")
                 .put("index.analysis.filter.my_shingle.output_unigrams", false)
                 .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
-                .put("index.analysis.filter.my_shingle.max_shingle_size", 2));
+                .put("index.analysis.filter.my_shingle.max_shingle_size", 2)
+                .put("index.number_of_shards", 1));
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("_all")
                         .field("store", true)
@@ -530,7 +530,26 @@ public class SuggestSearchTests extends ESIntegTestCase {
         assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
-        for (String line : readMarvelHeroNames()) {
+        String[] strings = new String[]{
+            "Arthur, King of the Britons",
+            "Sir Lancelot the Brave",
+            "Patsy, Arthur's Servant",
+            "Sir Robin the Not-Quite-So-Brave-as-Sir-Lancelot",
+            "Sir Bedevere the Wise",
+            "Sir Galahad the Pure",
+            "Miss Islington, the Witch",
+            "Zoot",
+            "Leader of Robin's Minstrels",
+            "Old Crone",
+            "Frank, the Historian",
+            "Frank's Wife",
+            "Dr. Piglet",
+            "Dr. Winston",
+            "Sir Robin (Stand-in)",
+            "Knight Who Says Ni",
+            "Police sergeant who stops the film",
+        };
+        for (String line : strings) {
             index("test", "type1", line, "body", line, "body_reverse", line, "bigram", line);
         }
         refresh();
@@ -538,91 +557,90 @@ public class SuggestSearchTests extends ESIntegTestCase {
         PhraseSuggestionBuilder phraseSuggest = phraseSuggestion("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always"))
                 .size(1);
-        Suggest searchSuggest = searchSuggest( "american ame", "simple_phrase", phraseSuggest);
-        assertSuggestion(searchSuggest, 0, "simple_phrase", "american ace");
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("american ame"));
+        Suggest searchSuggest = searchSuggest( "Frank's Wise", "simple_phrase", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "frank's wife");
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Frank's Wise"));
 
         phraseSuggest.realWordErrorLikelihood(0.95f);
-        searchSuggest = searchSuggest( "Xor the Got-Jewel", "simple_phrase", phraseSuggest);
-        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
+        searchSuggest = searchSuggest( "Artur, Kinh of the Britons", "simple_phrase", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "arthur king of the britons");
         // Check the "text" field this one time.
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(),
+            equalTo("Artur, Kinh of the Britons"));
 
         // Ask for highlighting
         phraseSuggest.highlight("<em>", "</em>");
-        searchSuggest = searchSuggest( "Xor the Got-Jewel", "simple_phrase", phraseSuggest);
-        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getHighlighted().string(), equalTo("<em>xorr</em> the <em>god</em> jewel"));
+        searchSuggest = searchSuggest( "Artur, King of the Britns", "simple_phrase", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "arthur king of the britons");
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getHighlighted().string(),
+            equalTo("<em>arthur</em> king of the <em>britons</em>"));
 
         // pass in a correct phrase
         phraseSuggest.highlight(null, null).confidence(0f).size(1).maxErrors(0.5f);
-        searchSuggest = searchSuggest( "Xorr the God-Jewel", "simple_phrase", phraseSuggest);
-        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
+        searchSuggest = searchSuggest( "Arthur, King of the Britons", "simple_phrase", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "arthur king of the britons");
 
         // pass in a correct phrase - set confidence to 2
         phraseSuggest.confidence(2f);
-        searchSuggest = searchSuggest( "Xorr the God-Jewel", "simple_phrase", phraseSuggest);
+        searchSuggest = searchSuggest( "Arthur, King of the Britons", "simple_phrase", phraseSuggest);
         assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
 
         // pass in a correct phrase - set confidence to 0.99
         phraseSuggest.confidence(0.99f);
-        searchSuggest = searchSuggest( "Xorr the God-Jewel", "simple_phrase", phraseSuggest);
-        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
+        searchSuggest = searchSuggest( "Arthur, King of the Britons", "simple_phrase", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "arthur king of the britons");
 
         //test reverse suggestions with pre & post filter
         phraseSuggest
             .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always"))
             .addCandidateGenerator(candidateGenerator("body_reverse").minWordLength(1).suggestMode("always").preFilter("reverse").postFilter("reverse"));
-        searchSuggest = searchSuggest( "xor the yod-Jewel",  "simple_phrase", phraseSuggest);
-        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
+        searchSuggest = searchSuggest( "Artur, Ging of the Britons",  "simple_phrase", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "arthur king of the britons");
 
         // set all mass to trigrams (not indexed)
         phraseSuggest.clearCandidateGenerators()
             .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always"))
             .smoothingModel(new LinearInterpolation(1,0,0));
-        searchSuggest = searchSuggest( "Xor the Got-Jewel", "simple_phrase", phraseSuggest);
+        searchSuggest = searchSuggest( "Artur, King of the Britns", "simple_phrase", phraseSuggest);
         assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
 
         // set all mass to bigrams
         phraseSuggest.smoothingModel(new LinearInterpolation(0,1,0));
-        searchSuggest =  searchSuggest( "Xor the Got-Jewel", "simple_phrase", phraseSuggest);
-        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
+        searchSuggest =  searchSuggest( "Artur, King of the Britns", "simple_phrase", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "arthur king of the britons");
 
         // distribute mass
         phraseSuggest.smoothingModel(new LinearInterpolation(0.4,0.4,0.2));
-        searchSuggest = searchSuggest( "Xor the Got-Jewel", "simple_phrase", phraseSuggest);
-        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
+        searchSuggest = searchSuggest( "Artur, King of the Britns", "simple_phrase", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "arthur king of the britons");
 
-        searchSuggest = searchSuggest( "american ame", "simple_phrase", phraseSuggest);
-        assertSuggestion(searchSuggest, 0, "simple_phrase", "american ace");
+        searchSuggest = searchSuggest( "Frank's Wise", "simple_phrase", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "frank's wife");
 
         // try all smoothing methods
         phraseSuggest.smoothingModel(new LinearInterpolation(0.4,0.4,0.2));
-        searchSuggest = searchSuggest( "Xor the Got-Jewel", "simple_phrase", phraseSuggest);
-        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
+        searchSuggest = searchSuggest( "Artur, King of the Britns", "simple_phrase", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "arthur king of the britons");
 
         phraseSuggest.smoothingModel(new Laplace(0.2));
-        searchSuggest = searchSuggest( "Xor the Got-Jewel",  "simple_phrase", phraseSuggest);
-        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
+        searchSuggest = searchSuggest( "Artur, King of the Britns",  "simple_phrase", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "arthur king of the britons");
 
         phraseSuggest.smoothingModel(new StupidBackoff(0.1));
-        searchSuggest = searchSuggest( "Xor the Got-Jewel",  "simple_phrase",phraseSuggest);
-        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
+        searchSuggest = searchSuggest( "Artur, King of the Britns",  "simple_phrase",phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "arthur king of the britons");
 
         // check tokenLimit
         phraseSuggest.smoothingModel(null).tokenLimit(4);
-        searchSuggest = searchSuggest( "Xor the Got-Jewel", "simple_phrase", phraseSuggest);
+        searchSuggest = searchSuggest( "Artur, King of the Britns", "simple_phrase", phraseSuggest);
         assertSuggestionSize(searchSuggest, 0, 0, "simple_phrase");
 
         phraseSuggest.tokenLimit(15).smoothingModel(new StupidBackoff(0.1));
-        searchSuggest = searchSuggest( "Xor the Got-Jewel Xor the Got-Jewel Xor the Got-Jewel", "simple_phrase", phraseSuggest);
-        assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel xorr the god jewel xorr the god jewel");
+        searchSuggest = searchSuggest( "Sir Bedever the Wife Sir Bedever the Wife Sir Bedever the Wife", "simple_phrase", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "simple_phrase", "sir bedevere the wise sir bedevere the wise sir bedevere the wise");
         // Check the name this time because we're repeating it which is funky
-        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel Xor the Got-Jewel Xor the Got-Jewel"));
-    }
-
-    private List<String> readMarvelHeroNames() throws IOException, URISyntaxException {
-        return Files.readAllLines(PathUtils.get(Suggest.class.getResource("/config/names.txt").toURI()), StandardCharsets.UTF_8);
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(),
+            equalTo("Sir Bedever the Wife Sir Bedever the Wife Sir Bedever the Wife"));
     }
 
     public void testSizeParam() throws IOException {
@@ -689,7 +707,6 @@ public class SuggestSearchTests extends ESIntegTestCase {
         assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
     }
 
-    @Nightly
     public void testPhraseBoundaryCases() throws IOException, URISyntaxException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1) // to get reliable statistics we should put this all into one shard
@@ -722,7 +739,19 @@ public class SuggestSearchTests extends ESIntegTestCase {
         assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
-        for (String line : readMarvelHeroNames()) {
+        String[] strings = new String[]{
+            "Xorr the God-Jewel",
+            "Grog the God-Crusher",
+            "Xorn",
+            "Walter Newell",
+            "Wanda Maximoff",
+            "Captain America",
+            "American Ace",
+            "Wundarr the Aquarian",
+            "Will o' the Wisp",
+            "Xemnu the Titan"
+        };
+        for (String line : strings) {
             index("test", "type1", line, "body", line, "bigram", line, "ngram", line);
         }
         refresh();
@@ -736,34 +765,27 @@ public class SuggestSearchTests extends ESIntegTestCase {
                 .realWordErrorLikelihood(0.95f)
                 .maxErrors(0.5f)
                 .size(1);
-        Map<String, SuggestionBuilder<?>> suggestion = new HashMap<>();
-        suggestion.put("simple_phrase", phraseSuggestion);
-        try {
-            searchSuggest("Xor the Got-Jewel", numShards.numPrimaries, suggestion);
-            fail("field does not exists");
-        } catch (SearchPhaseExecutionException e) {}
-
         phraseSuggestion.clearCandidateGenerators().analyzer(null);
         try {
-            searchSuggest("Xor the Got-Jewel", numShards.numPrimaries, suggestion);
+            searchSuggest("xor the got-jewel", numShards.numPrimaries, Collections.singletonMap("simple_phrase", phraseSuggestion));
             fail("analyzer does only produce ngrams");
         } catch (SearchPhaseExecutionException e) {
         }
 
         phraseSuggestion.analyzer("bigram");
         try {
-            searchSuggest("Xor the Got-Jewel", numShards.numPrimaries, suggestion);
+            searchSuggest("xor the got-jewel", numShards.numPrimaries, Collections.singletonMap("simple_phrase", phraseSuggestion));
             fail("analyzer does only produce ngrams");
         } catch (SearchPhaseExecutionException e) {
         }
 
         // Now we'll make sure some things don't
         phraseSuggestion.forceUnigrams(false);
-        searchSuggest( "Xor the Got-Jewel", 0, suggestion);
+        searchSuggest( "xor the got-jewel", 0, Collections.singletonMap("simple_phrase", phraseSuggestion));
 
         // Field doesn't produce unigrams but the analyzer does
         phraseSuggestion.forceUnigrams(true).analyzer("ngram");
-        searchSuggest( "Xor the Got-Jewel", 0, suggestion);
+        searchSuggest( "xor the got-jewel", 0, Collections.singletonMap("simple_phrase", phraseSuggestion));
 
         phraseSuggestion = phraseSuggestion("ngram")
                 .analyzer("myDefAnalyzer")
@@ -772,14 +794,14 @@ public class SuggestSearchTests extends ESIntegTestCase {
                 .maxErrors(0.5f)
                 .size(1)
                 .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always"));
-        Suggest suggest = searchSuggest( "Xor the Got-Jewel", 0, suggestion);
+        Suggest suggest = searchSuggest( "xor the got-jewel", 0, Collections.singletonMap("simple_phrase", phraseSuggestion));
 
         // "xorr the god jewel" and and "xorn the god jewel" have identical scores (we are only using unigrams to score), so we tie break by
         // earlier term (xorn):
         assertSuggestion(suggest, 0, "simple_phrase", "xorn the god jewel");
 
         phraseSuggestion.analyzer(null);
-        suggest = searchSuggest( "Xor the Got-Jewel", 0, suggestion);
+        suggest = searchSuggest( "xor the got-jewel", 0, Collections.singletonMap("simple_phrase", phraseSuggestion));
 
         // In this case xorr has a better score than xorn because we set the field back to the default (my_shingle2) analyzer, so the
         // probability that the term is not in the dictionary but is NOT a misspelling is relatively high in this case compared to the

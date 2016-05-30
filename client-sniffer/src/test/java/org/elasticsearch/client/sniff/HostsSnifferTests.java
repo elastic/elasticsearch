@@ -29,6 +29,7 @@ import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.apache.http.HttpHost;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.ElasticsearchResponse;
 import org.elasticsearch.client.ElasticsearchResponseException;
@@ -123,18 +124,19 @@ public class HostsSnifferTests extends LuceneTestCase {
         final Dispatcher dispatcher = new Dispatcher() {
             @Override
             public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
-                String decodedUrl;
-                try {
-                    decodedUrl = URLDecoder.decode(request.getPath(), StandardCharsets.UTF_8.name());
-                } catch (UnsupportedEncodingException e) {
-                    throw new RuntimeException(e);
+                if (request.getMethod().equals(HttpGet.METHOD_NAME)) {
+                    String decodedUrl;
+                    try {
+                        decodedUrl = URLDecoder.decode(request.getPath(), StandardCharsets.UTF_8.name());
+                    } catch (UnsupportedEncodingException e) {
+                        throw new RuntimeException(e);
+                    }
+                    String sniffUrl = "/_nodes/http?timeout=" + sniffTimeout + "ms";
+                    if (sniffUrl.equals(decodedUrl)) {
+                        return new MockResponse().setBody(sniffResponse.nodesInfoBody).setResponseCode(sniffResponse.nodesInfoResponseCode);
+                    }
                 }
-                String sniffUrl = "/_nodes/http?timeout=" + sniffTimeout + "ms";
-                if (sniffUrl.equals(decodedUrl)) {
-                    return new MockResponse().setBody(sniffResponse.nodesInfoBody).setResponseCode(sniffResponse.nodesInfoResponseCode);
-                } else {
-                    return new MockResponse().setResponseCode(404);
-                }
+                return new MockResponse().setResponseCode(404);
             }
         };
         server.setDispatcher(dispatcher);

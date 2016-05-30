@@ -176,12 +176,10 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
             this.request = request;
             this.listener = listener;
             ClusterState clusterState = clusterService.state();
-            String[] nodesIdCandidates = resolveNodes(request, clusterState);
-            nodesIds = filterNodeIds(clusterState.nodes(), nodesIdCandidates);
-            ImmutableOpenMap<String, DiscoveryNode> nodesCandidates = clusterState.nodes().getNodes();
+            nodesIds = filterNodeIds(clusterState.nodes(), resolveNodes(request, clusterState));
             this.nodes = new DiscoveryNode[nodesIds.length];
             for (int i = 0; i < nodesIds.length; i++) {
-                this.nodes[i] = nodesCandidates.get(nodesIds[i]);
+                this.nodes[i] = clusterState.nodes().getNodes().get(nodesIds[i]);
             }
             this.responses = new AtomicReferenceArray<>(this.nodesIds.length);
         }

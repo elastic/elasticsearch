@@ -24,10 +24,10 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
-import okhttp3.mockwebserver.Dispatcher;
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
+import org.apache.http.Consts;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.lucene.util.LuceneTestCase;
@@ -38,11 +38,10 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.StringWriter;
-import java.io.UnsupportedEncodingException;
+import java.net.InetSocketAddress;
 import java.net.URISyntaxException;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -52,25 +51,19 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.LogManager;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class HostsSnifferTests extends LuceneTestCase {
 
-    static {
-        //prevent MockWebServer from logging to stdout and stderr
-        LogManager.getLogManager().reset();
-    }
-
     private int sniffRequestTimeout;
     private String scheme;
     private SniffResponse sniffResponse;
-    private MockWebServer server;
+    private HttpServer httpServer;
 
     @Before
-    public void startMockWebServer() throws IOException {
+    public void startHttpServer() throws IOException {
         this.sniffRequestTimeout = RandomInts.randomIntBetween(random(), 1000, 10000);
         this.scheme = RandomPicks.randomFrom(random(), Arrays.asList("http", "https"));
         if (rarely()) {
@@ -78,17 +71,17 @@ public class HostsSnifferTests extends LuceneTestCase {
         } else {
             this.sniffResponse = buildSniffResponse(scheme);
         }
-        this.server = buildMockWebServer(sniffResponse, sniffRequestTimeout);
-        this.server.start();
+        this.httpServer = createHttpServer(sniffResponse, sniffRequestTimeout);
+        this.httpServer.start();
     }
 
     @After
-    public void stopMockWebServer() throws IOException {
-        server.shutdown();
+    public void stopHttpServer() throws IOException {
+        httpServer.stop(0);
     }
 
     public void testSniffNodes() throws IOException, URISyntaxException {
-        HttpHost httpHost = new HttpHost(server.getHostName(), server.getPort());
+        HttpHost httpHost = new HttpHost(httpServer.getAddress().getHostName(), httpServer.getAddress().getPort());
         try (RestClient restClient = RestClient.builder().setHosts(httpHost).build()) {
             HostsSniffer sniffer = new HostsSniffer(restClient, sniffRequestTimeout, scheme);
             try {
@@ -104,7 +97,7 @@ public class HostsSnifferTests extends LuceneTestCase {
             } catch(ElasticsearchResponseException e) {
                 ElasticsearchResponse response = e.getElasticsearchResponse();
                 if (sniffResponse.isFailure) {
-                    assertThat(e.getMessage(), containsString("GET http://localhost:" + server.getPort() +
+                    assertThat(e.getMessage(), containsString("GET http://localhost:" + httpServer.getAddress().getPort() +
                             "/_nodes/http?timeout=" + sniffRequestTimeout));
                     assertThat(e.getMessage(), containsString(Integer.toString(sniffResponse.nodesInfoResponseCode)));
                     assertThat(response.getHost(), equalTo(httpHost));
@@ -118,29 +111,26 @@ public class HostsSnifferTests extends LuceneTestCase {
         }
     }
 
-    private static MockWebServer buildMockWebServer(final SniffResponse sniffResponse, final int sniffTimeout)
-            throws UnsupportedEncodingException {
-        MockWebServer server = new MockWebServer();
-        final Dispatcher dispatcher = new Dispatcher() {
+    private static HttpServer createHttpServer(final SniffResponse sniffResponse, final int sniffTimeout) throws IOException {
+        HttpServer httpServer = HttpServer.create(new InetSocketAddress(0), 0);
+        httpServer.createContext("/_nodes/http", new HttpHandler() {
             @Override
-            public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
-                if (request.getMethod().equals(HttpGet.METHOD_NAME)) {
-                    String decodedUrl;
-                    try {
-                        decodedUrl = URLDecoder.decode(request.getPath(), StandardCharsets.UTF_8.name());
-                    } catch (UnsupportedEncodingException e) {
-                        throw new RuntimeException(e);
-                    }
-                    String sniffUrl = "/_nodes/http?timeout=" + sniffTimeout + "ms";
-                    if (sniffUrl.equals(decodedUrl)) {
-                        return new MockResponse().setBody(sniffResponse.nodesInfoBody).setResponseCode(sniffResponse.nodesInfoResponseCode);
+            public void handle(HttpExchange httpExchange) throws IOException {
+                if (httpExchange.getRequestMethod().equals(HttpGet.METHOD_NAME)) {
+                    if (httpExchange.getRequestURI().getRawQuery().equals("timeout=" + sniffTimeout + "ms")) {
+                        String nodesInfoBody = sniffResponse.nodesInfoBody;
+                        httpExchange.sendResponseHeaders(sniffResponse.nodesInfoResponseCode, nodesInfoBody.length());
+                        try (OutputStream out = httpExchange.getResponseBody()) {
+                            out.write(nodesInfoBody.getBytes(Consts.UTF_8));
+                            return;
+                        }
                     }
                 }
-                return new MockResponse().setResponseCode(404);
+                httpExchange.sendResponseHeaders(404, 0);
+                httpExchange.close();
             }
-        };
-        server.setDispatcher(dispatcher);
-        return server;
+        });
+        return httpServer;
     }
 
     private static SniffResponse buildSniffResponse(String scheme) throws IOException {

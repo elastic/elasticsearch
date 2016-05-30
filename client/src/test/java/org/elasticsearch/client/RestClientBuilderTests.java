@@ -30,13 +30,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.logging.LogManager;
 
 public class RestClientBuilderTests extends LuceneTestCase {
-
-    static {
-        LogManager.getLogManager().reset();
-    }
 
     public void testBuild() throws IOException {
         try {

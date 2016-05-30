@@ -26,13 +26,8 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.RestClient;
 
 import java.util.Arrays;
-import java.util.logging.LogManager;
 
 public class SnifferBuilderTests extends LuceneTestCase {
-
-    static {
-        LogManager.getLogManager().reset();
-    }
 
     public void testBuild() throws Exception {
 

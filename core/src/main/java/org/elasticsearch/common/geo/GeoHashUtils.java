@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 import org.apache.lucene.spatial.util.GeoEncodingUtils;
+import org.apache.lucene.spatial.util.GeoRect;
 import org.apache.lucene.util.BitUtil;
 
 /**
@@ -174,6 +175,26 @@ public class GeoHashUtils {
 
     private static final char encode(int x, int y) {
         return BASE_32[((x & 1) + ((y & 1) * 2) + ((x & 2) * 2) + ((y & 2) * 4) + ((x & 4) * 4)) % 32];
+    }
+
+    /**
+     * Computes the bounding box coordinates from a given geohash
+     *
+     * @param geohash Geohash of the defined cell
+     * @return GeoRect rectangle defining the bounding box
+     */
+    public static GeoRect bbox(final String geohash) {
+        // bottom left is the coordinate
+        GeoPoint bottomLeft = GeoPoint.fromGeohash(geohash);
+        long ghLong = longEncode(geohash);
+        // shift away the level
+        ghLong >>>= 4;
+        // deinterleave
+        long lat = BitUtil.deinterleave(ghLong >>> 1) + 1;
+        long lon = BitUtil.deinterleave(ghLong) + 1;
+        GeoPoint topRight = GeoPoint.fromGeohash(BitUtil.interleave(lon, lat) << 4 | geohash.length());
+
+        return new GeoRect(bottomLeft.lat(), topRight.lat(), bottomLeft.lon(), topRight.lon());
     }
 
     /**

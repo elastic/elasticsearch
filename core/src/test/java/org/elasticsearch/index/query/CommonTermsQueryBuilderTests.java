@@ -37,12 +37,16 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     protected CommonTermsQueryBuilder doCreateTestQueryBuilder() {
         CommonTermsQueryBuilder query;
 
+        int numberOfTerms = randomIntBetween(0, 10);
+        StringBuilder text = new StringBuilder("");
+        for (int i = 0; i < numberOfTerms; i++) {
+            text.append(randomAsciiOfLengthBetween(1, 10)).append(" ");
+        }
         // mapped or unmapped field
-        String text = randomAsciiOfLengthBetween(1, 10);
         if (randomBoolean()) {
-            query = new CommonTermsQueryBuilder(STRING_FIELD_NAME, text);
+            query = new CommonTermsQueryBuilder(STRING_FIELD_NAME, text.toString());
         } else {
-            query = new CommonTermsQueryBuilder(randomAsciiOfLengthBetween(1, 10), text);
+            query = new CommonTermsQueryBuilder(randomAsciiOfLengthBetween(1, 10), text.toString());
         }
 
         if (randomBoolean()) {
@@ -132,13 +136,6 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
         assertEquals(query, Operator.OR, queryBuilder.lowFreqOperator());
         assertEquals(query, Operator.AND, queryBuilder.highFreqOperator());
         assertEquals(query, "nelly the elephant not as a cartoon", queryBuilder.value());
-    }
-
-    public void testNoTermsFromQueryString() throws IOException {
-        CommonTermsQueryBuilder builder = new CommonTermsQueryBuilder(STRING_FIELD_NAME, "");
-        QueryShardContext context = createShardContext();
-        context.setAllowUnmappedFields(true);
-        assertNull(builder.toQuery(context));
     }
 
     public void testCommonTermsQuery1() throws IOException {

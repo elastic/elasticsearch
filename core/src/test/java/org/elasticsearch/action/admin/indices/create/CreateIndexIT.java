@@ -21,11 +21,14 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -346,6 +349,7 @@ public class CreateIndexIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put("index.routing.allocation.require._name", mergeNode)
                 .put("index.blocks.write", true)).get();
         ensureGreen();
+
         // now merge source into a single shard index
         client().admin().indices().prepareShrinkIndex("source", "target")
             .setSettings(Settings.builder()
@@ -375,7 +379,16 @@ public class CreateIndexIT extends ESIntegTestCase {
             .setSettings(Settings.builder()
                 .put("index.routing.allocation.require._name", mergeNode)).get();
         ensureGreen("source");
-        client().admin().cluster().prepareReroute().setRetryFailed(true).get(); // kick off a retry and wait until it's done!
+
+        final InternalClusterInfoService infoService = (InternalClusterInfoService) internalCluster().getInstance(ClusterInfoService.class,
+            internalCluster().getMasterName());
+        infoService.refresh();
+        // kick off a retry and wait until it's done!
+        ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().setRetryFailed(true).get();
+        long expectedShardSize = clusterRerouteResponse.getState().routingTable().index("target")
+            .shard(0).getShards().get(0).getExpectedShardSize();
+        // we support the expected shard size in the allocator to sum up over the source index shards
+        assertTrue("expected shard size must be set but wasn't: " + expectedShardSize, expectedShardSize > 0);
         ensureGreen();
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
     }

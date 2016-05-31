@@ -33,8 +33,9 @@
           index:   test_1
           type:    test
           id:      2
-          refresh: 1
+          refresh: true
           body:    { foo: bar }
+ - is_true: forced_refresh
 
  - do:
       search:

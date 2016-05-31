@@ -16,19 +16,15 @@
         }
       },
       "params": {
-        "block_until_refresh": {
-          "type" : "boolean",
-          "default": false,
-          "description" : "Do not return from the request until the changes this request makes is visible by search"
-        },
         "consistency": {
           "type" : "enum",
           "options" : ["one", "quorum", "all"],
           "description" : "Explicit write consistency setting for the operation"
         },
         "refresh": {
-          "type" : "boolean",
-          "description" : "Refresh the index after performing the operation"
+          "type" : "enum",
+          "options": ["true", "false", "wait_for"],
+          "description" : "If `true` then refresh the effected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` (the default) then do nothing with refreshes."
         },
         "routing": {
           "type" : "string",

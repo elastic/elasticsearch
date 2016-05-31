@@ -1,8 +1,8 @@
 ---
-"block_until_refresh waits until changes are visible in search":
+"refresh=wait_for waits until changes are visible in search":
   - do:
       bulk:
-        block_until_refresh: true
+        refresh: wait_for
         body: |
           {"index": {"_index": "test_index", "_type": "test_type", "_id": "test_id"}}
           {"f1": "v1", "f2": 42}

@@ -17,17 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store;
+package org.elasticsearch.action.admin.indices.shrink;
 
-import java.io.IOException;
-import java.nio.file.Path;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.MMapDirectory;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 
-public class SmbMMapDirectoryTests extends EsBaseDirectoryTestCase {
+public final class ShrinkResponse extends CreateIndexResponse {
+    ShrinkResponse() {
+    }
 
-    @Override
-    protected Directory getDirectory(Path file) throws IOException {
-        return new SmbDirectoryWrapper(new MMapDirectory(file));
+    ShrinkResponse(boolean acknowledged) {
+        super(acknowledged);
     }
 }

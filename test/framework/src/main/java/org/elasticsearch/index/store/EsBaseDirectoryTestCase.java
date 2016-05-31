@@ -25,6 +25,8 @@ import org.apache.lucene.store.BaseDirectoryTestCase;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 
 /**
@@ -36,8 +38,11 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressReproduceLine
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
-public abstract class ESBaseDirectoryTestCase extends BaseDirectoryTestCase {
+public abstract class EsBaseDirectoryTestCase extends BaseDirectoryTestCase {
     static {
         BootstrapForTesting.ensureInitialized();
     }
+
+    protected final ESLogger logger = Loggers.getLogger(getClass());
+
 }

@@ -31,9 +31,11 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -46,6 +48,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -58,6 +61,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
@@ -118,6 +122,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -975,7 +980,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         newShard.updateRoutingEntry(routing, false);
         DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
-        assertTrue(newShard.recoverFromStore(localNode));
+        assertTrue(newShard.recoverFromStore());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().recoveredOperations());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperations());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperationsOnStart());
@@ -1003,7 +1008,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode,
             localNode));
-        assertTrue(newShard.recoverFromStore(localNode));
+        assertTrue(newShard.recoverFromStore());
         assertEquals(0, newShard.recoveryState().getTranslog().recoveredOperations());
         assertEquals(0, newShard.recoveryState().getTranslog().totalOperations());
         assertEquals(0, newShard.recoveryState().getTranslog().totalOperationsOnStart());
@@ -1037,7 +1042,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         newShard.updateRoutingEntry(routing, false);
         newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
         try {
-            newShard.recoverFromStore(localNode);
+            newShard.recoverFromStore();
             fail("index not there!");
         } catch (IndexShardRecoveryException ex) {
             assertTrue(ex.getMessage().contains("failed to fetch index version after copying it over"));
@@ -1056,7 +1061,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         newShard = test.createShard(routing);
         newShard.updateRoutingEntry(routing, false);
         newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
-        assertTrue("recover even if there is nothing to recover", newShard.recoverFromStore(localNode));
+        assertTrue("recover even if there is nothing to recover", newShard.recoverFromStore());
 
         newShard.updateRoutingEntry(getInitializingShardRouting(routing).moveToStarted(), true);
         SearchResponse response = client().prepareSearch().get();
@@ -1142,7 +1147,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             @Override
             public void verify(String verificationToken) {
             }
-        }, localNode));
+        }));
 
         test_target_shard.updateRoutingEntry(routing.moveToStarted(), true);
         assertHitCount(client().prepareSearch("test_target").get(), 1);
@@ -1398,7 +1403,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     public  static final IndexShard recoverShard(IndexShard newShard) throws IOException {
         DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), newShard.routingEntry().primary(), RecoveryState.Type.STORE, localNode, localNode));
-        assertTrue(newShard.recoverFromStore(localNode));
+        assertTrue(newShard.recoverFromStore());
         newShard.updateRoutingEntry(newShard.routingEntry().moveToStarted(), true);
         return newShard;
     }
@@ -1506,5 +1511,84 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         newShard.performBatchRecovery(operations);
         // Shard should now be active since we did recover:
         assertTrue(newShard.isActive());
+    }
+
+    public void testRecoverFromLocalShard() throws IOException {
+        createIndex("index");
+        createIndex("index_1");
+        createIndex("index_2");
+        client().admin().indices().preparePutMapping("index").setType("test").setSource(jsonBuilder().startObject()
+            .startObject("test")
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "text")
+            .endObject()
+            .endObject().endObject().endObject()).get();
+        client().prepareIndex("index", "test", "0").setSource("{\"foo\" : \"bar\"}").setRefresh(true).get();
+        client().prepareIndex("index", "test", "1").setSource("{\"foo\" : \"bar\"}").setRefresh(true).get();
+
+
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService(resolveIndex("index_1"));
+        IndexShard shard = test.getShardOrNull(0);
+        ShardRouting routing = ShardRoutingHelper.initWithSameId(shard.routingEntry());
+        test.removeShard(0, "b/c simon says so");
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+        {
+            final IndexShard newShard = test.createShard(routing);
+            newShard.updateRoutingEntry(routing, false);
+            newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.LOCAL_SHARDS, localNode, localNode));
+
+            BiConsumer<String, MappingMetaData> mappingConsumer = (type, mapping) -> {
+                try {
+                    client().admin().indices().preparePutMapping().setConcreteIndex(newShard.indexSettings().getIndex())
+                        .setType(type)
+                        .setSource(mapping.source().string())
+                        .get();
+                } catch (IOException ex) {
+                    throw new ElasticsearchException("failed to stringify mapping source", ex);
+                }
+            };
+            expectThrows(IllegalArgumentException.class, () -> {
+                IndexService index = indicesService.indexService(resolveIndex("index"));
+                IndexService index_2 = indicesService.indexService(resolveIndex("index_2"));
+                newShard.recoverFromLocalShards(mappingConsumer, Arrays.asList(index.getShard(0), index_2.getShard(0)));
+            });
+
+            IndexService indexService = indicesService.indexService(resolveIndex("index"));
+            assertTrue(newShard.recoverFromLocalShards(mappingConsumer, Arrays.asList(indexService.getShard(0))));
+            RecoveryState recoveryState = newShard.recoveryState();
+            assertEquals(RecoveryState.Stage.DONE, recoveryState.getStage());
+            assertTrue(recoveryState.getIndex().fileDetails().size() > 0);
+            for (RecoveryState.File file : recoveryState.getIndex().fileDetails()) {
+                if (file.reused()) {
+                    assertEquals(file.recovered(), 0);
+                } else {
+                    assertEquals(file.recovered(), file.length());
+                }
+            }
+            routing = ShardRoutingHelper.moveToStarted(routing);
+            newShard.updateRoutingEntry(routing, true);
+            assertHitCount(client().prepareSearch("index_1").get(), 2);
+        }
+        // now check that it's persistent ie. that the added shards are committed
+        {
+            routing = shard.routingEntry();
+            test.removeShard(0, "b/c simon says so");
+            routing = ShardRoutingHelper.reinit(routing);
+            final IndexShard newShard = test.createShard(routing);
+            newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.LOCAL_SHARDS, localNode, localNode));
+            assertTrue(newShard.recoverFromStore());
+            routing = ShardRoutingHelper.moveToStarted(routing);
+            newShard.updateRoutingEntry(routing, true);
+            assertHitCount(client().prepareSearch("index_1").get(), 2);
+        }
+
+        GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings("index_1").get();
+        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = mappingsResponse.getMappings();
+        assertNotNull(mappings.get("index_1"));
+        assertNotNull(mappings.get("index_1").get("test"));
+        assertEquals(mappings.get("index_1").get("test").get().source().string(), "{\"test\":{\"properties\":{\"foo\":{\"type\":\"text\"}}}}");
+
     }
 }

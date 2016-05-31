@@ -30,7 +30,11 @@ import java.util.Set;
 /**
  * A shard component that is responsible of tracking the global checkpoint. The global checkpoint
  * is the highest seq_no for which all lower (or equal) seq no have been process on all shards that
- * are currently active.
+ * are currently active. Since shards count as "active" when the master starts them, and before this primary shard
+ * has been notified of this fact, we also include shards in that are in the
+ * {@link org.elasticsearch.index.shard.IndexShardState#POST_RECOVERY} state when checking for global check point advancement.
+ * We call these shards "in sync" with all operations on the primary (see {@link #inSyncLocalCheckpoints}.
+ *
  * <p>
  * The global checkpoint is maintained by the primary shard and is replicated to all the replicas
  * (via {@link GlobalCheckpointSyncAction}).

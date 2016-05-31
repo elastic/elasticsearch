@@ -89,8 +89,9 @@ public final class ShadowIndexShard extends IndexShard {
     }
 
     @Override
-    protected void setupRefreshListeners(EngineConfig config) {
-        // Intentionally not setting them up because the shadow replica doesn't have a Translog so it can't support RefreshListeners.
+    protected RefreshListeners buildRefreshListeners() {
+        // ShadowEngine doesn't have a translog so it shouldn't try to support RefreshListeners.
+        return null;
     }
 
     @Override

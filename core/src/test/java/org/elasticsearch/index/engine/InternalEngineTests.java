@@ -43,7 +43,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -85,6 +84,7 @@ import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
+import org.elasticsearch.index.shard.RefreshListeners;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
@@ -202,7 +202,7 @@ public class InternalEngineTests extends ESTestCase {
         return new EngineConfig(openMode, config.getShardId(), config.getThreadPool(), config.getIndexSettings(), config.getWarmer(),
             config.getStore(), config.getDeletionPolicy(), config.getMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), config.getTranslogRecoveryPerformer(), config.getQueryCache(),
-            config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter());
+            config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(), config.getRefreshListeners());
     }
 
     @Override
@@ -293,14 +293,17 @@ public class InternalEngineTests extends ESTestCase {
         } catch (IOException e) {
             throw new ElasticsearchException("can't find index?", e);
         }
-        EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings
-                , null, store, createSnapshotDeletionPolicy(), mergePolicy,
-                iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), new Engine.EventListener() {
+        Engine.EventListener listener = new Engine.EventListener() {
             @Override
             public void onFailedEngine(String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
             }
-        }, new TranslogHandler(shardId.getIndexName(), logger), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5));
+        };
+        RefreshListeners refreshListeners = new RefreshListeners(() -> 1, () -> {throw new UnsupportedOperationException();}, r -> r.run());
+        EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings, null, store, createSnapshotDeletionPolicy(),
+                mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
+                new TranslogHandler(shardId.getIndexName(), logger), IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5), refreshListeners);
 
         return config;
     }
@@ -1997,10 +2000,11 @@ public class InternalEngineTests extends ESTestCase {
         /* create a TranslogConfig that has been created with a different UUID */
         TranslogConfig translogConfig = new TranslogConfig(shardId, translog.location(), config.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE);
 
-        EngineConfig brokenConfig = new EngineConfig(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, shardId, threadPool, config.getIndexSettings()
-                , null, store, createSnapshotDeletionPolicy(), newMergePolicy(),
-                config.getAnalyzer(), config.getSimilarity(), new CodecService(null, logger), config.getEventListener()
-                , config.getTranslogRecoveryPerformer(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5));
+        EngineConfig brokenConfig = new EngineConfig(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, shardId, threadPool,
+                config.getIndexSettings(), null, store, createSnapshotDeletionPolicy(), newMergePolicy(), config.getAnalyzer(),
+                config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getTranslogRecoveryPerformer(),
+                IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
+                TimeValue.timeValueMinutes(5), config.getRefreshListeners());
 
         try {
             InternalEngine internalEngine = new InternalEngine(brokenConfig);
@@ -2112,50 +2116,6 @@ public class InternalEngineTests extends ESTestCase {
                         assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
                     }
                 }
-            }
-        }
-    }
-
-    public void testCreationListener() throws IOException {
-        AtomicReference<Engine> listener = new AtomicReference<>();
-        try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy());
-            config.addEngineCreationListener(listener::set);
-            try (Engine created = new InternalEngine(config)) {
-                assertSame(created, listener.get());
-            }
-        }
-    }
-
-    public void testRefreshListener() throws IOException {
-        class TestRefreshListener implements ReferenceManager.RefreshListener {
-            boolean beforeRefreshed = false;
-            boolean afterRefreshed = false;
-
-            @Override
-            public void beforeRefresh() throws IOException {
-                assertFalse(beforeRefreshed);
-                assertFalse(afterRefreshed);
-                beforeRefreshed = true;
-            }
-
-            @Override
-            public void afterRefresh(boolean didRefresh) throws IOException {
-                assertTrue(beforeRefreshed);
-                assertFalse(afterRefreshed);
-                afterRefreshed = true;
-            }
-        }
-        TestRefreshListener listener = new TestRefreshListener();
-        try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy());
-            config.addRefreshListener(listener);
-            try (Engine engine = new InternalEngine(config)) {
-                assertFalse(listener.beforeRefreshed);
-                assertFalse(listener.afterRefreshed);
-                engine.refresh("test");
-                assertTrue(listener.beforeRefreshed);
-                assertTrue(listener.afterRefreshed);
             }
         }
     }

@@ -194,6 +194,11 @@ public class IndexShard extends AbstractIndexShardComponent {
      * IndexingMemoryController}).
      */
     private final AtomicBoolean active = new AtomicBoolean();
+    /**
+     * Allows for the registration of listeners that are called when a change becomes visible for search. This is nullable because
+     * {@linkplain ShadowIndexShard} doesn't support this.
+     */
+    @Nullable
     private final RefreshListeners refreshListeners;
 
     public IndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache,
@@ -245,10 +250,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         suspendableRefContainer = new SuspendableRefContainer();
         searcherWrapper = indexSearcherWrapper;
         primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
-        refreshListeners = new RefreshListeners(
-                indexSettings::getMaxRefreshListeners,
-                () -> refresh("too_many_listeners"),
-                fire -> threadPool.executor(ThreadPool.Names.LISTENER).execute(fire));
+        refreshListeners = buildRefreshListeners();
     }
 
     public Store store() {
@@ -920,7 +922,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
         config.setEnableGcDeletes(false);
-        setupRefreshListeners(config);
         Engine newEngine = createNewEngine(config);
         verifyNotClosed();
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
@@ -1374,11 +1375,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         return engineFactory.newReadWriteEngine(config);
     }
 
-    protected void setupRefreshListeners(EngineConfig config) {
-        config.addEngineCreationListener(refreshListeners);
-        config.addRefreshListener(refreshListeners);
-    }
-
     /**
      * Returns <code>true</code> iff this shard allows primary promotion, otherwise <code>false</code>
      */
@@ -1421,7 +1417,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         return new EngineConfig(openMode, shardId,
             threadPool, indexSettings, warmer, store, deletionPolicy, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig,
-            IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()));
+            IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()), refreshListeners);
     }
 
     public Releasable acquirePrimaryOperationLock() {
@@ -1515,6 +1511,16 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
         }
         return false;
+    }
+
+    /**
+     * Build {@linkplain RefreshListeners} for this shard. Protected so {@linkplain ShadowIndexShard} can override it to return null.
+     */
+    protected RefreshListeners buildRefreshListeners() {
+        return new RefreshListeners(
+                indexSettings::getMaxRefreshListeners,
+                () -> refresh("too_many_listeners"),
+                threadPool.executor(ThreadPool.Names.LISTENER)::execute);
     }
 
     /**

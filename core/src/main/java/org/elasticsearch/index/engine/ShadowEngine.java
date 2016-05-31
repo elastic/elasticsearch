@@ -22,7 +22,6 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -68,6 +67,9 @@ public class ShadowEngine extends Engine {
 
     public ShadowEngine(EngineConfig engineConfig)  {
         super(engineConfig);
+        if (engineConfig.getRefreshListeners() != null) {
+            throw new IllegalArgumentException("ShadowEngine doesn't support RefreshListeners");
+        }
         SearcherFactory searcherFactory = new EngineSearcherFactory(engineConfig);
         final long nonexistentRetryTime = engineConfig.getIndexSettings().getSettings()
                 .getAsTime(NONEXISTENT_INDEX_RETRY_WAIT, DEFAULT_NONEXISTENT_INDEX_RETRY_WAIT)
@@ -98,12 +100,6 @@ public class ShadowEngine extends Engine {
             }
         } catch (IOException ex) {
             throw new EngineCreationFailureException(shardId, "failed to open index reader", ex);
-        }
-        for (EngineConfig.EngineCreationListener listener : engineConfig.getEngineCreationListeners()) {
-            listener.engineCreated(this);
-        }
-        for (ReferenceManager.RefreshListener listener : engineConfig.getRefreshListeners()) {
-            searcherManager.addListener(listener);
         }
         logger.trace("created new ShadowEngine");
     }

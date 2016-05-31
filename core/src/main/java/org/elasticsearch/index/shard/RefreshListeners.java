@@ -21,8 +21,6 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.search.ReferenceManager;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineConfig.EngineCreationListener;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
@@ -38,7 +36,7 @@ import static java.util.Objects.requireNonNull;
  * Allows for the registration of listeners that are called when a change becomes visible for search. This functionality is exposed from
  * {@link IndexShard} but kept here so it can be tested without standing up the entire thing. 
  */
-final class RefreshListeners implements EngineCreationListener, ReferenceManager.RefreshListener {
+public final class RefreshListeners implements ReferenceManager.RefreshListener {
     private final IntSupplier getMaxRefreshListeners;
     private final Runnable forceRefresh;
     private final Executor listenerExecutor;
@@ -93,9 +91,11 @@ final class RefreshListeners implements EngineCreationListener, ReferenceManager
         listener.accept(true);
     }
 
-    @Override
-    public void engineCreated(Engine engine) {
-        translog = engine.getTranslog();
+    /**
+     * Setup the translog used to find the last refreshed location.
+     */
+    public void setTranslog(Translog translog) {
+        this.translog = translog;
     }
 
     // Implementation of ReferenceManager.RefreshListener that adapts Lucene's RefreshListener into Elasticsearch's refresh listeners.

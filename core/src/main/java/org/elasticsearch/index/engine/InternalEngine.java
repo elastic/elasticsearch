@@ -32,7 +32,6 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -169,12 +168,8 @@ public class InternalEngine extends Engine {
                 }
             }
         }
-        for (EngineConfig.EngineCreationListener listener : engineConfig.getEngineCreationListeners()) {
-            listener.engineCreated(this);
-        }
-        for (ReferenceManager.RefreshListener listener : engineConfig.getRefreshListeners()) {
-            searcherManager.addListener(listener);
-        }
+        searcherManager.addListener(engineConfig.getRefreshListeners());
+        engineConfig.getRefreshListeners().setTranslog(translog);
         logger.trace("created new InternalEngine");
     }
 

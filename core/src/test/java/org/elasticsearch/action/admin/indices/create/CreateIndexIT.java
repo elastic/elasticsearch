@@ -383,14 +383,12 @@ public class CreateIndexIT extends ESIntegTestCase {
         final InternalClusterInfoService infoService = (InternalClusterInfoService) internalCluster().getInstance(ClusterInfoService.class,
             internalCluster().getMasterName());
         infoService.refresh();
+        // kick off a retry and wait until it's done!
         ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().setRetryFailed(true).get();
         long expectedShardSize = clusterRerouteResponse.getState().routingTable().index("target")
             .shard(0).getShards().get(0).getExpectedShardSize();
         // we support the expected shard size in the allocator to sum up over the source index shards
         assertTrue("expected shard size must be set but wasn't: " + expectedShardSize, expectedShardSize > 0);
-
-        // kick off a retry and wait until it's done!
-        clusterRerouteResponse.getState().routingTable().index("target").shard(0).getShards().get(0).getExpectedShardSize();
         ensureGreen();
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
     }

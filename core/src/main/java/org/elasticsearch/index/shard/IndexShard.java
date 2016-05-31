@@ -1275,8 +1275,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     public void markAllocationIdAsInSync(String allocationId, long localCheckpoint) {
         verifyPrimary();
         getEngine().seqNoService().markAllocationIdAsInSync(allocationId, localCheckpoint);
-        // make sure the in sync shard gets an up to date global checkpoint in the case that there is no ongoing indexing
-        globalCheckpointSyncer.run();
     }
 
     public long getLocalCheckpoint() {

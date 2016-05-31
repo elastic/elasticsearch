@@ -96,8 +96,8 @@ public class ReplicationOperation<
 
     void execute() throws Exception {
         final String writeConsistencyFailure = checkWriteConsistency ? checkWriteConsistency() : null;
-        ShardRouting primaryRouting = primary.routingEntry();
-        ShardId primaryId = primaryRouting.shardId();
+        final ShardRouting primaryRouting = primary.routingEntry();
+        final ShardId primaryId = primaryRouting.shardId();
         if (writeConsistencyFailure != null) {
             finishAsFailed(new UnavailableShardsException(primaryId,
                 "{} Timeout: [{}], request: [{}]", writeConsistencyFailure, request.timeout(), request));
@@ -107,7 +107,7 @@ public class ReplicationOperation<
         totalShards.incrementAndGet();
         pendingShards.incrementAndGet();
         primaryResult = primary.perform(request);
-        ReplicaRequest replicaRequest = primaryResult.replicaRequest();
+        final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
         assert replicaRequest.primaryTerm() > 0 : "replicaRequest doesn't have a primary term";
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] op [{}] completed on primary for request [{}]", primaryId, opType, request);
@@ -116,7 +116,7 @@ public class ReplicationOperation<
         // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
         // to the recovery target. If we use an old cluster state, we may miss a relocation that has started since then.
         // If the index gets deleted after primary operation, we skip replication
-        List<ShardRouting> shards = getShards(primaryId, clusterStateSupplier.get());
+        final List<ShardRouting> shards = getShards(primaryId, clusterStateSupplier.get());
         final String localNodeId = primary.routingEntry().currentNodeId();
         for (final ShardRouting shard : shards) {
             if (executeOnReplicas == false || shard.unassigned()) {

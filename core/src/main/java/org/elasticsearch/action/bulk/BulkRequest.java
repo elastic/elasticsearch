@@ -58,6 +58,11 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
 
     private static final int REQUEST_OVERHEAD = 50;
 
+    /**
+     * Requests that are part of this request. It is only possible to add things that are both {@link ActionRequest}s and
+     * {@link WriteRequest}s to this but java doesn't support syntax to declare that everything in the array has both types so we declare
+     * the one with the least casts.
+     */
     final List<ActionRequest<?>> requests = new ArrayList<>();
     List<Object> payloads = null;
 
@@ -477,7 +482,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
      * @return Whether this bulk request contains index request with an ingest pipeline enabled.
      */
     public boolean hasIndexRequestsWithPipelines() {
-        for (ActionRequest actionRequest : requests) {
+        for (ActionRequest<?> actionRequest : requests) {
             if (actionRequest instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) actionRequest;
                 if (Strings.hasText(indexRequest.getPipeline())) {
@@ -497,8 +502,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         }
         for (ActionRequest<?> request : requests) {
             // We first check if refresh has been set
-            if (request instanceof WriteRequest<?>
-                    && ((WriteRequest<?>) request).getRefreshPolicy() != RefreshPolicy.NONE) {
+            if (((WriteRequest<?>) request).getRefreshPolicy() != RefreshPolicy.NONE) {
                 validationException = addValidationError(
                         "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.", validationException);
             }

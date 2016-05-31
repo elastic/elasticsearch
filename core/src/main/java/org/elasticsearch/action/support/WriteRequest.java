@@ -19,16 +19,23 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
 /**
- * Base class for requests that modify data in some shard like delete, index, and shardBulk.
+ * Interface implemented by requests that modify the documents in an index like {@link IndexRequest}, {@link UpdateRequest}, and
+ * {@link BulkRequest}. Rather than implement this directly most implementers should extend {@link ReplicatedWriteRequest}.
  */
-public interface WriteRequest<R extends WriteRequest<R>> {
+public interface WriteRequest<R extends WriteRequest<R>> extends Streamable {
     /**
      * Should this request trigger a refresh ({@linkplain RefreshPolicy#IMMEDIATE}), wait for a refresh (
      * {@linkplain RefreshPolicy#WAIT_UNTIL}), or proceed ignore refreshes entirely ({@linkplain RefreshPolicy#NONE}, the default).
@@ -51,6 +58,8 @@ public interface WriteRequest<R extends WriteRequest<R>> {
      * {@linkplain RefreshPolicy#WAIT_UNTIL}), or proceed ignore refreshes entirely ({@linkplain RefreshPolicy#NONE}, the default).
      */
     RefreshPolicy getRefreshPolicy();
+
+    ActionRequestValidationException validate();
 
     enum RefreshPolicy implements Writeable {
         /**

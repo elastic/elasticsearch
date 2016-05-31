@@ -47,7 +47,7 @@ public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecide
         if (shardRouting.primary()) {
             return allocation.decision(Decision.YES, NAME, "shard is primary and can be allocated");
         }
-        ShardRouting primary = allocation.routingNodes().activePrimary(shardRouting);
+        ShardRouting primary = allocation.routingNodes().activePrimary(shardRouting.shardId());
         if (primary == null) {
             return allocation.decision(Decision.NO, NAME, "primary shard for this replica is not yet active");
         }

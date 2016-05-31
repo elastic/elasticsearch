@@ -486,10 +486,10 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
          * Adds a new shard routing (makes a copy of it), with reference data used from the index shard routing table
          * if it needs to be created.
          */
-        public Builder addShard(IndexShardRoutingTable refData, ShardRouting shard) {
+        public Builder addShard(ShardRouting shard) {
             IndexShardRoutingTable indexShard = shards.get(shard.id());
             if (indexShard == null) {
-                indexShard = new IndexShardRoutingTable.Builder(refData.shardId()).addShard(shard).build();
+                indexShard = new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard).build();
             } else {
                 indexShard = new IndexShardRoutingTable.Builder(indexShard).addShard(shard).build();
             }

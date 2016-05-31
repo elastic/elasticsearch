@@ -453,7 +453,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
             newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
 
             assertEquals(1, imc.availableShards().size());
-            assertTrue(newShard.recoverFromStore(localNode));
+            assertTrue(newShard.recoverFromStore());
             assertTrue("we should have flushed in IMC at least once but did: " + flushes.get(), flushes.get() >= 1);
             newShard.updateRoutingEntry(routing.moveToStarted(), true);
         } finally {

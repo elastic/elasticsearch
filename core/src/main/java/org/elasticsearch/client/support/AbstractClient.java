@@ -212,6 +212,10 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoreRequestBui
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkRequest;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkRequestBuilder;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
@@ -1682,6 +1686,22 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public GetSettingsRequestBuilder prepareGetSettings(String... indices) {
             return new GetSettingsRequestBuilder(this, GetSettingsAction.INSTANCE, indices);
+        }
+
+        @Override
+        public ShrinkRequestBuilder prepareShrinkIndex(String sourceIndex, String targetIndex) {
+            return new ShrinkRequestBuilder(this, ShrinkAction.INSTANCE).setSourceIndex(sourceIndex)
+                .setTargetIndex(new CreateIndexRequest(targetIndex));
+        }
+
+        @Override
+        public ActionFuture<ShrinkResponse> shrinkIndex(ShrinkRequest request) {
+            return execute(ShrinkAction.INSTANCE, request);
+        }
+
+        @Override
+        public void shrinkIndex(ShrinkRequest request, ActionListener<ShrinkResponse> listener) {
+            execute(ShrinkAction.INSTANCE, request, listener);
         }
 
         @Override

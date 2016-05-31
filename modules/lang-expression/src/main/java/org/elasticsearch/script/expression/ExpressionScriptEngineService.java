@@ -51,6 +51,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -148,6 +149,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                     String fieldname = null;
                     String methodname = null;
                     String variablename = "value"; // .value is the default for doc['field'], its optional.
+                    boolean dateAccessor = false; // true if the variable is of type doc['field'].date.xxx
                     VariableContext[] parts = VariableContext.parse(variable);
                     if (parts[0].text.equals("doc") == false) {
                         throw new ParseException("Unknown variable [" + parts[0].text + "]", 0);
@@ -167,7 +169,19 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                         }
                     }
                     if (parts.length > 3) {
-                        throw new IllegalArgumentException("Variable [" + variable + "] does not follow an allowed format of either doc['field'] or doc['field'].method()");
+                        // access to the .date "object" within the field
+                        if (parts.length == 4 && ("date".equals(parts[2].text) || "getDate".equals(parts[2].text))) {
+                            if (parts[3].type == VariableContext.Type.METHOD) {
+                                methodname = parts[3].text;
+                                dateAccessor = true;
+                            } else if (parts[3].type == VariableContext.Type.MEMBER) {
+                                variablename = parts[3].text;
+                                dateAccessor = true;
+                            }
+                        }
+                        if (!dateAccessor) {
+                            throw new IllegalArgumentException("Variable [" + variable + "] does not follow an allowed format of either doc['field'] or doc['field'].method()");
+                        }
                     }
 
                     MappedFieldType fieldType = mapper.fullName(fieldname);
@@ -191,11 +205,20 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                         }
                     } else if (fieldType instanceof LegacyDateFieldMapper.DateFieldType || 
                             fieldType instanceof DateFieldMapper.DateFieldType) {
-                        // date
-                        if (methodname == null) {
-                            valueSource = DateField.getVariable(fieldData, fieldname, variablename);
+                        if (dateAccessor) {
+                            // date object
+                            if (methodname == null) {
+                                valueSource = DateObject.getVariable(fieldData, fieldname, variablename);
+                            } else {
+                                valueSource = DateObject.getMethod(fieldData, fieldname, methodname);
+                            }
                         } else {
-                            valueSource = DateField.getMethod(fieldData, fieldname, methodname);
+                            // date field itself
+                            if (methodname == null) {
+                                valueSource = DateField.getVariable(fieldData, fieldname, variablename);
+                            } else {
+                                valueSource = DateField.getMethod(fieldData, fieldname, methodname);
+                            }
                         }
                     } else if (fieldData instanceof IndexNumericFieldData) {
                         // number

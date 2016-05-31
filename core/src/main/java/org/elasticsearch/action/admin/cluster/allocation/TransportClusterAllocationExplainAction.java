@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.RoutingNodes.RoutingNodesIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -226,10 +225,8 @@ public class TransportClusterAllocationExplainAction
         // get the existing unassigned info if available
         UnassignedInfo ui = shard.unassignedInfo();
 
-        RoutingNodesIterator iter = routingNodes.nodes();
         Map<DiscoveryNode, Decision> nodeToDecision = new HashMap<>();
-        while (iter.hasNext()) {
-            RoutingNode node = iter.next();
+        for (RoutingNode node : routingNodes) {
             DiscoveryNode discoNode = node.node();
             if (discoNode.isDataNode()) {
                 Decision d = tryShardOnNode(shard, node, allocation, includeYesDecisions);

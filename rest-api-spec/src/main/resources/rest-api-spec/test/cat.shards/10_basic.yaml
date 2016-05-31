@@ -63,7 +63,6 @@
                     segments.count                   .+   \n
                     segments.memory                  .+   \n
                     segments.index_writer_memory     .+   \n
-                    segments.index_writer_max_memory .+   \n
                     segments.version_map_memory      .+   \n
                     segments.fixed_bitset_memory     .+   \n
                     warmer.current                   .+   \n

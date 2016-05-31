@@ -682,7 +682,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return refCounter.refCount();
     }
 
-    private static final class StoreDirectory extends FilterDirectory {
+    static final class StoreDirectory extends FilterDirectory {
 
         private final ESLogger deletesLogger;
 
@@ -715,7 +715,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         public String toString() {
             return "store(" + in.toString() + ")";
         }
-
     }
 
     /**

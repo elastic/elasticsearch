@@ -26,7 +26,7 @@ setting, as follows:
 
 [source,sh]
 -------------------------------
-./bin/elasticsearch -Epath.conf=/path/to/my/config/
+./bin/elasticsearch -Ees.path.conf=/path/to/my/config/
 -------------------------------
 
 [float]

@@ -17,11 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.cache.recycler;
+package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.AbstractRecyclerC;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
@@ -63,14 +64,10 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
 
     @Override
     public void close() {
-        bytePage.close();
-        intPage.close();
-        longPage.close();
-        objectPage.close();
+        Releasables.close(true, bytePage, intPage, longPage, objectPage);
     }
 
-    @Inject
-    public PageCacheRecycler(Settings settings) {
+    protected PageCacheRecycler(Settings settings) {
         super(settings);
         final Type type = TYPE_SETTING .get(settings);
         final long limit = LIMIT_HEAP_SETTING .get(settings).bytes();

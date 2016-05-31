@@ -22,10 +22,8 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
@@ -221,8 +219,6 @@ public abstract class SearchContext implements Releasable {
     public abstract SimilarityService similarityService();
 
     public abstract ScriptService scriptService();
-
-    public abstract PageCacheRecycler pageCacheRecycler();
 
     public abstract BigArrays bigArrays();
 

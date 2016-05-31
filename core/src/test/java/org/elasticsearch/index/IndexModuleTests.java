@@ -32,7 +32,6 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.SetOnce.AlreadySetException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -113,8 +112,7 @@ public class IndexModuleTests extends ESTestCase {
         // TODO this can be used in other place too - lets first refactor the IndicesQueriesRegistry
         ThreadPool threadPool = new ThreadPool("test");
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
-        PageCacheRecycler recycler = new PageCacheRecycler(settings);
-        BigArrays bigArrays = new BigArrays(recycler, circuitBreakerService);
+        BigArrays bigArrays = new BigArrays(settings, circuitBreakerService);
         Set<ScriptEngineService> scriptEngines = Collections.emptySet();
         scriptEngines.addAll(Arrays.asList(scriptEngineServices));
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.emptyList());

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.http.netty;
 
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -50,15 +49,13 @@ import static org.hamcrest.Matchers.equalTo;
 public class NettyHttpServerTransportTests extends ESTestCase {
     private NetworkService networkService;
     private ThreadPool threadPool;
-    private MockPageCacheRecycler mockPageCacheRecycler;
     private MockBigArrays bigArrays;
 
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Settings.EMPTY);
         threadPool = new ThreadPool("test");
-        mockPageCacheRecycler = new MockPageCacheRecycler(Settings.EMPTY);
-        bigArrays = new MockBigArrays(mockPageCacheRecycler, new NoneCircuitBreakerService());
+        bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
     }
 
     @After
@@ -68,7 +65,6 @@ public class NettyHttpServerTransportTests extends ESTestCase {
         }
         threadPool = null;
         networkService = null;
-        mockPageCacheRecycler = null;
         bigArrays = null;
     }
 

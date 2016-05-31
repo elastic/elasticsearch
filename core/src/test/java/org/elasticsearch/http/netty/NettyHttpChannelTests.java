@@ -19,7 +19,6 @@
 
 package org.elasticsearch.http.netty;
 
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkService;
@@ -72,8 +71,7 @@ public class NettyHttpChannelTests extends ESTestCase {
     public void setup() throws Exception {
         networkService = new NetworkService(Settings.EMPTY);
         threadPool = new ThreadPool("test");
-        MockPageCacheRecycler mockPageCacheRecycler = new MockPageCacheRecycler(Settings.EMPTY);
-        bigArrays = new MockBigArrays(mockPageCacheRecycler, new NoneCircuitBreakerService());
+        bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
     }
 
     @After

@@ -28,6 +28,7 @@ import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
@@ -141,8 +142,23 @@ final class Bootstrap {
     }
 
     private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
+        final ESLogger logger = Loggers.getLogger(Bootstrap.class);
+        final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
+        final Boolean mlockall = settings.getAsBoolean("bootstrap.mlockall", null);
+        if (mlockall != null) {
+            deprecationLogger.deprecated("setting [bootstrap.mlockall] is deprecated; use [bootstrap.memory_lock]");
+        }
+
+        final Boolean memoryLock = settings.getAsBoolean("bootstrap.memory_lock", null);
+        // both bootstrap.mlockall and bootstrap.memory_lock are set, refuse to start
+        if (mlockall != null && memoryLock != null) {
+            throw new IllegalArgumentException("both [bootstrap.mlockall] and [bootstrap.memory_lock] configured,"
+                + " just use [bootstrap.memory_lock]");
+        }
+
         initializeNatives(environment.tmpFile(),
-                          settings.getAsBoolean("bootstrap.mlockall", false),
+                          memoryLock != null ? memoryLock : mlockall != null ? mlockall : false,
                           settings.getAsBoolean("bootstrap.seccomp", true),
                           settings.getAsBoolean("bootstrap.ctrlhandler", true));
 

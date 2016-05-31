@@ -1,0 +1,11 @@
+[[breaking-changes-2.4]]
+== Breaking changes in 2.4
+
+[[breaking_24_settings]]
+[float]
+=== Settings
+
+The setting `bootstrap.mlockall` has been renamed to
+<<bootstrap.memory_lock,`bootstrap.memory_lock`>>. Future versions of
+Elasticsearch will refuse to start if `bootstrap.mlockall` is set. You
+can switch to the new setting now.

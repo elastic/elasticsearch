@@ -182,6 +182,17 @@ public class JarHellTests extends ESTestCase {
         }
     }
 
+    public void testRequiredJDKVersionIsOK() throws Exception {
+        Path dir = createTempDir();
+        Manifest manifest = new Manifest();
+        Attributes attributes = manifest.getMainAttributes();
+        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
+        attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "1.7");
+        URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
+
+        JarHell.checkJarHell(jars);
+    }
+
     /** make sure if a plugin is compiled against the same ES version, it works */
     public void testGoodESVersionInJar() throws Exception {
         Path dir = createTempDir();

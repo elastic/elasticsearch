@@ -152,7 +152,7 @@ final class BootstrapCheck {
         final FileDescriptorCheck fileDescriptorCheck
             = Constants.MAC_OS_X ? new OsXFileDescriptorCheck() : new FileDescriptorCheck();
         checks.add(fileDescriptorCheck);
-        checks.add(new MlockallCheck(BootstrapSettings.MLOCKALL_SETTING.get(settings)));
+        checks.add(new MlockallCheck(BootstrapSettings.MEMORY_LOCK_SETTING.get(settings)));
         if (Constants.LINUX) {
             checks.add(new MaxNumberOfThreadsCheck());
         }

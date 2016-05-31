@@ -349,7 +349,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
         @Override
         public void fillIn(double coordinate, GeoBoundingBoxQueryBuilder qb) {
-            qb.setCorners(qb.topLeft().getLat(), qb.topLeft().getLon(), qb.topLeft().getLat(), coordinate);
+            qb.setCorners(qb.topLeft().getLat(), qb.topLeft().getLon(), qb.bottomRight().getLat(), coordinate);
         }
     }
 

@@ -59,28 +59,29 @@ class def -> java.lang.Object {
 
 #### ES Scripting API
 
-class GeoPoint -> org.elasticsearch.common.geo.GeoPoint extends Object {
+class org.elasticsearch.common.geo.GeoPoint -> org.elasticsearch.common.geo.GeoPoint extends Object {
   double getLat()
   double getLon()
 }
 
-class Strings -> org.elasticsearch.index.fielddata.ScriptDocValues$Strings extends List,Collection,Iterable,Object {
+class org.elasticsearch.index.fielddata.ScriptDocValues.Strings -> org.elasticsearch.index.fielddata.ScriptDocValues$Strings extends List,Collection,Iterable,Object {
   String getValue()
   List getValues()
 }
 
-class Longs -> org.elasticsearch.index.fielddata.ScriptDocValues$Longs extends List,Collection,Iterable,Object {
+class org.elasticsearch.index.fielddata.ScriptDocValues.Longs -> org.elasticsearch.index.fielddata.ScriptDocValues$Longs extends List,Collection,Iterable,Object {
   long getValue()
   List getValues()
+  org.joda.time.ReadableDateTime getDate()
 }
 
-class Doubles -> org.elasticsearch.index.fielddata.ScriptDocValues$Doubles extends List,Collection,Iterable,Object {
+class org.elasticsearch.index.fielddata.ScriptDocValues.Doubles -> org.elasticsearch.index.fielddata.ScriptDocValues$Doubles extends List,Collection,Iterable,Object {
   double getValue()
   List getValues()
 }
 
-class GeoPoints -> org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints extends List,Collection,Iterable,Object {
-  GeoPoint getValue()
+class org.elasticsearch.index.fielddata.ScriptDocValues.GeoPoints -> org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints extends List,Collection,Iterable,Object {
+  org.elasticsearch.common.geo.GeoPoint getValue()
   List getValues()
   double getLat()
   double getLon()
@@ -111,17 +112,13 @@ class GeoPoints -> org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints e
 
 # for testing.
 # currently FeatureTest exposes overloaded constructor, field load store, and overloaded static methods
-class FeatureTest -> org.elasticsearch.painless.FeatureTest extends Object {
-  FeatureTest <init>()
-  FeatureTest <init>(int,int)
+class org.elasticsearch.painless.FeatureTest -> org.elasticsearch.painless.FeatureTest extends Object {
+  org.elasticsearch.painless.FeatureTest <init>()
+  org.elasticsearch.painless.FeatureTest <init>(int,int)
   int getX()
   int getY()
   void setX(int)
   void setY(int)
   boolean overloadedStatic()
   boolean overloadedStatic(boolean)
-}
-
-# currently needed internally
-class Executable -> org.elasticsearch.painless.Executable {
 }

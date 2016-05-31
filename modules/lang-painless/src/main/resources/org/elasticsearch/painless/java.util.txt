@@ -643,9 +643,11 @@ class GregorianCalendar -> java.util.GregorianCalendar extends Calendar,Comparab
   GregorianCalendar <init>(int,int,int,int,int,int)
   GregorianCalendar <init>(TimeZone)
   GregorianCalendar <init>(TimeZone,Locale)
+  GregorianCalendar from(ZonedDateTime)
   Date getGregorianChange()
   boolean isLeapYear(int)
   void setGregorianChange(Date)
+  ZonedDateTime toZonedDateTime()
 }
 
 class HashMap -> java.util.HashMap extends AbstractMap,Map,Object {

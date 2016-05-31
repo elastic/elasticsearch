@@ -354,23 +354,8 @@ replication group have indexed the document (sync replication).
 [[index-refresh]]
 === Refresh
 
-To refresh the shard (not the whole index) immediately after the operation
-occurs, so that the document appears in search results immediately, the
-`refresh` parameter can be set to `true`. Setting this option to `true` should
-*ONLY* be done after careful thought and verification that it does not lead to
-poor performance, both from an indexing and a search standpoint. Note, getting
-a document using the get API is completely realtime and doesn't require a
-refresh.
-
-[float]
-[[index-block-until-refresh]]
-=== Block Until Refresh
-
-If `refresh` is too heavy for your use case then you can instead set
-`block_until_refresh` to `true` to wait until the operation has been made
-visible for search by a refresh. This is *much* lower overhead than `refresh`
-but the downside is that the request will wait for the next refresh. See
-<<block-until-refresh>> for more details.
+Control when the changes made by this request are visible to search. See
+<<docs-refresh>>.
 
 [float]
 [[index-noop]]

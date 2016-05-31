@@ -139,7 +139,7 @@ specific index module:
 `index.max_refresh_listeners`::
 
     Maximum number of refresh listeners available on each shard of the index.
-    These listeners are used to implement <<block-until-refresh>>.
+    These listeners are used to implement <<docs-refresh,`refresh=wait_for`>>.
 
 
 [float]

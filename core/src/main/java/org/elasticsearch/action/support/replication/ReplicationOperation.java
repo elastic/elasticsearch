@@ -303,8 +303,18 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
          */
         Tuple<Response, ReplicaRequest> perform(Request request) throws Exception;
 
+
+        /**
+         * Notifies the primary of a local checkpoint for the given allocation.
+         *
+         * Note: The primary will use this information to advance the global checkpoint if possible.
+         *
+         * @param allocationId allocation ID of the shard corresponding to the supplied local checkpoint
+         * @param checkpoint the *local* checkpoint for the shard
+         */
         void updateLocalCheckpointForShard(String allocationId, long checkpoint);
 
+        /** returns the local checkpoint of the primary shard */
         long localCheckpoint();
     }
 
@@ -335,9 +345,15 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
                        Consumer<Throwable> onPrimaryDemoted, Consumer<Throwable> onIgnoredFailure);
     }
 
+    /**
+     * An interface to encapsulate the metadata needed from replica shards when they respond to operations performed on them
+     */
     interface ReplicaResponse {
+
+        /** the local check point for the shard. see {@link org.elasticsearch.index.seqno.SequenceNumbersService#getLocalCheckpoint()} */
         long localCheckpoint();
 
+        /** the allocation id of the replica shard */
         String allocationId();
     }
 

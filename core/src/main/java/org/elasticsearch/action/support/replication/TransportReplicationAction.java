@@ -454,26 +454,31 @@ public abstract class TransportReplicationAction<
             try (Releasable ignored = acquireReplicaOperationLock(request.shardId(), request.primaryTerm())) {
                 result = shardOperationOnReplica(request);
             }
-            result.respond(new ActionListener<TransportResponse.Empty>() {
-                @Override
-                public void onResponse(Empty response) {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction, request.shardId(),
-                                request);
-                    }
-                    setPhase(task, "finished");
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Exception e) {
-                        onFailure(e);
-                    }
-                }
+            result.respond(new ResponseListener());
+        }
 
-                @Override
-                public void onFailure(Throwable e) {
-                    AsyncReplicaAction.this.onFailure(e);
+        /**
+         * Listens for the response on the replica and sends the response back to the primary.
+         */
+        private class ResponseListener implements ActionListener<TransportResponse.Empty> {
+            @Override
+            public void onResponse(Empty response) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction, request.shardId(),
+                            request);
                 }
-            });
+                setPhase(task, "finished");
+                try {
+                    channel.sendResponse(response);
+                } catch (Exception e) {
+                    onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                responseWithFailure(e);
+            }
         }
     }
 
@@ -795,11 +800,6 @@ public abstract class TransportReplicationAction<
             result.replicaRequest().primaryTerm(indexShard.getPrimaryTerm());
             return result;
         }
-
-//        @Override
-//        public void performAsync(AsyncStash stash, Request request, ActionListener<Response> listener) throws Exception {
-//            asyncShardOperationOnPrimary(stash, request, listener);
-//        }
 
         @Override
         public ShardRouting routingEntry() {

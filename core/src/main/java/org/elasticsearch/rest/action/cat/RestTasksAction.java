@@ -19,12 +19,12 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
@@ -37,7 +37,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
-import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
@@ -48,11 +48,13 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.action.admin.cluster.node.tasks.RestListTasksAction.generateListTasksRequest;
 
 public class RestTasksAction extends AbstractCatAction {
+    private final ClusterService clusterService;
 
     @Inject
-    public RestTasksAction(Settings settings, RestController controller, Client client) {
+    public RestTasksAction(Settings settings, RestController controller, Client client, ClusterService clusterService) {
         super(settings, controller, client);
         controller.registerHandler(GET, "/_cat/tasks", this);
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -104,9 +106,10 @@ public class RestTasksAction extends AbstractCatAction {
 
     private DateTimeFormatter dateFormat = DateTimeFormat.forPattern("HH:mm:ss");
 
-    private void buildRow(Table table, boolean fullId, boolean detailed, TaskInfo taskInfo) {
+    private void buildRow(Table table, boolean fullId, boolean detailed, DiscoveryNodes discoveryNodes, TaskInfo taskInfo) {
         table.startRow();
-        DiscoveryNode node = taskInfo.getNode();
+        String nodeId = taskInfo.getTaskId().getNodeId();
+        DiscoveryNode node = discoveryNodes.get(nodeId);
 
         table.addCell(taskInfo.getId());
         table.addCell(taskInfo.getAction());
@@ -122,15 +125,16 @@ public class RestTasksAction extends AbstractCatAction {
         table.addCell(taskInfo.getRunningTimeNanos());
         table.addCell(TimeValue.timeValueNanos(taskInfo.getRunningTimeNanos()).toString());
 
-        table.addCell(fullId ? node.getId() : Strings.substring(node.getId(), 0, 4));
-        table.addCell(node.getHostAddress());
-        if (node.getAddress() instanceof InetSocketTransportAddress) {
+        // Node information. Note that the node may be null because it has left the cluster between when we got this response and now.
+        table.addCell(fullId ? nodeId : Strings.substring(nodeId, 0, 4));
+        table.addCell(node == null ? "-" : node.getHostAddress());
+        if (node != null && node.getAddress() instanceof InetSocketTransportAddress) {
             table.addCell(((InetSocketTransportAddress) node.getAddress()).address().getPort());
         } else {
             table.addCell("-");
         }
-        table.addCell(node.getName());
-        table.addCell(node.getVersion().toString());
+        table.addCell(node == null ? "-" : node.getName());
+        table.addCell(node == null ? "-" : node.getVersion().toString());
 
         if (detailed) {
             table.addCell(taskInfo.getDescription());
@@ -139,10 +143,11 @@ public class RestTasksAction extends AbstractCatAction {
     }
 
     private void buildGroups(Table table, boolean detailed, boolean fullId, List<TaskGroup> taskGroups) {
+        DiscoveryNodes discoveryNodes = clusterService.state().nodes();
         List<TaskGroup> sortedGroups = new ArrayList<>(taskGroups);
         sortedGroups.sort((o1, o2) -> Long.compare(o1.getTaskInfo().getStartTime(), o2.getTaskInfo().getStartTime()));
         for (TaskGroup taskGroup : sortedGroups) {
-            buildRow(table, fullId, detailed, taskGroup.getTaskInfo());
+            buildRow(table, fullId, detailed, discoveryNodes, taskGroup.getTaskInfo());
             buildGroups(table, fullId, detailed, taskGroup.getChildTasks());
         }
     }

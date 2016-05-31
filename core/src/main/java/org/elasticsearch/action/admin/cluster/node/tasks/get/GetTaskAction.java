@@ -17,26 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
+package org.elasticsearch.action.admin.cluster.node.tasks.get;
 
-import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.tasks.TaskInfo;
-
-import java.util.List;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
- * Returns the list of tasks that were cancelled
+ * Action for retrieving a list of currently running tasks
  */
-public class CancelTasksResponse extends ListTasksResponse {
+public class GetTaskAction extends Action<GetTaskRequest, GetTaskResponse, GetTaskRequestBuilder> {
 
-    public CancelTasksResponse() {
+    public static final GetTaskAction INSTANCE = new GetTaskAction();
+    public static final String NAME = "cluster:monitor/task/get";
+
+    private GetTaskAction() {
+        super(NAME);
     }
 
-    public CancelTasksResponse(List<TaskInfo> tasks, List<TaskOperationFailure> taskFailures, List<? extends FailedNodeException>
-        nodeFailures) {
-        super(tasks, taskFailures, nodeFailures);
+    @Override
+    public GetTaskResponse newResponse() {
+        return new GetTaskResponse();
     }
 
+    @Override
+    public GetTaskRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new GetTaskRequestBuilder(client, this);
+    }
 }

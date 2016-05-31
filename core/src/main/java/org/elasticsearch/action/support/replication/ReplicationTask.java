@@ -88,5 +88,20 @@ public class ReplicationTask extends Task {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(phase);
         }
+
+        // Implements equals and hashcode for testing
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || obj.getClass() != ReplicationTask.Status.class) {
+                return false;
+            }
+            ReplicationTask.Status other = (Status) obj;
+            return phase.equals(other.phase);
+        }
+
+        @Override
+        public int hashCode() {
+            return phase.hashCode();
+        }
     }
 }

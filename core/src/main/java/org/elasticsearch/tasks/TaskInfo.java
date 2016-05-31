@@ -17,19 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.tasks.list;
+package org.elasticsearch.tasks;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
 
 /**
  * Information about a currently running task.
@@ -39,10 +46,7 @@ import java.util.concurrent.TimeUnit;
  * and use in APIs. Instead, immutable and streamable TaskInfo objects are used to represent
  * snapshot information about currently running tasks.
  */
-public class TaskInfo implements Writeable, ToXContent {
-
-    private final DiscoveryNode node;
-
+public final class TaskInfo implements Writeable, ToXContent {
     private final TaskId taskId;
 
     private final String type;
@@ -61,10 +65,9 @@ public class TaskInfo implements Writeable, ToXContent {
 
     private final TaskId parentTaskId;
 
-    public TaskInfo(DiscoveryNode node, long id, String type, String action, String description, Task.Status status, long startTime,
+    public TaskInfo(TaskId taskId, String type, String action, String description, Task.Status status, long startTime,
                     long runningTimeNanos, boolean cancellable, TaskId parentTaskId) {
-        this.node = node;
-        this.taskId = new TaskId(node.getId(), id);
+        this.taskId = taskId;
         this.type = type;
         this.action = action;
         this.description = description;
@@ -79,8 +82,7 @@ public class TaskInfo implements Writeable, ToXContent {
      * Read from a stream.
      */
     public TaskInfo(StreamInput in) throws IOException {
-        node = new DiscoveryNode(in);
-        taskId = new TaskId(node.getId(), in.readLong());
+        taskId = TaskId.readFromStream(in);
         type = in.readString();
         action = in.readString();
         description = in.readOptionalString();
@@ -93,8 +95,7 @@ public class TaskInfo implements Writeable, ToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        node.writeTo(out);
-        out.writeLong(taskId.getId());
+        taskId.writeTo(out);
         out.writeString(type);
         out.writeString(action);
         out.writeOptionalString(description);
@@ -107,10 +108,6 @@ public class TaskInfo implements Writeable, ToXContent {
 
     public TaskId getTaskId() {
         return taskId;
-    }
-
-    public DiscoveryNode getNode() {
-        return node;
     }
 
     public long getId() {
@@ -167,7 +164,13 @@ public class TaskInfo implements Writeable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("node", node.getId());
+        builder.startObject();
+        innerToXContent(builder, params);
+        return builder.endObject();
+    }
+
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("node", taskId.getNodeId());
         builder.field("id", taskId.getId());
         builder.field("type", type);
         builder.field("action", action);
@@ -184,5 +187,64 @@ public class TaskInfo implements Writeable, ToXContent {
             builder.field("parent_task_id", parentTaskId.toString());
         }
         return builder;
+    }
+
+    public static final ConstructingObjectParser<TaskInfo, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+            "task_info", a -> {
+                int i = 0;
+                TaskId id = new TaskId((String) a[i++], (Long) a[i++]);
+                String type = (String) a[i++];
+                String action = (String) a[i++];
+                String description = (String) a[i++];
+                BytesReference statusBytes = (BytesReference) a[i++];
+                long startTime = (Long) a[i++];
+                long runningTimeNanos = (Long) a[i++];
+                boolean cancellable = (Boolean) a[i++];
+                String parentTaskIdString = (String) a[i++];
+
+                RawTaskStatus status = statusBytes == null ? null : new RawTaskStatus(statusBytes);
+                TaskId parentTaskId = parentTaskIdString == null ? TaskId.EMPTY_TASK_ID : new TaskId((String) parentTaskIdString);
+                return new TaskInfo(id, type, action, description, status, startTime, runningTimeNanos, cancellable, parentTaskId);
+            });
+    static {
+        // Note for the future: this has to be backwards compatible with all changes to the task persistence format
+        PARSER.declareString(constructorArg(), new ParseField("node"));
+        PARSER.declareLong(constructorArg(), new ParseField("id"));
+        PARSER.declareString(constructorArg(), new ParseField("type"));
+        PARSER.declareString(constructorArg(), new ParseField("action"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("description"));
+        PARSER.declareRawObject(optionalConstructorArg(), new ParseField("status"));
+        PARSER.declareLong(constructorArg(), new ParseField("start_time_in_millis"));
+        PARSER.declareLong(constructorArg(), new ParseField("running_time_in_nanos"));
+        PARSER.declareBoolean(constructorArg(), new ParseField("cancellable"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("parent_task_id"));
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
+    // Implements equals and hashCode for testing
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != TaskInfo.class) {
+            return false;
+        }
+        TaskInfo other = (TaskInfo) obj;
+        return Objects.equals(taskId, other.taskId)
+                && Objects.equals(type, other.type)
+                && Objects.equals(action, other.action)
+                && Objects.equals(description, other.description)
+                && Objects.equals(startTime, other.startTime)
+                && Objects.equals(runningTimeNanos, other.runningTimeNanos)
+                && Objects.equals(parentTaskId, other.parentTaskId)
+                && Objects.equals(cancellable, other.cancellable)
+                && Objects.equals(status, other.status);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(taskId, type, action, description, startTime, runningTimeNanos, parentTaskId, cancellable, status);
     }
 }

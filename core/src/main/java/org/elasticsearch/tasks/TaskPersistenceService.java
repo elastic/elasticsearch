@@ -19,14 +19,17 @@
 package org.elasticsearch.tasks;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -34,21 +37,25 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * Service that can persist task results
+ * Service that can persist tasks and their results.
  */
-public class TaskResultsService extends AbstractComponent {
+public class TaskPersistenceService extends AbstractComponent {
 
-    public static final String TASK_RESULT_INDEX = ".results";
+    public static final String TASK_INDEX = ".tasks";
 
-    public static final String TASK_RESULT_TYPE = "result";
+    public static final String TASK_TYPE = "task";
 
-    public static final String TASK_RESULT_INDEX_MAPPING_FILE = "task-results-index-mapping.json";
+    public static final String TASK_RESULT_INDEX_MAPPING_FILE = "task-index-mapping.json";
 
     private final Client client;
 
@@ -57,7 +64,7 @@ public class TaskResultsService extends AbstractComponent {
     private final TransportCreateIndexAction createIndexAction;
 
     @Inject
-    public TaskResultsService(Settings settings, Client client, ClusterService clusterService,
+    public TaskPersistenceService(Settings settings, Client client, ClusterService clusterService,
                               TransportCreateIndexAction createIndexAction) {
         super(settings);
         this.client = client;
@@ -65,15 +72,15 @@ public class TaskResultsService extends AbstractComponent {
         this.createIndexAction = createIndexAction;
     }
 
-    public void persist(TaskResult taskResult, ActionListener<Void> listener) {
+    public void persist(PersistedTaskInfo taskResult, ActionListener<Void> listener) {
 
         ClusterState state = clusterService.state();
 
-        if (state.routingTable().hasIndex(TASK_RESULT_INDEX) == false) {
+        if (state.routingTable().hasIndex(TASK_INDEX) == false) {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest();
             createIndexRequest.settings(taskResultIndexSettings());
-            createIndexRequest.index(TASK_RESULT_INDEX);
-            createIndexRequest.mapping(TASK_RESULT_TYPE, taskResultIndexMapping());
+            createIndexRequest.index(TASK_INDEX);
+            createIndexRequest.mapping(TASK_TYPE, taskResultIndexMapping());
             createIndexRequest.cause("auto(task api)");
 
             createIndexAction.execute(null, createIndexRequest, new ActionListener<CreateIndexResponse>() {
@@ -97,10 +104,10 @@ public class TaskResultsService extends AbstractComponent {
                 }
             });
         } else {
-            IndexMetaData metaData = state.getMetaData().index(TASK_RESULT_INDEX);
-            if (metaData.getMappings().containsKey(TASK_RESULT_TYPE) == false) {
+            IndexMetaData metaData = state.getMetaData().index(TASK_INDEX);
+            if (metaData.getMappings().containsKey(TASK_TYPE) == false) {
                 // The index already exists but doesn't have our mapping
-                client.admin().indices().preparePutMapping(TASK_RESULT_INDEX).setType(TASK_RESULT_TYPE).setSource(taskResultIndexMapping())
+                client.admin().indices().preparePutMapping(TASK_INDEX).setType(TASK_TYPE).setSource(taskResultIndexMapping())
                     .execute(new ActionListener<PutMappingResponse>() {
                                  @Override
                                  public void onResponse(PutMappingResponse putMappingResponse) {
@@ -120,20 +127,25 @@ public class TaskResultsService extends AbstractComponent {
     }
 
 
-    private void doPersist(TaskResult taskResult, ActionListener<Void> listener) {
-        client.prepareIndex(TASK_RESULT_INDEX, TASK_RESULT_TYPE, taskResult.getTaskId().toString()).setSource(taskResult.getResult())
-            .execute(new ActionListener<IndexResponse>() {
-                @Override
-                public void onResponse(IndexResponse indexResponse) {
-                    listener.onResponse(null);
-                }
+    private void doPersist(PersistedTaskInfo taskResult, ActionListener<Void> listener) {
+        IndexRequestBuilder index = client.prepareIndex(TASK_INDEX, TASK_TYPE, taskResult.getTask().getTaskId().toString());
+        try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
+            taskResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            index.setSource(builder);
+        } catch (IOException e) {
+            throw new ElasticsearchException("Couldn't convert task result to XContent for [{}]", e, taskResult.getTask());
+        }
+        index.execute(new ActionListener<IndexResponse>() {
+            @Override
+            public void onResponse(IndexResponse indexResponse) {
+                listener.onResponse(null);
+            }
 
-                @Override
-                public void onFailure(Throwable e) {
-                    listener.onFailure(e);
-                }
-            });
-
+            @Override
+            public void onFailure(Throwable e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     private Settings taskResultIndexSettings() {

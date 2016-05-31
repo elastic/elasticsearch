@@ -57,7 +57,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
 
     private final Map<TaskId, String> banedParents = new ConcurrentHashMap<>();
 
-    private TaskResultsService taskResultsService;
+    private TaskPersistenceService taskResultsService;
 
     private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 
@@ -65,7 +65,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
         super(settings);
     }
 
-    public void setTaskResultsService(TaskResultsService taskResultsService) {
+    public void setTaskResultsService(TaskPersistenceService taskResultsService) {
         assert this.taskResultsService == null;
         this.taskResultsService = taskResultsService;
     }
@@ -145,14 +145,14 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
     /**
      * Stores the task failure
      */
-    public <Response extends  ActionResponse> void persistResult(Task task, Throwable error, ActionListener<Response> listener) {
+    public <Response extends ActionResponse> void persistResult(Task task, Throwable error, ActionListener<Response> listener) {
         DiscoveryNode localNode = lastDiscoveryNodes.getLocalNode();
         if (localNode == null) {
             // too early to persist anything, shouldn't really be here - just pass the error along
             listener.onFailure(error);
             return;
         }
-        final TaskResult taskResult;
+        final PersistedTaskInfo taskResult;
         try {
             taskResult = task.result(localNode, error);
         } catch (IOException ex) {
@@ -177,7 +177,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
     /**
      * Stores the task result
      */
-    public <Response extends  ActionResponse> void persistResult(Task task, Response response, ActionListener<Response> listener) {
+    public <Response extends ActionResponse> void persistResult(Task task, Response response, ActionListener<Response> listener) {
         DiscoveryNode localNode = lastDiscoveryNodes.getLocalNode();
         if (localNode == null) {
             // too early to persist anything, shouldn't really be here - just pass the response along
@@ -185,7 +185,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
             listener.onResponse(response);
             return;
         }
-        final TaskResult taskResult;
+        final PersistedTaskInfo taskResult;
         try {
             taskResult = task.result(localNode, response);
         } catch (IOException ex) {

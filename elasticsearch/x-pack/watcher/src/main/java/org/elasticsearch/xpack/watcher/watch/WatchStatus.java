@@ -19,7 +19,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.throttler.AckThrottler;
-import org.elasticsearch.xpack.watcher.support.clock.SystemClock;
+import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherXContentParser;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;

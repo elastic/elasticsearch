@@ -9,7 +9,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.xpack.watcher.support.clock.Clock;
+import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.trigger.AbstractTriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.joda.time.DateTime;

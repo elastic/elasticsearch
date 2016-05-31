@@ -12,9 +12,6 @@ import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.execution.ExecutionModule;
 import org.elasticsearch.xpack.watcher.execution.SyncTriggerListener;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutor;
-import org.elasticsearch.xpack.watcher.support.clock.Clock;
-import org.elasticsearch.xpack.watcher.support.clock.ClockMock;
-import org.elasticsearch.xpack.watcher.support.clock.ClockModule;
 import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.xpack.watcher.trigger.TriggerModule;
 import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEngine;
@@ -49,10 +46,6 @@ public class TimeWarpedWatcher extends Watcher {
                 // replacing scheduler module so we'll
                 // have control on when it fires a job
                 modules.set(i, new MockTriggerModule(settings));
-            } else if (module instanceof ClockModule) {
-                // replacing the clock module so we'll be able
-                // to control time in tests
-                modules.set(i, new MockClockModule());
             } else if (module instanceof ExecutionModule) {
                 // replacing the execution module so all the watches will be
                 // executed on the same thread as the trigger engine
@@ -73,14 +66,6 @@ public class TimeWarpedWatcher extends Watcher {
         protected void registerStandardEngines() {
             registerEngine(ScheduleTriggerEngineMock.class);
             registerEngine(ManualTriggerEngine.class);
-        }
-    }
-
-    public static class MockClockModule extends ClockModule {
-        @Override
-        protected void configure() {
-            bind(ClockMock.class).asEagerSingleton();
-            bind(Clock.class).to(ClockMock.class);
         }
     }
 

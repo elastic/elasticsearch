@@ -42,7 +42,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
     }
 
     public DateTimeZone timeZone() {
-        return config.timeZone;
+        return config.timezone();
         }
 
     @Override

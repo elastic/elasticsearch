@@ -44,9 +44,11 @@ final class RefreshListeners implements EngineCreationListener, ReferenceManager
     private final Executor listenerExecutor;
 
     /**
-     * List of refresh listeners. Built new any time any entries are removed from it. Always modified while synchronized on {@code this}.
+     * List of refresh listeners. Defaults to null and built on demand because most refresh cycles won't need it. Entries are never removed
+     * from it, rather, it is nulled and rebuilt when needed again. The (hopefully) rare entries that didn't make the current refresh cycle
+     * are just added back to the new list. Both the reference and the contents are always modified while synchronized on {@code this}.
      */
-    private volatile List<Tuple<Translog.Location, Consumer<Boolean>>> refreshListeners = new ArrayList<>();
+    private volatile List<Tuple<Translog.Location, Consumer<Boolean>>> refreshListeners = null;
     /**
      * The translog location that was last made visible by a refresh.
      */
@@ -68,15 +70,18 @@ final class RefreshListeners implements EngineCreationListener, ReferenceManager
      */
     public void addOrNotify(Translog.Location location, Consumer<Boolean> listener) {
         requireNonNull(listener, "listener cannot be null");
-        Translog.Location listenerLocation = requireNonNull(location, "location cannot be null");
+        requireNonNull(location, "location cannot be null");
 
         Translog.Location lastRefresh = lastRefreshedLocation;
-        if (lastRefresh != null && lastRefresh.compareTo(listenerLocation) >= 0) {
+        if (lastRefresh != null && lastRefresh.compareTo(location) >= 0) {
             // Location already visible, just call the listener
             listener.accept(false);
             return;
         }
         synchronized (this) {
+            if (refreshListeners == null) {
+                refreshListeners = new ArrayList<>();
+            }
             if (refreshListeners.size() < getMaxRefreshListeners.getAsInt()) {
                 // We have a free slot so register the listener
                 refreshListeners.add(new Tuple<>(location, listener));
@@ -122,23 +127,46 @@ final class RefreshListeners implements EngineCreationListener, ReferenceManager
          */
         lastRefreshedLocation = currentRefreshLocation;
         /*
-         * Now pop all listeners off the front of refreshListeners that are ready to be called. The listeners won't always be in order
-         * but they should be pretty close because you don't listen to times super far in the future. This prevents us from having to
-         * iterate over the whole queue on every refresh at the cost of some requests having to wait an extra cycle if they get stuck
-         * behind a request that missed the refresh cycle.
+         * Grab the current refresh listeners and replace them with a new list while synchronized. Any listeners that come in after this
+         * won't be in the list we iterate over and very likely won't be candidates for refresh anyway because we've already moved the
+         * lastRefreshedLocation.
          */
-        List<Tuple<Translog.Location, Consumer<Boolean>>> newRefreshListeners = new ArrayList<>();
+        List<Tuple<Translog.Location, Consumer<Boolean>>> candidates;
         synchronized (this) {
-            for (Tuple<Translog.Location, Consumer<Boolean>> tuple : refreshListeners) {
-                Translog.Location location = tuple.v1();
-                if (location.compareTo(currentRefreshLocation) > 0) {
-                    newRefreshListeners.add(tuple);
-                } else {
-                    Consumer<Boolean> listener = tuple.v2();
-                    listenerExecutor.execute(() -> listener.accept(false));
-                }
+            candidates = refreshListeners;
+            // No listeners to check so just bail early
+            if (candidates == null) {
+                return;
             }
-            refreshListeners = newRefreshListeners;
+            refreshListeners = null;
+        }
+        /*
+         * Iterate the list of listeners, preserving the ones that we couldn't fire in a new list. We expect to fire most of them so this
+         * copying should be minimial. Much less overhead than removing all of the fired ones from the list.
+         */
+        List<Tuple<Translog.Location, Consumer<Boolean>>> preservedListeners = null;
+        for (Tuple<Translog.Location, Consumer<Boolean>> tuple : candidates) {
+            Translog.Location location = tuple.v1();
+            Consumer<Boolean> listener = tuple.v2();
+            if (location.compareTo(currentRefreshLocation) <= 0) {
+                listenerExecutor.execute(() -> listener.accept(false));
+            } else {
+                if (preservedListeners == null) {
+                    preservedListeners = new ArrayList<>();
+                }
+                preservedListeners.add(tuple);
+            }
+        }
+        /*
+         * Now add any preserved listeners back to the running list of refresh listeners. We'll try them next time.
+         */
+        if (preservedListeners != null) {
+            synchronized (this) {
+                if (refreshListeners == null) {
+                    refreshListeners = new ArrayList<>();
+                }
+                refreshListeners.addAll(preservedListeners);
+            }
         }
     }
 }

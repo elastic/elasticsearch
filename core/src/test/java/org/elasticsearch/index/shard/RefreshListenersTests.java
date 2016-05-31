@@ -154,7 +154,7 @@ public class RefreshListenersTests extends ESTestCase {
         listeners.addOrNotify(index.getTranslogLocation(), forcingListener);
         assertTrue("Forced listener wasn't forced?", forcingListener.forcedRefresh.get());
 
-        // That forces all the listeners through. On the listener thread pool so give them some time with assertBusy.
+        // That forces all the listeners through. It would be on the listener ThreadPool but we've made all of those execute immediately.
         for (DummyRefreshListener listener : nonForcedListeners) {
             assertEquals("Expected listener called with unforced refresh!", Boolean.FALSE, listener.forcedRefresh.get());
         }

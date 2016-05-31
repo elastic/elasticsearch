@@ -169,6 +169,34 @@ public class MoreExpressionTests extends ESIntegTestCase {
         assertEquals(1985.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(1983.0, hits.getAt(1).field("foo").getValue(), 0.0D);
     }
+    
+    public void testDateObjectMethods() throws Exception {
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "date0", "type=date", "date1", "type=date"));
+        ensureGreen("test");
+        indexRandom(true,
+                client().prepareIndex("test", "doc", "1").setSource("date0", "2015-04-28T04:02:07Z", "date1", "1985-09-01T23:11:01Z"),
+                client().prepareIndex("test", "doc", "2").setSource("date0", "2013-12-25T11:56:45Z", "date1", "1983-10-13T23:15:00Z"));
+        SearchResponse rsp = buildRequest("doc['date0'].date.secondOfMinute - doc['date0'].date.minuteOfHour").get();
+        assertEquals(2, rsp.getHits().getTotalHits());
+        SearchHits hits = rsp.getHits();
+        assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(-11.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+        rsp = buildRequest("doc['date0'].date.getHourOfDay() + doc['date1'].date.dayOfMonth").get();
+        assertEquals(2, rsp.getHits().getTotalHits());
+        hits = rsp.getHits();
+        assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(24.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+        rsp = buildRequest("doc['date1'].date.monthOfYear + 1").get();
+        assertEquals(2, rsp.getHits().getTotalHits());
+        hits = rsp.getHits();
+        assertEquals(10.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(11.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+        rsp = buildRequest("doc['date1'].date.year").get();
+        assertEquals(2, rsp.getHits().getTotalHits());
+        hits = rsp.getHits();
+        assertEquals(1985.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(1983.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+    }
 
     public void testMultiValueMethods() throws Exception {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "double0", "type=double", "double1", "type=double", "double2", "type=double"));

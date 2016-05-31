@@ -79,7 +79,8 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
 
     /**
      * notifies the service of a local checkpoint. if the checkpoint is lower than the currently known one,
-     * this is a noop. Last, if the allocation id is not yet known, it is added to {@link #trackingLocalCheckpoint}
+     * this is a noop. Last, if the allocation id is not yet known, it is ignored. This to prevent late
+     * arrivals from shards that are removed to be re-added.
      */
     synchronized public void updateLocalCheckpoint(String allocationId, long localCheckpoint) {
         if (updateLocalCheckpointInMap(allocationId, localCheckpoint, activeLocalCheckpoints, "active")) {
@@ -91,8 +92,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
         if (updateLocalCheckpointInMap(allocationId, localCheckpoint, trackingLocalCheckpoint, "tracking")) {
             return;
         }
-        trackingLocalCheckpoint.put(allocationId, localCheckpoint);
-        logger.trace("added local checkpoint of [{}] ([{}]) to the tracking map", allocationId, localCheckpoint);
+        logger.trace("local checkpoint of [{}] ([{}]) wasn't found in any map. ignoring.", allocationId, localCheckpoint);
     }
 
     private boolean updateLocalCheckpointInMap(String allocationId, long localCheckpoint,
@@ -197,6 +197,18 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
         }
         inSyncLocalCheckpoints.removeAll(key -> initializingAllocationIds.contains(key) == false);
         trackingLocalCheckpoint.removeAll(key -> initializingAllocationIds.contains(key) == false);
+        // add initializing shards to tracking
+        for (String initID : initializingAllocationIds) {
+            if (inSyncLocalCheckpoints.containsKey(initID)) {
+                continue;
+            }
+            if (trackingLocalCheckpoint.containsKey(initID)) {
+                continue;
+            }
+            trackingLocalCheckpoint.put(initID, SequenceNumbersService.UNASSIGNED_SEQ_NO);
+            logger.trace("added [{}] the tracking map due to a CS update", initID);
+
+        }
     }
 
     /**
@@ -207,11 +219,27 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
      * @param localCheckpoint the local checkpoint of the shard in question
      */
     synchronized public void markAllocationIdAsInSync(String allocationId, long localCheckpoint) {
-        if (trackingLocalCheckpoint.containsKey(allocationId)) {
-            long current = trackingLocalCheckpoint.remove(allocationId);
-            localCheckpoint = Math.max(current, localCheckpoint);
+        if (trackingLocalCheckpoint.containsKey(allocationId) == false) {
+            // master have change it's mind and removed this allocation, ignore.
+            return;
         }
+        long current = trackingLocalCheckpoint.remove(allocationId);
+        localCheckpoint = Math.max(current, localCheckpoint);
         logger.trace("marked [{}] as in sync with a local checkpoint of [{}]", allocationId, localCheckpoint);
         inSyncLocalCheckpoints.put(allocationId, localCheckpoint);
+    }
+
+    // for testing
+    synchronized long getLocalCheckpointForAllocation(String allocationId) {
+        if (activeLocalCheckpoints.containsKey(allocationId)) {
+            return activeLocalCheckpoints.get(allocationId);
+        }
+        if (inSyncLocalCheckpoints.containsKey(allocationId)) {
+            return inSyncLocalCheckpoints.get(allocationId);
+        }
+        if (trackingLocalCheckpoint.containsKey(allocationId)) {
+            return trackingLocalCheckpoint.get(allocationId);
+        }
+        return SequenceNumbersService.UNASSIGNED_SEQ_NO;
     }
 }

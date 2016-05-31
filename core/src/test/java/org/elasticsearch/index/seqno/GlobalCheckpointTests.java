@@ -45,7 +45,7 @@ public class GlobalCheckpointTests extends ESTestCase {
     }
 
     public void testEmptyShards() {
-        assertFalse("no started shards means we should update the checkpoint",checkpointService.updateCheckpointOnPrimary());
+        assertFalse("no started shards means we should update the checkpoint", checkpointService.updateCheckpointOnPrimary());
         assertThat(checkpointService.getCheckpoint(), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
     }
 
@@ -71,7 +71,7 @@ public class GlobalCheckpointTests extends ESTestCase {
         }
 
         if (maxLocalCheckpoint == Long.MAX_VALUE) {
-            // note: this state can not happen in practice as we always have at least one primary shard active
+            // note: this state can not happen in practice as we always have at least one primary shard active/in sync
             // it is however nice not to assume this on this level and check we do the right thing.
             maxLocalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
         }
@@ -96,21 +96,15 @@ public class GlobalCheckpointTests extends ESTestCase {
         Set<String> initializing = new HashSet<>(insync);
         initializing.addAll(tracking);
 
-        if (randomBoolean()) {
-            // first update checkpoint of ids, then local check points
-            checkpointService.updateAllocationIdsFromMaster(active, initializing);
-            allocations.keySet().stream().forEach(aId -> checkpointService.updateLocalCheckpoint(aId, allocations.get(aId)));
-        } else {
-            allocations.keySet().stream().forEach(aId -> checkpointService.updateLocalCheckpoint(aId, allocations.get(aId)));
-            checkpointService.updateAllocationIdsFromMaster(active, initializing);
-        }
+        checkpointService.updateAllocationIdsFromMaster(active, initializing);
+        allocations.keySet().stream().forEach(aId -> checkpointService.updateLocalCheckpoint(aId, allocations.get(aId)));
 
         // make sure insync allocation count
         insync.stream().forEach(aId -> checkpointService.markAllocationIdAsInSync(aId, randomBoolean() ? 0 : allocations.get(aId)));
 
         assertThat(checkpointService.getCheckpoint(), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
 
-        assertTrue(checkpointService.updateCheckpointOnPrimary());
+        assertThat(checkpointService.updateCheckpointOnPrimary(), equalTo(maxLocalCheckpoint != SequenceNumbersService.UNASSIGNED_SEQ_NO));
         assertThat(checkpointService.getCheckpoint(), equalTo(maxLocalCheckpoint));
 
         // increment checkpoints
@@ -118,8 +112,12 @@ public class GlobalCheckpointTests extends ESTestCase {
         insync.stream().forEach(aId -> allocations.put(aId, allocations.get(aId) + 1 + randomInt(4)));
         allocations.keySet().stream().forEach(aId -> checkpointService.updateLocalCheckpoint(aId, allocations.get(aId)));
 
-        // now insert an unknown active/insycn id , the checkpoint shouldn't change but a refresh should be requested.
+        // now insert an unknown active/insync id , the checkpoint shouldn't change but a refresh should be requested.
         final String extraId = "extra_" + randomAsciiOfLength(5);
+
+        // first check that adding it without the master blessing doesn't change anything.
+        checkpointService.updateLocalCheckpoint(extraId, maxLocalCheckpoint + 1 + randomInt(4));
+        assertThat(checkpointService.getLocalCheckpointForAllocation(extraId), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
 
         Set<String> newActive = new HashSet<>(active);
         newActive.add(extraId);

@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.shard.ShardId;
@@ -474,13 +475,9 @@ public class AllocationService extends AbstractComponent {
                     if (startedShard.relocatingNodeId() != null) {
                         // relocation target has been started, remove relocation source
                         RoutingNode relocationSourceNode = routingNodes.node(startedShard.relocatingNodeId());
-                        if (relocationSourceNode != null) {
-                            ShardRouting relocationSourceShard = relocationSourceNode.getByShardId(startedShard.shardId());
-                            if (relocationSourceShard != null && relocationSourceShard.isRelocationSourceOf(startedShard)) {
-                                dirty = true;
-                                routingNodes.remove(relocationSourceShard);
-                            }
-                        }
+                        ShardRouting relocationSourceShard = relocationSourceNode.getByShardId(startedShard.shardId());
+                        assert relocationSourceShard.isRelocationSourceOf(startedShard);
+                        routingNodes.remove(relocationSourceShard);
                     }
                 }
             }
@@ -526,54 +523,47 @@ public class AllocationService extends AbstractComponent {
             allocation.addIgnoreShardForNode(failedShard.shardId(), failedShard.currentNodeId());
         }
 
-        if (failedShard.relocatingNodeId() != null && failedShard.initializing()) {
-            // The shard is a target of a relocating shard. In that case we only
-            // need to remove the target shard and cancel the source relocation.
-            // No shard is left unassigned
-            logger.trace("{} is a relocation target, resolving source to cancel relocation ({})", failedShard, unassignedInfo.shortSummary());
-            RoutingNode relocatingFromNode = routingNodes.node(failedShard.relocatingNodeId());
-            if (relocatingFromNode != null) {
-                ShardRouting shardRouting = relocatingFromNode.getByShardId(failedShard.shardId());
-                if (shardRouting != null && shardRouting.isRelocationSourceOf(failedShard)) {
-                    logger.trace("{}, resolved source to [{}]. canceling relocation ... ({})", failedShard.shardId(), shardRouting, unassignedInfo.shortSummary());
-                    routingNodes.cancelRelocation(shardRouting);
-                }
-            }
-
-            routingNodes.remove(failedShard);
-        } else {
-            // The fail shard is the main copy of the current shard routing.
-            boolean moveToUnassigned = true;
-            if (failedShard.relocatingNodeId() != null) {
-                // now, find the shard that is initializing on the target node
-                assert failedShard.relocating();
-
-                RoutingNode targetNode = routingNodes.node(failedShard.relocatingNodeId());
-                if (targetNode != null) {
-                    ShardRouting targetShard = targetNode.getByShardId(failedShard.shardId());
-                    if (targetShard != null && targetShard.isRelocationTargetOf(failedShard)) {
-                        if (failedShard.primary()) {
-                            logger.trace("{} is removed due to the failure of the source shard", targetShard);
-                            // cancel and remove target shard
-                            routingNodes.remove(targetShard);
-                        } else {
-                            logger.trace("{}, relocation source failed, mark as initializing without relocation source", targetShard);
-                            // promote to initializing shard without relocation source and ensure that removed relocation source
-                            // is not added back as unassigned shard
-                            routingNodes.removeRelocationSource(targetShard);
-                            moveToUnassigned = false;
-                        }
-                    }
-                }
-            }
-            if (moveToUnassigned) {
-                routingNodes.moveToUnassigned(failedShard, unassignedInfo);
-            } else {
-                routingNodes.remove(failedShard);
-            }
-        }
+        cancelShard(logger, failedShard, unassignedInfo, routingNodes);
         assert matchedNode.getByShardId(failedShard.shardId()) == null : "failedShard " + failedShard + " was matched but wasn't removed";
         return true;
+    }
+
+    public static void cancelShard(ESLogger logger, ShardRouting cancelledShard, UnassignedInfo unassignedInfo, RoutingNodes routingNodes) {
+        if (cancelledShard.relocatingNodeId() == null) {
+            routingNodes.moveToUnassigned(cancelledShard, unassignedInfo);
+        } else {
+            if (cancelledShard.initializing()) {
+                // The shard is a target of a relocating shard. In that case we only
+                // need to remove the target shard and cancel the source relocation.
+                // No shard is left unassigned
+                logger.trace("{} is a relocation target, resolving source to cancel relocation ({})", cancelledShard, unassignedInfo.shortSummary());
+                RoutingNode sourceNode = routingNodes.node(cancelledShard.relocatingNodeId());
+                ShardRouting sourceShard = sourceNode.getByShardId(cancelledShard.shardId());
+                assert sourceShard.isRelocationSourceOf(cancelledShard);
+                logger.trace("{}, resolved source to [{}]. canceling relocation ... ({})", cancelledShard.shardId(), sourceShard, unassignedInfo.shortSummary());
+                routingNodes.cancelRelocation(sourceShard);
+                routingNodes.remove(cancelledShard);
+            } else {
+                assert cancelledShard.relocating();
+                // The cancelled shard is the main copy of the current shard routing.
+                // now, find the shard that is initializing on the target node
+                RoutingNode targetNode = routingNodes.node(cancelledShard.relocatingNodeId());
+                ShardRouting targetShard = targetNode.getByShardId(cancelledShard.shardId());
+                assert targetShard.isRelocationTargetOf(cancelledShard);
+                if (cancelledShard.primary()) {
+                    logger.trace("{} is removed due to the failure/cancellation of the source shard", targetShard);
+                    // cancel and remove target shard
+                    routingNodes.remove(targetShard);
+                    routingNodes.moveToUnassigned(cancelledShard, unassignedInfo);
+                } else {
+                    logger.trace("{}, relocation source failed / cancelled, mark as initializing without relocation source", targetShard);
+                    // promote to initializing shard without relocation source and ensure that removed relocation source
+                    // is not added back as unassigned shard
+                    routingNodes.removeRelocationSource(targetShard);
+                    routingNodes.remove(cancelledShard);
+                }
+            }
+        }
     }
 
     private RoutingNodes getMutableRoutingNodes(ClusterState clusterState) {

@@ -24,7 +24,6 @@ import org.elasticsearch.common.recycler.Recycler.V;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;
@@ -60,8 +59,8 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     private final Random random;
 
     @Inject
-    public MockPageCacheRecycler(Settings settings, ThreadPool threadPool) {
-        super(settings, threadPool);
+    public MockPageCacheRecycler(Settings settings) {
+        super(settings);
         // we always initialize with 0 here since we really only wanna have some random bytes / ints / longs
         // and given the fact that it's called concurrently it won't reproduces anyway the same order other than in a unittest
         // for the latter 0 is just fine

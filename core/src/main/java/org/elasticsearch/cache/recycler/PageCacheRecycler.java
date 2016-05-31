@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Locale;
@@ -70,25 +69,12 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
         objectPage.close();
     }
 
-    private static int maximumSearchThreadPoolSize(ThreadPool threadPool, Settings settings) {
-        ThreadPool.Info searchThreadPool = threadPool.info(ThreadPool.Names.SEARCH);
-        assert searchThreadPool != null;
-        final int maxSize = searchThreadPool.getMax();
-        if (maxSize <= 0) {
-            // happens with cached thread pools, let's assume there are at most 2x ${number of processors} threads
-            return 2 * EsExecutors.boundedNumberOfProcessors(settings);
-        } else {
-            return maxSize;
-        }
-    }
-
     @Inject
-    public PageCacheRecycler(Settings settings, ThreadPool threadPool) {
+    public PageCacheRecycler(Settings settings) {
         super(settings);
         final Type type = TYPE_SETTING .get(settings);
         final long limit = LIMIT_HEAP_SETTING .get(settings).bytes();
         final int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
-        final int searchThreadPoolSize = maximumSearchThreadPoolSize(threadPool, settings);
 
         // We have a global amount of memory that we need to divide across data types.
         // Since some types are more useful than other ones we give them different weights.
@@ -112,7 +98,7 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
         final int maxPageCount = (int) Math.min(Integer.MAX_VALUE, limit / BigArrays.PAGE_SIZE_IN_BYTES);
 
         final int maxBytePageCount = (int) (bytesWeight * maxPageCount / totalWeight);
-        bytePage = build(type, maxBytePageCount, searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<byte[]>() {
+        bytePage = build(type, maxBytePageCount, availableProcessors, new AbstractRecyclerC<byte[]>() {
             @Override
             public byte[] newInstance(int sizing) {
                 return new byte[BigArrays.BYTE_PAGE_SIZE];
@@ -124,7 +110,7 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
         });
 
         final int maxIntPageCount = (int) (intsWeight * maxPageCount / totalWeight);
-        intPage = build(type, maxIntPageCount, searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<int[]>() {
+        intPage = build(type, maxIntPageCount, availableProcessors, new AbstractRecyclerC<int[]>() {
             @Override
             public int[] newInstance(int sizing) {
                 return new int[BigArrays.INT_PAGE_SIZE];
@@ -136,7 +122,7 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
         });
 
         final int maxLongPageCount = (int) (longsWeight * maxPageCount / totalWeight);
-        longPage = build(type, maxLongPageCount, searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<long[]>() {
+        longPage = build(type, maxLongPageCount, availableProcessors, new AbstractRecyclerC<long[]>() {
             @Override
             public long[] newInstance(int sizing) {
                 return new long[BigArrays.LONG_PAGE_SIZE];
@@ -148,7 +134,7 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
         });
 
         final int maxObjectPageCount = (int) (objectsWeight * maxPageCount / totalWeight);
-        objectPage = build(type, maxObjectPageCount, searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<Object[]>() {
+        objectPage = build(type, maxObjectPageCount, availableProcessors, new AbstractRecyclerC<Object[]>() {
             @Override
             public Object[] newInstance(int sizing) {
                 return new Object[BigArrays.OBJECT_PAGE_SIZE];
@@ -191,12 +177,12 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
         return objectPage.obtain();
     }
 
-    private static <T> Recycler<T> build(Type type, int limit, int estimatedThreadPoolSize, int availableProcessors, Recycler.C<T> c) {
+    private static <T> Recycler<T> build(Type type, int limit, int availableProcessors, Recycler.C<T> c) {
         final Recycler<T> recycler;
         if (limit == 0) {
             recycler = none(c);
         } else {
-            recycler = type.build(c, limit, estimatedThreadPoolSize, availableProcessors);
+            recycler = type.build(c, limit, availableProcessors);
         }
         return recycler;
     }
@@ -204,19 +190,19 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
     public enum Type {
         QUEUE {
             @Override
-            <T> Recycler<T> build(Recycler.C<T> c, int limit, int estimatedThreadPoolSize, int availableProcessors) {
+            <T> Recycler<T> build(Recycler.C<T> c, int limit, int availableProcessors) {
                 return concurrentDeque(c, limit);
             }
         },
         CONCURRENT {
             @Override
-            <T> Recycler<T> build(Recycler.C<T> c, int limit, int estimatedThreadPoolSize, int availableProcessors) {
+            <T> Recycler<T> build(Recycler.C<T> c, int limit, int availableProcessors) {
                 return concurrent(dequeFactory(c, limit / availableProcessors), availableProcessors);
             }
         },
         NONE {
             @Override
-            <T> Recycler<T> build(Recycler.C<T> c, int limit, int estimatedThreadPoolSize, int availableProcessors) {
+            <T> Recycler<T> build(Recycler.C<T> c, int limit, int availableProcessors) {
                 return none(c);
             }
         };
@@ -229,6 +215,6 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
             }
         }
 
-        abstract <T> Recycler<T> build(Recycler.C<T> c, int limit, int estimatedThreadPoolSize, int availableProcessors);
+        abstract <T> Recycler<T> build(Recycler.C<T> c, int limit, int availableProcessors);
     }
 }

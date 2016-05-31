@@ -134,7 +134,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
     }
 
     private NettyTransport startNettyTransport(Settings settings, ThreadPool threadPool) {
-        BigArrays bigArrays = new MockBigArrays(new PageCacheRecycler(settings, threadPool), new NoneCircuitBreakerService());
+        BigArrays bigArrays = new MockBigArrays(new PageCacheRecycler(settings), new NoneCircuitBreakerService());
 
         NettyTransport nettyTransport = new NettyTransport(settings, threadPool, new NetworkService(settings), bigArrays, Version.CURRENT,
             new NamedWriteableRegistry(), new NoneCircuitBreakerService());

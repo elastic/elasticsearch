@@ -76,7 +76,7 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
     public void setup() throws Exception {
         networkService = new NetworkService(Settings.EMPTY);
         threadPool = new ThreadPool("test");
-        mockPageCacheRecycler = new MockPageCacheRecycler(Settings.EMPTY, threadPool);
+        mockPageCacheRecycler = new MockPageCacheRecycler(Settings.EMPTY);
         bigArrays = new MockBigArrays(mockPageCacheRecycler, new NoneCircuitBreakerService());
     }
 

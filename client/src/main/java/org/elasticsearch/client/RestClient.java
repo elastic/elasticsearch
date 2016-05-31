@@ -30,9 +30,11 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpOptions;
+import org.apache.http.client.methods.HttpPatch;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.client.methods.HttpTrace;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -160,8 +162,7 @@ public final class RestClient implements Closeable {
                 lastSeenException = addSuppressedException(lastSeenException, e);
                 continue;
             }
-            ElasticsearchResponse elasticsearchResponse = new ElasticsearchResponse(request.getRequestLine(),
-                    host, response);
+            ElasticsearchResponse elasticsearchResponse = new ElasticsearchResponse(request.getRequestLine(), host, response);
             int statusCode = response.getStatusLine().getStatusCode();
             if (statusCode < 300 || (request.getMethod().equals(HttpHead.METHOD_NAME) && statusCode == 404) ) {
                 RequestLogger.log(logger, "request succeeded", request, host, response);
@@ -288,40 +289,37 @@ public final class RestClient implements Closeable {
     private static HttpRequestBase createHttpRequest(String method, URI uri, HttpEntity entity) {
         switch(method.toUpperCase(Locale.ROOT)) {
             case HttpDeleteWithEntity.METHOD_NAME:
-                HttpDeleteWithEntity httpDeleteWithEntity = new HttpDeleteWithEntity(uri);
-                addRequestBody(httpDeleteWithEntity, entity);
-                return httpDeleteWithEntity;
+                return addRequestBody(new HttpDeleteWithEntity(uri), entity);
             case HttpGetWithEntity.METHOD_NAME:
-                HttpGetWithEntity httpGetWithEntity = new HttpGetWithEntity(uri);
-                addRequestBody(httpGetWithEntity, entity);
-                return httpGetWithEntity;
+                return addRequestBody(new HttpGetWithEntity(uri), entity);
             case HttpHead.METHOD_NAME:
-                if (entity != null) {
-                    throw new UnsupportedOperationException("HEAD with body is not supported");
-                }
-                return new HttpHead(uri);
+                return addRequestBody(new HttpHead(uri), entity);
             case HttpOptions.METHOD_NAME:
-                if (entity != null) {
-                    throw new UnsupportedOperationException("OPTIONS with body is not supported");
-                }
-                return new HttpOptions(uri);
+                return addRequestBody(new HttpOptions(uri), entity);
+            case HttpPatch.METHOD_NAME:
+                return addRequestBody(new HttpPatch(uri), entity);
             case HttpPost.METHOD_NAME:
                 HttpPost httpPost = new HttpPost(uri);
                 addRequestBody(httpPost, entity);
                 return httpPost;
             case HttpPut.METHOD_NAME:
-                HttpPut httpPut = new HttpPut(uri);
-                addRequestBody(httpPut, entity);
-                return httpPut;
+                return addRequestBody(new HttpPut(uri), entity);
+            case HttpTrace.METHOD_NAME:
+                return addRequestBody(new HttpTrace(uri), entity);
             default:
                 throw new UnsupportedOperationException("http method not supported: " + method);
         }
     }
 
-    private static void addRequestBody(HttpEntityEnclosingRequestBase httpRequest, HttpEntity entity) {
+    private static HttpRequestBase addRequestBody(HttpRequestBase httpRequest, HttpEntity entity) {
         if (entity != null) {
-            httpRequest.setEntity(entity);
+            if (httpRequest instanceof HttpEntityEnclosingRequestBase) {
+                ((HttpEntityEnclosingRequestBase)httpRequest).setEntity(entity);
+            } else {
+                throw new UnsupportedOperationException(httpRequest.getMethod() + " with body is not supported");
+            }
         }
+        return httpRequest;
     }
 
     private static URI buildUri(String path, Map<String, String> params) {

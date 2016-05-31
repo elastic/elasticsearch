@@ -87,8 +87,6 @@ Will return, for example:
          "doc_values_memory_in_bytes": 744,
          "index_writer_memory": "0b",
          "index_writer_memory_in_bytes": 0,
-         "index_writer_max_memory": "2.5gb",
-         "index_writer_max_memory_in_bytes": 2684354560,
          "version_map_memory": "0b",
          "version_map_memory_in_bytes": 0,
          "fixed_bit_set": "0b",

@@ -503,7 +503,6 @@ public abstract class Engine implements Closeable {
         // by default we don't have a writer here... subclasses can override this
         stats.addVersionMapMemoryInBytes(0);
         stats.addIndexWriterMemoryInBytes(0);
-        stats.addIndexWriterMaxMemoryInBytes(0);
     }
 
     /** How much heap is used that would be freed by a refresh.  Note that this may throw {@link AlreadyClosedException}. */

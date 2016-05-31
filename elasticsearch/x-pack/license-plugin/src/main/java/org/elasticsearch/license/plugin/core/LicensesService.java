@@ -34,6 +34,7 @@ import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.LicenseVerifier;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
+import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -46,7 +47,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -251,13 +251,13 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
      * Registers new license in the cluster
      * Master only operation. Installs a new license on the master provided it is VALID
      */
-    public void registerLicense(final PutLicenseRequest request, final ActionListener<LicensesUpdateResponse> listener) {
+    public void registerLicense(final PutLicenseRequest request, final ActionListener<PutLicenseResponse> listener) {
         final License newLicense = request.license();
         final long now = System.currentTimeMillis();
         if (!verifyLicense(newLicense) || newLicense.issueDate() > now) {
-            listener.onResponse(new LicensesUpdateResponse(true, LicensesStatus.INVALID));
+            listener.onResponse(new PutLicenseResponse(true, LicensesStatus.INVALID));
         } else if (newLicense.expiryDate() < now) {
-            listener.onResponse(new LicensesUpdateResponse(true, LicensesStatus.EXPIRED));
+            listener.onResponse(new PutLicenseResponse(true, LicensesStatus.EXPIRED));
         } else {
             if (!request.acknowledged()) {
                 final LicensesMetaData currentMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
@@ -278,17 +278,17 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                     }
                     if (!acknowledgeMessages.isEmpty()) {
                         // needs acknowledgement
-                        listener.onResponse(new LicensesUpdateResponse(false, LicensesStatus.VALID, ACKNOWLEDGEMENT_HEADER,
+                        listener.onResponse(new PutLicenseResponse(false, LicensesStatus.VALID, ACKNOWLEDGEMENT_HEADER,
                                 acknowledgeMessages));
                         return;
                     }
                 }
             }
             clusterService.submitStateUpdateTask("register license [" + newLicense.uid() + "]", new
-                    AckedClusterStateUpdateTask<LicensesUpdateResponse>(request, listener) {
+                    AckedClusterStateUpdateTask<PutLicenseResponse>(request, listener) {
                 @Override
-                protected LicensesUpdateResponse newResponse(boolean acknowledged) {
-                    return new LicensesUpdateResponse(acknowledged, LicensesStatus.VALID);
+                protected PutLicenseResponse newResponse(boolean acknowledged) {
+                    return new PutLicenseResponse(acknowledged, LicensesStatus.VALID);
                 }
 
                 @Override
@@ -315,36 +315,6 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
     static TimeValue days(int days) {
         return TimeValue.timeValueHours(days * 24);
-    }
-
-    public static class LicensesUpdateResponse extends ClusterStateUpdateResponse {
-        private final LicensesStatus status;
-        private final String acknowledgementHeader;
-        private final Map<String, String[]> acknowledgeMessages;
-
-        public LicensesUpdateResponse(boolean acknowledged, LicensesStatus status) {
-            this(acknowledged, status, null, Collections.<String, String[]>emptyMap());
-        }
-
-        public LicensesUpdateResponse(boolean acknowledged, LicensesStatus status, String acknowledgementHeader,
-                                      Map<String, String[]> acknowledgeMessages) {
-            super(acknowledged);
-            this.status = status;
-            this.acknowledgeMessages = acknowledgeMessages;
-            this.acknowledgementHeader = acknowledgementHeader;
-        }
-
-        public LicensesStatus status() {
-            return status;
-        }
-
-        public String acknowledgementHeader() {
-            return acknowledgementHeader;
-        }
-
-        public Map<String, String[]> acknowledgeMessages() {
-            return acknowledgeMessages;
-        }
     }
 
     /**

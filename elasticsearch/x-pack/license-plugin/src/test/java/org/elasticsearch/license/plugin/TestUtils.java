@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
+import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
@@ -138,9 +139,9 @@ public class TestUtils {
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(license);
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<LicensesStatus> status = new AtomicReference<>();
-        licensesService.registerLicense(putLicenseRequest, new ActionListener<LicensesService.LicensesUpdateResponse>() {
+        licensesService.registerLicense(putLicenseRequest, new ActionListener<PutLicenseResponse>() {
             @Override
-            public void onResponse(LicensesService.LicensesUpdateResponse licensesUpdateResponse) {
+            public void onResponse(PutLicenseResponse licensesUpdateResponse) {
                 status.set(licensesUpdateResponse.status());
                 latch.countDown();
             }

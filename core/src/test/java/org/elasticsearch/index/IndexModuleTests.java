@@ -113,7 +113,7 @@ public class IndexModuleTests extends ESTestCase {
         // TODO this can be used in other place too - lets first refactor the IndicesQueriesRegistry
         ThreadPool threadPool = new ThreadPool("test");
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
-        PageCacheRecycler recycler = new PageCacheRecycler(settings, threadPool);
+        PageCacheRecycler recycler = new PageCacheRecycler(settings);
         BigArrays bigArrays = new BigArrays(recycler, circuitBreakerService);
         Set<ScriptEngineService> scriptEngines = Collections.emptySet();
         scriptEngines.addAll(Arrays.asList(scriptEngineServices));

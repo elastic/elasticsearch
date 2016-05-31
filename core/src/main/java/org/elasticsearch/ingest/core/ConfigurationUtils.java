@@ -250,6 +250,7 @@ public final class ConfigurationUtils {
     private static Processor readProcessor(ProcessorsRegistry processorRegistry, String type, Map<String, Object> config) throws Exception {
         Processor.Factory factory = processorRegistry.getProcessorFactory(type);
         if (factory != null) {
+            boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(null, null, config, "ignore_failure", false);
             List<Map<String, Map<String, Object>>> onFailureProcessorConfigs =
                 ConfigurationUtils.readOptionalList(null, null, config, Pipeline.ON_FAILURE_KEY);
 
@@ -260,10 +261,11 @@ public final class ConfigurationUtils {
                 throw new ElasticsearchParseException("processor [{}] doesn't support one or more provided configuration parameters {}",
                     type, Arrays.toString(config.keySet().toArray()));
             }
-            if (onFailureProcessors.isEmpty()) {
+            if (onFailureProcessors.size() > 0 || ignoreFailure) {
+                return new CompoundProcessor(ignoreFailure, Collections.singletonList(processor), onFailureProcessors);
+            } else {
                 return processor;
             }
-            return new CompoundProcessor(Collections.singletonList(processor), onFailureProcessors);
         }
         throw new ElasticsearchParseException("No processor type exists with name [" + type + "]");
     }

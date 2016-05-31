@@ -566,6 +566,30 @@ the index to which failed documents get sent.
 }
 --------------------------------------------------
 
+Alternatively instead of defining behaviour in case of processor failure, it is also possible
+to ignore a failure and continue with the next processor by specifying the `ignore_failure` setting.
+
+In case in the example below the field `foo` doesn't exist the failure will be caught and the pipeline
+continues to execute, which in this case means that the pipeline does nothing.
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "my first pipeline with handled exceptions",
+  "processors" : [
+    {
+      "rename" : {
+        "field" : "foo",
+        "target_field" : "bar",
+        "ignore_failure" : true
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+The `ignore_failure` can be set on any processor and defaults to `false`.
+
 [float]
 [[accessing-error-metadata]]
 === Accessing Error Metadata From Processors Handling Exceptions

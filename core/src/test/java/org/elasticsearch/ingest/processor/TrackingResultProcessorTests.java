@@ -91,8 +91,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
         RuntimeException exception = new RuntimeException("fail");
         TestProcessor failProcessor = new TestProcessor("fail", "test", ingestDocument -> {  throw exception; });
         TestProcessor onFailureProcessor = new TestProcessor("success", "test", ingestDocument -> {});
-        CompoundProcessor actualProcessor = new CompoundProcessor(
-            Arrays.asList(new CompoundProcessor(
+        CompoundProcessor actualProcessor = new CompoundProcessor(false,
+            Arrays.asList(new CompoundProcessor(false,
                 Arrays.asList(failProcessor, onFailureProcessor),
                 Arrays.asList(onFailureProcessor, failProcessor))),
                 Arrays.asList(onFailureProcessor));

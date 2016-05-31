@@ -114,7 +114,7 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent implements Aws
 
         AWSCredentialsProvider credentials;
 
-        if (key == null && secret == null) {
+        if (key.isEmpty() && secret.isEmpty()) {
             credentials = new AWSCredentialsProviderChain(
                     new EnvironmentVariableCredentialsProvider(),
                     new SystemPropertiesCredentialsProvider(),

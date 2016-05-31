@@ -32,7 +32,7 @@ import java.util.Set;
  * is the highest seq_no for which all lower (or equal) seq no have been process on all shards that
  * are currently active. Since shards count as "active" when the master starts them, and before this primary shard
  * has been notified of this fact, we also include shards in that are in the
- * {@link org.elasticsearch.index.shard.IndexShardState#POST_RECOVERY} state when checking for global check point advancement.
+ * {@link org.elasticsearch.index.shard.IndexShardState#POST_RECOVERY} state when checking for global checkpoint advancement.
  * We call these shards "in sync" with all operations on the primary (see {@link #inSyncLocalCheckpoints}.
  *
  * <p>
@@ -121,7 +121,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
     /**
      * Scans through the currently known local checkpoints and updates the global checkpoint accordingly.
      *
-     * @return true if the checkpoint has been updated or if it can not be updated since one of the local checkpoint
+     * @return true if the checkpoint has been updated or if it can not be updated since one of the local checkpoints
      * of one of the active allocations is not known.
      */
     synchronized public boolean updateCheckpointOnPrimary() {
@@ -170,7 +170,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
             logger.trace("global checkpoint updated from primary to [{}]", globalCheckpoint);
         } else {
             // nocommit: fail the shard?
-            throw new IllegalArgumentException("global check point from primary should never decrease. current [" +
+            throw new IllegalArgumentException("global checkpoint from primary should never decrease. current [" +
                 this.globalCheckpoint + "], got [" + globalCheckpoint + "]");
 
         }
@@ -213,7 +213,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
 
     /**
      * marks the allocationId as "in sync" with the primary shard. This should be called at the end of recovery
-     * where the primary knows all operation bellow the global check point have been completed on this shard.
+     * where the primary knows all operation bellow the global checkpoint have been completed on this shard.
      *
      * @param allocationId    allocationId of the recovering shard
      * @param localCheckpoint the local checkpoint of the shard in question

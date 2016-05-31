@@ -81,14 +81,14 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
             @Override
             public void onResponse(ReplicationResponse replicationResponse) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("{} global check point successfully updated (shard info [{}])", shardId,
+                    logger.trace("{} global checkpoint successfully updated (shard info [{}])", shardId,
                         replicationResponse.getShardInfo());
                 }
             }
 
             @Override
             public void onFailure(Throwable e) {
-                logger.debug("{} failed to update global check point", e, shardId);
+                logger.debug("{} failed to update global checkpoint", e, shardId);
             }
         });
     }

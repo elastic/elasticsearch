@@ -22,7 +22,6 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -96,9 +95,6 @@ public abstract class TransportWriteAction<
         public WriteResult(Response response, @Nullable Location location) {
             this.response = response;
             this.location = location;
-            // Set the ShardInfo to 0 so we can safely send it to the replicas
-            // NOCOMMIT this seems wrong
-            response.setShardInfo(new ShardInfo());
         }
 
         public Response getResponse() {

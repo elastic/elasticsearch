@@ -31,6 +31,7 @@ import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
+import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -327,6 +328,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         request.setPrimaryResponse(response);
         if (response.isFailed()) {
             request.setIgnoreOnReplica();
+        } else {
+            // Set the ShardInfo to 0 so we can safely send it to the replicas. We won't use it in the real response though.
+            response.getResponse().setShardInfo(new ShardInfo());
         }
     }
 

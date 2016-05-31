@@ -709,7 +709,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     }
 
     /**
-     * Get a reference to a replica shard. The reference is release as soon as
+     * Get a reference to a replica shard. The reference is released as soon as
      * replication is completed on the node.
      */
     protected ShardReference getReplicaShardReference(ShardId shardId, long primaryTerm) {

@@ -733,10 +733,10 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                         case CREATED:
                         case RECOVERING:
                         case CLOSED:
+                        case RELOCATED:
                             continue;
                         case POST_RECOVERY:
                         case STARTED:
-                        case RELOCATED:
                             try {
                                 shard.updateGlobalCheckpointOnPrimary();
                             } catch (EngineClosedException | AlreadyClosedException ex) {

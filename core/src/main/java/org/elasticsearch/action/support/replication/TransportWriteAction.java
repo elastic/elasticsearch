@@ -184,24 +184,32 @@ public abstract class TransportWriteAction<
     private static boolean finishWrite(IndexShard indexShard, ReplicatedWriteRequest<?> request, Translog.Location location,
             Consumer<Boolean> refreshListener) {
         boolean fsyncTranslog = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null;
-        if (fsyncTranslog) {
-            indexShard.sync(location);
-        }
-        indexShard.maybeFlush();
-        boolean async = false;
+        boolean refreshPending = false;
         switch (request.getRefreshPolicy()) {
         case IMMEDIATE:
             indexShard.refresh("refresh_flag_index");
             break;
         case WAIT_UNTIL:
             if (location != null) {
-                async = true;
-                indexShard.addRefreshListener(location, refreshListener);
+                refreshPending = true;
+                indexShard.addRefreshListener(location, forcedRefresh -> {
+                    if (fsyncTranslog) {
+                        indexShard.sync(location);
+                    }
+                    indexShard.maybeFlush();
+                    refreshListener.accept(forcedRefresh);
+                });
             }
             break;
         case NONE:
             break;
         }
-        return async;
+        if (false == refreshPending) {
+            if (fsyncTranslog) {
+                indexShard.sync(location);
+            }
+            indexShard.maybeFlush();
+        }
+        return refreshPending;
     }
 }

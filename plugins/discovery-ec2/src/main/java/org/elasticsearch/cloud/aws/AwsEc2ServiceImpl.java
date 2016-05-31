@@ -117,15 +117,15 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
 
         AWSCredentialsProvider credentials;
 
-        if (key == null && secret == null) {
+        if (key.isEmpty() && secret.isEmpty()) {
             credentials = new AWSCredentialsProviderChain(
-                    new EnvironmentVariableCredentialsProvider(),
-                    new SystemPropertiesCredentialsProvider(),
-                    new InstanceProfileCredentialsProvider()
+                new EnvironmentVariableCredentialsProvider(),
+                new SystemPropertiesCredentialsProvider(),
+                new InstanceProfileCredentialsProvider()
             );
         } else {
             credentials = new AWSCredentialsProviderChain(
-                    new StaticCredentialsProvider(new BasicAWSCredentials(key, secret))
+                new StaticCredentialsProvider(new BasicAWSCredentials(key, secret))
             );
         }
 

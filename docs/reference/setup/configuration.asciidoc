@@ -121,7 +121,7 @@ to the `config/elasticsearch.yml` file:
 
 [source,yaml]
 --------------
-bootstrap.mlockall: true
+bootstrap.memory_lock: true
 --------------
 
 After starting Elasticsearch, you can see whether this setting was applied

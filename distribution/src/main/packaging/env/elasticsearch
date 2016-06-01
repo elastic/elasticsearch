@@ -63,7 +63,7 @@ ES_STARTUP_SLEEP_TIME=${packaging.elasticsearch.startup.sleep.time}
 #MAX_OPEN_FILES=${packaging.os.max.open.files}
 
 # The maximum number of bytes of memory that may be locked into RAM
-# Set to "unlimited" if you use the 'bootstrap.mlockall: true' option
+# Set to "unlimited" if you use the 'bootstrap.memory_lock: true' option
 # in elasticsearch.yml (ES_HEAP_SIZE  must also be set).
 # When using Systemd, the LimitMEMLOCK property must be set
 # in ${packaging.elasticsearch.systemd.dir}/elasticsearch.service

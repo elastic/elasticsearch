@@ -218,7 +218,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public static final Setting<Settings> INDEX_ROUTING_EXCLUDE_GROUP_SETTING =
         Setting.groupSetting("index.routing.allocation.exclude.", Property.Dynamic, Property.IndexScope);
     public static final Setting<Settings> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING =
-        Setting.groupSetting("index.routing.allocation.initial_recovery.");
+        Setting.groupSetting("index.routing.allocation.initial_recovery."); // this is only setable internally not a registered setting!!
 
     public static final IndexMetaData PROTO = IndexMetaData.builder("")
             .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))

@@ -96,7 +96,7 @@ public class FilterAllocationDecider extends AllocationDecider {
             DiscoveryNodeFilters initialRecoveryFilters = indexMd.getInitialRecoveryFilters();
             if (shardRouting.allocatedPostIndexCreate(indexMd) == false &&
                 initialRecoveryFilters != null &&
-                indexMd.getInitialRecoveryFilters().match(node.node()) == false) {
+                initialRecoveryFilters.match(node.node()) == false) {
                 return allocation.decision(Decision.NO, NAME, "node does not match index initial recovery filters [%s]",
                     indexMd.includeFilters());
             }

@@ -53,7 +53,7 @@ public class RethrottleTests extends ReindexTestCase {
                 client().prepareIndex("test", "test", "3").setSource("foo", "bar"));
 
         // Start a request that will never finish unless we rethrottle it
-        request.setRequestsPerSecond(.000001f);  // Throttle forever
+        request.setRequestsPerSecond(.000001f);  // Throttle "forever"
         request.source().setSize(1);             // Make sure we use multiple batches
         ListenableActionFuture<? extends BulkIndexByScrollResponse> responseListener = request.execute();
 

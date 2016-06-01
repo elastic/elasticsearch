@@ -28,9 +28,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 
@@ -43,20 +43,20 @@ import java.util.Objects;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 
-public class CumulativeSumPipelineAggregatorBuilder extends AbstractPipelineAggregatorBuilder<CumulativeSumPipelineAggregatorBuilder> {
+public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<CumulativeSumPipelineAggregationBuilder> {
     public static final String NAME = CumulativeSumPipelineAggregator.TYPE.name();
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private String format;
 
-    public CumulativeSumPipelineAggregatorBuilder(String name, String bucketsPath) {
+    public CumulativeSumPipelineAggregationBuilder(String name, String bucketsPath) {
         super(name, CumulativeSumPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
     }
 
     /**
      * Read from a stream.
      */
-    public CumulativeSumPipelineAggregatorBuilder(StreamInput in) throws IOException {
+    public CumulativeSumPipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, CumulativeSumPipelineAggregator.TYPE.name());
         format = in.readOptionalString();
     }
@@ -69,7 +69,7 @@ public class CumulativeSumPipelineAggregatorBuilder extends AbstractPipelineAggr
     /**
      * Sets the format to use on the output of this aggregation.
      */
-    public CumulativeSumPipelineAggregatorBuilder format(String format) {
+    public CumulativeSumPipelineAggregationBuilder format(String format) {
         if (format == null) {
             throw new IllegalArgumentException("[format] must not be null: [" + name + "]");
         }
@@ -99,7 +99,7 @@ public class CumulativeSumPipelineAggregatorBuilder extends AbstractPipelineAggr
 
     @Override
     public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-            List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
+            List<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");
@@ -124,7 +124,7 @@ public class CumulativeSumPipelineAggregatorBuilder extends AbstractPipelineAggr
         return builder;
     }
 
-    public static CumulativeSumPipelineAggregatorBuilder parse(String pipelineAggregatorName, QueryParseContext context)
+    public static CumulativeSumPipelineAggregationBuilder parse(String pipelineAggregatorName, QueryParseContext context)
             throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token;
@@ -167,8 +167,8 @@ public class CumulativeSumPipelineAggregatorBuilder extends AbstractPipelineAggr
                     + "] for derivative aggregation [" + pipelineAggregatorName + "]");
         }
 
-        CumulativeSumPipelineAggregatorBuilder factory =
-                new CumulativeSumPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPaths[0]);
+        CumulativeSumPipelineAggregationBuilder factory =
+                new CumulativeSumPipelineAggregationBuilder(pipelineAggregatorName, bucketsPaths[0]);
         if (format != null) {
             factory.format(format);
         }
@@ -182,7 +182,7 @@ public class CumulativeSumPipelineAggregatorBuilder extends AbstractPipelineAggr
 
     @Override
     protected boolean doEquals(Object obj) {
-        CumulativeSumPipelineAggregatorBuilder other = (CumulativeSumPipelineAggregatorBuilder) obj;
+        CumulativeSumPipelineAggregationBuilder other = (CumulativeSumPipelineAggregationBuilder) obj;
         return Objects.equals(format, other.format);
     }
 

@@ -24,27 +24,27 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class MaxBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAggregatorBuilder<MaxBucketPipelineAggregatorBuilder> {
+public class MaxBucketPipelineAggregationBuilder extends BucketMetricsPipelineAggregationBuilder<MaxBucketPipelineAggregationBuilder> {
     public static final String NAME = MaxBucketPipelineAggregator.TYPE.name();
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
-    public MaxBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
+    public MaxBucketPipelineAggregationBuilder(String name, String bucketsPath) {
         super(name, MaxBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
     }
 
     /**
      * Read from a stream.
      */
-    public MaxBucketPipelineAggregatorBuilder(StreamInput in) throws IOException {
+    public MaxBucketPipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, NAME);
     }
 
@@ -60,7 +60,7 @@ public class MaxBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAgg
 
     @Override
     public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-            List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
+            List<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");
@@ -74,9 +74,9 @@ public class MaxBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAgg
 
     public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
         @Override
-        protected MaxBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+        protected MaxBucketPipelineAggregationBuilder buildFactory(String pipelineAggregatorName,
                 String bucketsPath, Map<String, Object> params) {
-            return new MaxBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+            return new MaxBucketPipelineAggregationBuilder(pipelineAggregatorName, bucketsPath);
         }
     };
 
@@ -86,7 +86,7 @@ public class MaxBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAgg
     }
 
     @Override
-    protected boolean innerEquals(BucketMetricsPipelineAggregatorBuilder<MaxBucketPipelineAggregatorBuilder> other) {
+    protected boolean innerEquals(BucketMetricsPipelineAggregationBuilder<MaxBucketPipelineAggregationBuilder> other) {
         return true;
     }
 

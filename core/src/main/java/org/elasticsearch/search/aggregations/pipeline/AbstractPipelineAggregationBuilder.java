@@ -23,7 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -32,10 +32,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Base implementation of a {@link PipelineAggregatorBuilder}.
+ * Base implementation of a {@link PipelineAggregationBuilder}.
  */
-public abstract class AbstractPipelineAggregatorBuilder<PAB extends AbstractPipelineAggregatorBuilder<PAB>>
-        extends PipelineAggregatorBuilder {
+public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPipelineAggregationBuilder<PAB>>
+        extends PipelineAggregationBuilder {
 
     /**
      * Field shared by many parsers.
@@ -45,7 +45,7 @@ public abstract class AbstractPipelineAggregatorBuilder<PAB extends AbstractPipe
     protected final String type;
     protected Map<String, Object> metaData;
 
-    protected AbstractPipelineAggregatorBuilder(String name, String type, String[] bucketsPaths) {
+    protected AbstractPipelineAggregationBuilder(String name, String type, String[] bucketsPaths) {
         super(name, bucketsPaths);
         if (type == null) {
             throw new IllegalArgumentException("[type] must not be null: [" + name + "]");
@@ -56,7 +56,7 @@ public abstract class AbstractPipelineAggregatorBuilder<PAB extends AbstractPipe
     /**
      * Read from a stream.
      */
-    protected AbstractPipelineAggregatorBuilder(StreamInput in, String type) throws IOException {
+    protected AbstractPipelineAggregationBuilder(StreamInput in, String type) throws IOException {
         this(in.readString(), type, in.readStringArray());
         metaData = in.readMap();
     }
@@ -81,7 +81,7 @@ public abstract class AbstractPipelineAggregatorBuilder<PAB extends AbstractPipe
      */
     @Override
     public final void validate(AggregatorFactory<?> parent, AggregatorFactory<?>[] factories,
-            List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
+            List<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         doValidate(parent, factories, pipelineAggregatorFactories);
     }
 
@@ -99,7 +99,7 @@ public abstract class AbstractPipelineAggregatorBuilder<PAB extends AbstractPipe
     }
 
     public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] factories,
-            List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
+            List<PipelineAggregationBuilder> pipelineAggregatorFactories) {
     }
 
     @SuppressWarnings("unchecked")
@@ -134,7 +134,7 @@ public abstract class AbstractPipelineAggregatorBuilder<PAB extends AbstractPipe
     }
 
     /**
-     * @return <code>true</code> if the {@link AbstractPipelineAggregatorBuilder}
+     * @return <code>true</code> if the {@link AbstractPipelineAggregationBuilder}
      *         overrides the XContent rendering of the bucketPath option.
      */
     protected boolean overrideBucketsPath() {
@@ -157,7 +157,7 @@ public abstract class AbstractPipelineAggregatorBuilder<PAB extends AbstractPipe
         if (getClass() != obj.getClass())
             return false;
         @SuppressWarnings("unchecked")
-        AbstractPipelineAggregatorBuilder<PAB> other = (AbstractPipelineAggregatorBuilder<PAB>) obj;
+        AbstractPipelineAggregationBuilder<PAB> other = (AbstractPipelineAggregationBuilder<PAB>) obj;
         if (!Objects.equals(name, other.name))
             return false;
         if (!Objects.equals(type, other.type))

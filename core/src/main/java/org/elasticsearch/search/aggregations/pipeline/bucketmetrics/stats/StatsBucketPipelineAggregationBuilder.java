@@ -24,28 +24,28 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class StatsBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAggregatorBuilder<StatsBucketPipelineAggregatorBuilder> {
+public class StatsBucketPipelineAggregationBuilder extends BucketMetricsPipelineAggregationBuilder<StatsBucketPipelineAggregationBuilder> {
     public static final String NAME = StatsBucketPipelineAggregator.TYPE.name();
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
-    public StatsBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
+    public StatsBucketPipelineAggregationBuilder(String name, String bucketsPath) {
         super(name, StatsBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
     }
 
     /**
      * Read from a stream.
      */
-    public StatsBucketPipelineAggregatorBuilder(StreamInput in)
+    public StatsBucketPipelineAggregationBuilder(StreamInput in)
             throws IOException {
         super(in, StatsBucketPipelineAggregator.TYPE.name());
     }
@@ -62,7 +62,7 @@ public class StatsBucketPipelineAggregatorBuilder extends BucketMetricsPipelineA
 
     @Override
     public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-            List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
+            List<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(Parser.BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");
@@ -76,9 +76,9 @@ public class StatsBucketPipelineAggregatorBuilder extends BucketMetricsPipelineA
 
     public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
         @Override
-        protected StatsBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+        protected StatsBucketPipelineAggregationBuilder buildFactory(String pipelineAggregatorName,
                 String bucketsPath, Map<String, Object> params) {
-            return new StatsBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+            return new StatsBucketPipelineAggregationBuilder(pipelineAggregatorName, bucketsPath);
         }
     };
 
@@ -88,7 +88,7 @@ public class StatsBucketPipelineAggregatorBuilder extends BucketMetricsPipelineA
     }
 
     @Override
-    protected boolean innerEquals(BucketMetricsPipelineAggregatorBuilder<StatsBucketPipelineAggregatorBuilder> other) {
+    protected boolean innerEquals(BucketMetricsPipelineAggregationBuilder<StatsBucketPipelineAggregationBuilder> other) {
         return true;
     }
 

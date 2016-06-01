@@ -31,7 +31,7 @@ import java.util.Map;
  * A factory that knows how to create an {@link PipelineAggregator} of a
  * specific type.
  */
-public abstract class PipelineAggregatorBuilder extends ToXContentToBytes
+public abstract class PipelineAggregationBuilder extends ToXContentToBytes
         implements NamedWriteable {
 
     protected final String name;
@@ -43,7 +43,7 @@ public abstract class PipelineAggregatorBuilder extends ToXContentToBytes
      * @param name
      *            The aggregation name
      */
-    protected PipelineAggregatorBuilder(String name, String[] bucketsPaths) {
+    protected PipelineAggregationBuilder(String name, String[] bucketsPaths) {
         if (name == null) {
             throw new IllegalArgumentException("[name] must not be null: [" + name + "]");
         }
@@ -69,7 +69,7 @@ public abstract class PipelineAggregatorBuilder extends ToXContentToBytes
      * configured)
      */
     protected abstract void validate(AggregatorFactory<?> parent, AggregatorFactory<?>[] factories,
-            List<PipelineAggregatorBuilder> pipelineAggregatorFactories);
+            List<PipelineAggregationBuilder> pipelineAggregatorFactories);
 
     /**
      * Creates the pipeline aggregator
@@ -78,7 +78,7 @@ public abstract class PipelineAggregatorBuilder extends ToXContentToBytes
      */
     protected abstract PipelineAggregator create() throws IOException;
 
-    /** Associate metadata with this {@link PipelineAggregatorBuilder}. */
-    public abstract PipelineAggregatorBuilder setMetaData(Map<String, Object> metaData);
+    /** Associate metadata with this {@link PipelineAggregationBuilder}. */
+    public abstract PipelineAggregationBuilder setMetaData(Map<String, Object> metaData);
 
 }

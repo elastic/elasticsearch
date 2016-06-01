@@ -17,34 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum;
+package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class SumBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAggregatorBuilder<SumBucketPipelineAggregatorBuilder> {
-    public static final String NAME = SumBucketPipelineAggregator.TYPE.name();
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
+public class MinBucketPipelineAggregationBuilder extends BucketMetricsPipelineAggregationBuilder<MinBucketPipelineAggregationBuilder> {
+    public static final String NAME = MinBucketPipelineAggregator.TYPE.name();
+    public static final ParseField AGGREGATION_FIELD_NAME = new ParseField(NAME);
 
-    public SumBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
-        super(name, SumBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
+    public MinBucketPipelineAggregationBuilder(String name, String bucketsPath) {
+        super(name, MinBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
     }
 
     /**
      * Read from a stream.
      */
-    public SumBucketPipelineAggregatorBuilder(StreamInput in) throws IOException {
+    public MinBucketPipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, NAME);
     }
 
@@ -55,12 +55,12 @@ public class SumBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAgg
 
     @Override
     protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-        return new SumBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metaData);
+        return new MinBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metaData);
     }
 
     @Override
     public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-            List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
+            List<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");
@@ -74,9 +74,9 @@ public class SumBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAgg
 
     public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
         @Override
-        protected SumBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+        protected MinBucketPipelineAggregationBuilder buildFactory(String pipelineAggregatorName,
                 String bucketsPath, Map<String, Object> params) {
-            return new SumBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+            return new MinBucketPipelineAggregationBuilder(pipelineAggregatorName, bucketsPath);
         }
     };
 
@@ -86,7 +86,7 @@ public class SumBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAgg
     }
 
     @Override
-    protected boolean innerEquals(BucketMetricsPipelineAggregatorBuilder<SumBucketPipelineAggregatorBuilder> other) {
+    protected boolean innerEquals(BucketMetricsPipelineAggregationBuilder<MinBucketPipelineAggregationBuilder> other) {
         return true;
     }
 

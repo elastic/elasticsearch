@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline.bucketselector;
+package org.elasticsearch.search.aggregations.pipeline.bucketscript;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -28,7 +28,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
-import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregatorBuilder;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
@@ -42,38 +43,41 @@ import java.util.Objects;
 import java.util.TreeMap;
 
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
-public class BucketSelectorPipelineAggregatorBuilder extends AbstractPipelineAggregatorBuilder<BucketSelectorPipelineAggregatorBuilder> {
-    public static final String NAME = BucketSelectorPipelineAggregator.TYPE.name();
+public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<BucketScriptPipelineAggregationBuilder> {
+    public static final String NAME = BucketScriptPipelineAggregator.TYPE.name();
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
+    private final Script script;
     private final Map<String, String> bucketsPathsMap;
-    private Script script;
+    private String format = null;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
 
-    public BucketSelectorPipelineAggregatorBuilder(String name, Map<String, String> bucketsPathsMap, Script script) {
-        super(name, BucketSelectorPipelineAggregator.TYPE.name(), new TreeMap<>(bucketsPathsMap).values()
+    public BucketScriptPipelineAggregationBuilder(String name, Map<String, String> bucketsPathsMap, Script script) {
+        super(name, BucketScriptPipelineAggregator.TYPE.name(), new TreeMap<>(bucketsPathsMap).values()
                 .toArray(new String[bucketsPathsMap.size()]));
         this.bucketsPathsMap = bucketsPathsMap;
         this.script = script;
     }
 
-    public BucketSelectorPipelineAggregatorBuilder(String name, Script script, String... bucketsPaths) {
+    public BucketScriptPipelineAggregationBuilder(String name, Script script, String... bucketsPaths) {
         this(name, convertToBucketsPathMap(bucketsPaths), script);
     }
 
     /**
      * Read from a stream.
      */
-    public BucketSelectorPipelineAggregatorBuilder(StreamInput in) throws IOException {
-        super(in, BucketSelectorPipelineAggregator.TYPE.name());
+    public BucketScriptPipelineAggregationBuilder(StreamInput in) throws IOException {
+        super(in, BucketScriptPipelineAggregator.TYPE.name());
         int mapSize = in.readVInt();
         bucketsPathsMap = new HashMap<String, String>(mapSize);
         for (int i = 0; i < mapSize; i++) {
             bucketsPathsMap.put(in.readString(), in.readString());
         }
         script = new Script(in);
+        format = in.readOptionalString();
         gapPolicy = GapPolicy.readFrom(in);
     }
 
@@ -85,6 +89,7 @@ public class BucketSelectorPipelineAggregatorBuilder extends AbstractPipelineAgg
             out.writeString(e.getValue());
         }
         script.writeTo(out);
+        out.writeOptionalString(format);
         gapPolicy.writeTo(out);
     }
 
@@ -97,9 +102,35 @@ public class BucketSelectorPipelineAggregatorBuilder extends AbstractPipelineAgg
     }
 
     /**
+     * Sets the format to use on the output of this aggregation.
+     */
+    public BucketScriptPipelineAggregationBuilder format(String format) {
+        if (format == null) {
+            throw new IllegalArgumentException("[format] must not be null: [" + name + "]");
+        }
+        this.format = format;
+        return this;
+    }
+
+    /**
+     * Gets the format to use on the output of this aggregation.
+     */
+    public String format() {
+        return format;
+    }
+
+    protected DocValueFormat formatter() {
+        if (format != null) {
+            return new DocValueFormat.Decimal(format);
+        } else {
+            return DocValueFormat.RAW;
+        }
+    }
+
+    /**
      * Sets the gap policy to use for this aggregation.
      */
-    public BucketSelectorPipelineAggregatorBuilder gapPolicy(GapPolicy gapPolicy) {
+    public BucketScriptPipelineAggregationBuilder gapPolicy(GapPolicy gapPolicy) {
         if (gapPolicy == null) {
             throw new IllegalArgumentException("[gapPolicy] must not be null: [" + name + "]");
         }
@@ -116,30 +147,36 @@ public class BucketSelectorPipelineAggregatorBuilder extends AbstractPipelineAgg
 
     @Override
     protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-        return new BucketSelectorPipelineAggregator(name, bucketsPathsMap, script, gapPolicy, metaData);
+        return new BucketScriptPipelineAggregator(name, bucketsPathsMap, script, formatter(), gapPolicy, metaData);
     }
 
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(BUCKETS_PATH.getPreferredName(), bucketsPathsMap);
         builder.field(ScriptField.SCRIPT.getPreferredName(), script);
+        if (format != null) {
+            builder.field(FORMAT.getPreferredName(), format);
+        }
         builder.field(GAP_POLICY.getPreferredName(), gapPolicy.getName());
         return builder;
     }
 
-    public static BucketSelectorPipelineAggregatorBuilder parse(String reducerName, QueryParseContext context) throws IOException {
+    public static BucketScriptPipelineAggregationBuilder parse(String reducerName, QueryParseContext context) throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token;
         Script script = null;
         String currentFieldName = null;
         Map<String, String> bucketsPathsMap = null;
+        String format = null;
         GapPolicy gapPolicy = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
+                if (context.getParseFieldMatcher().match(currentFieldName, FORMAT)) {
+                    format = parser.text();
+                } else if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
                     bucketsPathsMap = new HashMap<>();
                     bucketsPathsMap.put("_value", parser.text());
                 } else if (context.getParseFieldMatcher().match(currentFieldName, GAP_POLICY)) {
@@ -185,21 +222,25 @@ public class BucketSelectorPipelineAggregatorBuilder extends AbstractPipelineAgg
 
         if (bucketsPathsMap == null) {
             throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + BUCKETS_PATH.getPreferredName()
-                    + "] for bucket_selector aggregation [" + reducerName + "]");
+                    + "] for series_arithmetic aggregation [" + reducerName + "]");
         }
 
         if (script == null) {
             throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + ScriptField.SCRIPT.getPreferredName()
-                    + "] for bucket_selector aggregation [" + reducerName + "]");
+                    + "] for series_arithmetic aggregation [" + reducerName + "]");
         }
 
-        BucketSelectorPipelineAggregatorBuilder factory =
-                new BucketSelectorPipelineAggregatorBuilder(reducerName, bucketsPathsMap, script);
+        BucketScriptPipelineAggregationBuilder factory =
+                new BucketScriptPipelineAggregationBuilder(reducerName, bucketsPathsMap, script);
+        if (format != null) {
+            factory.format(format);
+        }
         if (gapPolicy != null) {
             factory.gapPolicy(gapPolicy);
         }
         return factory;
     }
+
 
     @Override
     protected boolean overrideBucketsPath() {
@@ -208,14 +249,14 @@ public class BucketSelectorPipelineAggregatorBuilder extends AbstractPipelineAgg
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(bucketsPathsMap, script, gapPolicy);
+        return Objects.hash(bucketsPathsMap, script, format, gapPolicy);
     }
 
     @Override
     protected boolean doEquals(Object obj) {
-        BucketSelectorPipelineAggregatorBuilder other = (BucketSelectorPipelineAggregatorBuilder) obj;
+        BucketScriptPipelineAggregationBuilder other = (BucketScriptPipelineAggregationBuilder) obj;
         return Objects.equals(bucketsPathsMap, other.bucketsPathsMap) && Objects.equals(script, other.script)
-                && Objects.equals(gapPolicy, other.gapPolicy);
+                && Objects.equals(format, other.format) && Objects.equals(gapPolicy, other.gapPolicy);
     }
 
     @Override

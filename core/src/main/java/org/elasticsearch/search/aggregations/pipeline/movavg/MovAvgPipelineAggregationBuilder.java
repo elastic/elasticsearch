@@ -29,9 +29,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
@@ -49,7 +49,7 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
-public class MovAvgPipelineAggregatorBuilder extends AbstractPipelineAggregatorBuilder<MovAvgPipelineAggregatorBuilder> {
+public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<MovAvgPipelineAggregationBuilder> {
     public static final String NAME = MovAvgPipelineAggregator.TYPE.name();
     public static final ParseField AGGREGATION_FIELD_NAME = new ParseField(NAME);
 
@@ -66,14 +66,14 @@ public class MovAvgPipelineAggregatorBuilder extends AbstractPipelineAggregatorB
     private int predict = 0;
     private Boolean minimize;
 
-    public MovAvgPipelineAggregatorBuilder(String name, String bucketsPath) {
+    public MovAvgPipelineAggregationBuilder(String name, String bucketsPath) {
         super(name, MovAvgPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
     }
 
     /**
      * Read from a stream.
      */
-    public MovAvgPipelineAggregatorBuilder(StreamInput in) throws IOException {
+    public MovAvgPipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, MovAvgPipelineAggregator.TYPE.name());
         format = in.readOptionalString();
         gapPolicy = GapPolicy.readFrom(in);
@@ -96,7 +96,7 @@ public class MovAvgPipelineAggregatorBuilder extends AbstractPipelineAggregatorB
     /**
      * Sets the format to use on the output of this aggregation.
      */
-    public MovAvgPipelineAggregatorBuilder format(String format) {
+    public MovAvgPipelineAggregationBuilder format(String format) {
         if (format == null) {
             throw new IllegalArgumentException("[format] must not be null: [" + name + "]");
         }
@@ -114,7 +114,7 @@ public class MovAvgPipelineAggregatorBuilder extends AbstractPipelineAggregatorB
     /**
      * Sets the GapPolicy to use on the output of this aggregation.
      */
-    public MovAvgPipelineAggregatorBuilder gapPolicy(GapPolicy gapPolicy) {
+    public MovAvgPipelineAggregationBuilder gapPolicy(GapPolicy gapPolicy) {
         if (gapPolicy == null) {
             throw new IllegalArgumentException("[gapPolicy] must not be null: [" + name + "]");
         }
@@ -145,7 +145,7 @@ public class MovAvgPipelineAggregatorBuilder extends AbstractPipelineAggregatorB
      * @param window
      *            Size of window
      */
-    public MovAvgPipelineAggregatorBuilder window(int window) {
+    public MovAvgPipelineAggregationBuilder window(int window) {
         if (window <= 0) {
             throw new IllegalArgumentException("[window] must be a positive integer: [" + name + "]");
         }
@@ -169,7 +169,7 @@ public class MovAvgPipelineAggregatorBuilder extends AbstractPipelineAggregatorB
      * @param model
      *            A MovAvgModel which has been prepopulated with settings
      */
-    public MovAvgPipelineAggregatorBuilder modelBuilder(MovAvgModelBuilder model) {
+    public MovAvgPipelineAggregationBuilder modelBuilder(MovAvgModelBuilder model) {
         if (model == null) {
             throw new IllegalArgumentException("[model] must not be null: [" + name + "]");
         }
@@ -184,7 +184,7 @@ public class MovAvgPipelineAggregatorBuilder extends AbstractPipelineAggregatorB
      * @param model
      *            A MovAvgModel which has been prepopulated with settings
      */
-    public MovAvgPipelineAggregatorBuilder model(MovAvgModel model) {
+    public MovAvgPipelineAggregationBuilder model(MovAvgModel model) {
         if (model == null) {
             throw new IllegalArgumentException("[model] must not be null: [" + name + "]");
         }
@@ -209,7 +209,7 @@ public class MovAvgPipelineAggregatorBuilder extends AbstractPipelineAggregatorB
      * @param predict
      *            Number of predictions to make
      */
-    public MovAvgPipelineAggregatorBuilder predict(int predict) {
+    public MovAvgPipelineAggregationBuilder predict(int predict) {
         if (predict <= 0) {
             throw new IllegalArgumentException("predict must be greater than 0. Found [" + predict + "] in [" + name + "]");
         }
@@ -234,7 +234,7 @@ public class MovAvgPipelineAggregatorBuilder extends AbstractPipelineAggregatorB
      * @param minimize
      *            If the model should be fit to the underlying data
      */
-    public MovAvgPipelineAggregatorBuilder minimize(boolean minimize) {
+    public MovAvgPipelineAggregationBuilder minimize(boolean minimize) {
         this.minimize = minimize;
         return this;
     }
@@ -257,7 +257,7 @@ public class MovAvgPipelineAggregatorBuilder extends AbstractPipelineAggregatorB
 
     @Override
     public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-            List<PipelineAggregatorBuilder> pipelineAggregatoractories) {
+            List<PipelineAggregationBuilder> pipelineAggregatoractories) {
         if (minimize != null && minimize && !model.canBeMinimized()) {
             // If the user asks to minimize, but this model doesn't support
             // it, throw exception
@@ -296,7 +296,8 @@ public class MovAvgPipelineAggregatorBuilder extends AbstractPipelineAggregatorB
         return builder;
     }
 
-    public static MovAvgPipelineAggregatorBuilder parse(ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageMdelParserRegistry,
+    public static MovAvgPipelineAggregationBuilder parse(
+            ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageMdelParserRegistry,
             String pipelineAggregatorName, QueryParseContext context) throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token;
@@ -381,8 +382,8 @@ public class MovAvgPipelineAggregatorBuilder extends AbstractPipelineAggregatorB
                     + "] for movingAvg aggregation [" + pipelineAggregatorName + "]");
         }
 
-        MovAvgPipelineAggregatorBuilder factory =
-                new MovAvgPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPaths[0]);
+        MovAvgPipelineAggregationBuilder factory =
+                new MovAvgPipelineAggregationBuilder(pipelineAggregatorName, bucketsPaths[0]);
         if (format != null) {
             factory.format(format);
         }
@@ -419,7 +420,7 @@ public class MovAvgPipelineAggregatorBuilder extends AbstractPipelineAggregatorB
 
     @Override
     protected boolean doEquals(Object obj) {
-        MovAvgPipelineAggregatorBuilder other = (MovAvgPipelineAggregatorBuilder) obj;
+        MovAvgPipelineAggregationBuilder other = (MovAvgPipelineAggregationBuilder) obj;
         return Objects.equals(format, other.format)
                 && Objects.equals(gapPolicy, other.gapPolicy)
                 && Objects.equals(window, other.window)

@@ -23,15 +23,15 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregationBuilder;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ExtendedStatsBucketTests extends AbstractBucketMetricsTestCase<ExtendedStatsBucketPipelineAggregatorBuilder> {
+public class ExtendedStatsBucketTests extends AbstractBucketMetricsTestCase<ExtendedStatsBucketPipelineAggregationBuilder> {
 
     @Override
-    protected ExtendedStatsBucketPipelineAggregatorBuilder doCreateTestAggregatorFactory(String name, String bucketsPath) {
-        ExtendedStatsBucketPipelineAggregatorBuilder factory = new ExtendedStatsBucketPipelineAggregatorBuilder(name, bucketsPath);
+    protected ExtendedStatsBucketPipelineAggregationBuilder doCreateTestAggregatorFactory(String name, String bucketsPath) {
+        ExtendedStatsBucketPipelineAggregationBuilder factory = new ExtendedStatsBucketPipelineAggregationBuilder(name, bucketsPath);
         if (randomBoolean()) {
             factory.sigma(randomDoubleBetween(0.0, 10.0, false));
         }
@@ -50,7 +50,7 @@ public class ExtendedStatsBucketTests extends AbstractBucketMetricsTestCase<Exte
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         parser.nextToken(); // skip object start
 
-        ExtendedStatsBucketPipelineAggregatorBuilder builder = (ExtendedStatsBucketPipelineAggregatorBuilder) aggParsers
+        ExtendedStatsBucketPipelineAggregationBuilder builder = (ExtendedStatsBucketPipelineAggregationBuilder) aggParsers
             .pipelineParser(ExtendedStatsBucketPipelineAggregator.TYPE.name(), parseFieldMatcher)
             .parse("test", parseContext);
 

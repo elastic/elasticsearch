@@ -80,7 +80,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
      */
     @SuppressWarnings("unchecked")
     @Override
-    public AB subAggregation(PipelineAggregatorBuilder aggregation) {
+    public AB subAggregation(PipelineAggregationBuilder aggregation) {
         if (aggregation == null) {
             throw new IllegalArgumentException("[aggregation] must not be null: [" + name + "]");
         }

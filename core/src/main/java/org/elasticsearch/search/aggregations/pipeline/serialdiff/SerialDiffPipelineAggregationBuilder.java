@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
@@ -40,7 +40,7 @@ import java.util.Objects;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 
-public class SerialDiffPipelineAggregatorBuilder extends AbstractPipelineAggregatorBuilder<SerialDiffPipelineAggregatorBuilder> {
+public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<SerialDiffPipelineAggregationBuilder> {
     public static final String NAME = SerialDiffPipelineAggregator.TYPE.name();
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
@@ -51,14 +51,14 @@ public class SerialDiffPipelineAggregatorBuilder extends AbstractPipelineAggrega
     private GapPolicy gapPolicy = GapPolicy.SKIP;
     private int lag = 1;
 
-    public SerialDiffPipelineAggregatorBuilder(String name, String bucketsPath) {
+    public SerialDiffPipelineAggregationBuilder(String name, String bucketsPath) {
         super(name, SerialDiffPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
     }
 
     /**
      * Read from a stream.
      */
-    public SerialDiffPipelineAggregatorBuilder(StreamInput in) throws IOException {
+    public SerialDiffPipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, SerialDiffPipelineAggregator.TYPE.name());
         format = in.readOptionalString();
         gapPolicy = GapPolicy.readFrom(in);
@@ -75,7 +75,7 @@ public class SerialDiffPipelineAggregatorBuilder extends AbstractPipelineAggrega
     /**
      * Sets the lag to use when calculating the serial difference.
      */
-    public SerialDiffPipelineAggregatorBuilder lag(int lag) {
+    public SerialDiffPipelineAggregationBuilder lag(int lag) {
         if (lag <= 0) {
             throw new IllegalArgumentException("[lag] must be a positive integer: [" + name + "]");
         }
@@ -93,7 +93,7 @@ public class SerialDiffPipelineAggregatorBuilder extends AbstractPipelineAggrega
     /**
      * Sets the format to use on the output of this aggregation.
      */
-    public SerialDiffPipelineAggregatorBuilder format(String format) {
+    public SerialDiffPipelineAggregationBuilder format(String format) {
         if (format == null) {
             throw new IllegalArgumentException("[format] must not be null: [" + name + "]");
         }
@@ -111,7 +111,7 @@ public class SerialDiffPipelineAggregatorBuilder extends AbstractPipelineAggrega
     /**
      * Sets the GapPolicy to use on the output of this aggregation.
      */
-    public SerialDiffPipelineAggregatorBuilder gapPolicy(GapPolicy gapPolicy) {
+    public SerialDiffPipelineAggregationBuilder gapPolicy(GapPolicy gapPolicy) {
         if (gapPolicy == null) {
             throw new IllegalArgumentException("[gapPolicy] must not be null: [" + name + "]");
         }
@@ -149,7 +149,7 @@ public class SerialDiffPipelineAggregatorBuilder extends AbstractPipelineAggrega
         return builder;
     }
 
-    public static SerialDiffPipelineAggregatorBuilder parse(String reducerName, QueryParseContext context) throws IOException {
+    public static SerialDiffPipelineAggregationBuilder parse(String reducerName, QueryParseContext context) throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token;
         String currentFieldName = null;
@@ -208,8 +208,8 @@ public class SerialDiffPipelineAggregatorBuilder extends AbstractPipelineAggrega
                     "Missing required field [" + BUCKETS_PATH.getPreferredName() + "] for derivative aggregation [" + reducerName + "]");
         }
 
-        SerialDiffPipelineAggregatorBuilder factory =
-                new SerialDiffPipelineAggregatorBuilder(reducerName, bucketsPaths[0]);
+        SerialDiffPipelineAggregationBuilder factory =
+                new SerialDiffPipelineAggregationBuilder(reducerName, bucketsPaths[0]);
         if (lag != null) {
             factory.lag(lag);
         }
@@ -228,7 +228,7 @@ public class SerialDiffPipelineAggregatorBuilder extends AbstractPipelineAggrega
     }
     @Override
     protected boolean doEquals(Object obj) {
-        SerialDiffPipelineAggregatorBuilder other = (SerialDiffPipelineAggregatorBuilder) obj;
+        SerialDiffPipelineAggregationBuilder other = (SerialDiffPipelineAggregationBuilder) obj;
         return Objects.equals(format, other.format)
                 && Objects.equals(gapPolicy, other.gapPolicy)
                 && Objects.equals(lag, other.lag);

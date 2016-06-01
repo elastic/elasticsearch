@@ -30,11 +30,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.joda.time.DateTimeZone;
@@ -45,7 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class DerivativePipelineAggregatorBuilder extends AbstractPipelineAggregatorBuilder<DerivativePipelineAggregatorBuilder> {
+public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<DerivativePipelineAggregationBuilder> {
     public static final String NAME = DerivativePipelineAggregator.TYPE.name();
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
@@ -57,18 +57,18 @@ public class DerivativePipelineAggregatorBuilder extends AbstractPipelineAggrega
     private GapPolicy gapPolicy = GapPolicy.SKIP;
     private String units;
 
-    public DerivativePipelineAggregatorBuilder(String name, String bucketsPath) {
+    public DerivativePipelineAggregationBuilder(String name, String bucketsPath) {
         this(name, new String[] { bucketsPath });
     }
 
-    private DerivativePipelineAggregatorBuilder(String name, String[] bucketsPaths) {
+    private DerivativePipelineAggregationBuilder(String name, String[] bucketsPaths) {
         super(name, DerivativePipelineAggregator.TYPE.name(), bucketsPaths);
     }
 
     /**
      * Read from a stream.
      */
-    public DerivativePipelineAggregatorBuilder(StreamInput in) throws IOException {
+    public DerivativePipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, DerivativePipelineAggregator.TYPE.name());
         format = in.readOptionalString();
         if (in.readBoolean()) {
@@ -88,7 +88,7 @@ public class DerivativePipelineAggregatorBuilder extends AbstractPipelineAggrega
         out.writeOptionalString(units);
     }
 
-    public DerivativePipelineAggregatorBuilder format(String format) {
+    public DerivativePipelineAggregationBuilder format(String format) {
         if (format == null) {
             throw new IllegalArgumentException("[format] must not be null: [" + name + "]");
         }
@@ -100,7 +100,7 @@ public class DerivativePipelineAggregatorBuilder extends AbstractPipelineAggrega
         return format;
     }
 
-    public DerivativePipelineAggregatorBuilder gapPolicy(GapPolicy gapPolicy) {
+    public DerivativePipelineAggregationBuilder gapPolicy(GapPolicy gapPolicy) {
         if (gapPolicy == null) {
             throw new IllegalArgumentException("[gapPolicy] must not be null: [" + name + "]");
         }
@@ -112,7 +112,7 @@ public class DerivativePipelineAggregatorBuilder extends AbstractPipelineAggrega
         return gapPolicy;
     }
 
-    public DerivativePipelineAggregatorBuilder unit(String units) {
+    public DerivativePipelineAggregationBuilder unit(String units) {
         if (units == null) {
             throw new IllegalArgumentException("[units] must not be null: [" + name + "]");
         }
@@ -120,7 +120,7 @@ public class DerivativePipelineAggregatorBuilder extends AbstractPipelineAggrega
         return this;
     }
 
-    public DerivativePipelineAggregatorBuilder unit(DateHistogramInterval units) {
+    public DerivativePipelineAggregationBuilder unit(DateHistogramInterval units) {
         if (units == null) {
             throw new IllegalArgumentException("[units] must not be null: [" + name + "]");
         }
@@ -157,7 +157,7 @@ public class DerivativePipelineAggregatorBuilder extends AbstractPipelineAggrega
 
     @Override
     public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-            List<PipelineAggregatorBuilder> pipelineAggregatoractories) {
+            List<PipelineAggregationBuilder> pipelineAggregatoractories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");
@@ -188,7 +188,7 @@ public class DerivativePipelineAggregatorBuilder extends AbstractPipelineAggrega
         return builder;
     }
 
-    public static DerivativePipelineAggregatorBuilder parse(String pipelineAggregatorName, QueryParseContext context) throws IOException {
+    public static DerivativePipelineAggregationBuilder parse(String pipelineAggregatorName, QueryParseContext context) throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token;
         String currentFieldName = null;
@@ -236,8 +236,8 @@ public class DerivativePipelineAggregatorBuilder extends AbstractPipelineAggrega
                     + "] for derivative aggregation [" + pipelineAggregatorName + "]");
         }
 
-        DerivativePipelineAggregatorBuilder factory =
-                new DerivativePipelineAggregatorBuilder(pipelineAggregatorName, bucketsPaths[0]);
+        DerivativePipelineAggregationBuilder factory =
+                new DerivativePipelineAggregationBuilder(pipelineAggregatorName, bucketsPaths[0]);
         if (format != null) {
             factory.format(format);
         }
@@ -252,7 +252,7 @@ public class DerivativePipelineAggregatorBuilder extends AbstractPipelineAggrega
 
     @Override
     protected boolean doEquals(Object obj) {
-        DerivativePipelineAggregatorBuilder other = (DerivativePipelineAggregatorBuilder) obj;
+        DerivativePipelineAggregationBuilder other = (DerivativePipelineAggregationBuilder) obj;
         if (!Objects.equals(format, other.format)) {
             return false;
         }

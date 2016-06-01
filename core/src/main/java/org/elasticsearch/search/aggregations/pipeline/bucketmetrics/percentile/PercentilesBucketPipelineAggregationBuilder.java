@@ -27,10 +27,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -38,8 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class PercentilesBucketPipelineAggregatorBuilder
-        extends BucketMetricsPipelineAggregatorBuilder<PercentilesBucketPipelineAggregatorBuilder> {
+public class PercentilesBucketPipelineAggregationBuilder
+        extends BucketMetricsPipelineAggregationBuilder<PercentilesBucketPipelineAggregationBuilder> {
     public static final String NAME = PercentilesBucketPipelineAggregator.TYPE.name();
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
@@ -47,14 +47,14 @@ public class PercentilesBucketPipelineAggregatorBuilder
 
     private double[] percents = new double[] { 1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0 };
 
-    public PercentilesBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
+    public PercentilesBucketPipelineAggregationBuilder(String name, String bucketsPath) {
         super(name, PercentilesBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
     }
 
     /**
      * Read from a stream.
      */
-    public PercentilesBucketPipelineAggregatorBuilder(StreamInput in)
+    public PercentilesBucketPipelineAggregationBuilder(StreamInput in)
             throws IOException {
         super(in, NAME);
         percents = in.readDoubleArray();
@@ -75,7 +75,7 @@ public class PercentilesBucketPipelineAggregatorBuilder
     /**
      * Set the percentages to calculate percentiles for in this aggregation
      */
-    public PercentilesBucketPipelineAggregatorBuilder percents(double[] percents) {
+    public PercentilesBucketPipelineAggregationBuilder percents(double[] percents) {
         if (percents == null) {
             throw new IllegalArgumentException("[percents] must not be null: [" + name + "]");
         }
@@ -96,7 +96,7 @@ public class PercentilesBucketPipelineAggregatorBuilder
 
     @Override
     public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-            List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
+            List<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");
@@ -121,11 +121,11 @@ public class PercentilesBucketPipelineAggregatorBuilder
     public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
 
         @Override
-        protected PercentilesBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+        protected PercentilesBucketPipelineAggregationBuilder buildFactory(String pipelineAggregatorName,
                                                                           String bucketsPath, Map<String, Object> params) {
 
-            PercentilesBucketPipelineAggregatorBuilder factory = new
-                PercentilesBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+            PercentilesBucketPipelineAggregationBuilder factory = new
+                PercentilesBucketPipelineAggregationBuilder(pipelineAggregatorName, bucketsPath);
 
             double[] percents = (double[]) params.get(PERCENTS_FIELD.getPreferredName());
             if (percents != null) {
@@ -157,8 +157,8 @@ public class PercentilesBucketPipelineAggregatorBuilder
     }
 
     @Override
-    protected boolean innerEquals(BucketMetricsPipelineAggregatorBuilder<PercentilesBucketPipelineAggregatorBuilder> obj) {
-        PercentilesBucketPipelineAggregatorBuilder other = (PercentilesBucketPipelineAggregatorBuilder) obj;
+    protected boolean innerEquals(BucketMetricsPipelineAggregationBuilder<PercentilesBucketPipelineAggregationBuilder> obj) {
+        PercentilesBucketPipelineAggregationBuilder other = (PercentilesBucketPipelineAggregationBuilder) obj;
         return Objects.deepEquals(percents, other.percents);
     }
 

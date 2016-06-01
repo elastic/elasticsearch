@@ -33,10 +33,8 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -134,8 +132,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
     private final ScriptService scriptService;
 
-    private final PageCacheRecycler pageCacheRecycler;
-
     private final BigArrays bigArrays;
 
     private final DfsPhase dfsPhase;
@@ -162,7 +158,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
     @Inject
     public SearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService, IndicesService indicesService,
-                         ThreadPool threadPool, ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase,
+                         ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, DfsPhase dfsPhase,
                          QueryPhase queryPhase, FetchPhase fetchPhase, AggregatorParsers aggParsers, Suggesters suggesters) {
         super(settings);
         this.aggParsers = aggParsers;
@@ -172,7 +168,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.scriptService = scriptService;
-        this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
         this.dfsPhase = dfsPhase;
         this.queryPhase = queryPhase;
@@ -548,7 +543,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
         DefaultSearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher,
                 indexService,
-                indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
+                indexShard, scriptService, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
                 defaultSearchTimeout, fetchPhase);
         SearchContext.setCurrent(context);
         request.rewrite(context.getQueryShardContext());

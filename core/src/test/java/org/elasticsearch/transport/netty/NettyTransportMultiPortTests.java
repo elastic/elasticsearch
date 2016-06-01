@@ -19,7 +19,6 @@
 package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -135,7 +134,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
     }
 
     private NettyTransport startNettyTransport(Settings settings, ThreadPool threadPool) {
-        BigArrays bigArrays = new MockBigArrays(new PageCacheRecycler(settings), new NoneCircuitBreakerService());
+        BigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
 
         NettyTransport nettyTransport = new NettyTransport(settings, threadPool, new NetworkService(settings), bigArrays, Version.CURRENT,
             new NamedWriteableRegistry(), new NoneCircuitBreakerService());

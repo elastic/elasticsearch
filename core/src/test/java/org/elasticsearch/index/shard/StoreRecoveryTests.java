@@ -74,7 +74,7 @@ public class StoreRecoveryTests extends ESTestCase {
         assertEquals(numFiles, targetNumFiles);
         assertEquals(indexStats.totalFileCount(), targetNumFiles);
         if (hardLinksSupported(createTempDir())) {
-            assertEquals("upgrade to HardlinkCopyDirectoryWrapper in Lucene 6.1", Version.LATEST, Version.LUCENE_6_0_0);
+            assertEquals("upgrade to HardlinkCopyDirectoryWrapper in Lucene 6.1", Version.LATEST, Version.LUCENE_6_0_1);
             // assertEquals(indexStats.reusedFileCount(), targetNumFiles); -- uncomment this once upgraded to Lucene 6.1
             assertEquals(indexStats.reusedFileCount(), 0);
         } else {

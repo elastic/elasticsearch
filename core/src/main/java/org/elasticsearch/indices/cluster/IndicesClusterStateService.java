@@ -24,14 +24,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -48,7 +46,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -89,7 +86,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final ThreadPool threadPool;
     private final RecoveryTargetService recoveryTargetService;
     private final ShardStateAction shardStateAction;
-    private final NodeIndexDeletedAction nodeIndexDeletedAction;
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
     private final NodeServicesProvider nodeServicesProvider;
 
@@ -112,7 +108,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
                                       ThreadPool threadPool, RecoveryTargetService recoveryTargetService,
                                       ShardStateAction shardStateAction,
-                                      NodeIndexDeletedAction nodeIndexDeletedAction,
                                       NodeMappingRefreshAction nodeMappingRefreshAction,
                                       RepositoriesService repositoriesService, RestoreService restoreService,
                                       SearchService searchService, SyncedFlushService syncedFlushService,
@@ -124,7 +119,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         this.threadPool = threadPool;
         this.recoveryTargetService = recoveryTargetService;
         this.shardStateAction = shardStateAction;
-        this.nodeIndexDeletedAction = nodeIndexDeletedAction;
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
         this.restoreService = restoreService;
         this.repositoriesService = repositoriesService;
@@ -219,14 +213,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 logger.debug("[{}] cleaning index, no longer part of the metadata", index);
             }
             final IndexService idxService = indicesService.indexService(index);
-            final IndexSettings indexSettings;
             if (idxService != null) {
-                indexSettings = idxService.getIndexSettings();
                 deleteIndex(index, "index no longer part of the metadata");
             } else if (previousState.metaData().hasIndex(index.getName())) {
                 // The deleted index was part of the previous cluster state, but not loaded on the local node
                 final IndexMetaData metaData = previousState.metaData().index(index);
-                indexSettings = new IndexSettings(metaData, settings);
                 indicesService.deleteUnassignedIndex("deleted index was not assigned to local node", metaData, event.state());
             } else {
                 // The previous cluster state's metadata also does not contain the index,
@@ -236,21 +227,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // First, though, verify the precondition for applying this case by
                 // asserting that the previous cluster state is not initialized/recovered.
                 assert previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
-                final IndexMetaData metaData = indicesService.verifyIndexIsDeleted(index, event.state());
-                if (metaData != null) {
-                    indexSettings = new IndexSettings(metaData, settings);
-                } else {
-                    indexSettings = null;
-                }
-            }
-            // indexSettings can only be null if there was no IndexService and no metadata existed
-            // on disk for this index, so it won't need to go through the node deleted action anyway
-            if (indexSettings != null) {
-                try {
-                    nodeIndexDeletedAction.nodeIndexDeleted(event.state(), index, indexSettings, localNodeId);
-                } catch (Exception e) {
-                    logger.debug("failed to send to master index {} deleted event", e, index);
-                }
+                indicesService.verifyIndexIsDeleted(index, event.state());
             }
         }
 

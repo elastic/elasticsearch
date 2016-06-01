@@ -171,7 +171,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             BytesStreamOutput out = new BytesStreamOutput();
             clusterStateHealth.writeTo(out);
             StreamInput in = StreamInput.wrap(out.bytes());
-            clusterStateHealth = ClusterStateHealth.readClusterHealth(in);
+            clusterStateHealth = new ClusterStateHealth(in);
         }
         return clusterStateHealth;
     }

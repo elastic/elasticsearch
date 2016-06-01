@@ -29,6 +29,8 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -173,6 +175,35 @@ public class MapperService extends AbstractIndexComponent {
 
     public DocumentMapperParser documentMapperParser() {
         return this.documentParser;
+    }
+
+    public static Map<String, Object> parseMapping(String mappingSource) throws Exception {
+        try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource)) {
+            return parser.map();
+        }
+    }
+
+    //TODO: make this atomic
+    public void merge(Map<String, Map<String, Object>> mappings, boolean updateAllTypes) throws MapperParsingException {
+        // first, add the default mapping
+        if (mappings.containsKey(DEFAULT_MAPPING)) {
+            try {
+                this.merge(DEFAULT_MAPPING, new CompressedXContent(XContentFactory.jsonBuilder().map(mappings.get(DEFAULT_MAPPING)).string()), MergeReason.MAPPING_UPDATE, updateAllTypes);
+            } catch (Exception e) {
+                throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, DEFAULT_MAPPING, e.getMessage());
+            }
+        }
+        for (Map.Entry<String, Map<String, Object>> entry : mappings.entrySet()) {
+            if (entry.getKey().equals(DEFAULT_MAPPING)) {
+                continue;
+            }
+            try {
+                // apply the default here, its the first time we parse it
+                this.merge(entry.getKey(), new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).string()), MergeReason.MAPPING_UPDATE, updateAllTypes);
+            } catch (Exception e) {
+                throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
+            }
+        }
     }
 
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason, boolean updateAllTypes) {

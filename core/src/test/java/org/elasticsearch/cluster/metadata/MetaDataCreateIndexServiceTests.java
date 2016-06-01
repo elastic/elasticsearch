@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -31,10 +32,12 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
@@ -43,6 +46,7 @@ import java.util.Collections;
 import java.util.HashSet;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.endsWith;
 
 public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
@@ -162,5 +166,39 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     private DiscoveryNode newNode(String nodeId) {
         return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE, emptyMap(),
             Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA))), Version.CURRENT);
+    }
+
+    public void testValidateIndexName() throws Exception {
+
+        validateIndexName("index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+
+        validateIndexName("index#name", "must not contain '#'");
+
+        validateIndexName("_indexname", "must not start with '_'");
+
+        validateIndexName("INDEXNAME", "must be lowercase");
+
+        validateIndexName("..", "must not be '.' or '..'");
+
+    }
+
+    private void validateIndexName(String indexName, String errorMessage) {
+        InvalidIndexNameException e = expectThrows(InvalidIndexNameException.class,
+            () -> getCreateIndexService().validateIndexName(indexName, ClusterState.builder(ClusterName.DEFAULT).build()));
+        assertThat(e.getMessage(), endsWith(errorMessage));
+    }
+
+    private MetaDataCreateIndexService getCreateIndexService() {
+        return new MetaDataCreateIndexService(
+            Settings.EMPTY,
+            null,
+            null,
+            null,
+            Version.CURRENT,
+            null,
+            new HashSet<>(),
+            null,
+            null,
+            null);
     }
 }

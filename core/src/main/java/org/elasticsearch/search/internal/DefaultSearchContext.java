@@ -29,7 +29,6 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasables;
@@ -91,7 +90,6 @@ public class DefaultSearchContext extends SearchContext {
     private SearchType searchType;
     private final Engine.Searcher engineSearcher;
     private final ScriptService scriptService;
-    private final PageCacheRecycler pageCacheRecycler;
     private final BigArrays bigArrays;
     private final IndexShard indexShard;
     private final IndexService indexService;
@@ -153,7 +151,7 @@ public class DefaultSearchContext extends SearchContext {
     private FetchPhase fetchPhase;
 
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget, Engine.Searcher engineSearcher,
-            IndexService indexService, IndexShard indexShard, ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
+            IndexService indexService, IndexShard indexShard, ScriptService scriptService,
             BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher, TimeValue timeout,
             FetchPhase fetchPhase) {
         super(parseFieldMatcher);
@@ -164,7 +162,6 @@ public class DefaultSearchContext extends SearchContext {
         this.shardTarget = shardTarget;
         this.engineSearcher = engineSearcher;
         this.scriptService = scriptService;
-        this.pageCacheRecycler = pageCacheRecycler;
         // SearchContexts use a BigArrays that can circuit break
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.dfsResult = new DfsSearchResult(id, shardTarget);
@@ -472,11 +469,6 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public ScriptService scriptService() {
         return scriptService;
-    }
-
-    @Override
-    public PageCacheRecycler pageCacheRecycler() {
-        return pageCacheRecycler;
     }
 
     @Override

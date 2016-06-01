@@ -260,7 +260,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         for (ObjectCursor<IndexShardRoutingTable> indexShardRoutingTable :  original.shards().values()) {
             for (ShardRouting shardRouting : indexShardRoutingTable.value.shards()) {
                 final ShardRouting updatedShardRouting = randomChange(shardRouting, nodes);
-                builder.addShard(indexShardRoutingTable.value, updatedShardRouting);
+                builder.addShard(updatedShardRouting);
             }
         }
         return builder.build();

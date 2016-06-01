@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -41,6 +42,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -59,10 +62,10 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
     public boolean processExistingRecoveries(RoutingAllocation allocation) {
         boolean changed = false;
         MetaData metaData = allocation.metaData();
-        for (RoutingNodes.RoutingNodesIterator nodes = allocation.routingNodes().nodes(); nodes.hasNext(); ) {
-            nodes.next();
-            for (RoutingNodes.RoutingNodeIterator it = nodes.nodeShards(); it.hasNext(); ) {
-                ShardRouting shard = it.next();
+        RoutingNodes routingNodes = allocation.routingNodes();
+        List<Tuple<ShardRouting, UnassignedInfo>> recoveriesToCancel = new ArrayList<>();
+        for (RoutingNode routingNode : routingNodes) {
+            for (ShardRouting shard : routingNode) {
                 if (shard.primary() == true) {
                     continue;
                 }
@@ -85,7 +88,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                     continue; // still fetching
                 }
 
-                ShardRouting primaryShard = allocation.routingNodes().activePrimary(shard);
+                ShardRouting primaryShard = allocation.routingNodes().activePrimary(shard.shardId());
                 assert primaryShard != null : "the replica shard can be allocated on at least one node, so there must be an active primary";
                 TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore = findStore(primaryShard, allocation, shardStores);
                 if (primaryStore == null || primaryStore.allocated() == false) {
@@ -106,13 +109,18 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                         // so we found a better one, cancel this one
                         logger.debug("cancelling allocation of replica on [{}], sync id match found on node [{}]",
                                 currentNode, nodeWithHighestMatch);
-                        it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
-                                "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node [" + nodeWithHighestMatch + "]",
-                                null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false));
+                        UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
+                            "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node ["+ nodeWithHighestMatch + "]",
+                            null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false);
+                        // don't cancel shard in the loop as it will cause a ConcurrentModificationException
+                        recoveriesToCancel.add(new Tuple<>(shard, unassignedInfo));
                         changed = true;
                     }
                 }
             }
+        }
+        for (Tuple<ShardRouting, UnassignedInfo> cancellation : recoveriesToCancel) {
+            routingNodes.moveToUnassigned(cancellation.v1(), cancellation.v2());
         }
         return changed;
     }
@@ -149,7 +157,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 continue; // still fetching
             }
 
-            ShardRouting primaryShard = routingNodes.activePrimary(shard);
+            ShardRouting primaryShard = routingNodes.activePrimary(shard.shardId());
             assert primaryShard != null : "the replica shard can be allocated on at least one node, so there must be an active primary";
             TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore = findStore(primaryShard, allocation, shardStores);
             if (primaryStore == null || primaryStore.allocated() == false) {

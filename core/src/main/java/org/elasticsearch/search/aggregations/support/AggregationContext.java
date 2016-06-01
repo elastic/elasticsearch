@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -49,10 +48,6 @@ public class AggregationContext {
 
     public SearchContext searchContext() {
         return searchContext;
-    }
-
-    public PageCacheRecycler pageCacheRecycler() {
-        return searchContext.pageCacheRecycler();
     }
 
     public BigArrays bigArrays() {

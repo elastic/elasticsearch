@@ -401,7 +401,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         return parseQueryString(commonsQuery, text, field, analyzerObj, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
     }
 
-    static Query parseQueryString(ExtendedCommonTermsQuery query, Object queryString, String field, Analyzer analyzer,
+    private static Query parseQueryString(ExtendedCommonTermsQuery query, Object queryString, String field, Analyzer analyzer,
                                          String lowFreqMinimumShouldMatch, String highFreqMinimumShouldMatch) throws IOException {
         // Logic similar to QueryParser#getFieldQuery
         int count = 0;
@@ -417,9 +417,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
             }
         }
 
-        if (count == 0) {
-            return null;
-        }
         query.setLowFreqMinimumNumberShouldMatch(lowFreqMinimumShouldMatch);
         query.setHighFreqMinimumNumberShouldMatch(highFreqMinimumShouldMatch);
         return query;

@@ -34,6 +34,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper.BooleanFieldType;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper.NumberFieldType;
@@ -644,5 +645,33 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
         mapper = defaultMapper.mappers().smartNameFieldMapper("s_double");
         assertThat(mapper, instanceOf(TextFieldMapper.class));
+    }
+
+    public void testDynamicTemplateOrder() throws IOException {
+        // https://github.com/elastic/elasticsearch/issues/18625
+        // elasticsearch used to apply templates that do not have a match_mapping_type first
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_templates")
+                    .startObject()
+                        .startObject("type-based")
+                            .field("match_mapping_type", "string")
+                            .startObject("mapping")
+                                .field("type", "keyword")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                    .startObject()
+                    .startObject("path-based")
+                        .field("path_match", "foo")
+                        .startObject("mapping")
+                            .field("type", "long")
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endArray()
+                .endObject().endObject();
+        IndexService index = createIndex("test", Settings.EMPTY, "type", mapping);
+        client().prepareIndex("test", "type", "1").setSource("foo", "abc").get();
+        assertThat(index.mapperService().fullName("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
 }

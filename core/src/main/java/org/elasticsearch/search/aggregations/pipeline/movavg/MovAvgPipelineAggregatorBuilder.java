@@ -29,10 +29,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
@@ -48,7 +49,7 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
-public class MovAvgPipelineAggregatorBuilder extends PipelineAggregatorBuilder<MovAvgPipelineAggregatorBuilder> {
+public class MovAvgPipelineAggregatorBuilder extends AbstractPipelineAggregatorBuilder<MovAvgPipelineAggregatorBuilder> {
     public static final String NAME = MovAvgPipelineAggregator.TYPE.name();
     public static final ParseField AGGREGATION_FIELD_NAME = new ParseField(NAME);
 
@@ -256,7 +257,7 @@ public class MovAvgPipelineAggregatorBuilder extends PipelineAggregatorBuilder<M
 
     @Override
     public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-            List<PipelineAggregatorBuilder<?>> pipelineAggregatoractories) {
+            List<PipelineAggregatorBuilder> pipelineAggregatoractories) {
         if (minimize != null && minimize && !model.canBeMinimized()) {
             // If the user asks to minimize, but this model doesn't support
             // it, throw exception

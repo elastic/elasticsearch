@@ -21,7 +21,6 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -49,9 +48,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     protected SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.getBigArrays();
         ThreadPool threadPool = indexService.getThreadPool();
-        PageCacheRecycler pageCacheRecycler = node().injector().getInstance(PageCacheRecycler.class);
         ScriptService scriptService = node().injector().getInstance(ScriptService.class);
-        return new TestSearchContext(threadPool, pageCacheRecycler, bigArrays, scriptService, indexService) {
+        return new TestSearchContext(threadPool, bigArrays, scriptService, indexService) {
             @Override
             public ShardSearchRequest request() {
                 return new ShardSearchRequest() {

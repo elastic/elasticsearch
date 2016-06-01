@@ -99,7 +99,7 @@ public final class Variables {
         // Method variables.
 
         // This reference.  Internal use only.
-        addVariable("[" + Reserved.THIS + "]", Definition.getType("Executable"), Reserved.THIS, true, true);
+        addVariable("[" + Reserved.THIS + "]", Definition.getType("Object"), Reserved.THIS, true, true);
 
         // Input map of variables passed to the script.
         addVariable("[" + Reserved.PARAMS + "]", Definition.getType("Map"), Reserved.PARAMS, true, true);

@@ -30,7 +30,6 @@ import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.index.mapper.ip.LegacyIpFieldMapper;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -284,12 +283,12 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public String format(long value) {
-            return LegacyIpFieldMapper.longToIp(value);
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public String format(double value) {
-            return format((long) value);
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -301,13 +300,12 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public long parseLong(String value, boolean roundUp, Callable<Long> now) {
-            // TODO: throw exception in 6.0
-            return LegacyIpFieldMapper.ipToLong(value);
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public double parseDouble(String value, boolean roundUp, Callable<Long> now) {
-            return parseLong(value, roundUp, now);
+            throw new UnsupportedOperationException();
         }
 
         @Override

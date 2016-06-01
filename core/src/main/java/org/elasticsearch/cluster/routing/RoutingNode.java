@@ -19,12 +19,14 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -67,10 +69,6 @@ public class RoutingNode implements Iterable<ShardRouting> {
     @Override
     public Iterator<ShardRouting> iterator() {
         return Collections.unmodifiableCollection(shards.values()).iterator();
-    }
-
-    Iterator<ShardRouting> mutableIterator() {
-        return shards.values().iterator();
     }
 
     /**
@@ -117,6 +115,11 @@ public class RoutingNode implements Iterable<ShardRouting> {
         }
         ShardRouting previousValue = shards.put(newShard.shardId(), newShard);
         assert previousValue == oldShard : "expected shard " + previousValue + " but was " + oldShard;
+    }
+
+    void remove(ShardRouting shard) {
+        ShardRouting previousValue = shards.remove(shard.shardId());
+        assert previousValue == shard : "expected shard " + previousValue + " but was " + shard;
     }
 
     /**

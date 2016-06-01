@@ -50,7 +50,8 @@ public final class Definition {
                       "java.time.zone.txt",
                       "java.util.txt",
                       "java.util.function.txt",
-                      "java.util.stream.txt"));
+                      "java.util.stream.txt",
+                      "joda.time.txt"));
 
     private static final Definition INSTANCE = new Definition();
 

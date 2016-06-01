@@ -1037,11 +1037,6 @@
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]indices[/\\]store[/\\]IndicesStoreIntegrationIT.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]indices[/\\]store[/\\]IndicesStoreTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]indices[/\\]template[/\\]SimpleIndexTemplateIT.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ingest[/\\]PipelineExecutionServiceTests.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ingest[/\\]PipelineStoreTests.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ingest[/\\]core[/\\]CompoundProcessorTests.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ingest[/\\]core[/\\]PipelineFactoryTests.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ingest[/\\]core[/\\]ValueSourceTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ingest[/\\]processor[/\\]AbstractStringProcessorTestCase.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ingest[/\\]processor[/\\]AppendProcessorTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ingest[/\\]processor[/\\]DateFormatTests.java" checks="LineLength" />
@@ -1197,7 +1192,6 @@
   <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]groovy[/\\]GroovySecurityTests.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-mustache[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]mustache[/\\]MustachePlugin.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-mustache[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]RenderSearchTemplateTests.java" checks="LineLength" />
-  <suppress files="modules[/\\]lang-mustache[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]SuggestSearchTests.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-mustache[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]TemplateQueryParserTests.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-mustache[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]TemplateQueryTests.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-mustache[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]package-info.java" checks="LineLength" />

@@ -72,6 +72,7 @@ import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestGetStoredSc
 import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestPutSearchTemplateAction;
 import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestPutStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.tasks.RestPendingClusterTasksAction;
+import org.elasticsearch.rest.action.admin.indices.RestShrinkIndexAction;
 import org.elasticsearch.rest.action.admin.indices.alias.RestIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.delete.RestIndexDeleteAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.get.RestGetAliasesAction;
@@ -209,6 +210,7 @@ public class NetworkModule extends AbstractModule {
         RestIndexPutAliasAction.class,
         RestIndicesAliasesAction.class,
         RestCreateIndexAction.class,
+        RestShrinkIndexAction.class,
         RestDeleteIndexAction.class,
         RestCloseIndexAction.class,
         RestOpenIndexAction.class,

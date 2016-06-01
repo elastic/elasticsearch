@@ -98,7 +98,8 @@ public class PipelineExecutionServiceTests extends ESTestCase {
 
         IndexRequest indexRequest1 = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
         bulkRequest.add(indexRequest1);
-        IndexRequest indexRequest2 = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("does_not_exist");
+        IndexRequest indexRequest2 =
+                new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("does_not_exist");
         bulkRequest.add(indexRequest2);
         @SuppressWarnings("unchecked")
         BiConsumer<IndexRequest, Throwable> failureHandler = mock(BiConsumer.class);
@@ -192,7 +193,8 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         when(processor.getType()).thenReturn("mock_processor_type");
         when(processor.getTag()).thenReturn("mock_processor_tag");
         Processor onFailureProcessor = mock(Processor.class);
-        CompoundProcessor compoundProcessor = new CompoundProcessor(Collections.singletonList(processor), Collections.singletonList(new CompoundProcessor(onFailureProcessor)));
+        CompoundProcessor compoundProcessor = new CompoundProcessor(false, Collections.singletonList(processor),
+                Collections.singletonList(new CompoundProcessor(onFailureProcessor)));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", compoundProcessor));
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
         doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
@@ -208,7 +210,8 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     public void testExecuteFailureWithOnFailure() throws Exception {
         Processor processor = mock(Processor.class);
         Processor onFailureProcessor = mock(Processor.class);
-        CompoundProcessor compoundProcessor = new CompoundProcessor(Collections.singletonList(processor), Collections.singletonList(new CompoundProcessor(onFailureProcessor)));
+        CompoundProcessor compoundProcessor = new CompoundProcessor(false, Collections.singletonList(processor),
+                Collections.singletonList(new CompoundProcessor(onFailureProcessor)));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", compoundProcessor));
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
         doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
@@ -227,8 +230,9 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         Processor processor = mock(Processor.class);
         Processor onFailureProcessor = mock(Processor.class);
         Processor onFailureOnFailureProcessor = mock(Processor.class);
-        CompoundProcessor compoundProcessor = new CompoundProcessor(Collections.singletonList(processor),
-            Collections.singletonList(new CompoundProcessor(Collections.singletonList(onFailureProcessor), Collections.singletonList(onFailureOnFailureProcessor))));
+        CompoundProcessor compoundProcessor = new CompoundProcessor(false, Collections.singletonList(processor),
+            Collections.singletonList(new CompoundProcessor(false, Collections.singletonList(onFailureProcessor),
+                    Collections.singletonList(onFailureOnFailureProcessor))));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", compoundProcessor));
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
         doThrow(new RuntimeException()).when(onFailureOnFailureProcessor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));

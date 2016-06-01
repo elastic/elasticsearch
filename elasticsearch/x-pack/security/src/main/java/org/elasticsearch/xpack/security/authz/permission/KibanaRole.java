@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.Privilege.Name;
+import org.elasticsearch.xpack.security.support.MetadataUtils;
 
 /**
  *
@@ -20,7 +21,8 @@ public class KibanaRole extends Role {
             RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*", ".reporting-*").privileges("all").build() };
 
     public static final String NAME = "kibana";
-    public static final RoleDescriptor DESCRIPTOR = new RoleDescriptor(NAME, CLUSTER_PRIVILEGES, INDICES_PRIVILEGES, null);
+    public static final RoleDescriptor DESCRIPTOR =
+            new RoleDescriptor(NAME, CLUSTER_PRIVILEGES, INDICES_PRIVILEGES, null, MetadataUtils.DEFAULT_RESERVED_METADATA);
     public static final KibanaRole INSTANCE = new KibanaRole();
 
     private KibanaRole() {

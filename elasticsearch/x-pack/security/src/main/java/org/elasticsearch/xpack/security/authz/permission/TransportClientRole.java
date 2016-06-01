@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authz.permission;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.Privilege.Name;
+import org.elasticsearch.xpack.security.support.MetadataUtils;
 
 /**
  * Reserved role for the transport client
@@ -17,7 +18,8 @@ public class TransportClientRole extends Role {
     public static final String NAME = "transport_client";
     private static final String[] CLUSTER_PRIVILEGES = new String[] { "transport_client" };
 
-    public static final RoleDescriptor DESCRIPTOR = new RoleDescriptor(NAME, CLUSTER_PRIVILEGES, null, null);
+    public static final RoleDescriptor DESCRIPTOR =
+            new RoleDescriptor(NAME, CLUSTER_PRIVILEGES, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA);
     public static final TransportClientRole INSTANCE = new TransportClientRole();
 
     private TransportClientRole() {

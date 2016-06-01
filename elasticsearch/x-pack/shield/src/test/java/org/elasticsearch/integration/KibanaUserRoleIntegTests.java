@@ -22,6 +22,8 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ShieldIntegTestCase;
 
+import java.util.Locale;
+
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -166,7 +168,7 @@ public class KibanaUserRoleIntegTests extends ShieldIntegTestCase {
     }
 
     public void testCreateIndexDeleteInKibanaIndex() throws Exception {
-        final String index = randomBoolean()? ".kibana" : ".kibana-" + randomAsciiOfLengthBetween(1, 10);
+        final String index = randomBoolean()? ".kibana" : ".kibana-" + randomAsciiOfLengthBetween(1, 10).toLowerCase(Locale.ENGLISH);
 
         if (randomBoolean()) {
             CreateIndexResponse createIndexResponse = client().filterWithHeader(singletonMap("Authorization",

@@ -36,11 +36,14 @@ public abstract class TestPluginServiceBase extends AbstractLifecycleComponent<T
         this.eagerLicenseRegistration = eagerLicenseRegistration;
         this.licensesClientService = licensesClientService;
         int trialDurationInSec = settings.getAsInt("_trial_license_duration_in_seconds", -1);
+        // TODO: remove integ licensing tests for external plugins
+        /*
         if (trialDurationInSec != -1) {
             licensesClientService.setTrialLicenseDuration(TimeValue.timeValueSeconds(trialDurationInSec));
         }
         int graceDurationInSec = settings.getAsInt("_grace_duration_in_seconds", 5);
         licensesClientService.setGracePeriodDuration(TimeValue.timeValueSeconds(graceDurationInSec));
+        */
         if (!eagerLicenseRegistration) {
             this.clusterService = clusterService;
             clusterService.add(this);

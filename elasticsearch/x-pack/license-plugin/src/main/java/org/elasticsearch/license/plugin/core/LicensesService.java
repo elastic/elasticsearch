@@ -27,8 +27,6 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.LicenseVerifier;
@@ -42,21 +40,20 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.support.clock.Clock;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Queue;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -77,17 +74,15 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>
  * All registered listeners are notified of the current license upon registration or when a new license is installed in the cluster state.
  * When a new license is notified as enabled to the registered listener, a notification is scheduled at the time of license expiry.
- * Registered listeners are notified using {@link #notifyAndSchedule(LicensesMetaData)}
+ * Registered listeners are notified using {@link #onUpdate(LicensesMetaData)}
  */
 @Singleton
 public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ClusterStateListener, LicensesManagerService,
-        LicenseeRegistry {
+        LicenseeRegistry, SchedulerEngine.Listener {
 
     public static final String REGISTER_TRIAL_LICENSE_ACTION_NAME = "internal:plugin/license/cluster/register_trial_license";
 
     private final ClusterService clusterService;
-
-    private final ThreadPool threadPool;
 
     private final TransportService transportService;
 
@@ -97,20 +92,10 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     private final List<InternalLicensee> registeredLicensees = new CopyOnWriteArrayList<>();
 
     /**
-     * Currently active expiry notifications
-     */
-    private final Queue<ScheduledFuture> expiryNotifications = new ConcurrentLinkedQueue<>();
-
-    /**
-     * Currently active event notifications for every registered listener
-     */
-    private final Queue<ScheduledFuture> eventNotifications = new ConcurrentLinkedQueue<>();
-
-    /**
      * Currently active license
      */
     private final AtomicReference<License> currentLicense = new AtomicReference<>();
-
+    private SchedulerEngine scheduler;
     private final Clock clock;
 
     /**
@@ -131,7 +116,9 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     /**
      * Duration of grace period after a license has expired
      */
-    private TimeValue gracePeriodDuration = days(7);
+    public static final TimeValue GRACE_PERIOD_DURATION = days(7);
+
+    private final static String LICENSE_JOB = "licenseJob";
 
     private static final FormatDateTimeFormatter DATE_FORMATTER = Joda.forPattern("EEEE, MMMMM dd, yyyy", Locale.ROOT);
 
@@ -139,10 +126,9 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
 
     @Inject
-    public LicensesService(Settings settings, ClusterService clusterService, ThreadPool threadPool, TransportService transportService, Clock clock) {
+    public LicensesService(Settings settings, ClusterService clusterService, TransportService transportService, Clock clock) {
         super(settings);
         this.clusterService = clusterService;
-        this.threadPool = threadPool;
         this.transportService = transportService;
         if (DiscoveryNode.isMasterNode(settings)) {
             transportService.registerRequestHandler(REGISTER_TRIAL_LICENSE_ACTION_NAME, TransportRequest.Empty::new,
@@ -150,6 +136,10 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         }
         populateExpirationCallbacks();
         this.clock = clock;
+    }
+
+    protected SchedulerEngine getScheduler() {
+        return new SchedulerEngine(clock);
     }
 
     private void populateExpirationCallbacks() {
@@ -264,9 +254,8 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             listener.onResponse(new PutLicenseResponse(true, LicensesStatus.EXPIRED));
         } else {
             if (!request.acknowledged()) {
-                final LicensesMetaData currentMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-                final License currentLicense = getLicense(currentMetaData);
-                if (currentLicense != null && currentLicense != LicensesMetaData.LICENSE_TOMBSTONE) {
+                final License currentLicense = getLicense();
+                if (currentLicense != null) {
                     Map<String, String[]> acknowledgeMessages = new HashMap<>(registeredLicensees.size() + 1);
                     if (!License.isAutoGeneratedLicense(currentLicense.signature()) // current license is not auto-generated
                             && currentLicense.issueDate() > newLicense.issueDate()) { // and has a later issue date
@@ -290,22 +279,22 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             }
             clusterService.submitStateUpdateTask("register license [" + newLicense.uid() + "]", new
                     AckedClusterStateUpdateTask<PutLicenseResponse>(request, listener) {
-                @Override
-                protected PutLicenseResponse newResponse(boolean acknowledged) {
-                    return new PutLicenseResponse(acknowledged, LicensesStatus.VALID);
-                }
+                        @Override
+                        protected PutLicenseResponse newResponse(boolean acknowledged) {
+                            return new PutLicenseResponse(acknowledged, LicensesStatus.VALID);
+                        }
 
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                    mdBuilder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(newLicense));
-                    return ClusterState.builder(currentState).metaData(mdBuilder).build();
-                }
-            });
+                        @Override
+                        public ClusterState execute(ClusterState currentState) throws Exception {
+                            MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
+                            mdBuilder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(newLicense));
+                            return ClusterState.builder(currentState).metaData(mdBuilder).build();
+                        }
+                    });
         }
     }
 
-    private boolean verifyLicense(final License license) {
+    static boolean verifyLicense(final License license) {
         final byte[] publicKeyBytes;
         try (InputStream is = LicensesService.class.getResourceAsStream("/public.key")) {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -317,8 +306,24 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         return LicenseVerifier.verifyLicense(license, publicKeyBytes);
     }
 
+
     static TimeValue days(int days) {
         return TimeValue.timeValueHours(days * 24);
+    }
+
+    @Override
+    public void triggered(SchedulerEngine.Event event) {
+        final LicensesMetaData licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
+        if (licensesMetaData != null) {
+            final License license = licensesMetaData.getLicense();
+            if (event.getJobName().equals(LICENSE_JOB)) {
+                notifyLicensees(license);
+            } else if (event.getJobName().startsWith(ExpirationCallback.EXPIRATION_JOB_PREFIX)) {
+                expirationCallbacks.stream()
+                        .filter(expirationCallback -> expirationCallback.getId().equals(event.getJobName()))
+                        .forEach(expirationCallback -> expirationCallback.on(license));
+            }
+        }
     }
 
     /**
@@ -327,32 +332,33 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     public void removeLicense(final DeleteLicenseRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         clusterService.submitStateUpdateTask("delete license",
                 new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
-            @Override
-            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                return new ClusterStateUpdateResponse(acknowledged);
-            }
+                    @Override
+                    protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                        return new ClusterStateUpdateResponse(acknowledged);
+                    }
 
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                MetaData metaData = currentState.metaData();
-                final LicensesMetaData currentLicenses = metaData.custom(LicensesMetaData.TYPE);
-                if (currentLicenses.getLicense() != LicensesMetaData.LICENSE_TOMBSTONE) {
-                    MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                    mdBuilder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(LicensesMetaData.LICENSE_TOMBSTONE));
-                    return ClusterState.builder(currentState).metaData(mdBuilder).build();
-                } else {
-                    return currentState;
-                }
-            }
-        });
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        MetaData metaData = currentState.metaData();
+                        final LicensesMetaData currentLicenses = metaData.custom(LicensesMetaData.TYPE);
+                        if (currentLicenses.getLicense() != LicensesMetaData.LICENSE_TOMBSTONE) {
+                            MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
+                            mdBuilder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(LicensesMetaData.LICENSE_TOMBSTONE));
+                            return ClusterState.builder(currentState).metaData(mdBuilder).build();
+                        } else {
+                            return currentState;
+                        }
+                    }
+                });
     }
 
     @Override
     public LicenseState licenseState() {
         if (registeredLicensees.size() > 0) {
             return registeredLicensees.get(0).currentLicenseState;
+        } else {
+            return getLicenseState(getLicense(), clock.millis());
         }
-        return null;
     }
 
     @Override
@@ -407,26 +413,24 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
     @Override
     protected void doStart() throws ElasticsearchException {
+        if (scheduler == null) {
+            this.scheduler = getScheduler();
+            this.scheduler.register(this);
+        }
         clusterService.add(this);
+        try {
+            scheduler.start(Collections.emptyList());
+        } catch (Exception e) {
+            logger.warn("failed to start license trigger service", e);
+        }
     }
 
     @Override
     protected void doStop() throws ElasticsearchException {
         clusterService.remove(this);
-
-        // cancel all notifications
-        for (ScheduledFuture scheduledNotification : expiryNotifications) {
-            FutureUtils.cancel(scheduledNotification);
-        }
-        for (ScheduledFuture eventNotification : eventNotifications) {
-            FutureUtils.cancel(eventNotification);
-        }
-
+        scheduler.stop();
         // clear all handlers
         registeredLicensees.clear();
-
-        // empty out notification queue
-        expiryNotifications.clear();
 
         // clear current license
         currentLicense.set(null);
@@ -454,14 +458,14 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             }
             // notify all interested plugins
             if (previousClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-                notifyAndSchedule(currentLicensesMetaData);
+                onUpdate(currentLicensesMetaData);
             } else {
                 if (prevLicensesMetaData == null) {
                     if (currentLicensesMetaData != null) {
-                        notifyAndSchedule(currentLicensesMetaData);
+                        onUpdate(currentLicensesMetaData);
                     }
                 } else if (!prevLicensesMetaData.equals(currentLicensesMetaData)) {
-                    notifyAndSchedule(currentLicensesMetaData);
+                    onUpdate(currentLicensesMetaData);
                 }
             }
             // auto-generate license if no licenses ever existed
@@ -475,140 +479,69 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         }
     }
 
-    /**
-     * Notifies registered licensees of license state change and/or new active license
-     * based on the license in <code>currentLicensesMetaData</code>.
-     * Additionally schedules license expiry notifications and event callbacks
-     * relative to the current license's expiry
-     */
-    private void notifyAndSchedule(final LicensesMetaData currentLicensesMetaData) {
-        final License license = getLicense(currentLicensesMetaData);
+    private void notifyLicensees(final License license) {
         if (license == LicensesMetaData.LICENSE_TOMBSTONE) {
             // implies license has been explicitly deleted
             // update licensee states
             registeredLicensees.forEach(InternalLicensee::onRemove);
             return;
         }
+        if (license != null) {
+            logger.debug("notifying [{}] listeners", registeredLicensees.size());
+            switch (getLicenseState(license, clock.millis())) {
+                case ENABLED:
+                    for (InternalLicensee licensee : registeredLicensees) {
+                        licensee.onChange(license, LicenseState.ENABLED);
+                    }
+                    logger.debug("license [{}] - valid", license.uid());
+                    break;
+                case GRACE_PERIOD:
+                    for (InternalLicensee licensee : registeredLicensees) {
+                        licensee.onChange(license, LicenseState.GRACE_PERIOD);
+                    }
+                    logger.warn("license [{}] - grace", license.uid());
+                    break;
+                case DISABLED:
+                    for (InternalLicensee licensee : registeredLicensees) {
+                        licensee.onChange(license, LicenseState.DISABLED);
+                    }
+                    logger.warn("license [{}] - expired", license.uid());
+                    break;
+            }
+        }
+    }
+
+    static LicenseState getLicenseState(final License license, long time) {
+        if (license.issueDate() > time) {
+            return LicenseState.DISABLED;
+        }
+        if (license.expiryDate() > time) {
+            return LicenseState.ENABLED;
+        }
+        if ((license.expiryDate() + GRACE_PERIOD_DURATION.getMillis()) > time) {
+            return LicenseState.GRACE_PERIOD;
+        }
+        return LicenseState.DISABLED;
+    }
+
+    /**
+     * Notifies registered licensees of license state change and/or new active license
+     * based on the license in <code>currentLicensesMetaData</code>.
+     * Additionally schedules license expiry notifications and event callbacks
+     * relative to the current license's expiry
+     */
+    void onUpdate(final LicensesMetaData currentLicensesMetaData) {
+        final License license = getLicense(currentLicensesMetaData);
         // license can be null if the trial license is yet to be auto-generated
         // in this case, it is a no-op
         if (license != null) {
-            logger.debug("notifying [{}] listeners", registeredLicensees.size());
-            long now = clock.millis();
-            if (license.issueDate() > now) {
-                logger.warn("license [{}] - invalid", license.uid());
-                return;
-            }
-            long expiryDuration = license.expiryDate() - now;
-            if (license.expiryDate() > now) {
-                for (InternalLicensee licensee : registeredLicensees) {
-                    licensee.onChange(license, LicenseState.ENABLED);
-                }
-                logger.debug("license [{}] - valid", license.uid());
-                final TimeValue delay = TimeValue.timeValueMillis(expiryDuration);
-                // cancel any previous notifications
-                cancelNotifications(expiryNotifications);
-                try {
-                    logger.debug("schedule grace notification after [{}] for license [{}]", delay.toString(), license.uid());
-                    expiryNotifications.add(threadPool.schedule(delay, executorName(), new LicensingClientNotificationJob()));
-                } catch (EsRejectedExecutionException ex) {
-                    logger.debug("couldn't schedule grace notification", ex);
-                }
-            } else if ((license.expiryDate() + gracePeriodDuration.getMillis()) > now) {
-                for (InternalLicensee licensee : registeredLicensees) {
-                    licensee.onChange(license, LicenseState.GRACE_PERIOD);
-                }
-                logger.warn("license [{}] - grace", license.uid());
-                final TimeValue delay = TimeValue.timeValueMillis(expiryDuration + gracePeriodDuration.getMillis());
-                // cancel any previous notifications
-                cancelNotifications(expiryNotifications);
-                try {
-                    logger.debug("schedule expiry notification after [{}] for license [{}]", delay.toString(), license.uid());
-                    expiryNotifications.add(threadPool.schedule(delay, executorName(), new LicensingClientNotificationJob()));
-                } catch (EsRejectedExecutionException ex) {
-                    logger.debug("couldn't schedule expiry notification", ex);
-                }
-            } else {
-                for (InternalLicensee licensee : registeredLicensees) {
-                    licensee.onChange(license, LicenseState.DISABLED);
-                }
-                logger.warn("license [{}] - expired", license.uid());
-            }
-            if (!license.equals(currentLicense.get())) {
+            notifyLicensees(license);
+            if (license.equals(currentLicense.get()) == false) {
                 currentLicense.set(license);
-                // cancel all scheduled event notifications
-                cancelNotifications(eventNotifications);
-                // schedule expiry callbacks
-                for (ExpirationCallback expirationCallback : this.expirationCallbacks) {
-                    final TimeValue delay;
-                    if (expirationCallback.matches(license.expiryDate(), now)) {
-                        expirationCallback.on(license);
-                        TimeValue frequency = expirationCallback.frequency();
-                        delay = frequency != null ? frequency : expirationCallback.delay(expiryDuration);
-                    } else {
-                        delay = expirationCallback.delay(expiryDuration);
-                    }
-                    if (delay != null) {
-                        eventNotifications.add(threadPool.schedule(delay, executorName(), new EventNotificationJob(expirationCallback)));
-                    }
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("schedule [{}] after [{}]", expirationCallback, delay);
-                    }
-                }
-                logger.debug("scheduled expiry callbacks for [{}] expiring after [{}]", license.uid(),
-                        TimeValue.timeValueMillis(expiryDuration));
-            }
-        }
-    }
-
-    private class LicensingClientNotificationJob implements Runnable {
-        @Override
-        public void run() {
-            logger.debug("running expiry notification");
-            final ClusterState currentClusterState = clusterService.state();
-            if (!currentClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-                final LicensesMetaData currentLicensesMetaData = currentClusterState.metaData().custom(LicensesMetaData.TYPE);
-                notifyAndSchedule(currentLicensesMetaData);
-            } else if (logger.isDebugEnabled()) {
-                // next clusterChanged event will deal with the missed notifications
-                logger.debug("skip expiry notification [{}]", GatewayService.STATE_NOT_RECOVERED_BLOCK);
-            }
-        }
-    }
-
-    private class EventNotificationJob implements Runnable {
-        private final ExpirationCallback expirationCallback;
-
-        EventNotificationJob(ExpirationCallback expirationCallback) {
-            this.expirationCallback = expirationCallback;
-        }
-
-        @Override
-        public void run() {
-            logger.debug("running event notification for [{}]", expirationCallback);
-            LicensesMetaData currentLicensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-            License license = getLicense(currentLicensesMetaData);
-            if (license != null) {
-                long now = clock.millis();
-                if (expirationCallback.matches(license.expiryDate(), now)) {
-                    expirationCallback.on(license);
-                    if (expirationCallback.frequency() != null) {
-                        // schedule next event
-                        eventNotifications.add(threadPool.schedule(expirationCallback.frequency(), executorName(), this));
-                    }
-                } else if (logger.isDebugEnabled()) {
-                    logger.debug("skip scheduling notification for [{}] with license expiring after [{}]", expirationCallback,
-                            TimeValue.timeValueMillis(license.expiryDate() - now));
-                }
-            }
-            // clear out any finished event notifications
-            while (!eventNotifications.isEmpty()) {
-                ScheduledFuture notification = eventNotifications.peek();
-                if (notification != null && notification.isDone()) {
-                    // remove the notifications that are done
-                    eventNotifications.poll();
-                } else {
-                    // stop emptying out the queue as soon as the first undone future hits
-                    break;
+                scheduler.add(new SchedulerEngine.Job(LICENSE_JOB, new LicenseSchedule(license)));
+                for (ExpirationCallback expirationCallback : expirationCallbacks) {
+                    scheduler.add(new SchedulerEngine.Job(expirationCallback.getId(),
+                            expirationCallback.schedule(license.expiryDate())));
                 }
             }
         }
@@ -632,8 +565,8 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                 // triggers a cluster changed event
                 // eventually notifying the current licensee
                 requestTrialLicense(clusterState);
-            } else {
-                notifyAndSchedule(currentMetaData);
+            } else if (lifecycleState() == Lifecycle.State.STARTED) {
+                notifyLicensees(currentMetaData.getLicense());
             }
         }
     }
@@ -661,25 +594,6 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             }
         }
         return null;
-    }
-
-    /**
-     * Cancels out all notification futures
-     */
-    private static void cancelNotifications(Queue<ScheduledFuture> scheduledNotifications) {
-        // clear out notification queue
-        while (!scheduledNotifications.isEmpty()) {
-            ScheduledFuture notification = scheduledNotifications.peek();
-            if (notification != null) {
-                // cancel
-                FutureUtils.cancel(notification);
-                scheduledNotifications.poll();
-            }
-        }
-    }
-
-    private String executorName() {
-        return ThreadPool.Names.GENERIC;
     }
 
     /**
@@ -746,20 +660,5 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             registerTrialLicense();
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
-    }
-
-    // TODO - temporary hack for tests, should be removed once we introduce `ClockMock`
-    public void setGracePeriodDuration(TimeValue gracePeriodDuration) {
-        this.gracePeriodDuration = gracePeriodDuration;
-    }
-
-    // only for adding expiration callbacks for tests
-    public void setExpirationCallbacks(List<ExpirationCallback> expirationCallbacks) {
-        this.expirationCallbacks = expirationCallbacks;
-    }
-
-    // TODO - temporary hack for tests, should be removed once we introduce `ClockMock`
-    public void setTrialLicenseDuration(TimeValue trialLicenseDuration) {
-        this.trialLicenseDuration = trialLicenseDuration;
     }
 }

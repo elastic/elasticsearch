@@ -8,8 +8,13 @@ package org.elasticsearch.license.plugin.core;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
+import org.elasticsearch.xpack.scheduler.SchedulerEngine;
+
+import java.util.UUID;
 
 public abstract class ExpirationCallback {
+
+    final static String EXPIRATION_JOB_PREFIX = ".license_expiration_job_";
 
     public enum Orientation {PRE, POST}
 
@@ -38,8 +43,8 @@ public abstract class ExpirationCallback {
         }
 
         @Override
-        public TimeValue delay(long expiryDuration) {
-            return TimeValue.timeValueMillis(expiryDuration - max.getMillis());
+        public TimeValue delay(long expirationDate, long now) {
+            return TimeValue.timeValueMillis((expirationDate - now) - max.getMillis());
         }
     }
 
@@ -68,7 +73,8 @@ public abstract class ExpirationCallback {
         }
 
         @Override
-        public TimeValue delay(long expiryDuration) {
+        public TimeValue delay(long expirationDate, long now) {
+            long expiryDuration = expirationDate - now;
             final long delay;
             if (expiryDuration >= 0L) {
                 delay = expiryDuration + min.getMillis();
@@ -83,6 +89,7 @@ public abstract class ExpirationCallback {
         }
     }
 
+    private final String id;
     protected final Orientation orientation;
     protected final TimeValue min;
     protected final TimeValue max;
@@ -93,21 +100,57 @@ public abstract class ExpirationCallback {
         this.min = (min == null) ? TimeValue.timeValueMillis(0) : min;
         this.max = (max == null) ? TimeValue.timeValueMillis(Long.MAX_VALUE) : max;
         this.frequency = frequency;
+        this.id = String.join("", EXPIRATION_JOB_PREFIX, UUID.randomUUID().toString());
+    }
+
+    public String getId() {
+        return id;
     }
 
     public TimeValue frequency() {
         return frequency;
     }
 
-    public abstract TimeValue delay(long expiryDuration);
+    public abstract TimeValue delay(long expirationDate, long now);
 
     public abstract boolean matches(long expirationDate, long now);
 
     public abstract void on(License license);
 
-    @Override
+    public SchedulerEngine.Schedule schedule(long expiryDate) {
+        return new ExpirySchedule(expiryDate);
+    }
+
     public String toString() {
         return LoggerMessageFormat.format(null, "ExpirationCallback:(orientation [{}],  min [{}], max [{}], freq [{}])",
                 orientation.name(), min, max, frequency);
+    }
+
+    private class ExpirySchedule implements SchedulerEngine.Schedule {
+
+        private final long expiryDate;
+
+        private ExpirySchedule(long expiryDate) {
+            this.expiryDate = expiryDate;
+        }
+
+        @Override
+        public long nextScheduledTimeAfter(long startTime, long time) {
+            if (matches(expiryDate, time)) {
+                if (startTime == time) {
+                    return time;
+                } else {
+                    return time + frequency().getMillis();
+                }
+            } else {
+                if (startTime == time) {
+                    final TimeValue delay = delay(expiryDate, time);
+                    if (delay != null) {
+                        return time + delay.getMillis();
+                    }
+                }
+                return -1;
+            }
+        }
     }
 }

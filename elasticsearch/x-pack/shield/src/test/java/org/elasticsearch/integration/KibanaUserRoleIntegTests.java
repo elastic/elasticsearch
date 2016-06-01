@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class KibanaRoleTests extends ShieldIntegTestCase {
+public class KibanaUserRoleIntegTests extends ShieldIntegTestCase {
 
     protected static final SecuredString USERS_PASSWD = new SecuredString("change_me".toCharArray());
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("change_me".toCharArray())));
@@ -38,18 +38,11 @@ public class KibanaRoleTests extends ShieldIntegTestCase {
     public String configRoles() {
         return super.configRoles() + "\n" +
                 "my_kibana_user:\n" +
-                "  cluster:\n" +
-                "      - monitor\n" +
                 "  indices:\n" +
                 "    - names: 'logstash-*'\n" +
                 "      privileges:\n" +
                 "        - view_index_metadata\n" +
-                "        - read\n" +
-                "    - names: '.kibana*'\n" +
-                "      privileges:\n" +
-                "        - manage\n" +
-                "        - read\n" +
-                "        - index";
+                "        - read\n";
     }
 
     @Override
@@ -61,7 +54,8 @@ public class KibanaRoleTests extends ShieldIntegTestCase {
     @Override
     public String configUsersRoles() {
         return super.configUsersRoles() +
-                "my_kibana_user:kibana_user";
+                "my_kibana_user:kibana_user\n" +
+                "kibana_user:kibana_user";
     }
 
     public void testFieldMappings() throws Exception {

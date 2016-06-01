@@ -21,8 +21,8 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
-import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.dateTimeFormatter;
+import static org.elasticsearch.xpack.support.Exceptions.illegalArgument;
+import static org.elasticsearch.xpack.support.DateTimeUtils.dateTimeFormatter;
 
 /**
  *

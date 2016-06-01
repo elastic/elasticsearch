@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition.compare;
 
-import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.xpack.support.DateTimeUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -55,7 +55,7 @@ public class LenientCompare {
             }
             if (v1 instanceof String) {
                 try {
-                    v1 = WatcherDateTimeUtils.parseDate((String) v1);
+                    v1 = DateTimeUtils.parseDate((String) v1);
                 } catch (Exception e) {
                     return null;
                 }

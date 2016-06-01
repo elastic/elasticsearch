@@ -14,11 +14,11 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
-import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.xpack.support.DateTimeUtils;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.trigger.schedule.ScheduleTriggerEvent;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -33,8 +33,8 @@ import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBu
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.scriptTransform;
-import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
+import static org.elasticsearch.xpack.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -75,10 +75,10 @@ public class IndexActionIT extends AbstractWatcherIntegrationTestCase {
         assertThat(searchResponse.getHits().totalHits(), is(1L));
         SearchHit hit = searchResponse.getHits().getAt(0);
         if (timeWarped()) {
-            assertThat(hit.getSource(), hasEntry("@timestamp", (Object) WatcherDateTimeUtils.formatDate(now)));
+            assertThat(hit.getSource(), hasEntry("@timestamp", (Object) DateTimeUtils.formatDate(now)));
         } else {
             assertThat(hit.getSource(), hasKey("@timestamp"));
-            DateTime timestamp = WatcherDateTimeUtils.parseDate((String) hit.getSource().get("@timestamp"));
+            DateTime timestamp = DateTimeUtils.parseDate((String) hit.getSource().get("@timestamp"));
             assertThat(timestamp.isEqual(now) || timestamp.isAfter(now), is(true));
         }
         assertThat(hit.getSource(), hasEntry("foo", (Object) "bar"));
@@ -111,10 +111,10 @@ public class IndexActionIT extends AbstractWatcherIntegrationTestCase {
         assertThat(searchResponse.getHits().totalHits(), is(1L));
         SearchHit hit = searchResponse.getHits().getAt(0);
         if (timeWarped()) {
-            assertThat(hit.getSource(), hasEntry("@timestamp", (Object) WatcherDateTimeUtils.formatDate(now)));
+            assertThat(hit.getSource(), hasEntry("@timestamp", (Object) DateTimeUtils.formatDate(now)));
         } else {
             assertThat(hit.getSource(), hasKey("@timestamp"));
-            DateTime timestamp = WatcherDateTimeUtils.parseDate((String) hit.getSource().get("@timestamp"));
+            DateTime timestamp = DateTimeUtils.parseDate((String) hit.getSource().get("@timestamp"));
             assertThat(timestamp.isEqual(now) || timestamp.isAfter(now), is(true));
         }
         assertThat(hit.getSource(), hasEntry("foo", (Object) "bar"));
@@ -202,10 +202,10 @@ public class IndexActionIT extends AbstractWatcherIntegrationTestCase {
         int i = 0;
         for (SearchHit hit : searchResponse.getHits()) {
             if (timeWarped()) {
-                assertThat(hit.getSource(), hasEntry("@timestamp", (Object) WatcherDateTimeUtils.formatDate(now)));
+                assertThat(hit.getSource(), hasEntry("@timestamp", (Object) DateTimeUtils.formatDate(now)));
             } else {
                 assertThat(hit.getSource(), hasKey("@timestamp"));
-                DateTime timestamp = WatcherDateTimeUtils.parseDate((String) hit.getSource().get("@timestamp"));
+                DateTime timestamp = DateTimeUtils.parseDate((String) hit.getSource().get("@timestamp"));
                 assertThat(timestamp.isEqual(now) || timestamp.isAfter(now), is(true));
             }
             assertThat(hit.getSource(), hasEntry("key", (Object) key.getMillis()));

@@ -16,7 +16,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.support.validation.Validation;
-import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
+import org.elasticsearch.xpack.trigger.TriggerEvent;
 
 import java.io.IOException;
 import java.util.HashMap;

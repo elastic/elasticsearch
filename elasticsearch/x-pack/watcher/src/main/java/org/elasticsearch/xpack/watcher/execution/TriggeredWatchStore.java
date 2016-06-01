@@ -38,8 +38,8 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
-import static org.elasticsearch.xpack.watcher.support.Exceptions.ioException;
+import static org.elasticsearch.xpack.support.Exceptions.illegalState;
+import static org.elasticsearch.xpack.support.Exceptions.ioException;
 
 public class TriggeredWatchStore extends AbstractComponent {
 

@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.input.Input;
-import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEvent;
+import org.elasticsearch.xpack.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;

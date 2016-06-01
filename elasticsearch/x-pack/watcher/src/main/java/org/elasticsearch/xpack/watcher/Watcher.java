@@ -63,8 +63,8 @@ import org.elasticsearch.xpack.watcher.transport.actions.service.TransportWatche
 import org.elasticsearch.xpack.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.TransportWatcherStatsAction;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsAction;
-import org.elasticsearch.xpack.watcher.trigger.TriggerModule;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleModule;
+import org.elasticsearch.xpack.trigger.TriggerModule;
+import org.elasticsearch.xpack.trigger.schedule.ScheduleModule;
 import org.elasticsearch.xpack.watcher.watch.WatchModule;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;

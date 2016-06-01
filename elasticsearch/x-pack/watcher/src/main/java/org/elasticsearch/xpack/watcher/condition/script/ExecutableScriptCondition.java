@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.common.ScriptServiceProxy;
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.watcher.support.Exceptions.invalidScript;
+import static org.elasticsearch.xpack.support.Exceptions.invalidScript;
 
 /**
  * This class executes a script against the ctx payload and returns a boolean

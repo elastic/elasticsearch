@@ -1,0 +1,52 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.xpack.trigger.manual;
+
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.trigger.TriggerEvent;
+import org.elasticsearch.xpack.trigger.TriggerService;
+
+import java.io.IOException;
+
+/**
+ */
+public class ManualTriggerEvent extends TriggerEvent {
+
+    private final TriggerEvent triggerEvent;
+
+    public ManualTriggerEvent(String jobName, TriggerEvent triggerEvent) {
+        super(jobName, triggerEvent.triggeredTime());
+        this.triggerEvent = triggerEvent;
+        data.putAll(triggerEvent.data());
+    }
+
+    @Override
+    public String type() {
+        return ManualTriggerEngine.TYPE;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(triggerEvent.type(), triggerEvent, params);
+        return builder.endObject();
+    }
+
+    @Override
+    public void recordDataXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(ManualTriggerEngine.TYPE);
+        triggerEvent.recordDataXContent(builder, params);
+        builder.endObject();
+    }
+
+    public static ManualTriggerEvent parse(TriggerService triggerService, String id, String context, XContentParser parser) throws
+            IOException {
+        TriggerEvent parsedTriggerEvent = triggerService.parseTriggerEvent(id, context, parser);
+        return new ManualTriggerEvent(context, parsedTriggerEvent);
+    }
+
+}

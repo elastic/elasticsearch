@@ -27,10 +27,10 @@ import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchRes
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
-import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEvent;
-import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.trigger.manual.ManualTriggerEvent;
+import org.elasticsearch.xpack.trigger.schedule.IntervalSchedule;
+import org.elasticsearch.xpack.trigger.schedule.ScheduleTrigger;
+import org.elasticsearch.xpack.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.notification.email.EmailTemplate;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -44,8 +44,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.webhookAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.xpack.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 

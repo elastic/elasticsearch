@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.execution;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
+import org.elasticsearch.xpack.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 

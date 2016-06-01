@@ -9,9 +9,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
-import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
-import org.elasticsearch.xpack.watcher.trigger.TriggerService;
+import org.elasticsearch.xpack.trigger.TriggerEngine;
+import org.elasticsearch.xpack.trigger.TriggerEvent;
+import org.elasticsearch.xpack.trigger.TriggerService;
 
 import java.util.stream.StreamSupport;
 

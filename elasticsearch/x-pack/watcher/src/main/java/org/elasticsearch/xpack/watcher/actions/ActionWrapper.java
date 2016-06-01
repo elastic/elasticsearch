@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.xpack.watcher.actions.throttler.Throttler;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.WatcherLicensee;
-import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.xpack.support.DateTimeUtils;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.transform.Transform;
@@ -158,7 +158,7 @@ public class ActionWrapper implements ToXContent {
                     transform = transformRegistry.parse(watchId, parser);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Throttler.Field.THROTTLE_PERIOD)) {
                     try {
-                        throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, Throttler.Field.THROTTLE_PERIOD.toString());
+                        throttlePeriod = DateTimeUtils.parseTimeValue(parser, Throttler.Field.THROTTLE_PERIOD.toString());
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse action [{}/{}]. failed to parse field [{}] as time value",
                                 pe, watchId, actionId, currentFieldName);

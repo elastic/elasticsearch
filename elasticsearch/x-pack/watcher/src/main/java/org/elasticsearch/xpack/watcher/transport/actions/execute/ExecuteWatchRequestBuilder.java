@@ -10,7 +10,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
-import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
+import org.elasticsearch.xpack.trigger.TriggerEvent;
 
 import java.io.IOException;
 import java.util.Map;

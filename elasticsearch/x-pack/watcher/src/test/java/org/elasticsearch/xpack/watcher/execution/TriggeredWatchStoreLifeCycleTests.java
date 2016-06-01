@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;

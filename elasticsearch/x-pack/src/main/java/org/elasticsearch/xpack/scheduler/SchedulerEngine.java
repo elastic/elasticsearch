@@ -183,67 +183,56 @@ public class SchedulerEngine {
 
     static class Schedules {
 
-        private final ActiveSchedule[] schedules;
         private final Map<String, ActiveSchedule> scheduleByName;
 
         Schedules(Collection<ActiveSchedule> schedules) {
             Map<String, ActiveSchedule> builder = new HashMap<>();
-            this.schedules = new ActiveSchedule[schedules.size()];
-            int i = 0;
             for (ActiveSchedule schedule : schedules) {
                 builder.put(schedule.name, schedule);
-                this.schedules[i++] = schedule;
             }
             this.scheduleByName = unmodifiableMap(builder);
         }
 
-        public Schedules(ActiveSchedule[] schedules, Map<String, ActiveSchedule> scheduleByName) {
-            this.schedules = schedules;
+        public Schedules(Map<String, ActiveSchedule> scheduleByName) {
             this.scheduleByName = scheduleByName;
         }
 
         public Schedules add(ActiveSchedule schedule) {
             boolean replacing = scheduleByName.containsKey(schedule.name);
             if (!replacing) {
-                ActiveSchedule[] newSchedules = new ActiveSchedule[schedules.length + 1];
-                System.arraycopy(schedules, 0, newSchedules, 0, schedules.length);
-                newSchedules[schedules.length] = schedule;
                 Map<String, ActiveSchedule> newScheduleByName = new HashMap<>(scheduleByName);
                 newScheduleByName.put(schedule.name, schedule);
-                return new Schedules(newSchedules, unmodifiableMap(newScheduleByName));
+                return new Schedules(unmodifiableMap(newScheduleByName));
             }
-            ActiveSchedule[] newSchedules = new ActiveSchedule[schedules.length];
-            Map<String, ActiveSchedule> builder = new HashMap<>();
-            for (int i = 0; i < schedules.length; i++) {
-                final ActiveSchedule sched;
-                if (schedules[i].name.equals(schedule.name)) {
-                    sched = schedule;
-                    schedules[i].cancel();
+            Map<String, ActiveSchedule> builder = new HashMap<>(scheduleByName.size());
+            for (Map.Entry<String, ActiveSchedule> scheduleEntry : scheduleByName.entrySet()) {
+                final String existingScheduleName = scheduleEntry.getKey();
+                final ActiveSchedule existingSchedule = scheduleEntry.getValue();
+                if (existingScheduleName.equals(schedule.name)) {
+                    existingSchedule.cancel();
+                    builder.put(schedule.name, schedule);
                 } else {
-                    sched = schedules[i];
+                    builder.put(existingScheduleName, existingSchedule);
                 }
-                newSchedules[i] = sched;
-                builder.put(sched.name, sched);
             }
-            return new Schedules(newSchedules, unmodifiableMap(builder));
+            return new Schedules(unmodifiableMap(builder));
         }
 
         public Schedules remove(String name) {
             if (!scheduleByName.containsKey(name)) {
                 return null;
             }
-            Map<String, ActiveSchedule> builder = new HashMap<>();
-            ActiveSchedule[] newSchedules = new ActiveSchedule[schedules.length - 1];
-            int i = 0;
-            for (ActiveSchedule schedule : schedules) {
-                if (!schedule.name.equals(name)) {
-                    newSchedules[i++] = schedule;
-                    builder.put(schedule.name, schedule);
+            Map<String, ActiveSchedule> builder = new HashMap<>(scheduleByName.size() - 1);
+            for (Map.Entry<String, ActiveSchedule> scheduleEntry : scheduleByName.entrySet()) {
+                final String existingScheduleName = scheduleEntry.getKey();
+                final ActiveSchedule existingSchedule = scheduleEntry.getValue();
+                if (existingScheduleName.equals(name)) {
+                    existingSchedule.cancel();
                 } else {
-                    schedule.cancel();
+                    builder.put(existingScheduleName, existingSchedule);
                 }
             }
-            return new Schedules(newSchedules, unmodifiableMap(builder));
+            return new Schedules(unmodifiableMap(builder));
         }
     }
 }

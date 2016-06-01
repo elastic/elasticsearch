@@ -353,7 +353,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                     }
                 }).txGet();
         } catch (Exception e) {
-            throw new ConnectTransportException(node, "handshake failed", e);
+            throw new IllegalStateException("handshake failed with " + node, e);
         }
 
         if (checkClusterName && !Objects.equals(clusterName, response.clusterName)) {

@@ -1549,14 +1549,15 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     /**
-     * Returns <code>true</code> iff one or more changes to the engine are not visible to via the current searcher.
+     * Returns <code>true</code> iff one or more changes to the engine are not visible to via the current searcher *or* there are pending
+     * refresh listeners.
      * Otherwise <code>false</code>.
      *
      * @throws EngineClosedException  if the engine is already closed
      * @throws AlreadyClosedException if the internal indexwriter in the engine is already closed
      */
     public boolean isRefreshNeeded() {
-        return getEngine().refreshNeeded();
+        return getEngine().refreshNeeded() || (refreshListeners != null && refreshListeners.refreshNeeded());
     }
 
     /**

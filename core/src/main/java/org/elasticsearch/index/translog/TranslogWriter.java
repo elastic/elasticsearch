@@ -26,6 +26,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -136,6 +137,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         }
         totalOffset += data.length();
         operationCounter++;
+        ESLoggerFactory.getLogger("TMP").error("Advanced position from [{}] to [{}]", offset, totalOffset);
         return new Translog.Location(generation, offset, data.length());
     }
 

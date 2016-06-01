@@ -27,6 +27,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -36,6 +37,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Map;
@@ -43,6 +45,7 @@ import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
@@ -51,11 +54,21 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 /**
  * Tests that requests with RefreshPolicy.WAIT_UNTIL will be visible when they return.
  */
-public class BlockUntilRefreshIT extends ESIntegTestCase {
+public class WaitUntilRefreshIT extends ESIntegTestCase {
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(NetworkModule.HTTP_ENABLED.getKey(), true).build();
+    }
+
     @Override
     public Settings indexSettings() {
         // Use a shorter refresh interval to speed up the tests. We'll be waiting on this interval several times.
-        return Settings.builder().put(super.indexSettings()).put("index.refresh_interval", "100ms").build();
+        return Settings.builder().put(super.indexSettings()).put("index.refresh_interval", "40ms").build();
+    }
+
+    @Before
+    public void createTestIndex() {
+        createIndex("test");
     }
 
     public void testIndex() {
@@ -83,21 +96,21 @@ public class BlockUntilRefreshIT extends ESIntegTestCase {
         indexRandom(true, client().prepareIndex("test", "test", "1").setSource("foo", "bar"));
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
 
-        // Update with block_until_refresh
+        // Update with RefreshPolicy.WAIT_UNTIL
         UpdateResponse update = client().prepareUpdate("test", "test", "1").setDoc("foo", "baz").setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                 .get();
         assertEquals(2, update.getVersion());
         assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "baz")).get(), "1");
 
-        // Upsert with block_until_refresh
+        // Upsert with RefreshPolicy.WAIT_UNTIL
         update = client().prepareUpdate("test", "test", "2").setDocAsUpsert(true).setDoc("foo", "cat")
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
         assertEquals(1, update.getVersion());
         assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "cat")).get(), "2");
 
-        // Update-becomes-delete with block_until_refresh
+        // Update-becomes-delete with RefreshPolicy.WAIT_UNTIL
         update = client().prepareUpdate("test", "test", "2").setScript(new Script("delete_plz", ScriptType.INLINE, "native", emptyMap()))
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
         assertEquals(2, update.getVersion());
@@ -106,30 +119,28 @@ public class BlockUntilRefreshIT extends ESIntegTestCase {
     }
 
     public void testBulk() {
-        // Index by bulk with block_until_refresh
+        // Index by bulk with RefreshPolicy.WAIT_UNTIL
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         bulk.add(client().prepareIndex("test", "test", "1").setSource("foo", "bar"));
         assertBulkSuccess(bulk.get());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
 
-        // Update by bulk with block_until_refresh
+        // Update by bulk with RefreshPolicy.WAIT_UNTIL
         bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         bulk.add(client().prepareUpdate("test", "test", "1").setDoc("foo", "baz"));
         assertBulkSuccess(bulk.get());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "baz")).get(), "1");
 
-        // Delete by bulk with block_until_refresh
+        // Delete by bulk with RefreshPolicy.WAIT_UNTIL
         bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         bulk.add(client().prepareDelete("test", "test", "1"));
         assertBulkSuccess(bulk.get());
         assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get());
-        // NOCOMMIT figure out why this sort of noop doesn't trigger
-//
-//        // Update makes a noop
-//        bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-//        bulk.add(client().prepareDelete("test", "test", "1"));
-//        assertBulkSuccess(bulk.get());
-//        assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get());
+
+        // Update makes a noop
+        bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+        bulk.add(client().prepareDelete("test", "test", "1"));
+        assertBulkSuccess(bulk.get());
     }
 
     /**
@@ -137,7 +148,7 @@ public class BlockUntilRefreshIT extends ESIntegTestCase {
      * explicit refresh if the interval is -1 because we don't have that kind of control over refresh. It can happen all on its own.
      */
     public void testNoRefreshInterval() throws InterruptedException, ExecutionException {
-        client().admin().indices().prepareCreate("test").setSettings("index.refresh_interval", -1).get();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(singletonMap("index.refresh_interval", -1)).get();
         ListenableActionFuture<IndexResponse> index = client().prepareIndex("test", "index", "1").setSource("foo", "bar")
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).execute();
         while (false == index.isDone()) {

@@ -133,6 +133,7 @@ public class RefreshListenersTests extends ESTestCase {
     }
 
     public void testTooMany() throws Exception {
+        assertFalse(listeners.refreshNeeded());
         Engine.Index index = index("1");
 
         // Fill the listener slots
@@ -141,6 +142,7 @@ public class RefreshListenersTests extends ESTestCase {
             DummyRefreshListener listener = new DummyRefreshListener();
             nonForcedListeners.add(listener);
             listeners.addOrNotify(index.getTranslogLocation(), listener);
+            assertTrue(listeners.refreshNeeded());
         }
 
         // We shouldn't have called any of them
@@ -157,6 +159,7 @@ public class RefreshListenersTests extends ESTestCase {
         for (DummyRefreshListener listener : nonForcedListeners) {
             assertEquals("Expected listener called with unforced refresh!", Boolean.FALSE, listener.forcedRefresh.get());
         }
+        assertFalse(listeners.refreshNeeded());
     }
 
     public void testAfterRefresh() throws Exception {

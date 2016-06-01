@@ -65,16 +65,16 @@ public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationT
         logger.info("using {} consumer plugin", useEagerLicenseRegistrationPlugin ? "eager" : "lazy");
         logger.info(" --> trial license generated");
         // managerService should report feature to be enabled on all data nodes
-        assertLicenseeState(getCurrentFeatureName(), LicenseState.ENABLED);
+        assertLicenseeState(LicenseState.ENABLED);
         // consumer plugin service should return enabled on all data nodes
         assertConsumerPluginEnabledNotification(2);
 
         logger.info(" --> check trial license expiry notification");
         // consumer plugin should notify onDisabled on all data nodes (expired trial license)
         assertConsumerPluginDisabledNotification(trialLicenseDurationInSeconds * 2);
-        assertLicenseeState(getCurrentFeatureName(), LicenseState.GRACE_PERIOD);
+        assertLicenseeState(LicenseState.GRACE_PERIOD);
 
-        assertLicenseeState(getCurrentFeatureName(), LicenseState.DISABLED);
+        assertLicenseeState(LicenseState.DISABLED);
 
         logger.info(" --> put signed license");
         putLicense(TimeValue.timeValueSeconds(trialLicenseDurationInSeconds));
@@ -82,33 +82,33 @@ public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationT
         logger.info(" --> check signed license enabled notification");
         // consumer plugin should notify onEnabled on all data nodes (signed license)
         assertConsumerPluginEnabledNotification(1);
-        assertLicenseeState(getCurrentFeatureName(), LicenseState.ENABLED);
+        assertLicenseeState(LicenseState.ENABLED);
 
         logger.info(" --> check signed license expiry notification");
         // consumer plugin should notify onDisabled on all data nodes (expired signed license)
         assertConsumerPluginDisabledNotification(trialLicenseDurationInSeconds * 2);
-        assertLicenseeState(getCurrentFeatureName(), LicenseState.GRACE_PERIOD);
-        assertLicenseeState(getCurrentFeatureName(), LicenseState.DISABLED);
+        assertLicenseeState(LicenseState.GRACE_PERIOD);
+        assertLicenseeState(LicenseState.DISABLED);
     }
 
     public void testTrialLicenseNotification() throws Exception {
         logger.info(" --> check onEnabled for trial license");
         // managerService should report feature to be enabled on all data nodes
-        assertLicenseeState(getCurrentFeatureName(), LicenseState.ENABLED);
+        assertLicenseeState(LicenseState.ENABLED);
         // consumer plugin service should return enabled on all data nodes
         assertConsumerPluginEnabledNotification(1);
 
         logger.info(" --> check trial license expiry notification");
         // consumer plugin should notify onDisabled on all data nodes (expired signed license)
         assertConsumerPluginDisabledNotification(trialLicenseDurationInSeconds * 2);
-        assertLicenseeState(getCurrentFeatureName(), LicenseState.GRACE_PERIOD);
-        assertLicenseeState(getCurrentFeatureName(), LicenseState.DISABLED);
+        assertLicenseeState(LicenseState.GRACE_PERIOD);
+        assertLicenseeState(LicenseState.DISABLED);
     }
 
     public void testOverlappingTrialAndSignedLicenseNotification() throws Exception {
         logger.info(" --> check onEnabled for trial license");
         // managerService should report feature to be enabled on all data nodes
-        assertLicenseeState(getCurrentFeatureName(), LicenseState.ENABLED);
+        assertLicenseeState(LicenseState.ENABLED);
         // consumer plugin service should return enabled on all data nodes
         assertConsumerPluginEnabledNotification(1);
 
@@ -118,7 +118,7 @@ public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationT
         logger.info(" --> check signed license enabled notification");
         // consumer plugin should notify onEnabled on all data nodes (signed license)
         assertConsumerPluginEnabledNotification(1);
-        assertLicenseeState(getCurrentFeatureName(), LicenseState.ENABLED);
+        assertLicenseeState(LicenseState.ENABLED);
 
         logger.info(" --> sleep for rest of trailLicense duration");
         Thread.sleep(trialLicenseDurationInSeconds * 1000L);
@@ -126,13 +126,13 @@ public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationT
         logger.info(" --> check consumer is still enabled [signed license]");
         // consumer plugin should notify onEnabled on all data nodes (signed license)
         assertConsumerPluginEnabledNotification(1);
-        assertLicenseeState(getCurrentFeatureName(), LicenseState.ENABLED);
+        assertLicenseeState(LicenseState.ENABLED);
 
         logger.info(" --> check signed license expiry notification");
         // consumer plugin should notify onDisabled on all data nodes (expired signed license)
         assertConsumerPluginDisabledNotification(trialLicenseDurationInSeconds * 2 * 2);
-        assertLicenseeState(getCurrentFeatureName(), LicenseState.GRACE_PERIOD);
-        assertLicenseeState(getCurrentFeatureName(), LicenseState.DISABLED);
+        assertLicenseeState(LicenseState.GRACE_PERIOD);
+        assertLicenseeState(LicenseState.DISABLED);
     }
 
     private String getCurrentFeatureName() {

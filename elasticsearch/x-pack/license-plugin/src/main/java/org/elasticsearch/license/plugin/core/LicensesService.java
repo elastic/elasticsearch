@@ -348,14 +348,11 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     }
 
     @Override
-    public List<String> licenseesWithState(LicenseState state) {
-        List<String> licensees = new ArrayList<>(registeredLicensees.size());
-        for (InternalLicensee licensee : registeredLicensees) {
-            if (licensee.currentLicenseState == state) {
-                licensees.add(licensee.id());
-            }
+    public LicenseState licenseState() {
+        if (registeredLicensees.size() > 0) {
+            return registeredLicensees.get(0).currentLicenseState;
         }
-        return licensees;
+        return null;
     }
 
     @Override

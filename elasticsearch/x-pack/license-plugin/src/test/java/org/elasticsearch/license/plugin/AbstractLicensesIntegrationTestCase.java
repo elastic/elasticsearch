@@ -103,11 +103,11 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
     }
 
-    protected void assertLicenseeState(final String id, final LicenseState state) throws InterruptedException {
-        assertTrue("LicensesManagerService for licensee " + id + " should have status " + state.name(), awaitBusy(() -> {
+    protected void assertLicenseeState(final LicenseState state) throws InterruptedException {
+        assertTrue("license should have status " + state.name(), awaitBusy(() -> {
             final InternalTestCluster clients = internalCluster();
             for (LicensesManagerService managerService : clients.getDataNodeInstances(LicensesManagerService.class)) {
-                if (!managerService.licenseesWithState(state).contains(id)) {
+                if (managerService.licenseState() != state) {
                     return false;
                 }
             }

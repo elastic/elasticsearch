@@ -26,7 +26,6 @@ import org.elasticsearch.license.plugin.consumer.LazyLicenseRegistrationPluginSe
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.LicensesMetaData;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -219,7 +218,7 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
 
     private void assertLicenseesStateEnabled() throws Exception {
        for (String id : PLUGINS) {
-           assertLicenseeState(id, LicenseState.ENABLED);
+           assertLicenseeState(LicenseState.ENABLED);
        }
     }
 

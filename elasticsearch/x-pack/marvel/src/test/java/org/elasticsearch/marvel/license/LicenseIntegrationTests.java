@@ -146,12 +146,8 @@ public class LicenseIntegrationTests extends MarvelIntegTestCase {
         }
 
         @Override
-        public List<String> licenseesWithState(LicenseState state) {
-            List<String> licenseesWithState = new ArrayList<>();
-            for (Licensee licensee : licensees) {
-                licenseesWithState.add(licensee.id());
-            }
-            return licenseesWithState;
+        public LicenseState licenseState() {
+            return null;
         }
 
         @Override

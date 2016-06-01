@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
@@ -282,9 +282,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.getBigArrays();
         ThreadPool threadPool = indexService.getThreadPool();
-        PageCacheRecycler pageCacheRecycler = node().injector().getInstance(PageCacheRecycler.class);
         ScriptService scriptService = node().injector().getInstance(ScriptService.class);
-        return new TestSearchContext(threadPool, pageCacheRecycler, bigArrays, scriptService, indexService);
+        return new TestSearchContext(threadPool, bigArrays, scriptService, indexService);
     }
 
     /**

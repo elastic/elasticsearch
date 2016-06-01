@@ -24,7 +24,6 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -247,11 +246,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public ScriptService scriptService() {
         return in.scriptService();
-    }
-
-    @Override
-    public PageCacheRecycler pageCacheRecycler() {
-        return in.pageCacheRecycler();
     }
 
     @Override

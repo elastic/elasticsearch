@@ -26,7 +26,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -65,7 +64,6 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     private final ScriptService scriptService;
 
-    private final PageCacheRecycler pageCacheRecycler;
 
     private final BigArrays bigArrays;
 
@@ -74,13 +72,12 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     @Inject
     public TransportExplainAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
             TransportService transportService, IndicesService indicesService, ScriptService scriptService,
-            PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, FetchPhase fetchPhase) {
+            BigArrays bigArrays, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+            FetchPhase fetchPhase) {
         super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 ExplainRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
-        this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
         this.fetchPhase = fetchPhase;
     }
@@ -117,7 +114,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
         SearchContext context = new DefaultSearchContext(0,
                 new ShardSearchLocalRequest(new String[] { request.type() }, request.nowInMillis, request.filteringAlias()), null,
-                result.searcher(), indexService, indexShard, scriptService, pageCacheRecycler, bigArrays,
+                result.searcher(), indexService, indexShard, scriptService, bigArrays,
                 threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher, SearchService.NO_TIMEOUT, fetchPhase);
         SearchContext.setCurrent(context);
 

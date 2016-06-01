@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.http.netty;
 
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -68,7 +67,6 @@ import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 public class NettyHttpServerPipeliningTests extends ESTestCase {
     private NetworkService networkService;
     private ThreadPool threadPool;
-    private MockPageCacheRecycler mockPageCacheRecycler;
     private MockBigArrays bigArrays;
     private CustomNettyHttpServerTransport httpServerTransport;
 
@@ -76,8 +74,7 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
     public void setup() throws Exception {
         networkService = new NetworkService(Settings.EMPTY);
         threadPool = new ThreadPool("test");
-        mockPageCacheRecycler = new MockPageCacheRecycler(Settings.EMPTY);
-        bigArrays = new MockBigArrays(mockPageCacheRecycler, new NoneCircuitBreakerService());
+        bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
     }
 
     @After

@@ -98,6 +98,9 @@ public final class RestClient implements Closeable {
      * @see HttpHost
      */
     public synchronized void setHosts(HttpHost... hosts) {
+        if (hosts == null || hosts.length == 0) {
+            throw new IllegalArgumentException("hosts must not be null nor empty");
+        }
         Set<HttpHost> httpHosts = new HashSet<>();
         for (HttpHost host : hosts) {
             Objects.requireNonNull(host, "host cannot be null");
@@ -206,10 +209,6 @@ public final class RestClient implements Closeable {
      * In case there are no healthy hosts available, or dead ones to be be retried, one dead host gets returned.
      */
     private Iterator<HttpHost> nextHost() {
-        if (this.hosts.isEmpty()) {
-            throw new IllegalStateException("no hosts available");
-        }
-
         Set<HttpHost> filteredHosts = new HashSet<>(hosts);
         for (Map.Entry<HttpHost, DeadHostState> entry : blacklist.entrySet()) {
             if (System.nanoTime() - entry.getValue().getDeadUntil() < 0) {

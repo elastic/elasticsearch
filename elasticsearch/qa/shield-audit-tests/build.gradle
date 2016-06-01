@@ -17,6 +17,7 @@ integTest {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
     setting 'xpack.security.audit.enabled', 'true'
     setting 'xpack.security.audit.outputs', 'index'
+    setting 'logger.level', 'DEBUG'
     setupCommand 'setupDummyUser',
                  'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
     waitCondition = { node, ant ->

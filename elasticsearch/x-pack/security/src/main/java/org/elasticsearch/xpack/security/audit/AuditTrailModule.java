@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.audit;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -44,18 +45,16 @@ public class AuditTrailModule extends AbstractSecurityModule.Node {
 
     @Override
     protected void configureNode() {
-        if (!enabled) {
-            bind(AuditTrail.class).toInstance(AuditTrail.NOOP);
-            return;
-        }
         List<String> outputs = OUTPUTS_SETTING.get(settings);
-        if (outputs.isEmpty()) {
+        if (securityEnabled == false || enabled == false || outputs.isEmpty()) {
+            bind(AuditTrailService.class).toProvider(Providers.of(null));
             bind(AuditTrail.class).toInstance(AuditTrail.NOOP);
             return;
         }
-        bind(AuditTrail.class).to(AuditTrailService.class).asEagerSingleton();
-        Multibinder<AuditTrail> binder = Multibinder.newSetBinder(binder(), AuditTrail.class);
 
+        bind(AuditTrailService.class).asEagerSingleton();
+        bind(AuditTrail.class).to(AuditTrailService.class);
+        Multibinder<AuditTrail> binder = Multibinder.newSetBinder(binder(), AuditTrail.class);
         Set<String> uniqueOutputs = Sets.newHashSet(outputs);
         for (String output : uniqueOutputs) {
             switch (output) {

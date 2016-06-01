@@ -15,13 +15,13 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.RefreshListener;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.security.authz.permission.IndicesPermission.Group;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.support.NoOpLogger;
 import org.elasticsearch.xpack.security.support.Validation;
@@ -95,6 +95,28 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
     @Override
     public Role role(String role) {
         return permissions.get(role);
+    }
+
+    @Override
+    public Map<String, Object> usageStats() {
+        Map<String, Object> usageStats = new HashMap<>();
+        usageStats.put("size", permissions.size());
+
+        boolean dls = false;
+        boolean fls = false;
+        for (Role role : permissions.values()) {
+            for (Group group : role.indices()) {
+                fls = fls || group.hasFields();
+                dls = dls || group.hasQuery();
+            }
+            if (fls && dls) {
+                break;
+            }
+        }
+        usageStats.put("fls", fls);
+        usageStats.put("dls", dls);
+
+        return usageStats;
     }
 
     public static Path resolveFile(Settings settings, Environment env) {

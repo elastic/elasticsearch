@@ -15,6 +15,9 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.MultiSearchRequestBuilder;
+import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -47,6 +50,7 @@ import org.elasticsearch.xpack.security.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.xpack.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.security.authz.permission.IndicesPermission.Group;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.support.SelfReschedulingRunnable;
@@ -56,8 +60,10 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -327,6 +333,84 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
     public Role role(String roleName) {
         RoleAndVersion roleAndVersion = getRoleAndVersion(roleName);
         return roleAndVersion == null ? null : roleAndVersion.getRole();
+    }
+
+    @Override
+    public Map<String, Object> usageStats() {
+        if (state() != State.STARTED) {
+            return Collections.emptyMap();
+        }
+
+        boolean dls = false;
+        boolean fls = false;
+        Map<String, Object> usageStats = new HashMap<>();
+        if (securityIndexExists == false) {
+            usageStats.put("size", 0L);
+            usageStats.put("fls", fls);
+            usageStats.put("dls", dls);
+            return usageStats;
+        }
+
+        long count = (long) roleCache.size();
+        for (RoleAndVersion rv : roleCache.values()) {
+            Role role = rv.getRole();
+            for (Group group : role.indices()) {
+                fls = fls || group.hasFields();
+                dls = dls || group.hasQuery();
+            }
+            if (fls && dls) {
+                break;
+            }
+        }
+
+        // slow path - query for necessary information
+        if (fls == false || dls == false) {
+            MultiSearchRequestBuilder builder = client.prepareMultiSearch()
+                    .add(client.prepareSearch(SecurityTemplateService.SECURITY_INDEX_NAME)
+                            .setTypes(ROLE_DOC_TYPE)
+                            .setQuery(QueryBuilders.matchAllQuery())
+                            .setSize(0));
+
+            if (fls == false) {
+                builder.add(client.prepareSearch(SecurityTemplateService.SECURITY_INDEX_NAME)
+                        .setTypes(ROLE_DOC_TYPE)
+                        .setQuery(QueryBuilders.existsQuery("indices.fields"))
+                        .setSize(0)
+                        .setTerminateAfter(1));
+            }
+
+            if (dls == false) {
+                builder.add(client.prepareSearch(SecurityTemplateService.SECURITY_INDEX_NAME)
+                        .setTypes(ROLE_DOC_TYPE)
+                        .setQuery(QueryBuilders.existsQuery("indices.query"))
+                        .setSize(0)
+                        .setTerminateAfter(1));
+            }
+
+            MultiSearchResponse multiSearchResponse = builder.get();
+            int pos = 0;
+            Item[] responses = multiSearchResponse.getResponses();
+            if (responses[pos].isFailure() == false) {
+                count = responses[pos].getResponse().getHits().getTotalHits();
+            }
+
+            if (fls == false) {
+                if (responses[++pos].isFailure() == false) {
+                    fls = responses[pos].getResponse().getHits().getTotalHits() > 0L;
+                }
+            }
+
+            if (dls == false) {
+                if (responses[++pos].isFailure() == false) {
+                    dls = responses[pos].getResponse().getHits().getTotalHits() > 0L;
+                }
+            }
+        }
+
+        usageStats.put("size", count);
+        usageStats.put("fls", fls);
+        usageStats.put("dls", dls);
+        return usageStats;
     }
 
     private RoleAndVersion getRoleAndVersion(final String roleId) {

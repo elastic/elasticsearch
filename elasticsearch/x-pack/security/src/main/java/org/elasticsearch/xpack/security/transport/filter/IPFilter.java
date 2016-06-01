@@ -130,6 +130,13 @@ public class IPFilter {
         updateRules();
     }
 
+    public Map<String, Object> usageStats() {
+        Map<String, Object> map = new HashMap<>(2);
+        map.put("http", Collections.singletonMap("enabled", isHttpFilterEnabled));
+        map.put("transport", Collections.singletonMap("enabled", isIpFilterEnabled));
+        return map;
+    }
+
     private void setTransportProfiles(Settings settings) {
         transportGroups = settings.getAsGroups();
         updateRules();

@@ -34,8 +34,6 @@ import java.util.Map;
  * based on these descriptive stats. This single pass, parallel approach is based on:
  *
  * http://prod.sandia.gov/techlib/access-control.cgi/2008/086212.pdf
- *
- * @internal
  */
 public class RunningStats implements Writeable, Cloneable {
     /** count of observations (same number of observations per field) */

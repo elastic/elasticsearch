@@ -31,8 +31,6 @@ import java.util.Map;
 /**
  * Descriptive stats gathered per shard. Coordinating node computes final pearson product coefficient
  * based on these descriptive stats
- *
- * @internal
  */
 class MatrixStatsResults implements Writeable {
     /** object holding results - computes results in place */

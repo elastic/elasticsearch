@@ -34,7 +34,7 @@ public class LicensesExpirationCallbackTests extends ESSingleNodeTestCase {
         TimeValue min = TimeValue.timeValueSeconds(postExpirySeconds - randomIntBetween(1, 3));
         TimeValue max = TimeValue.timeValueSeconds(postExpirySeconds + randomIntBetween(1, 10));
 
-        final LicensesService.ExpirationCallback.Post post = new LicensesService.ExpirationCallback.Post(min, max, timeValueMillis(10)) {
+        final ExpirationCallback.Post post = new ExpirationCallback.Post(min, max, timeValueMillis(10)) {
             @Override
             public void on(License license) {
             }
@@ -49,7 +49,7 @@ public class LicensesExpirationCallbackTests extends ESSingleNodeTestCase {
         TimeValue postExpiryDuration = TimeValue.timeValueSeconds(postExpirySeconds);
         TimeValue min = TimeValue.timeValueSeconds(postExpirySeconds - randomIntBetween(1, 3));
 
-        final LicensesService.ExpirationCallback.Post post = new LicensesService.ExpirationCallback.Post(min, null, timeValueMillis(10)) {
+        final ExpirationCallback.Post post = new ExpirationCallback.Post(min, null, timeValueMillis(10)) {
             @Override
             public void on(License license) {
             }
@@ -63,7 +63,7 @@ public class LicensesExpirationCallbackTests extends ESSingleNodeTestCase {
         TimeValue expiryDuration = TimeValue.timeValueSeconds(expirySeconds);
         TimeValue max = TimeValue.timeValueSeconds(expirySeconds + randomIntBetween(1, 10));
 
-        final LicensesService.ExpirationCallback.Pre pre = new LicensesService.ExpirationCallback.Pre(null, max, timeValueMillis(10)) {
+        final ExpirationCallback.Pre pre = new ExpirationCallback.Pre(null, max, timeValueMillis(10)) {
             @Override
             public void on(License license) {
             }
@@ -78,7 +78,7 @@ public class LicensesExpirationCallbackTests extends ESSingleNodeTestCase {
         TimeValue min = TimeValue.timeValueSeconds(expirySeconds - randomIntBetween(0, 3));
         TimeValue max = TimeValue.timeValueSeconds(expirySeconds + randomIntBetween(1, 10));
 
-        final LicensesService.ExpirationCallback.Pre pre = new LicensesService.ExpirationCallback.Pre(min, max, timeValueMillis(10)) {
+        final ExpirationCallback.Pre pre = new ExpirationCallback.Pre(min, max, timeValueMillis(10)) {
             @Override
             public void on(License license) {
             }
@@ -145,9 +145,9 @@ public class LicensesExpirationCallbackTests extends ESSingleNodeTestCase {
         licensesService.stop();
     }
 
-    private static LicensesService.ExpirationCallback preCallbackLatch(TimeValue min, TimeValue max, TimeValue frequency,
-                                                                       final AtomicInteger count) {
-        return new LicensesService.ExpirationCallback.Pre(min, max, frequency) {
+    private static ExpirationCallback preCallbackLatch(TimeValue min, TimeValue max, TimeValue frequency,
+                                                       final AtomicInteger count) {
+        return new ExpirationCallback.Pre(min, max, frequency) {
             @Override
             public void on(License license) {
                 count.incrementAndGet();
@@ -155,9 +155,9 @@ public class LicensesExpirationCallbackTests extends ESSingleNodeTestCase {
         };
     }
 
-    private static LicensesService.ExpirationCallback postCallbackLatch(TimeValue min, TimeValue max, TimeValue frequency,
-                                                                        final AtomicInteger count) {
-        return new LicensesService.ExpirationCallback.Post(min, max, frequency) {
+    private static ExpirationCallback postCallbackLatch(TimeValue min, TimeValue max, TimeValue frequency,
+                                                        final AtomicInteger count) {
+        return new ExpirationCallback.Post(min, max, frequency) {
             @Override
             public void on(License license) {
                 count.incrementAndGet();

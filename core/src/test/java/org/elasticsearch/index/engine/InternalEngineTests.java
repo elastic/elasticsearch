@@ -84,7 +84,6 @@ import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
-import org.elasticsearch.index.shard.RefreshListeners;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
@@ -299,11 +298,10 @@ public class InternalEngineTests extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         };
-        RefreshListeners refreshListeners = new RefreshListeners(() -> 1, () -> {throw new UnsupportedOperationException();}, r -> r.run());
         EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings, null, store, createSnapshotDeletionPolicy(),
                 mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
                 new TranslogHandler(shardId.getIndexName(), logger), IndexSearcher.getDefaultQueryCache(),
-                IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5), refreshListeners);
+                IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5), null);
 
         return config;
     }

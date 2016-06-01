@@ -5,7 +5,7 @@ The <<docs-index_,Index>>, <<docs-update,Update>>, <<docs-delete,Delete>>, and
 <<docs-bulk,Bulk>> APIs support setting `refresh` to control when changes made
 by this request are made visible to search. These are the allowed values:
 
-`true`::
+Empty string or `true`::
 
 Refresh the relevant primary and replica shards (not the whole index)
 immediately after the operation occurs, so that the updated document appears
@@ -73,3 +73,37 @@ contain `"forced_refresh": true`.
 
 Bulk requests only take up one slot on each shard that they touch no matter how
 many times they modify the shard.
+
+=== Examples
+
+These will create a document and immediately refresh the index so it is visible:
+
+[source,json]
+--------------------------------------------------
+PUT /test/test/1?refresh
+{"test": "test"}
+PUT /test/test/2?refresh=true
+{"test": "test"}
+--------------------------------------------------
+// CONSOLE
+
+These will create a document without doing anything to make it visible for
+search:
+
+[source,json]
+--------------------------------------------------
+PUT /test/test/3
+{"test": "test"}
+PUT /test/test/4?refresh=true
+{"test": "test"}
+--------------------------------------------------
+// CONSOLE
+
+This will create a document and wait for it to become visible for search:
+
+[source,json]
+--------------------------------------------------
+PUT /test/test/4?refresh=wait_for
+{"test": "test"}
+--------------------------------------------------
+// CONSOLE

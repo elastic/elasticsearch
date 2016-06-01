@@ -51,6 +51,36 @@
  - match: { hits.total: 1 }
 
 ---
+"When refresh url parameter is an empty string that means \"refresh immediately\"":
+ - do:
+      index:
+          index:   test_1
+          type:    test
+          id:      1
+          refresh: true
+          body:    { foo: bar }
+ - is_true: forced_refresh
+
+ - do:
+     update:
+         index:   test_1
+         type:    test
+         id:      1
+         refresh: ""
+         body:
+           doc: {cat: dog}
+ - is_true: forced_refresh
+
+ - do:
+      search:
+          index:   test_1
+          type:    test
+          body:
+            query:   { term: { cat: dog }}
+
+ - match: { hits.total: 1 }
+
+---
 "refresh=wait_for waits until changes are visible in search":
  - do:
       index:

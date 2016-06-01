@@ -84,12 +84,17 @@ public interface WriteRequest<R extends WriteRequest<R>> extends Streamable {
             switch (string) {
             case "false":
                 return NONE;
+            /*
+             * Empty string is IMMEDIATE because that makes "POST /test/test/1?refresh" perform a refresh which reads well and is what folks
+             * are used to.
+             */
+            case "":
             case "true":
                 return IMMEDIATE;
             case "wait_for":
                 return WAIT_UNTIL;
             }
-            throw new IllegalArgumentException("Unknown value for refresh: [" + string + "]");
+            throw new IllegalArgumentException("Unknown value for refresh: [" + string + "].");
         }
 
         public static RefreshPolicy readFrom(StreamInput in) throws IOException {

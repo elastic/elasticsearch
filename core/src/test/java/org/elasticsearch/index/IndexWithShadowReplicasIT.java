@@ -70,6 +70,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -586,7 +587,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         logger.info("--> deleting index " + IDX);
         assertAcked(client().admin().indices().prepareDelete(IDX));
 
-        assertBusyPathHasBeenCleared(dataPath);
+        assertBusy(() -> assertPathHasBeenCleared(dataPath), 1, TimeUnit.MINUTES);
         //norelease
         //TODO: uncomment the test below when https://github.com/elastic/elasticsearch/issues/17695 is resolved.
         //assertIndicesDirsDeleted(nodes);
@@ -647,7 +648,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareDelete(IDX));
 
-        assertBusyPathHasBeenCleared(dataPath);
+        assertBusy(() -> assertPathHasBeenCleared(dataPath), 1, TimeUnit.MINUTES);
         //norelease
         //TODO: uncomment the test below when https://github.com/elastic/elasticsearch/issues/17695 is resolved.
         //assertIndicesDirsDeleted(nodes);
@@ -839,7 +840,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         logger.info("--> deleting closed index");
         client().admin().indices().prepareDelete(IDX).get();
 
-        assertBusyPathHasBeenCleared(dataPath);
+        assertBusy(() -> assertPathHasBeenCleared(dataPath), 1, TimeUnit.MINUTES);
         assertIndicesDirsDeleted(nodes);
     }
 

@@ -25,7 +25,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class DeleteByQueryRequestBuilder extends
-        AbstractBulkByScrollRequestBuilder<DeleteByQueryRequest, BulkIndexByScrollResponse, DeleteByQueryRequestBuilder> {
+        AbstractBulkByScrollRequestBuilder<DeleteByQueryRequest, DeleteByQueryRequestBuilder> {
 
     public DeleteByQueryRequestBuilder(ElasticsearchClient client,
                                        Action<DeleteByQueryRequest, BulkIndexByScrollResponse, DeleteByQueryRequestBuilder> action) {

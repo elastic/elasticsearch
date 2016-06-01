@@ -107,8 +107,8 @@ public class RetryTests extends ESSingleNodeTestCase {
                 matcher().deleted(DOC_COUNT));
     }
 
-    private void testCase(String action, AbstractBulkByScrollRequestBuilder<?, BulkIndexByScrollResponse, ?> request,
-            BulkIndexByScrollResponseMatcher matcher) throws Exception {
+    private void testCase(String action, AbstractBulkByScrollRequestBuilder<?, ?> request, BulkIndexByScrollResponseMatcher matcher)
+            throws Exception {
         logger.info("Blocking search");
         CyclicBarrier initialSearchBlock = blockExecutor(ThreadPool.Names.SEARCH);
 

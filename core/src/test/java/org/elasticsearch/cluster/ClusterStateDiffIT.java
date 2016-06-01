@@ -552,6 +552,11 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             @Override
             public IndexTemplateMetaData randomCreate(String name) {
                 IndexTemplateMetaData.Builder builder = IndexTemplateMetaData.builder(name);
+
+                if (randomBoolean()) {
+                    builder.excludeTemplate(randomName("skip"));
+                }
+
                 builder.order(randomInt(1000))
                         .template(randomName("temp"))
                         .settings(randomSettings(Settings.EMPTY));

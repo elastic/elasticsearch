@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -44,6 +45,12 @@ import java.util.Set;
  */
 public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaData> {
 
+    /**
+     * The default exclude template is applied if the {@link IndexTemplateMetaData#template()} is the global template ('*') and no exclude
+     * template ({@code null}) has been defined.
+     */
+    public static final String DEFAULT_GLOBAL_EXCLUDE_TEMPLATE = ".*";
+
     public static final IndexTemplateMetaData PROTO = IndexTemplateMetaData.builder("").build();
 
     private final String name;
@@ -51,6 +58,11 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
     private final int order;
 
     private final String template;
+
+    /**
+     * The pattern is identical to {@link #template}, but this is checked first to exclude matches.
+     */
+    private final String excludeTemplate;
 
     private final Settings settings;
 
@@ -61,11 +73,14 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
     private final ImmutableOpenMap<String, IndexMetaData.Custom> customs;
 
-    public IndexTemplateMetaData(String name, int order, String template, Settings settings, ImmutableOpenMap<String, CompressedXContent> mappings,
+    public IndexTemplateMetaData(String name, int order,
+                                 String template, String excludeTemplate,
+                                 Settings settings, ImmutableOpenMap<String, CompressedXContent> mappings,
                                  ImmutableOpenMap<String, AliasMetaData> aliases, ImmutableOpenMap<String, IndexMetaData.Custom> customs) {
         this.name = name;
         this.order = order;
         this.template = template;
+        this.excludeTemplate = excludeTemplate;
         this.settings = settings;
         this.mappings = mappings;
         this.aliases = aliases;
@@ -94,6 +109,14 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
     public String getTemplate() {
         return this.template;
+    }
+
+    public String excludeTemplate() {
+        return this.excludeTemplate;
+    }
+
+    public String getExcludeTemplate() {
+        return this.excludeTemplate;
     }
 
     public Settings settings() {
@@ -149,6 +172,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         if (!name.equals(that.name)) return false;
         if (!settings.equals(that.settings)) return false;
         if (!template.equals(that.template)) return false;
+        if (excludeTemplate != null ? !excludeTemplate.equals(that.excludeTemplate) : that.excludeTemplate != null) return false;
 
         return true;
     }
@@ -158,6 +182,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         int result = name.hashCode();
         result = 31 * result + order;
         result = 31 * result + template.hashCode();
+        result = 31 * result + (excludeTemplate != null ? excludeTemplate.hashCode() : 0);
         result = 31 * result + settings.hashCode();
         result = 31 * result + mappings.hashCode();
         return result;
@@ -168,6 +193,9 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         Builder builder = new Builder(in.readString());
         builder.order(in.readInt());
         builder.template(in.readString());
+        if (in.getVersion().onOrAfter(Version.V_5_0_0)) {
+            builder.excludeTemplate(in.readOptionalString());
+        }
         builder.settings(Settings.readSettingsFromStream(in));
         int mappingsSize = in.readVInt();
         for (int i = 0; i < mappingsSize; i++) {
@@ -192,6 +220,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         out.writeString(name);
         out.writeInt(order);
         out.writeString(template);
+        out.writeOptionalString(excludeTemplate);
         Settings.writeSettingsToStream(settings, out);
         out.writeVInt(mappings.size());
         for (ObjectObjectCursor<String, CompressedXContent> cursor : mappings) {
@@ -211,7 +240,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
     public static class Builder {
 
-        private static final Set<String> VALID_FIELDS = Sets.newHashSet("template", "order", "mappings", "settings");
+        private static final Set<String> VALID_FIELDS = Sets.newHashSet("template", "exclude_template", "order", "mappings", "settings");
         static {
             VALID_FIELDS.addAll(IndexMetaData.customPrototypes.keySet());
         }
@@ -221,6 +250,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         private int order;
 
         private String template;
+
+        private String excludeTemplate;
 
         private Settings settings = Settings.Builder.EMPTY_SETTINGS;
 
@@ -260,6 +291,11 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
         public String template() {
             return template;
+        }
+
+        public Builder excludeTemplate(String excludeTemplate) {
+            this.excludeTemplate = excludeTemplate;
+            return this;
         }
 
         public Builder settings(Settings.Builder settings) {
@@ -312,7 +348,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         }
 
         public IndexTemplateMetaData build() {
-            return new IndexTemplateMetaData(name, order, template, settings, mappings.build(), aliases.build(), customs.build());
+            return new IndexTemplateMetaData(name, order, template, excludeTemplate,
+                                             settings, mappings.build(), aliases.build(), customs.build());
         }
 
         @SuppressWarnings("unchecked")
@@ -321,6 +358,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
             builder.field("order", indexTemplateMetaData.order());
             builder.field("template", indexTemplateMetaData.template());
+            builder.field("exclude_template", indexTemplateMetaData.excludeTemplate());
 
             builder.startObject("settings");
             indexTemplateMetaData.settings().toXContent(builder, params);
@@ -372,7 +410,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         public static IndexTemplateMetaData fromXContent(XContentParser parser, String templateName) throws IOException {
             Builder builder = new Builder(templateName);
 
-            String currentFieldName = skipTemplateName(parser);
+            String currentFieldName = skipUnknownName(parser);
+
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -426,6 +465,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 } else if (token.isValue()) {
                     if ("template".equals(currentFieldName)) {
                         builder.template(parser.text());
+                    } else if ("exclude_template".equals(currentFieldName)) {
+                        builder.excludeTemplate(parser.text());
                     } else if ("order".equals(currentFieldName)) {
                         builder.order(parser.intValue());
                     }
@@ -434,7 +475,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             return builder.build();
         }
 
-        private static String skipTemplateName(XContentParser parser) throws IOException {
+        private static String skipUnknownName(XContentParser parser) throws IOException {
             XContentParser.Token token = parser.nextToken();
             if (token != null && token == XContentParser.Token.START_OBJECT) {
                 token = parser.nextToken();

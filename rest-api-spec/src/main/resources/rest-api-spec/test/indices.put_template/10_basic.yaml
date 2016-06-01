@@ -15,6 +15,7 @@
         flat_settings: true
 
   - match: {test.template: "test-*"}
+  - match: {test.exclude_template: ".*"}
   - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
 
 ---
@@ -48,6 +49,7 @@
         create: true
         body:
           template: test-*
+          exclude_template: skip-*
           settings:
             number_of_shards:   1
             number_of_replicas: 0
@@ -58,6 +60,7 @@
         flat_settings: true
 
   - match: {test.template: "test-*"}
+  - match: {test.exclude_template: "skip-*"}
   - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
 
   - do:

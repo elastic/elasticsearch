@@ -49,6 +49,14 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
     }
 
     /**
+     * Sets the exclude template match expression that will be used to match on indices created, and ignore them if they match.
+     */
+    public PutIndexTemplateRequestBuilder setExcludeTemplate(String excludeTemplate) {
+        request.excludeTemplate(excludeTemplate);
+        return this;
+    }
+
+    /**
      * Sets the order of this template if more than one template matches.
      */
     public PutIndexTemplateRequestBuilder setOrder(int order) {

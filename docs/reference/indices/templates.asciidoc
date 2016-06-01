@@ -70,6 +70,34 @@ curl -XPUT localhost:9200/_template/template_1 -d '
 <1> the `{index}` placeholder within the alias name will be replaced with the
 actual index name that the template gets applied to during index creation.
 
+In general, templates should apply to every index that they match. However, for
+global templates (`"template" : "*"`), they match literally every index. This
+is great for your own indices, but it can be a problem for administrative indices
+created by tools, such as Kibana with its `.kibana` index.
+
+For this purpose, there is an extra template pattern called the `exclude_template`
+that allows you to exclude indices from having the template applied to them. When
+the template is the global template, then the `exclude_template` defaults to `".*"`,
+which means that global templates do not impact any index prefixed by a `.`, such
+as `.kibana`.
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/_template/global_template_1 -d '
+{
+    "template" : "*",
+    "exclude_template" : ".*", <1>
+    "settings" : {
+        "number_of_shards" : 1
+    }
+}
+'
+--------------------------------------------------
+
+<1> This field is implicitly defined with this value when `template` is set to `"*"`.
+To remove this behavior, so that it truly applies to all indices, you can define
+`exclude_template` with any value, including `"exclude_template" : ""`.
+
 [float]
 [[delete]]
 === Deleting a Template

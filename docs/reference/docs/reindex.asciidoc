@@ -237,7 +237,7 @@ POST _reindex
     "version_type": "external"
   },
   "script": {
-    "script": "if (ctx._source.foo == 'bar') {ctx._version++; ctx._source.remove('foo')}"
+    "inline": "if (ctx._source.foo == 'bar') {ctx._version++; ctx._source.remove('foo')}"
   }
 }
 --------------------------------------------------

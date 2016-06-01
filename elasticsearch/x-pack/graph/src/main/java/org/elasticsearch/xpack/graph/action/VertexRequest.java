@@ -3,11 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.graph.action;
+package org.elasticsearch.xpack.graph.action;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.graph.action.GraphExploreRequest.TermBoost;
+import org.elasticsearch.xpack.graph.action.GraphExploreRequest.TermBoost;
 
 import java.io.IOException;
 import java.util.HashMap;

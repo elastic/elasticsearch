@@ -316,8 +316,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      * @param checkClusterName whether or not to ignore cluster name
      *                         mismatches
      * @return the connected node
-     * @throws ConnectTransportException if the connection or the
-     *                                   handshake failed
+     * @throws ConnectTransportException if the connection failed
+     * @throws IllegalStateException if the handshake failed
      */
     public DiscoveryNode connectToNodeLightAndHandshake(
             final DiscoveryNode node,
@@ -329,7 +329,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         transport.connectToNodeLight(node);
         try {
             return handshake(node, handshakeTimeout, checkClusterName);
-        } catch (ConnectTransportException e) {
+        } catch (ConnectTransportException | IllegalStateException e) {
             transport.disconnectFromNode(node);
             throw e;
         }
@@ -353,13 +353,13 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                     }
                 }).txGet();
         } catch (Exception e) {
-            throw new ConnectTransportException(node, "handshake failed", e);
+            throw new IllegalStateException("handshake failed with " + node, e);
         }
 
         if (checkClusterName && !Objects.equals(clusterName, response.clusterName)) {
-            throw new ConnectTransportException(node, "handshake failed, mismatched cluster name [" + response.clusterName + "]");
+            throw new IllegalStateException("handshake failed, mismatched cluster name [" + response.clusterName + "] - " + node);
         } else if (!isVersionCompatible(response.version)) {
-            throw new ConnectTransportException(node, "handshake failed, incompatible version [" + response.version + "]");
+            throw new IllegalStateException("handshake failed, incompatible version [" + response.version + "] - " + node);
         }
 
         return response.discoveryNode;

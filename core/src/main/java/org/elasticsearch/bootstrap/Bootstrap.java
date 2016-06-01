@@ -45,7 +45,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
@@ -151,7 +150,7 @@ final class Bootstrap {
     private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
         initializeNatives(
                 environment.tmpFile(),
-                BootstrapSettings.MLOCKALL_SETTING.get(settings),
+                BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
                 BootstrapSettings.SECCOMP_SETTING.get(settings),
                 BootstrapSettings.CTRLHANDLER_SETTING.get(settings));
 

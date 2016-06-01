@@ -55,4 +55,12 @@ class DeadHostState {
     long getDeadUntil() {
         return deadUntil;
     }
+
+    @Override
+    public String toString() {
+        return "DeadHostState{" +
+                "failedAttempts=" + failedAttempts +
+                ", deadUntil=" + deadUntil +
+                '}';
+    }
 }

@@ -32,7 +32,8 @@ import java.util.Objects;
 
 /**
  * Holds an elasticsearch response. It wraps the {@link CloseableHttpResponse} response and associates it with
- * its corresponding {@link RequestLine} and {@link HttpHost}
+ * its corresponding {@link RequestLine} and {@link HttpHost}.
+ * It must be closed to free any resource held by it, as well as the corresponding connection in the connection pool.
  */
 public class ElasticsearchResponse implements Closeable {
 

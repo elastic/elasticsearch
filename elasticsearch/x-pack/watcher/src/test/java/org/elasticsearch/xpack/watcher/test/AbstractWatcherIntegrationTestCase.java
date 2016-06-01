@@ -48,7 +48,7 @@ import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.WatcherLicensee;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
-import org.elasticsearch.xpack.watcher.support.clock.ClockMock;
+import org.elasticsearch.xpack.support.clock.ClockMock;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;

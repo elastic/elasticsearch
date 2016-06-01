@@ -10,7 +10,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.condition.ConditionFactory;
-import org.elasticsearch.xpack.watcher.support.clock.Clock;
+import org.elasticsearch.xpack.support.clock.Clock;
 
 import java.io.IOException;
 

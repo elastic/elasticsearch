@@ -9,7 +9,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.WatcherLicensee;
-import org.elasticsearch.xpack.watcher.support.clock.Clock;
+import org.elasticsearch.xpack.support.clock.Clock;
 
 /**
  *

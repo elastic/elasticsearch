@@ -1,5 +1,12 @@
 @echo off
 
+if NOT DEFINED JAVA_HOME IF EXIST %ProgramData%\Oracle\java\javapath\java.exe (
+    for /f "tokens=2 delims=[]" %%a in ('dir %ProgramData%\Oracle\java\javapath\java.exe') do @set JAVA_EXE=%%a
+)
+if DEFINED JAVA_EXE set JAVA_HOME=%JAVA_EXE:\bin\java.exe=%
+if DEFINED JAVA_EXE (
+    ECHO Using JAVA_HOME=%JAVA_HOME% retrieved from %ProgramData%\Oracle\java\javapath\java.exe
+)
 if DEFINED JAVA_HOME goto cont
 
 :err

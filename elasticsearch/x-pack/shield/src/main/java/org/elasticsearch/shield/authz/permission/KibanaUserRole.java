@@ -13,7 +13,7 @@ public class KibanaUserRole extends Role {
 
     private static final String[] CLUSTER_PRIVILEGES = new String[] { "monitor" };
     private static final RoleDescriptor.IndicesPrivileges[] INDICES_PRIVILEGES = new RoleDescriptor.IndicesPrivileges[] {
-            RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*").privileges("manage", "read", "index").build() };
+            RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*").privileges("manage", "read", "index", "delete").build() };
 
     public static final String NAME = "kibana_user";
     public static final RoleDescriptor DESCRIPTOR = new RoleDescriptor(NAME, CLUSTER_PRIVILEGES, INDICES_PRIVILEGES, null);

@@ -26,8 +26,6 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.trigger.schedule.Schedules.hourly;
-import static org.elasticsearch.xpack.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
 import static org.joda.time.DateTimeZone.UTC;
 

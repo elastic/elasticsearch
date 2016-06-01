@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.support;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.formatDate;
+import static org.elasticsearch.xpack.support.DateTimeUtils.formatDate;
 import static org.elasticsearch.xpack.watcher.support.WatcherUtils.DEFAULT_INDICES_OPTIONS;
 import static org.elasticsearch.xpack.watcher.support.WatcherUtils.flattenModel;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;

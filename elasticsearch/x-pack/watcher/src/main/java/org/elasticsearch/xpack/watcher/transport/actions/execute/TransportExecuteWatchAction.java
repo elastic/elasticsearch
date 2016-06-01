@@ -30,9 +30,9 @@ import org.elasticsearch.xpack.watcher.WatcherLicensee;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
-import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
-import org.elasticsearch.xpack.watcher.trigger.TriggerService;
-import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEvent;
+import org.elasticsearch.xpack.trigger.TriggerEvent;
+import org.elasticsearch.xpack.trigger.TriggerService;
+import org.elasticsearch.xpack.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
@@ -41,7 +41,7 @@ import org.joda.time.DateTimeZone;
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
+import static org.elasticsearch.xpack.support.Exceptions.illegalArgument;
 
 /**
  * Performs the watch execution operation.

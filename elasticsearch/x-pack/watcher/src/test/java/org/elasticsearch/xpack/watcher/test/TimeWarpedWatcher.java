@@ -12,9 +12,9 @@ import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.execution.ExecutionModule;
 import org.elasticsearch.xpack.watcher.execution.SyncTriggerListener;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutor;
-import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
-import org.elasticsearch.xpack.watcher.trigger.TriggerModule;
-import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEngine;
+import org.elasticsearch.xpack.trigger.ScheduleTriggerEngineMock;
+import org.elasticsearch.xpack.trigger.TriggerModule;
+import org.elasticsearch.xpack.trigger.manual.ManualTriggerEngine;
 
 import java.util.ArrayList;
 import java.util.Collection;

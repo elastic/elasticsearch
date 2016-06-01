@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.transport.action.execute;
 import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.execution.Wid;
-import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.xpack.support.DateTimeUtils;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
@@ -22,8 +22,8 @@ import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingActi
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
-import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
+import static org.elasticsearch.xpack.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -69,8 +69,8 @@ public class ExecuteWatchWithDateMathTests extends AbstractWatcherIntegrationTes
         XContentSource record = response.getRecordSource();
         assertValue(record, "watch_id", is("_id"));
         assertValue(record, "trigger_event.type", is("manual"));
-        assertValue(record, "trigger_event.triggered_time", is(WatcherDateTimeUtils.formatDate(triggeredTime)));
-        assertValue(record, "trigger_event.manual.schedule.scheduled_time", is(WatcherDateTimeUtils.formatDate(scheduledTime)));
+        assertValue(record, "trigger_event.triggered_time", is(DateTimeUtils.formatDate(triggeredTime)));
+        assertValue(record, "trigger_event.manual.schedule.scheduled_time", is(DateTimeUtils.formatDate(scheduledTime)));
         assertValue(record, "state", is("executed"));
         assertValue(record, "input.simple.foo", is("bar"));
         assertValue(record, "condition.always", notNullValue());

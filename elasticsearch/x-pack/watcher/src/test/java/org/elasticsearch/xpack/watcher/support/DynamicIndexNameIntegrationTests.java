@@ -12,7 +12,7 @@ import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
-import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
+import org.elasticsearch.xpack.trigger.schedule.IntervalSchedule;
 import org.joda.time.format.DateTimeFormat;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -25,8 +25,8 @@ import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.always
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.searchTransform;
-import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.xpack.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
 
 /**

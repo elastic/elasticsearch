@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
 import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.input.Input;
-import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.xpack.support.DateTimeUtils;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.joda.time.DateTime;
 
@@ -73,7 +73,7 @@ public class WatchExecutionResult implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        WatcherDateTimeUtils.writeDate(Field.EXECUTION_TIME.getPreferredName(), builder, executionTime);
+        DateTimeUtils.writeDate(Field.EXECUTION_TIME.getPreferredName(), builder, executionTime);
         builder.field(Field.EXECUTION_DURATION.getPreferredName(), executionDurationMs);
 
         if (inputResult != null) {

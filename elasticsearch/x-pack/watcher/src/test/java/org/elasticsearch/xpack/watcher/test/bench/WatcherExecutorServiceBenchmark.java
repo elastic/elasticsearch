@@ -19,8 +19,8 @@ import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchRequest;
-import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
-import org.elasticsearch.xpack.watcher.trigger.TriggerModule;
+import org.elasticsearch.xpack.trigger.ScheduleTriggerEngineMock;
+import org.elasticsearch.xpack.trigger.TriggerModule;
 import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.ArrayList;
@@ -32,8 +32,8 @@ import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
-import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.xpack.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.trigger.schedule.Schedules.interval;
 
 /**
  * Starts a master only node with watcher and benchmarks the executor service side, so no scheduling. The benchmark

@@ -18,7 +18,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.xpack.common.http.auth.HttpAuth;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.xpack.support.DateTimeUtils;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
@@ -283,7 +283,7 @@ public class HttpRequestTemplate implements ToXContent {
                     builder.fromUrl(parser.text());
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.CONNECTION_TIMEOUT)) {
                     try {
-                        builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser,
+                        builder.connectionTimeout(DateTimeUtils.parseTimeValue(parser,
                                 HttpRequest.Field.CONNECTION_TIMEOUT.toString()));
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse http request template. invalid time value for [{}] field",
@@ -291,7 +291,7 @@ public class HttpRequestTemplate implements ToXContent {
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.READ_TIMEOUT)) {
                     try {
-                        builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, HttpRequest.Field.READ_TIMEOUT.toString()));
+                        builder.readTimeout(DateTimeUtils.parseTimeValue(parser, HttpRequest.Field.READ_TIMEOUT.toString()));
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse http request template. invalid time value for [{}] field",
                                 pe, currentFieldName);

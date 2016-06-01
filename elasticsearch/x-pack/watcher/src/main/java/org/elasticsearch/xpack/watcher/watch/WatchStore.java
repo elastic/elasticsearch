@@ -40,7 +40,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
+import static org.elasticsearch.xpack.support.Exceptions.illegalState;
 
 /**
  */

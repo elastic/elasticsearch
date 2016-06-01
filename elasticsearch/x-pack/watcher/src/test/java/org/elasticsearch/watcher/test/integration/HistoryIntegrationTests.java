@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.watcher.client.WatchSourceBuilders;
 import org.elasticsearch.xpack.watcher.input.InputBuilders;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
-import org.elasticsearch.xpack.watcher.trigger.TriggerBuilders;
-import org.elasticsearch.xpack.watcher.trigger.schedule.Schedules;
+import org.elasticsearch.xpack.trigger.TriggerBuilders;
+import org.elasticsearch.xpack.trigger.schedule.Schedules;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;

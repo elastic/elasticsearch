@@ -16,8 +16,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
-import org.elasticsearch.xpack.watcher.trigger.TriggerService;
+import org.elasticsearch.xpack.trigger.TriggerEvent;
+import org.elasticsearch.xpack.trigger.TriggerService;
 
 import java.io.IOException;
 

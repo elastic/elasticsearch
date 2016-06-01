@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.notification.email.Attachment;

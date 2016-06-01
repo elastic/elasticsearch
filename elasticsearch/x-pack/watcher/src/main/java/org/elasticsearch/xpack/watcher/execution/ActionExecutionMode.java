@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.watcher.execution;
 
 import java.util.Locale;
 
-import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
+import static org.elasticsearch.xpack.support.Exceptions.illegalArgument;
 
 /**
  *

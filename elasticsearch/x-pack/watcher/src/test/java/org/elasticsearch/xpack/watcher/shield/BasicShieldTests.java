@@ -15,17 +15,17 @@ import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchRes
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsResponse;
-import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
-import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.trigger.TriggerEvent;
+import org.elasticsearch.xpack.trigger.schedule.IntervalSchedule;
+import org.elasticsearch.xpack.trigger.schedule.ScheduleTriggerEvent;
 import org.joda.time.DateTime;
 
 import java.util.Collections;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.xpack.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
 import static org.joda.time.DateTimeZone.UTC;

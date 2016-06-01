@@ -10,7 +10,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.watcher.support.Exceptions;
+import org.elasticsearch.xpack.support.Exceptions;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -18,7 +18,7 @@ import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.support.SearchRequestEquivalence;
-import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.xpack.support.DateTimeUtils;
 import org.elasticsearch.xpack.watcher.support.WatcherUtils;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.joda.time.DateTimeZone;
@@ -149,7 +149,7 @@ public class SearchInput implements Input {
                             watchId, currentFieldName);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMEOUT)) {
-                timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT.toString());
+                timeout = DateTimeUtils.parseTimeValue(parser, Field.TIMEOUT.toString());
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.DYNAMIC_NAME_TIMEZONE)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dynamicNameTimeZone = DateTimeZone.forID(parser.text());

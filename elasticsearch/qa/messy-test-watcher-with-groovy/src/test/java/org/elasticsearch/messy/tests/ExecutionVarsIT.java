@@ -25,8 +25,8 @@ import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBu
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.scriptTransform;
-import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
+import static org.elasticsearch.xpack.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.trigger.schedule.Schedules.cron;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.is;

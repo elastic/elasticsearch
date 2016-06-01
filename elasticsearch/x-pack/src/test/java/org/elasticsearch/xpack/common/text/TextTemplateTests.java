@@ -27,7 +27,7 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
+import static org.elasticsearch.xpack.support.Exceptions.illegalArgument;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;

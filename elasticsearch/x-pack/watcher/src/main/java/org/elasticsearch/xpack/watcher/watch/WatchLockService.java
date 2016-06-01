@@ -16,7 +16,7 @@ import org.joda.time.PeriodType;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
+import static org.elasticsearch.xpack.support.Exceptions.illegalState;
 
 /**
  *

@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.ArrayObjectIterator;
-import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.xpack.support.DateTimeUtils;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.watch.Payload;
@@ -30,7 +30,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
+import static org.elasticsearch.xpack.support.Exceptions.illegalState;
 
 public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
 
@@ -71,9 +71,9 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             if (!(data instanceof HashMap)) {
                 data = new HashMap<>(data); // ensuring mutability
             }
-            data.put(action.executionTimeField, WatcherDateTimeUtils.formatDate(ctx.executionTime()));
+            data.put(action.executionTimeField, DateTimeUtils.formatDate(ctx.executionTime()));
         } else {
-            indexRequest.timestamp(WatcherDateTimeUtils.formatDate(ctx.executionTime()));
+            indexRequest.timestamp(DateTimeUtils.formatDate(ctx.executionTime()));
         }
 
         indexRequest.source(jsonBuilder().prettyPrint().map(data));
@@ -104,9 +104,9 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
                 if (!(doc instanceof HashMap)) {
                     doc = new HashMap<>(doc); // ensuring mutability
                 }
-                doc.put(action.executionTimeField, WatcherDateTimeUtils.formatDate(ctx.executionTime()));
+                doc.put(action.executionTimeField, DateTimeUtils.formatDate(ctx.executionTime()));
             } else {
-                indexRequest.timestamp(WatcherDateTimeUtils.formatDate(ctx.executionTime()));
+                indexRequest.timestamp(DateTimeUtils.formatDate(ctx.executionTime()));
             }
             indexRequest.source(jsonBuilder().prettyPrint().map(doc));
             bulkRequest.add(indexRequest);

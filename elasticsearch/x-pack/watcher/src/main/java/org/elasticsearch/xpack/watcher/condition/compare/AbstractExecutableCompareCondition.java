@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
-import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.xpack.support.DateTimeUtils;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.joda.time.DateTime;
@@ -55,8 +55,8 @@ public abstract class AbstractExecutableCompareCondition<C extends Condition, R 
             Matcher matcher = DATE_MATH_PATTERN.matcher((String) configuredValue);
             if (matcher.matches()) {
                 String dateMath = matcher.group(1);
-                configuredValue = WatcherDateTimeUtils.parseDateMath(dateMath, DateTimeZone.UTC, clock);
-                resolvedValues.put(dateMath, WatcherDateTimeUtils.formatDate((DateTime) configuredValue));
+                configuredValue = DateTimeUtils.parseDateMath(dateMath, DateTimeZone.UTC, clock);
+                resolvedValues.put(dateMath, DateTimeUtils.formatDate((DateTime) configuredValue));
             } else {
                 // checking if the given value is a path expression
                 matcher = PATH_PATTERN.matcher((String) configuredValue);

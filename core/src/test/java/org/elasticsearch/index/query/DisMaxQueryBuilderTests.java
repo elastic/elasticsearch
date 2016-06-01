@@ -25,7 +25,7 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -35,7 +35,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -60,17 +59,13 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     @Override
     protected void doAssertLuceneQuery(DisMaxQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         Collection<Query> queries = AbstractQueryBuilder.toQueries(queryBuilder.innerQueries(), context);
-        if (queries.isEmpty()) {
-            assertThat(query, nullValue());
-        } else {
-            assertThat(query, instanceOf(DisjunctionMaxQuery.class));
-            DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
-            assertThat(disjunctionMaxQuery.getTieBreakerMultiplier(), equalTo(queryBuilder.tieBreaker()));
-            assertThat(disjunctionMaxQuery.getDisjuncts().size(), equalTo(queries.size()));
-            Iterator<Query> queryIterator = queries.iterator();
-            for (int i = 0; i < disjunctionMaxQuery.getDisjuncts().size(); i++) {
-                assertThat(disjunctionMaxQuery.getDisjuncts().get(i), equalTo(queryIterator.next()));
-            }
+        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
+        assertThat(disjunctionMaxQuery.getTieBreakerMultiplier(), equalTo(queryBuilder.tieBreaker()));
+        assertThat(disjunctionMaxQuery.getDisjuncts().size(), equalTo(queries.size()));
+        Iterator<Query> queryIterator = queries.iterator();
+        for (int i = 0; i < disjunctionMaxQuery.getDisjuncts().size(); i++) {
+            assertThat(disjunctionMaxQuery.getDisjuncts().get(i), equalTo(queryIterator.next()));
         }
     }
 
@@ -90,7 +85,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     }
 
     /**
-     * Test with empty inner query body, this should be ignored upstream.
+     * Test with empty inner query body, this should be converted to a {@link MatchNoDocsQuery}.
      * To test this, we use inner {@link ConstantScoreQueryBuilder} with empty inner filter.
      */
     public void testInnerQueryEmptyException() throws IOException {
@@ -98,8 +93,11 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
                 + "             { \"queries\" : [ {\"" + ConstantScoreQueryBuilder.NAME + "\" : { \"filter\" : { } } } ] "
                 + "             }"
                 + "           }";
-        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(queryString, ParseFieldMatcher.EMPTY));
-        assertEquals("[dis_max] requires 'queries' field with at least one clause", ex.getMessage());
+        QueryBuilder queryBuilder = parseQuery(queryString, ParseFieldMatcher.EMPTY);
+        QueryShardContext context = createShardContext();
+        Query luceneQuery = queryBuilder.toQuery(context);
+        assertThat(luceneQuery, instanceOf(MatchNoDocsQuery.class));
+        assertThat(((MatchNoDocsQuery) luceneQuery).toString(), equalTo("MatchNoDocsQuery[\"no clauses for dismax query.\"]"));
     }
 
     public void testIllegalArguments() {

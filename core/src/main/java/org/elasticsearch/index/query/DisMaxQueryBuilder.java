@@ -25,6 +25,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -168,7 +169,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
             }
         }
 
-        if (!queriesFound || queries.isEmpty()) {
+        if (!queriesFound) {
             throw new ParsingException(parser.getTokenLocation(), "[dis_max] requires 'queries' field with at least one clause");
         }
 
@@ -186,6 +187,10 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     protected Query doToQuery(QueryShardContext context) throws IOException {
         // return null if there are no queries at all
         Collection<Query> luceneQueries = toQueries(queries, context);
+        if (luceneQueries.isEmpty()) {
+            return Queries.newMatchNoDocsQuery("no clauses for dismax query.");
+        }
+
         return new DisjunctionMaxQuery(luceneQueries, tieBreaker);
     }
 

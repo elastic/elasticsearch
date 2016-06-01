@@ -611,7 +611,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * Add an aggregation to perform as part of the search.
      */
-    public SearchSourceBuilder aggregation(PipelineAggregatorBuilder<?> aggregation) {
+    public SearchSourceBuilder aggregation(PipelineAggregatorBuilder aggregation) {
             if (aggregations == null) {
             aggregations = AggregatorFactories.builder();
             }

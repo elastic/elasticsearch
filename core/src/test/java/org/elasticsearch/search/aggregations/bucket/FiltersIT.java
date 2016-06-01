@@ -217,7 +217,7 @@ public class FiltersIT extends ESIntegTestCase {
         XContentParser parser = XContentFactory.xContent(emtpyFilterBody).createParser(emtpyFilterBody);
         parser.nextToken();
         QueryParseContext parseContext = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.EMPTY);
-        AggregationBuilder<?> filtersAgg = FiltersAggregationBuilder.parse("tag1", parseContext);
+        AggregationBuilder filtersAgg = FiltersAggregationBuilder.parse("tag1", parseContext);
 
         SearchResponse response = client().prepareSearch("idx").addAggregation(filtersAgg).execute().actionGet();
 
@@ -234,7 +234,7 @@ public class FiltersIT extends ESIntegTestCase {
         XContentParser parser = XContentFactory.xContent(emtpyFilterBody).createParser(emtpyFilterBody);
         parser.nextToken();
         QueryParseContext parseContext = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.EMPTY);
-        AggregationBuilder<?> filtersAgg = FiltersAggregationBuilder.parse("tag1", parseContext);
+        AggregationBuilder filtersAgg = FiltersAggregationBuilder.parse("tag1", parseContext);
 
         SearchResponse response = client().prepareSearch("idx").addAggregation(filtersAgg)
                 .execute().actionGet();

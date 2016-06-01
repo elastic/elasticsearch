@@ -132,7 +132,7 @@ public class FilterIT extends ESIntegTestCase {
         String emtpyFilterBody = "{ }";
         XContentParser parser = XContentFactory.xContent(emtpyFilterBody).createParser(emtpyFilterBody);
         QueryParseContext parseContext = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.EMPTY);
-        AggregationBuilder<?> filterAgg = FilterAggregationBuilder.parse("tag1", parseContext);
+        AggregationBuilder filterAgg = FilterAggregationBuilder.parse("tag1", parseContext);
 
         SearchResponse response = client().prepareSearch("idx").addAggregation(filterAgg).execute().actionGet();
 

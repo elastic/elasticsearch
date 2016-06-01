@@ -72,6 +72,9 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
      * @param builder the query builder to build the rescore query from
      */
     public QueryRescorerBuilder(QueryBuilder builder) {
+        if (builder == null) {
+            throw new IllegalArgumentException("rescore_query cannot be null");
+        }
         this.queryBuilder = builder;
     }
 

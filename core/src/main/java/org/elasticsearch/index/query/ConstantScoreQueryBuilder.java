@@ -91,7 +91,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     public static Optional<ConstantScoreQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
-        Optional<QueryBuilder> query = Optional.empty();
+        Optional<QueryBuilder> query = null;
         boolean queryFound = false;
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;

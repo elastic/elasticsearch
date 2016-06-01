@@ -125,6 +125,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener 
          * First set the lastRefreshedLocation so listeners that come in locations before that will just execute inline without messing
          * around with refreshListeners at all.
          */
+        assert lastRefreshedLocation == null || currentRefreshLocation.compareTo(lastRefreshedLocation) >= 0;
         lastRefreshedLocation = currentRefreshLocation;
         /*
          * Grab the current refresh listeners and replace them with a new list while synchronized. Any listeners that come in after this

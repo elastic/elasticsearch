@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.watcher.rest.action.RestWatcherStatsAction;
 import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
-import org.elasticsearch.xpack.watcher.support.clock.ClockModule;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.xpack.watcher.transform.TransformModule;
@@ -110,7 +109,6 @@ public class Watcher {
         modules.add(new WatcherModule(enabled, transportClient));
         if (enabled && transportClient == false) {
             modules.add(new WatchModule());
-            modules.add(new ClockModule());
             modules.add(new WatcherClientModule());
             modules.add(new TransformModule());
             modules.add(new TriggerModule(settings));

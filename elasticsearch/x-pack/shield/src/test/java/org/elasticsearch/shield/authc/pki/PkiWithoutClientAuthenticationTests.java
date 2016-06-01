@@ -33,7 +33,7 @@ import java.util.Locale;
 
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(numClientNodes = 0, numDataNodes = 1)
+@ClusterScope(numClientNodes = 0, supportsDedicatedMasters = false, numDataNodes = 1)
 public class PkiWithoutClientAuthenticationTests extends ShieldIntegTestCase {
     private TrustManager[] trustAllCerts = new TrustManager[] {
             new X509TrustManager() {

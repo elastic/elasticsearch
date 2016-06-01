@@ -47,7 +47,7 @@ public class RestAuthenticateActionTests extends ShieldIntegTestCase {
     }
 
     public void testAuthenticateApi() throws Exception {
-        HttpResponse response = httpClient().method("GET").path("/_xpack/security/authenticate")
+        HttpResponse response = httpClient().method("GET").path("/_xpack/security/_authenticate")
                 .addHeader("Authorization", basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
                         new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())))
                 .execute();
@@ -61,7 +61,7 @@ public class RestAuthenticateActionTests extends ShieldIntegTestCase {
     }
 
     public void testAuthenticateApiWithoutAuthentication() throws Exception {
-        HttpResponse response = httpClient().method("GET").path("/_xpack/security/authenticate")
+        HttpResponse response = httpClient().method("GET").path("/_xpack/security/_authenticate")
                 .execute();
 
         if (anonymousEnabled) {

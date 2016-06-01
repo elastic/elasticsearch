@@ -15,7 +15,6 @@ import org.elasticsearch.shield.action.ShieldActionModule;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.watcher.Watcher;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -43,7 +42,7 @@ import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(numClientNodes = 0, numDataNodes = 1)
+@ClusterScope(numClientNodes = 0, supportsDedicatedMasters = false, numDataNodes = 1)
 public class KnownActionsTests extends ShieldIntegTestCase {
     private static Set<String> knownActions;
     private static Set<String> knownHandlers;

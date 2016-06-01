@@ -15,8 +15,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.watcher.support.clock.Clock;
-import org.elasticsearch.xpack.watcher.support.clock.SystemClock;
+import org.elasticsearch.xpack.support.clock.Clock;
+import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.common.secret.Secret;
 import org.elasticsearch.xpack.common.secret.SecretService;
 

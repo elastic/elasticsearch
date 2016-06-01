@@ -7,6 +7,7 @@ package org.elasticsearch.shield.authz.store;
 
 import org.elasticsearch.shield.SecurityContext;
 import org.elasticsearch.shield.authz.permission.KibanaRole;
+import org.elasticsearch.shield.authz.permission.KibanaUserRole;
 import org.elasticsearch.shield.authz.permission.SuperuserRole;
 import org.elasticsearch.shield.authz.permission.TransportClientRole;
 import org.elasticsearch.shield.user.ElasticUser;
@@ -50,7 +51,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(reservedRolesStore.role(TransportClientRole.NAME), sameInstance(TransportClientRole.INSTANCE));
         assertThat(reservedRolesStore.roleDescriptor(TransportClientRole.NAME), sameInstance(TransportClientRole.DESCRIPTOR));
 
-        assertThat(reservedRolesStore.roleDescriptors(), contains(SuperuserRole.DESCRIPTOR, TransportClientRole.DESCRIPTOR));
+        assertThat(reservedRolesStore.role(KibanaUserRole.NAME), sameInstance(KibanaUserRole.INSTANCE));
+        assertThat(reservedRolesStore.roleDescriptor(KibanaUserRole.NAME), sameInstance(KibanaUserRole.DESCRIPTOR));
+
+        assertThat(reservedRolesStore.roleDescriptors(),
+                contains(SuperuserRole.DESCRIPTOR, TransportClientRole.DESCRIPTOR, KibanaUserRole.DESCRIPTOR));
 
         assertThat(reservedRolesStore.role(KibanaRole.NAME), nullValue());
         assertThat(reservedRolesStore.roleDescriptor(KibanaRole.NAME), nullValue());
@@ -66,10 +71,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(reservedRolesStore.role(TransportClientRole.NAME), sameInstance(TransportClientRole.INSTANCE));
         assertThat(reservedRolesStore.roleDescriptor(TransportClientRole.NAME), sameInstance(TransportClientRole.DESCRIPTOR));
 
+        assertThat(reservedRolesStore.role(KibanaUserRole.NAME), sameInstance(KibanaUserRole.INSTANCE));
+        assertThat(reservedRolesStore.roleDescriptor(KibanaUserRole.NAME), sameInstance(KibanaUserRole.DESCRIPTOR));
+
         assertThat(reservedRolesStore.role(KibanaRole.NAME), sameInstance(KibanaRole.INSTANCE));
         assertThat(reservedRolesStore.roleDescriptor(KibanaRole.NAME), sameInstance(KibanaRole.DESCRIPTOR));
         assertThat(reservedRolesStore.roleDescriptors(),
-                contains(SuperuserRole.DESCRIPTOR, TransportClientRole.DESCRIPTOR, KibanaRole.DESCRIPTOR));
+                contains(SuperuserRole.DESCRIPTOR, TransportClientRole.DESCRIPTOR, KibanaUserRole.DESCRIPTOR, KibanaRole.DESCRIPTOR));
 
         assertThat(reservedRolesStore.role(SystemUser.ROLE_NAME), nullValue());
     }
@@ -80,5 +88,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("foobar"), is(false));
         assertThat(ReservedRolesStore.isReserved(SystemUser.ROLE_NAME), is(true));
         assertThat(ReservedRolesStore.isReserved(TransportClientRole.NAME), is(true));
+        assertThat(ReservedRolesStore.isReserved(KibanaUserRole.NAME), is(true));
     }
 }

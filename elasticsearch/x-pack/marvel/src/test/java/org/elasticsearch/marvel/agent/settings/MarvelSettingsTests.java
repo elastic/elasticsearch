@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 //test is just too slow, please fix it to not be sleep-based
 //@BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0)
 public class MarvelSettingsTests extends MarvelIntegTestCase {
     private final TimeValue interval = newRandomTimeValue();
     private final TimeValue indexStatsTimeout = newRandomTimeValue();

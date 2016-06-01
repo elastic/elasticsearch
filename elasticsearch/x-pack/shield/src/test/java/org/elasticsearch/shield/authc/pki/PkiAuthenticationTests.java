@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Test authentication via PKI on both REST and Transport layers
  */
-@ClusterScope(numClientNodes = 0, numDataNodes = 1)
+@ClusterScope(numClientNodes = 0, supportsDedicatedMasters = false, numDataNodes = 1)
 public class PkiAuthenticationTests extends ShieldIntegTestCase {
 
     @Override

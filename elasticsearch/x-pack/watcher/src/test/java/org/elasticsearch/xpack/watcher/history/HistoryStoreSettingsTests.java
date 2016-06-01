@@ -21,7 +21,8 @@ import static org.hamcrest.core.Is.is;
 /**
  */
 @TestLogging("cluster:DEBUG,action.admin.cluster.settings:DEBUG,watcher:DEBUG")
-@ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
+@ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false,
+        supportsDedicatedMasters = false, numDataNodes = 1)
 public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTestCase {
 
     public void testChangeSettings() throws Exception {

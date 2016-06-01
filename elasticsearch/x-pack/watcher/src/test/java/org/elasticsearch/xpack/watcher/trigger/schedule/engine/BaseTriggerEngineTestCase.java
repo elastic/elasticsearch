@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.trigger.schedule.engine;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.support.clock.SystemClock;
+import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;

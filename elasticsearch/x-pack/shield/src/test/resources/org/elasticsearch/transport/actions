@@ -42,6 +42,7 @@ indices:admin/open
 indices:admin/refresh
 indices:admin/settings/update
 indices:admin/shards/search_shards
+indices:admin/shrink
 indices:admin/template/delete
 indices:admin/template/get
 indices:admin/template/put

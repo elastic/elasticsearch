@@ -59,13 +59,20 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
     private static int maxNumberOfNodes() {
         ClusterScope clusterScope = ShieldIntegTestCase.class.getAnnotation(ClusterScope.class);
         if (clusterScope == null) {
-            return InternalTestCluster.DEFAULT_MAX_NUM_DATA_NODES + InternalTestCluster.DEFAULT_MAX_NUM_CLIENT_NODES;
+            return InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES +
+                    InternalTestCluster.DEFAULT_MAX_NUM_DATA_NODES +
+                    InternalTestCluster.DEFAULT_MAX_NUM_CLIENT_NODES;
         } else {
-            if (clusterScope.numClientNodes() < 0) {
-                return clusterScope.maxNumDataNodes() + InternalTestCluster.DEFAULT_MAX_NUM_CLIENT_NODES;
-            } else {
-                return clusterScope.maxNumDataNodes() + clusterScope.numClientNodes();
+            int clientNodes = clusterScope.numClientNodes();
+            if (clientNodes < 0) {
+                clientNodes = InternalTestCluster.DEFAULT_MAX_NUM_CLIENT_NODES;
             }
+            int masterNodes = 0;
+            if (clusterScope.supportsDedicatedMasters()) {
+                masterNodes = InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES;
+            }
+
+            return masterNodes + clusterScope.maxNumDataNodes() + clientNodes;
         }
     }
 

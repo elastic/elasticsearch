@@ -120,6 +120,7 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
         assertLazyConsumerPluginNotification(LicenseState.ENABLED, 5);
     }
 
+    @AwaitsFix(bugUrl = "todo fix test using mock clock")
     public void testClusterRestartWhileGrace() throws Exception {
         wipeAllLicenses();
         internalCluster().startNode();
@@ -134,6 +135,7 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
         assertLazyConsumerPluginNotification(LicenseState.GRACE_PERIOD, 5);
     }
 
+    @AwaitsFix(bugUrl = "todo fix test using mock clock")
     public void testClusterRestartWhileExpired() throws Exception {
         wipeAllLicenses();
         internalCluster().startNode();

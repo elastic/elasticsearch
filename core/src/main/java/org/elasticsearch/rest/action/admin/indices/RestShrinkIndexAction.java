@@ -52,7 +52,7 @@ public class RestShrinkIndexAction extends BaseRestHandler {
         }
         ShrinkRequest shrinkIndexRequest = new ShrinkRequest(request.param("target"), request.param("index"));
         if (request.hasContent()) {
-            shrinkIndexRequest.getShrinkIndexReqeust().source(request.content());
+            shrinkIndexRequest.getShrinkIndexRequest().source(request.content());
         }
         shrinkIndexRequest.timeout(request.paramAsTime("timeout", shrinkIndexRequest.timeout()));
         shrinkIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", shrinkIndexRequest.masterNodeTimeout()));

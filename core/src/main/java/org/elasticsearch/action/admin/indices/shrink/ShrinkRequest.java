@@ -94,7 +94,7 @@ public class ShrinkRequest extends AcknowledgedRequest<ShrinkRequest> implements
     /**
      * Returns the {@link CreateIndexRequest} for the shrink index
      */
-    public CreateIndexRequest getShrinkIndexReqeust() {
+    public CreateIndexRequest getShrinkIndexRequest() {
         return shrinkIndexRequest;
     }
 

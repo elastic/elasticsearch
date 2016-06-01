@@ -218,14 +218,14 @@ public class OperationRouting extends AbstractComponent {
         return new ShardId(indexMetaData.getIndex(), generateShardId(indexMetaData, id, routing));
     }
 
-    private int generateShardId(IndexMetaData indexMetaData, String id, @Nullable String routing) {
+    static int generateShardId(IndexMetaData indexMetaData, String id, @Nullable String routing) {
         final int hash;
         if (routing == null) {
             hash = Murmur3HashFunction.hash(id);
         } else {
             hash = Murmur3HashFunction.hash(routing);
         }
-        return Math.floorMod(hash, indexMetaData.getNumberOfShards());
+        return Math.floorDiv(Math.floorMod(hash, indexMetaData.getRoutingNumShards()), indexMetaData.getRoutingFactor());
     }
 
     private void ensureNodeIdExists(DiscoveryNodes nodes, String nodeId) {

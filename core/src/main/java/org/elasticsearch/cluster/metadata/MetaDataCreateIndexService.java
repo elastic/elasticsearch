@@ -299,15 +299,23 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                             indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
                             final Index shrinkFromIndex = request.shrinkFrom();
+                            int routingFactor = 1;
+                            int routingNumShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettingsBuilder.build());;
                             if (shrinkFromIndex != null) {
                                 prepareShrinkIndexSettings(currentState, mappings.keySet(), indexSettingsBuilder, shrinkFromIndex,
                                     request.index());
+                                IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(shrinkFromIndex);
+                                int shrinkFactor = IndexMetaData.getShrinkFactor(sourceMetaData, routingNumShards);
+                                routingFactor = sourceMetaData.getRoutingFactor() * shrinkFactor;
+                                routingNumShards = sourceMetaData.getRoutingNumShards();
                             }
 
                             Settings actualIndexSettings = indexSettingsBuilder.build();
-
+                            IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index())
+                                .setRoutingFactor(routingFactor)
+                                .setRoutingNumShards(routingNumShards);
                             // Set up everything, now locally create the index to see that things are ok, and apply
-                            final IndexMetaData tmpImd = IndexMetaData.builder(request.index()).settings(actualIndexSettings).build();
+                            final IndexMetaData tmpImd = tmpImdBuilder.settings(actualIndexSettings).build();
                             // create the index here (on the master) to validate it can be created, as well as adding the mapping
                             final IndexService indexService = indicesService.createIndex(nodeServicesProvider, tmpImd, Collections.emptyList());
                             createdIndex = indexService.index();
@@ -339,7 +347,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 mappingsMetaData.put(mapper.type(), mappingMd);
                             }
 
-                            final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(request.index()).settings(actualIndexSettings);
+                            final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(request.index()).settings(actualIndexSettings)
+                                .setRoutingFactor(routingFactor)
+                                .setRoutingNumShards(routingNumShards);
                             for (MappingMetaData mappingMd : mappingsMetaData.values()) {
                                 indexMetaDataBuilder.putMapping(mappingMd);
                             }
@@ -499,9 +509,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             throw new IllegalArgumentException("mappings are not allowed when shrinking indices" +
                 ", all mappings are copied from the source index");
         }
-        if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)
-            && IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings) > 1) {
-            throw new IllegalArgumentException("can not shrink index into more than one shard");
+        if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
+            IndexMetaData.getShrinkFactor(sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
         }
 
         // now check that index is all on one node
@@ -533,8 +542,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         final Predicate<String> analysisSimilarityPredicate = (s) -> s.startsWith("index.similarity.")
             || s.startsWith("index.analysis.");
         indexSettingsBuilder
-            // we can only shrink to 1 shard so far!
-            .put("index.number_of_shards", 1)
             // we use "i.r.a.initial_recovery" rather than "i.r.a.require|include" since we want the replica to allocate right away
             // once we are allocated.
             .put("index.routing.allocation.initial_recovery._id",

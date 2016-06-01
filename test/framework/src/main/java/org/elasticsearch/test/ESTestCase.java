@@ -70,6 +70,7 @@ import org.junit.Rule;
 import org.junit.rules.RuleChain;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -672,16 +673,16 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Asserts that there are no files in the specified path
+     * Asserts busily that there are no files in the specified path
      */
-    public void assertPathHasBeenCleared(String path) throws Exception {
-        assertPathHasBeenCleared(PathUtils.get(path));
+    public void assertBusyPathHasBeenCleared(Path path) throws Exception {
+        assertBusy(() -> assertPathHasBeenCleared(path));
     }
 
     /**
      * Asserts that there are no files in the specified path
      */
-    public void assertPathHasBeenCleared(Path path) throws Exception {
+    public void assertPathHasBeenCleared(Path path) {
         logger.info("--> checking that [{}] has been cleared", path);
         int count = 0;
         StringBuilder sb = new StringBuilder();
@@ -702,6 +703,8 @@ public abstract class ESTestCase extends LuceneTestCase {
                         sb.append("\n");
                     }
                 }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
         }
         sb.append("]");

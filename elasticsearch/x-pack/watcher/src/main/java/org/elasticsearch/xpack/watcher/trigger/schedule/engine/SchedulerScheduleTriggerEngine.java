@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.trigger.schedule.engine;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.watcher.support.clock.Clock;
+import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;

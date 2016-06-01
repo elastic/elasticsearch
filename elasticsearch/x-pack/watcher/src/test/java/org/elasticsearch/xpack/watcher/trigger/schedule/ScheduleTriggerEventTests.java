@@ -11,7 +11,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.support.clock.SystemClock;
+import org.elasticsearch.xpack.support.clock.SystemClock;
 
 import static org.hamcrest.Matchers.is;
 

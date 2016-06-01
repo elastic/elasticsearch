@@ -73,8 +73,6 @@ indices:monitor/stats[n]
 indices:monitor/upgrade[n]
 indices:monitor/upgrade
 internal:admin/tasks/ban
-internal:cluster/node/index/deleted
-internal:cluster/node/index_store/deleted
 internal:cluster/node/mapping/refresh
 internal:cluster/nodes/indices/shard/store
 internal:cluster/nodes/indices/shard/store[n]

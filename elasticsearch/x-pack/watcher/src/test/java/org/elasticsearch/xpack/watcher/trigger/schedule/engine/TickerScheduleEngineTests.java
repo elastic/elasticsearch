@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.watcher.trigger.schedule.engine;
 
 import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.watcher.support.clock.SystemClock;
+import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 

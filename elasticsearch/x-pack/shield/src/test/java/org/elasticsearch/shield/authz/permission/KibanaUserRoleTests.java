@@ -60,8 +60,8 @@ public class KibanaUserRoleTests extends ESTestCase {
     private void testIndexAccess(String index) {
         assertThat(KibanaUserRole.INSTANCE.indices().allowedIndicesMatcher("indices:foo").test(index), is(false));
         assertThat(KibanaUserRole.INSTANCE.indices().allowedIndicesMatcher("indices:bar").test(index), is(false));
-        assertThat(KibanaUserRole.INSTANCE.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
 
+        assertThat(KibanaUserRole.INSTANCE.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));
         assertThat(KibanaUserRole.INSTANCE.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(true));
         assertThat(KibanaUserRole.INSTANCE.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
         assertThat(KibanaUserRole.INSTANCE.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));

@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.condition.compare;
 
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.xpack.watcher.support.clock.Clock;
+import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 
 import java.util.Map;

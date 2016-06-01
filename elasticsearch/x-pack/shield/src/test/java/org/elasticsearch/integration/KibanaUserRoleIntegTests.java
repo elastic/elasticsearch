@@ -5,12 +5,15 @@
  */
 package org.elasticsearch.integration;
 
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -18,6 +21,8 @@ import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ShieldIntegTestCase;
+
+import java.util.Locale;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -29,7 +34,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class KibanaRoleTests extends ShieldIntegTestCase {
+public class KibanaUserRoleIntegTests extends ShieldIntegTestCase {
 
     protected static final SecuredString USERS_PASSWD = new SecuredString("change_me".toCharArray());
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("change_me".toCharArray())));
@@ -38,18 +43,11 @@ public class KibanaRoleTests extends ShieldIntegTestCase {
     public String configRoles() {
         return super.configRoles() + "\n" +
                 "my_kibana_user:\n" +
-                "  cluster:\n" +
-                "      - monitor\n" +
                 "  indices:\n" +
                 "    - names: 'logstash-*'\n" +
                 "      privileges:\n" +
                 "        - view_index_metadata\n" +
-                "        - read\n" +
-                "    - names: '.kibana*'\n" +
-                "      privileges:\n" +
-                "        - manage\n" +
-                "        - read\n" +
-                "        - index";
+                "        - read\n";
     }
 
     @Override
@@ -61,7 +59,8 @@ public class KibanaRoleTests extends ShieldIntegTestCase {
     @Override
     public String configUsersRoles() {
         return super.configUsersRoles() +
-                "my_kibana_user:kibana_user";
+                "my_kibana_user:kibana_user\n" +
+                "kibana_user:kibana_user";
     }
 
     public void testFieldMappings() throws Exception {
@@ -166,6 +165,33 @@ public class KibanaRoleTests extends ShieldIntegTestCase {
                 .admin().indices().prepareGetIndex()
                 .setIndices(index).get();
         assertThat(response.getIndices(), arrayContaining(index));
+    }
+
+    public void testCreateIndexDeleteInKibanaIndex() throws Exception {
+        final String index = randomBoolean()? ".kibana" : ".kibana-" + randomAsciiOfLengthBetween(1, 10).toLowerCase(Locale.ENGLISH);
+
+        if (randomBoolean()) {
+            CreateIndexResponse createIndexResponse = client().filterWithHeader(singletonMap("Authorization",
+                    UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
+                    .admin().indices().prepareCreate(index).get();
+            assertThat(createIndexResponse.isAcknowledged(), is(true));
+        }
+
+        IndexResponse response = client()
+                .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
+                .prepareIndex()
+                .setIndex(index)
+                .setType("dashboard")
+                .setSource("foo", "bar")
+                .setRefresh(true)
+                .get();
+        assertThat(response.isCreated(), is(true));
+
+        DeleteResponse deleteResponse = client()
+                .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
+                .prepareDelete(index, "dashboard", response.getId())
+                .get();
+        assertThat(deleteResponse.isFound(), is(true));
     }
 
     // TODO: When we have an XPackIntegTestCase, this should test that we can send MonitoringBulkActions

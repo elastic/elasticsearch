@@ -1520,7 +1520,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         return new RefreshListeners(
                 indexSettings::getMaxRefreshListeners,
                 () -> refresh("too_many_listeners"),
-                threadPool.executor(ThreadPool.Names.LISTENER)::execute);
+                threadPool.executor(ThreadPool.Names.LISTENER)::execute,
+                logger);
     }
 
     /**

@@ -218,7 +218,7 @@ public class ShadowEngineTests extends ESTestCase {
     }
 
     protected InternalEngine createInternalEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
-        EngineConfig config = config(indexSettings, store, translogPath, mergePolicy, new RefreshListeners(null, null, null));
+        EngineConfig config = config(indexSettings, store, translogPath, mergePolicy, null);
         return new InternalEngine(config);
     }
 
@@ -987,7 +987,8 @@ public class ShadowEngineTests extends ESTestCase {
     }
 
     public void testRefreshListenersFails() throws IOException {
-        EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), new RefreshListeners(null, null, null));
+        EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(),
+                new RefreshListeners(null, null, null, logger));
         Exception e = expectThrows(IllegalArgumentException.class, () -> new ShadowEngine(config));
         assertEquals("ShadowEngine doesn't support RefreshListeners", e.getMessage());
     }

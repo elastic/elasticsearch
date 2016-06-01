@@ -88,7 +88,8 @@ public class RefreshListenersTests extends ESTestCase {
                 () -> maxListeners,
                 () -> engine.refresh("too-many-listeners"),
                 // Immediately run listeners rather than adding them to the listener thread pool like IndexShard does to simplify the test.
-                toExecute -> toExecute.run()
+                Runnable::run,
+                logger
                 );
 
         // Now setup the InternalEngine which is much more complicated because we aren't mocking anything

@@ -21,6 +21,7 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.search.ReferenceManager;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
@@ -40,6 +41,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener 
     private final IntSupplier getMaxRefreshListeners;
     private final Runnable forceRefresh;
     private final Executor listenerExecutor;
+    private final ESLogger logger;
 
     /**
      * List of refresh listeners. Defaults to null and built on demand because most refresh cycles won't need it. Entries are never removed
@@ -52,10 +54,11 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener 
      */
     private volatile Translog.Location lastRefreshedLocation;
 
-    public RefreshListeners(IntSupplier getMaxRefreshListeners, Runnable forceRefresh, Executor listenerExecutor) {
+    public RefreshListeners(IntSupplier getMaxRefreshListeners, Runnable forceRefresh, Executor listenerExecutor, ESLogger logger) {
         this.getMaxRefreshListeners = getMaxRefreshListeners;
         this.forceRefresh = forceRefresh;
         this.listenerExecutor = listenerExecutor;
+        this.logger = logger;
     }
 
     /**
@@ -145,12 +148,13 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener 
          * Iterate the list of listeners, preserving the ones that we couldn't fire in a new list. We expect to fire most of them so this
          * copying should be minimial. Much less overhead than removing all of the fired ones from the list.
          */
+        List<Consumer<Boolean>> listenersToFire = new ArrayList<>();
         List<Tuple<Translog.Location, Consumer<Boolean>>> preservedListeners = null;
         for (Tuple<Translog.Location, Consumer<Boolean>> tuple : candidates) {
             Translog.Location location = tuple.v1();
             Consumer<Boolean> listener = tuple.v2();
             if (location.compareTo(currentRefreshLocation) <= 0) {
-                listenerExecutor.execute(() -> listener.accept(false));
+                listenersToFire.add(listener);
             } else {
                 if (preservedListeners == null) {
                     preservedListeners = new ArrayList<>();
@@ -169,5 +173,15 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener 
                 refreshListeners.addAll(preservedListeners);
             }
         }
+        // Lastly, fire the listeners that are ready on the listener thread pool
+        listenerExecutor.execute(() -> {
+            for (Consumer<Boolean> listener : listenersToFire) {
+                try {
+                    listener.accept(false);
+                } catch (Throwable t) {
+                    logger.warn("Error firing refresh listener", t);
+                }
+            }
+        });
     }
 }

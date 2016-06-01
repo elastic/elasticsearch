@@ -105,7 +105,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             indicesService.canDeleteShardContent(notAllocated, test.getIndexSettings()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/18558")
     public void testDeleteIndexStore() throws Exception {
         IndicesService indicesService = getIndicesService();
         IndexService test = createIndex("test");

@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
-import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -155,7 +154,6 @@ public class ClusterModule extends AbstractModule {
         bind(RoutingService.class).asEagerSingleton();
         bind(DelayedAllocationService.class).asEagerSingleton();
         bind(ShardStateAction.class).asEagerSingleton();
-        bind(NodeIndexDeletedAction.class).asEagerSingleton();
         bind(NodeMappingRefreshAction.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
         bind(TaskResultsService.class).asEagerSingleton();

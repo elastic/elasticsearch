@@ -11,6 +11,9 @@ import org.elasticsearch.example.realm.CustomRealmFactory;
 import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+
 public class ExampleRealmExtension extends XPackExtension {
     @Override
     public String name() {
@@ -25,5 +28,10 @@ public class ExampleRealmExtension extends XPackExtension {
     public void onModule(AuthenticationModule authenticationModule) {
         authenticationModule.addCustomRealm(CustomRealm.TYPE, CustomRealmFactory.class);
         authenticationModule.setAuthenticationFailureHandler(CustomAuthenticationFailureHandler.class);
+        // check that the extension's policy works.
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            System.getSecurityManager().checkPrintJobAccess();
+            return null;
+        });
     }
 }

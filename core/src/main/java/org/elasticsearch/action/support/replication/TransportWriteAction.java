@@ -172,7 +172,7 @@ public abstract class TransportWriteAction<
 
         @Override
         public void forcedRefresh() {
-            // We don't have anywhere to store this so we just throw it on the floor for now.
+            // It'd be nice to mark this in the response but logging when wait for refresh forced it is OK.
         }
 
         @Override

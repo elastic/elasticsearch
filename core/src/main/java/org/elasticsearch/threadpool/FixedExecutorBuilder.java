@@ -79,7 +79,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
 
     private int applyHardSizeLimit(final Settings settings, final String name) {
         if (name.equals(ThreadPool.Names.BULK) || name.equals(ThreadPool.Names.INDEX)) {
-            return EsExecutors.boundedNumberOfProcessors(settings);
+            return 1 + EsExecutors.boundedNumberOfProcessors(settings);
         } else {
             return Integer.MAX_VALUE;
         }

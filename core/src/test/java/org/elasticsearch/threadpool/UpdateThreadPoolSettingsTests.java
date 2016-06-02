@@ -19,7 +19,6 @@
 
 package org.elasticsearch.threadpool;
 
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -27,27 +26,16 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
 
@@ -75,7 +63,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
 
     public void testIndexingThreadPoolsMaxSize() throws InterruptedException {
         final String name = randomFrom(Names.BULK, Names.INDEX);
-        final int maxSize = EsExecutors.boundedNumberOfProcessors(Settings.EMPTY);
+        final int maxSize = 1 + EsExecutors.boundedNumberOfProcessors(Settings.EMPTY);
         final int tooBig = randomIntBetween(1 + maxSize, Integer.MAX_VALUE);
 
         // try to create a too big thread pool

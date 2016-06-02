@@ -78,40 +78,7 @@ public class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBuilder.F
     }
 
     @Override
-    public ThreadPool.ExecutorHolder holder(
-        final ThreadPool.ExecutorHolder previousHolder,
-        final FixedExecutorSettings settings,
-        final ThreadContext threadContext) {
-        final ThreadPool.Info previousInfo = previousHolder != null ? previousHolder.info : null;
-
-        if (previousHolder != null) {
-            assert previousInfo != null;
-            int updatedQueueSize = settings.queueSize;
-            if ((previousInfo.getQueueSize() != null && previousInfo.getQueueSize().singles() == updatedQueueSize) ||
-                previousInfo.getQueueSize() == null && updatedQueueSize < 0) {
-                int updatedSize = settings.size;
-                if (previousInfo.getMax() != updatedSize) {
-                    if (updatedSize > previousInfo.getMax()) {
-                        ((EsThreadPoolExecutor) previousHolder.executor()).setMaximumPoolSize(updatedSize);
-                        ((EsThreadPoolExecutor) previousHolder.executor()).setCorePoolSize(updatedSize);
-                    } else {
-                        ((EsThreadPoolExecutor) previousHolder.executor()).setCorePoolSize(updatedSize);
-                        ((EsThreadPoolExecutor) previousHolder.executor()).setMaximumPoolSize(updatedSize);
-                    }
-                    final ThreadPool.Info info =
-                        new ThreadPool.Info(
-                            name(),
-                            ThreadPool.ThreadPoolType.FIXED,
-                            updatedSize,
-                            updatedSize,
-                            null,
-                            queueSizeValue(updatedQueueSize));
-                    return new ThreadPool.ExecutorHolder(previousHolder.executor(), info);
-                }
-                return previousHolder;
-            }
-        }
-
+    public ThreadPool.ExecutorHolder holder(final FixedExecutorSettings settings, final ThreadContext threadContext) {
         int size = settings.size;
         int queueSize = settings.queueSize;
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(EsExecutors.threadName(settings.nodeName, name()));

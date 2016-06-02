@@ -19,7 +19,6 @@
 
 package org.elasticsearch.threadpool;
 
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -87,18 +86,6 @@ public class FixedThreadPoolTests extends ESThreadPoolTestCase {
 
             assertThat(counter, equalTo(rejections));
             assertThat(stats(threadPool, threadPoolName).getRejected(), equalTo(rejections));
-
-            // the rejected execution count resets to zero when the
-            // queue is resized
-            final ClusterSettings clusterSettings =
-                new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            threadPool.setClusterSettings(clusterSettings);
-            clusterSettings.applySettings(
-                Settings.builder()
-                    .put("thread_pool." + threadPoolName + ".queue_size", queueSize + 1)
-                    .build());
-            assertThat(stats(threadPool, threadPoolName).getRejected(), equalTo(0L));
-
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
         }

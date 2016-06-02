@@ -26,7 +26,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -148,8 +147,6 @@ public class ThreadPool extends AbstractLifecycleComponent<ThreadPool> {
 
     private final EstimatedTimeThread estimatedTimeThread;
 
-    private final AtomicBoolean settingsListenerIsSet = new AtomicBoolean(false);
-
     static final Executor DIRECT_EXECUTOR = command -> command.run();
 
     private final ThreadContext threadContext;
@@ -208,7 +205,7 @@ public class ThreadPool extends AbstractLifecycleComponent<ThreadPool> {
         final Map<String, ExecutorHolder> executors = new HashMap<>();
         for (@SuppressWarnings("unchecked") final Map.Entry<String, ExecutorBuilder> entry : builders.entrySet()) {
             final ExecutorBuilder.ExecutorSettings executorSettings = entry.getValue().settings(settings);
-            final ExecutorHolder executorHolder = entry.getValue().holder(null, executorSettings, threadContext);
+            final ExecutorHolder executorHolder = entry.getValue().holder(executorSettings, threadContext);
             if (executors.containsKey(executorHolder.info.getName())) {
                 throw new IllegalStateException("duplicate executors with name [" + executorHolder.info.getName() + "] registered");
             }
@@ -231,16 +228,6 @@ public class ThreadPool extends AbstractLifecycleComponent<ThreadPool> {
             threadContext.close();
         } catch (IOException e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    public void setClusterSettings(final ClusterSettings clusterSettings) {
-        if (settingsListenerIsSet.compareAndSet(false, true)) {
-            for (final ExecutorBuilder<?> builder : builders.values()) {
-                builder.registerListener(this, clusterSettings);
-            }
-        } else {
-            throw new IllegalStateException("the node settings listener was set more then once");
         }
     }
 
@@ -380,12 +367,6 @@ public class ThreadPool extends AbstractLifecycleComponent<ThreadPool> {
                 ((ThreadPoolExecutor) executor.executor()).shutdownNow();
             }
         }
-
-        ExecutorHolder holder;
-        while ((holder = retiredExecutors.poll()) != null) {
-            ThreadPoolExecutor executor = (ThreadPoolExecutor) holder.executor();
-            executor.shutdownNow();
-        }
     }
 
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
@@ -394,12 +375,6 @@ public class ThreadPool extends AbstractLifecycleComponent<ThreadPool> {
             if (executor.executor() instanceof ThreadPoolExecutor) {
                 result &= ((ThreadPoolExecutor) executor.executor()).awaitTermination(timeout, unit);
             }
-        }
-
-        ExecutorHolder holder;
-        while ((holder = retiredExecutors.poll()) != null) {
-            ThreadPoolExecutor executor = (ThreadPoolExecutor) holder.executor();
-            result &= executor.awaitTermination(timeout, unit);
         }
 
         estimatedTimeThread.join(unit.toMillis(timeout));
@@ -430,39 +405,6 @@ public class ThreadPool extends AbstractLifecycleComponent<ThreadPool> {
 
     static int twiceNumberOfProcessors(int numberOfProcessors) {
         return boundedBy(2 * numberOfProcessors, 2, Integer.MAX_VALUE);
-    }
-
-    ExecutorHolder holder(String name) {
-        return executors.get(name);
-    }
-
-    void registerExecutor(ExecutorHolder holder) {
-        logger.debug("updated thread pool: " + builders.get(holder.info.getName()).formatInfo(holder.info));
-        final String name = holder.info.getName();
-        final ExecutorHolder oldHolder = executors.get(name);
-        if (!oldHolder.equals(holder)) {
-            final Map<String, ExecutorHolder> newExecutors = new HashMap<>(executors);
-            newExecutors.put(name, holder);
-            executors = unmodifiableMap(newExecutors);
-            if (!oldHolder.executor().equals(holder.executor()) && oldHolder.executor() instanceof EsThreadPoolExecutor) {
-                retiredExecutors.add(oldHolder);
-                ((EsThreadPoolExecutor) oldHolder.executor()).shutdown(new ExecutorShutdownListener(oldHolder));
-            }
-        }
-    }
-
-    class ExecutorShutdownListener implements EsThreadPoolExecutor.ShutdownListener {
-
-        private ExecutorHolder holder;
-
-        public ExecutorShutdownListener(ExecutorHolder holder) {
-            this.holder = holder;
-        }
-
-        @Override
-        public void onTerminated() {
-            retiredExecutors.remove(holder);
-        }
     }
 
     class LoggingRunnable implements Runnable {

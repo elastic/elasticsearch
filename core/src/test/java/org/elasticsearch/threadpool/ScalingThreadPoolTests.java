@@ -113,19 +113,6 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         return sizes.get(threadPoolName).size(numberOfProcessors);
     }
 
-    public void testValidDynamicKeepAlive() throws InterruptedException {
-        final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
-        runScalingThreadPoolTest(Settings.EMPTY, (clusterSettings, threadPool) -> {
-            final Executor beforeExecutor = threadPool.executor(threadPoolName);
-            final long seconds = randomIntBetween(1, 300);
-            clusterSettings.applySettings(settings("thread_pool." + threadPoolName + ".keep_alive", seconds + "s"));
-            final Executor afterExecutor = threadPool.executor(threadPoolName);
-            assertSame(beforeExecutor, afterExecutor);
-            final ThreadPool.Info info = info(threadPool, threadPoolName);
-            assertThat(info.getKeepAlive().seconds(), equalTo(seconds));
-        });
-    }
-
     public void testScalingThreadPoolIsBounded() throws InterruptedException {
         final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
         final int size = randomIntBetween(32, 512);
@@ -197,26 +184,6 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         }));
     }
 
-    public void testDynamicThreadPoolSize() throws InterruptedException {
-        final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
-        runScalingThreadPoolTest(Settings.EMPTY, (clusterSettings, threadPool) -> {
-            final Executor beforeExecutor = threadPool.executor(threadPoolName);
-            int expectedMin = "generic".equals(threadPoolName) ? 4 : 1;
-            final int size = randomIntBetween(expectedMin, Integer.MAX_VALUE);
-            clusterSettings.applySettings(settings("thread_pool." + threadPoolName + ".max", size));
-            final Executor afterExecutor = threadPool.executor(threadPoolName);
-            assertSame(beforeExecutor, afterExecutor);
-            final ThreadPool.Info info = info(threadPool, threadPoolName);
-            assertThat(info.getMin(), equalTo(expectedMin));
-            assertThat(info.getMax(), equalTo(size));
-
-            assertThat(afterExecutor, instanceOf(EsThreadPoolExecutor.class));
-            final EsThreadPoolExecutor executor = (EsThreadPoolExecutor)afterExecutor;
-            assertThat(executor.getCorePoolSize(), equalTo(expectedMin));
-            assertThat(executor.getMaximumPoolSize(), equalTo(size));
-        });
-    }
-
     public void runScalingThreadPoolTest(
             final Settings settings,
             final BiConsumer<ClusterSettings, ThreadPool> consumer) throws InterruptedException {
@@ -227,7 +194,6 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             threadPool = new ThreadPool(nodeSettings);
             threadPool.start();
             final ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            threadPool.setClusterSettings(clusterSettings);
             consumer.accept(clusterSettings, threadPool);
         } finally {
             terminateThreadPoolIfNeeded(threadPool);

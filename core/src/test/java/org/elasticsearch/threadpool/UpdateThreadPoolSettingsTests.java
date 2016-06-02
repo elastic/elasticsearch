@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -56,13 +57,13 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         ThreadPool threadPool = null;
         try {
             threadPool = new ThreadPool(Settings.builder()
-                    .put("node.name", "testCorrectThreadPoolTypePermittedInSettings")
-                    .put("thread_pool." + threadPoolName + ".type", correctThreadPoolType.getType())
-                    .build());
+                .put("node.name", "testCorrectThreadPoolTypePermittedInSettings")
+                .put("thread_pool." + threadPoolName + ".type", correctThreadPoolType.getType())
+                .build());
             threadPool.start();
             ThreadPool.Info info = info(threadPool, threadPoolName);
             if (ThreadPool.Names.SAME.equals(threadPoolName)) {
-                assertNull(info); // we don't report on the "same" threadpool
+                assertNull(info); // we don't report on the "same" thread pool
             } else {
                 // otherwise check we have the expected type
                 assertEquals(info.getThreadPoolType(), correctThreadPoolType);
@@ -74,53 +75,30 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
 
     public void testIndexingThreadPoolsMaxSize() throws InterruptedException {
         final String name = randomFrom(Names.BULK, Names.INDEX);
-        ThreadPool threadPool = null;
-        try {
-            final int maxSize = EsExecutors.boundedNumberOfProcessors(Settings.EMPTY);
-            final int tooBig = randomIntBetween(1 + maxSize, Integer.MAX_VALUE);
+        final int maxSize = EsExecutors.boundedNumberOfProcessors(Settings.EMPTY);
+        final int tooBig = randomIntBetween(1 + maxSize, Integer.MAX_VALUE);
 
-            // try to create a too-big (maxSize+1) thread pool
-            final IllegalArgumentException initial =
-                expectThrows(
-                    IllegalArgumentException.class,
-                    () -> {
-                        ThreadPool tp = null;
-                        try {
-                            tp = new ThreadPool(Settings.builder()
-                                .put("node.name", "testIndexingThreadPoolsMaxSize")
-                                .put("thread_pool." + name + ".size", tooBig)
-                                .build());
-                            tp.start();
-                        } finally {
-                            terminateThreadPoolIfNeeded(tp);
-                        }
-                    });
-
-            assertThat(
-                initial,
-                hasToString(containsString(
-                    "Failed to parse value [" + tooBig + "] for setting [thread_pool." + name + ".size] must be ")));
-
-            threadPool = new ThreadPool(Settings.builder().put("node.name", "testIndexingThreadPoolsMaxSize").build());
-            final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            threadPool.setClusterSettings(clusterSettings);
-
-            // try to update to too-big size:
-            final IllegalArgumentException updated =
-                expectThrows(
-                    IllegalArgumentException.class,
-                    () -> clusterSettings.applySettings(
-                        Settings.builder()
+        // try to create a too big thread pool
+        final IllegalArgumentException initial =
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> {
+                    ThreadPool tp = null;
+                    try {
+                        tp = new ThreadPool(Settings.builder()
+                            .put("node.name", "testIndexingThreadPoolsMaxSize")
                             .put("thread_pool." + name + ".size", tooBig)
-                            .build()));
+                            .build());
+                        tp.start();
+                    } finally {
+                        terminateThreadPoolIfNeeded(tp);
+                    }
+                });
 
-            assertThat(
-                updated,
-                hasToString(containsString(
-                    "Failed to parse value [" + tooBig + "] for setting [thread_pool." + name + ".size] must be ")));
-        } finally {
-            terminateThreadPoolIfNeeded(threadPool);
-        }
+        assertThat(
+            initial,
+            hasToString(containsString(
+                "Failed to parse value [" + tooBig + "] for setting [thread_pool." + name + ".size] must be ")));
     }
 
     private static int getExpectedThreadPoolSize(Settings settings, String name, int size) {
@@ -136,18 +114,14 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         ThreadPool threadPool = null;
 
         try {
+            int expectedSize = getExpectedThreadPoolSize(Settings.EMPTY, threadPoolName, 15);
             Settings nodeSettings = Settings.builder()
-                    .put("node.name", "testFixedExecutorType").build();
+                .put("node.name", "testFixedExecutorType")
+                .put("thread_pool." + threadPoolName + ".size", expectedSize)
+                .build();
             threadPool = new ThreadPool(nodeSettings);
             threadPool.start();
-            ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            threadPool.setClusterSettings(clusterSettings);
             assertThat(threadPool.executor(threadPoolName), instanceOf(EsThreadPoolExecutor.class));
-            int expectedSize = getExpectedThreadPoolSize(nodeSettings, threadPoolName, 15);
-            Settings settings =
-                clusterSettings.applySettings(Settings.builder()
-                    .put("thread_pool." + threadPoolName + ".size", expectedSize)
-                    .build());
 
             assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
             assertThat(threadPool.executor(threadPoolName), instanceOf(EsThreadPoolExecutor.class));
@@ -157,25 +131,6 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
             assertThat(info(threadPool, threadPoolName).getMax(), equalTo(expectedSize));
             // keep alive does not apply to fixed thread pools
             assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(0L));
-
-            // Change size
-            Executor oldExecutor = threadPool.executor(threadPoolName);
-            expectedSize = getExpectedThreadPoolSize(nodeSettings, threadPoolName, 10);
-            settings = clusterSettings.applySettings(Settings.builder().put(settings).put("thread_pool." + threadPoolName + ".size", expectedSize).build());
-
-
-            // Make sure size values changed
-            assertThat(info(threadPool, threadPoolName).getMax(), equalTo(expectedSize));
-            assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedSize));
-            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getMaximumPoolSize(), equalTo(expectedSize));
-            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getCorePoolSize(), equalTo(expectedSize));
-            // Make sure executor didn't change
-            assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
-            assertThat(threadPool.executor(threadPoolName), sameInstance(oldExecutor));
-
-            // Change queue capacity
-            clusterSettings.applySettings(Settings.builder().put(settings).put("thread_pool." + threadPoolName + ".queue", "500")
-                    .build());
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
         }
@@ -186,12 +141,11 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         ThreadPool threadPool = null;
         try {
             Settings nodeSettings = Settings.builder()
-                    .put("thread_pool." + threadPoolName + ".max", 10)
-                    .put("node.name", "testScalingExecutorType").build();
+                .put("thread_pool." + threadPoolName + ".max", 10)
+                .put("node.name", "testScalingExecutorType")
+                .build();
             threadPool = new ThreadPool(nodeSettings);
             threadPool.start();
-            ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            threadPool.setClusterSettings(clusterSettings);
             final int expectedMinimum = "generic".equals(threadPoolName) ? 4 : 1;
             assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedMinimum));
             assertThat(info(threadPool, threadPoolName).getMax(), equalTo(10));
@@ -199,24 +153,6 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
             assertThat(info(threadPool, threadPoolName).getKeepAlive().seconds(), equalTo(expectedKeepAlive));
             assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), ThreadPool.ThreadPoolType.SCALING);
             assertThat(threadPool.executor(threadPoolName), instanceOf(EsThreadPoolExecutor.class));
-
-            // Change settings that doesn't require pool replacement
-            Executor oldExecutor = threadPool.executor(threadPoolName);
-            clusterSettings.applySettings(Settings.builder()
-                    .put("thread_pool." + threadPoolName + ".keep_alive", "10m")
-                    .put("thread_pool." + threadPoolName + ".core", "2")
-                    .put("thread_pool." + threadPoolName + ".max", "15")
-                    .build());
-            assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), ThreadPool.ThreadPoolType.SCALING);
-            assertThat(threadPool.executor(threadPoolName), instanceOf(EsThreadPoolExecutor.class));
-            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getCorePoolSize(), equalTo(2));
-            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getMaximumPoolSize(), equalTo(15));
-            assertThat(info(threadPool, threadPoolName).getMin(), equalTo(2));
-            assertThat(info(threadPool, threadPoolName).getMax(), equalTo(15));
-            // Make sure keep alive value changed
-            assertThat(info(threadPool, threadPoolName).getKeepAlive().minutes(), equalTo(10L));
-            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(10L));
-            assertThat(threadPool.executor(threadPoolName), sameInstance(oldExecutor));
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
         }
@@ -227,18 +163,19 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         ThreadPool threadPool = null;
         try {
             Settings nodeSettings = Settings.builder()
-                    .put("thread_pool." + threadPoolName + ".queue_size", 1000)
-                    .put("node.name", "testShutdownNowInterrupts").build();
+                .put("thread_pool." + threadPoolName + ".queue_size", 1000)
+                .put("node.name", "testShutdownNowInterrupts")
+                .build();
             threadPool = new ThreadPool(nodeSettings);
             threadPool.start();
-            ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            threadPool.setClusterSettings(clusterSettings);
             assertEquals(info(threadPool, threadPoolName).getQueueSize().getSingles(), 1000L);
 
+            final CountDownLatch shutDownLatch = new CountDownLatch(1);
             final CountDownLatch latch = new CountDownLatch(1);
             ThreadPoolExecutor oldExecutor = (ThreadPoolExecutor) threadPool.executor(threadPoolName);
             threadPool.executor(threadPoolName).execute(() -> {
                         try {
+                            shutDownLatch.countDown();
                             new CountDownLatch(1).await();
                         } catch (InterruptedException ex) {
                             latch.countDown();
@@ -246,13 +183,11 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                         }
                     }
             );
-            clusterSettings.applySettings(Settings.builder().put("thread_pool." + threadPoolName + ".queue_size", 2000).build());
-            assertThat(threadPool.executor(threadPoolName), not(sameInstance(oldExecutor)));
+            shutDownLatch.await();
+            threadPool.shutdownNow();
+            latch.await(3, TimeUnit.SECONDS); // if this throws then ThreadPool#shutdownNow did not interrupt
             assertThat(oldExecutor.isShutdown(), equalTo(true));
-            assertThat(oldExecutor.isTerminating(), equalTo(true));
-            assertThat(oldExecutor.isTerminated(), equalTo(false));
-            threadPool.shutdownNow(); // should interrupt the thread
-            latch.await(3, TimeUnit.SECONDS); // If this throws then ThreadPool#shutdownNow didn't interrupt
+            assertThat(oldExecutor.isTerminating() || oldExecutor.isTerminated(), equalTo(true));
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
         }
@@ -277,8 +212,6 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
             threadPool.add(fixed);
             threadPool.start();
 
-            ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            threadPool.setClusterSettings(clusterSettings);
             ThreadPoolInfo groups = threadPool.info();
             boolean foundPool1 = false;
             boolean foundPool2 = false;
@@ -293,39 +226,6 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                     assertThat(info.getMin(), equalTo(1));
                     assertThat(info.getMax(), equalTo(1));
                     assertThat(info.getQueueSize().singles(), equalTo(1L));
-                } else {
-                    for (Field field : Names.class.getFields()) {
-                        if (info.getName().equalsIgnoreCase(field.getName())) {
-                            // This is ok it is a default thread pool
-                            continue outer;
-                        }
-                    }
-                    fail("Unexpected pool name: " + info.getName());
-                }
-            }
-            assertThat(foundPool1, is(true));
-            assertThat(foundPool2, is(true));
-
-            // Updating my_pool2
-            Settings settings = Settings.builder()
-                    .put("thread_pool.my_pool2.size", "10")
-                    .build();
-            clusterSettings.applySettings(settings);
-
-            groups = threadPool.info();
-            foundPool1 = false;
-            foundPool2 = false;
-            outer:
-            for (ThreadPool.Info info : groups) {
-                if ("my_pool1".equals(info.getName())) {
-                    foundPool1 = true;
-                    assertEquals(info.getThreadPoolType(), ThreadPool.ThreadPoolType.SCALING);
-                } else if ("my_pool2".equals(info.getName())) {
-                    foundPool2 = true;
-                    assertThat(info.getMax(), equalTo(10));
-                    assertThat(info.getMin(), equalTo(10));
-                    assertThat(info.getQueueSize().singles(), equalTo(1L));
-                    assertEquals(info.getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
                 } else {
                     for (Field field : Names.class.getFields()) {
                         if (info.getName().equalsIgnoreCase(field.getName())) {

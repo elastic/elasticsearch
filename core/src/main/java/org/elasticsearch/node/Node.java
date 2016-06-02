@@ -257,7 +257,6 @@ public class Node implements Closeable {
             injector = modules.createInjector();
 
             client = injector.getInstance(Client.class);
-            threadPool.setClusterSettings(injector.getInstance(ClusterSettings.class));
             success = true;
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to bind service", ex);

@@ -19,15 +19,11 @@
 
 package org.elasticsearch.threadpool;
 
-import org.elasticsearch.common.settings.AbstractScopedSettings;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings> {
 
@@ -42,39 +38,14 @@ public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings
     }
 
     protected static String settingsKey(final String prefix, final String name, final String key) {
-        return String.join(prefix, name, key);
+        return String.join(".", prefix, name, key);
     }
 
     public abstract List<Setting<?>> registerSettings();
 
-    public void registerListener(ThreadPool threadPool, ClusterSettings clusterSettings) {
-        clusterSettings.addSettingsUpdater(new AbstractScopedSettings.SettingUpdater<U>() {
-            @Override
-            public boolean hasChanged(Settings current, Settings previous) {
-                for (final Setting<?> setting : registerSettings()) {
-                    if (!Objects.equals(setting.get(previous), setting.get(current))) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-
-            @Override
-            public U getValue(Settings current, Settings previous) {
-                return settings(current);
-            }
-
-            @Override
-            public void apply(U value, Settings current, Settings previous) {
-                final ThreadPool.ExecutorHolder previousHolder = threadPool.holder(name);
-                threadPool.registerExecutor(holder(previousHolder, value, threadPool.getThreadContext()));
-            }
-        });
-    }
-
     public abstract U settings(Settings settings);
 
-    public abstract ThreadPool.ExecutorHolder holder(ThreadPool.ExecutorHolder previousHolder, U settings, ThreadContext threadContext);
+    public abstract ThreadPool.ExecutorHolder holder(U settings, ThreadContext threadContext);
 
     public abstract String formatInfo(ThreadPool.Info info);
 

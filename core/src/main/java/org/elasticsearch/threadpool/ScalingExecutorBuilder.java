@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 
@@ -47,10 +46,10 @@ public class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecutorBuild
     public ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive, final String prefix) {
         super(name);
         this.coreSetting =
-            Setting.intSetting(settingsKey(prefix, name, "core"), core, Setting.Property.Dynamic, Setting.Property.NodeScope);
-        this.maxSetting = Setting.intSetting(settingsKey(prefix, name, "max"), max, Setting.Property.Dynamic, Setting.Property.NodeScope);
+            Setting.intSetting(settingsKey(prefix, name, "core"), core, Setting.Property.NodeScope);
+        this.maxSetting = Setting.intSetting(settingsKey(prefix, name, "max"), max, Setting.Property.NodeScope);
         this.keepAliveSetting =
-            Setting.timeSetting(settingsKey(prefix, name, "keep_alive"), keepAlive, Setting.Property.Dynamic, Setting.Property.NodeScope);
+            Setting.timeSetting(settingsKey(prefix, name, "keep_alive"), keepAlive, Setting.Property.NodeScope);
     }
 
     @Override
@@ -67,34 +66,7 @@ public class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecutorBuild
         return new ScalingExecutorSettings(nodeName, coreThreads, maxThreads, keepAlive);
     }
 
-    public ThreadPool.ExecutorHolder holder(
-        final ThreadPool.ExecutorHolder previousHolder,
-        final ScalingExecutorSettings settings,
-        final ThreadContext threadContext) {
-        final ThreadPool.Info previousInfo = previousHolder != null ? previousHolder.info : null;
-        if (previousHolder != null) {
-            TimeValue updatedKeepAlive = settings.keepAlive;
-            int updatedCore = settings.core;
-            int updatedMax = settings.max;
-            if (!previousInfo.getKeepAlive().equals(updatedKeepAlive) ||
-                previousInfo.getMin() != updatedCore ||
-                previousInfo.getMax() != updatedMax) {
-                final EsThreadPoolExecutor executor = (EsThreadPoolExecutor) previousHolder.executor();
-                if (!previousInfo.getKeepAlive().equals(updatedKeepAlive)) {
-                    executor.setKeepAliveTime(updatedKeepAlive.millis(), TimeUnit.MILLISECONDS);
-                }
-                if (previousInfo.getMin() != updatedCore) {
-                    executor.setCorePoolSize(updatedCore);
-                }
-                if (previousInfo.getMax() != updatedMax) {
-                    executor.setMaximumPoolSize(updatedMax);
-                }
-                final ThreadPool.Info info =
-                    new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.SCALING, updatedCore, updatedMax, updatedKeepAlive, null);
-                return new ThreadPool.ExecutorHolder(previousHolder.executor(), info);
-            }
-            return previousHolder;
-        }
+    public ThreadPool.ExecutorHolder holder(final ScalingExecutorSettings settings, final ThreadContext threadContext) {
         TimeValue keepAlive = settings.keepAlive;
         int core = settings.core;
         int max = settings.max;

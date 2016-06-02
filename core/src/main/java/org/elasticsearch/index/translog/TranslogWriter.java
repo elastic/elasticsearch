@@ -138,7 +138,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         }
         totalOffset += data.length();
         operationCounter++;
-        ESLoggerFactory.getLogger("TMP").error("Advanced position from [{}] to [{}]", offset, totalOffset);
         return new Translog.Location(generation, offset, data.length());
     }
 

@@ -142,7 +142,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> aliasing index [test] with [alias1] and filter [user:kimchy]");
-        QueryBuilder<?> filter = termQuery("user", "kimchy");
+        QueryBuilder filter = termQuery("user", "kimchy");
         assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1", filter));
 
         // For now just making sure that filter was stored with the alias

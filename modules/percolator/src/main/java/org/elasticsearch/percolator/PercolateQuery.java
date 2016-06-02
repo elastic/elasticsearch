@@ -19,8 +19,12 @@
 
 package org.elasticsearch.percolator;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SlowCompositeReaderWrapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -50,6 +54,7 @@ public final class PercolateQuery extends Query implements Accountable {
 
         private final String docType;
         private final QueryStore queryStore;
+        private final String verifiedCandidateField;
         private final BytesReference documentSource;
         private final IndexSearcher percolatorIndexSearcher;
 
@@ -59,14 +64,20 @@ public final class PercolateQuery extends Query implements Accountable {
         /**
          * @param docType                   The type of the document being percolated
          * @param queryStore                The lookup holding all the percolator queries as Lucene queries.
+         * @param verifiedCandidateField    The field used to figure out if query extraction was accurate and candidate matches don't
+         *                                  need to be verified by {@link org.apache.lucene.index.memory.MemoryIndex}.
+         *                                  Specify <code>null</code> if such a field doesn't exist, so that this query
+         *                                  always verified candidate matches with {@link org.apache.lucene.index.memory.MemoryIndex}.
          * @param documentSource            The source of the document being percolated
          * @param percolatorIndexSearcher   The index searcher on top of the in-memory index that holds the document being percolated
          */
-        public Builder(String docType, QueryStore queryStore, BytesReference documentSource, IndexSearcher percolatorIndexSearcher) {
+        public Builder(String docType, QueryStore queryStore, String verifiedCandidateField, BytesReference documentSource,
+                       IndexSearcher percolatorIndexSearcher) {
             this.docType = Objects.requireNonNull(docType);
+            this.queryStore = Objects.requireNonNull(queryStore);
+            this.verifiedCandidateField = verifiedCandidateField;
             this.documentSource = Objects.requireNonNull(documentSource);
             this.percolatorIndexSearcher = Objects.requireNonNull(percolatorIndexSearcher);
-            this.queryStore = Objects.requireNonNull(queryStore);
         }
 
         /**
@@ -101,21 +112,24 @@ public final class PercolateQuery extends Query implements Accountable {
             if (queriesMetaDataQuery != null) {
                 builder.add(queriesMetaDataQuery, FILTER);
             }
-            return new PercolateQuery(docType, queryStore, documentSource, builder.build(), percolatorIndexSearcher);
+            return new PercolateQuery(docType, queryStore, verifiedCandidateField, documentSource, builder.build(),
+                    percolatorIndexSearcher);
         }
 
     }
 
     private final String documentType;
     private final QueryStore queryStore;
+    private final String verifiedCandidateField;
     private final BytesReference documentSource;
     private final Query percolatorQueriesQuery;
     private final IndexSearcher percolatorIndexSearcher;
 
-    private PercolateQuery(String documentType, QueryStore queryStore, BytesReference documentSource,
-                           Query percolatorQueriesQuery, IndexSearcher percolatorIndexSearcher) {
+    private PercolateQuery(String documentType, QueryStore queryStore, String verifiedCandidateField,
+                           BytesReference documentSource, Query percolatorQueriesQuery, IndexSearcher percolatorIndexSearcher) {
         this.documentType = documentType;
         this.documentSource = documentSource;
+        this.verifiedCandidateField = verifiedCandidateField;
         this.percolatorQueriesQuery = percolatorQueriesQuery;
         this.queryStore = queryStore;
         this.percolatorIndexSearcher = percolatorIndexSearcher;
@@ -125,7 +139,7 @@ public final class PercolateQuery extends Query implements Accountable {
     public Query rewrite(IndexReader reader) throws IOException {
         Query rewritten = percolatorQueriesQuery.rewrite(reader);
         if (rewritten != percolatorQueriesQuery) {
-            return new PercolateQuery(documentType, queryStore, documentSource, rewritten, percolatorIndexSearcher);
+            return new PercolateQuery(documentType, queryStore, verifiedCandidateField, documentSource, rewritten, percolatorIndexSearcher);
         } else {
             return this;
         }
@@ -206,6 +220,7 @@ public final class PercolateQuery extends Query implements Accountable {
                         }
                     };
                 } else {
+                    NumericDocValues verifiedCandidateDV = DocValues.getNumeric(leafReaderContext.reader(), verifiedCandidateField);
                     return new BaseScorer(this, approximation, queries, percolatorIndexSearcher) {
 
                         @Override
@@ -214,8 +229,12 @@ public final class PercolateQuery extends Query implements Accountable {
                         }
 
                         boolean matchDocId(int docId) throws IOException {
-                            Query query = percolatorQueries.getQuery(docId);
-                            return query != null && Lucene.exists(percolatorIndexSearcher, query);
+                            if (verifiedCandidateDV.get(docId) == 1) {
+                                return true;
+                            } else {
+                                Query query = percolatorQueries.getQuery(docId);
+                                return query != null && Lucene.exists(percolatorIndexSearcher, query);
+                            }
                         }
                     };
                 }

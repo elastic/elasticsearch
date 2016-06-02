@@ -20,6 +20,7 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
@@ -72,7 +73,8 @@ public class PercolateQueryTests extends ESTestCase {
 
     public final static String EXTRACTED_TERMS_FIELD_NAME = "extracted_terms";
     public final static String UNKNOWN_QUERY_FIELD_NAME = "unknown_query";
-    public static FieldType EXTRACTED_TERMS_FIELD_TYPE = new FieldType();
+    public final static String ACCURATE_CANDIDATE_FIELD = "accurate_candidate_field";
+    public final static FieldType EXTRACTED_TERMS_FIELD_TYPE = new FieldType();
 
     static {
         EXTRACTED_TERMS_FIELD_TYPE.setTokenized(false);
@@ -145,7 +147,7 @@ public class PercolateQueryTests extends ESTestCase {
         PercolateQuery.Builder builder = new PercolateQuery.Builder(
                 "docType",
                 queryStore,
-                new BytesArray("{}"),
+                ACCURATE_CANDIDATE_FIELD, new BytesArray("{}"),
                 percolateSearcher
         );
         builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
@@ -219,7 +221,7 @@ public class PercolateQueryTests extends ESTestCase {
         PercolateQuery.Builder builder = new PercolateQuery.Builder(
                 "docType",
                 queryStore,
-                new BytesArray("{}"),
+                ACCURATE_CANDIDATE_FIELD, new BytesArray("{}"),
                 percolateSearcher
         );
         builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
@@ -322,7 +324,7 @@ public class PercolateQueryTests extends ESTestCase {
         queries.put(id, query);
         ParseContext.Document document = new ParseContext.Document();
         ExtractQueryTermsService.extractQueryTerms(query, document, EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME,
-                EXTRACTED_TERMS_FIELD_TYPE);
+                EXTRACTED_TERMS_FIELD_TYPE, ACCURATE_CANDIDATE_FIELD);
         document.add(new StoredField(UidFieldMapper.NAME, Uid.createUid(MapperService.PERCOLATOR_LEGACY_TYPE_NAME, id)));
         assert extraFields.length % 2 == 0;
         for (int i = 0; i < extraFields.length; i++) {
@@ -332,33 +334,38 @@ public class PercolateQueryTests extends ESTestCase {
     }
 
     private void duelRun(MemoryIndex memoryIndex, IndexSearcher shardSearcher) throws IOException {
+        boolean requireScore = false;randomBoolean();
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         PercolateQuery.Builder builder1 = new PercolateQuery.Builder(
                 "docType",
                 queryStore,
-                new BytesArray("{}"),
+                ACCURATE_CANDIDATE_FIELD, new BytesArray("{}"),
                 percolateSearcher
         );
         // enables the optimization that prevents queries from being evaluated that don't match
         builder1.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
-        TopDocs topDocs1 = shardSearcher.search(builder1.build(), 10);
+        Query query1 = requireScore ? builder1.build() : new ConstantScoreQuery(builder1.build());
+        TopDocs topDocs1 = shardSearcher.search(query1, 10);
 
         PercolateQuery.Builder builder2 = new PercolateQuery.Builder(
                 "docType",
                 queryStore,
-                new BytesArray("{}"),
+                null, new BytesArray("{}"),
                 percolateSearcher
         );
         builder2.setPercolateTypeQuery(new MatchAllDocsQuery());
-        TopDocs topDocs2 = shardSearcher.search(builder2.build(), 10);
+        Query query2 = requireScore ? builder2.build() : new ConstantScoreQuery(builder2.build());
+        TopDocs topDocs2 = shardSearcher.search(query2, 10);
         assertThat(topDocs1.totalHits, equalTo(topDocs2.totalHits));
         assertThat(topDocs1.scoreDocs.length, equalTo(topDocs2.scoreDocs.length));
         for (int j = 0; j < topDocs1.scoreDocs.length; j++) {
             assertThat(topDocs1.scoreDocs[j].doc, equalTo(topDocs2.scoreDocs[j].doc));
             assertThat(topDocs1.scoreDocs[j].score, equalTo(topDocs2.scoreDocs[j].score));
-            Explanation explain1 = shardSearcher.explain(builder1.build(), topDocs1.scoreDocs[j].doc);
-            Explanation explain2 = shardSearcher.explain(builder2.build(), topDocs2.scoreDocs[j].doc);
-            assertThat(explain1.toHtml(), equalTo(explain2.toHtml()));
+            if (requireScore) {
+                Explanation explain1 = shardSearcher.explain(query1, topDocs1.scoreDocs[j].doc);
+                Explanation explain2 = shardSearcher.explain(query2, topDocs2.scoreDocs[j].doc);
+                assertThat(explain1.toHtml(), equalTo(explain2.toHtml()));
+            }
         }
     }
 

@@ -392,11 +392,14 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 }
             }
         };
+        final boolean nestedDoc;
         final IndexSearcher docSearcher;
         if (doc.docs().size() > 1) {
             assert docMapper.hasNestedObjects();
+            nestedDoc = true;
             docSearcher = createMultiDocumentSearcher(analyzer, doc);
         } else {
+            nestedDoc = false;
             MemoryIndex memoryIndex = MemoryIndex.fromDocument(doc.rootDoc(), analyzer, true, false);
             docSearcher = memoryIndex.createSearcher();
             docSearcher.setQueryCache(null);
@@ -404,11 +407,11 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
         IndexSettings indexSettings = context.getIndexSettings();
         boolean mapUnmappedFieldsAsString = indexSettings.getValue(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
-        return buildQuery(indexSettings.getIndexVersionCreated(), context, docSearcher, mapUnmappedFieldsAsString);
+        return buildQuery(indexSettings.getIndexVersionCreated(), context, docSearcher, mapUnmappedFieldsAsString, nestedDoc);
     }
 
     Query buildQuery(Version indexVersionCreated, QueryShardContext context, IndexSearcher docSearcher,
-                     boolean mapUnmappedFieldsAsString) throws IOException {
+                     boolean mapUnmappedFieldsAsString, boolean nestedDoc) throws IOException {
         if (indexVersionCreated.onOrAfter(Version.V_5_0_0_alpha1)) {
             MappedFieldType fieldType = context.fieldMapper(field);
             if (fieldType == null) {
@@ -420,15 +423,18 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         "] to be of type [percolator], but is of type [" + fieldType.typeName() + "]");
             }
             PercolatorFieldMapper.PercolatorFieldType pft = (PercolatorFieldMapper.PercolatorFieldType) fieldType;
+            PercolateQuery.QueryStore queryStore = createStore(pft, context, mapUnmappedFieldsAsString);
+            // In case of nested docs we always need to verify with memory index:
+            String verifiedCandidateField = nestedDoc ? null : pft.getVerifiedCandidateFieldName();
             PercolateQuery.Builder builder = new PercolateQuery.Builder(
-                    documentType, createStore(pft, context, mapUnmappedFieldsAsString), document, docSearcher
+                    documentType, queryStore, verifiedCandidateField, document, docSearcher
             );
             builder.extractQueryTermsQuery(pft.getExtractedTermsField(), pft.getUnknownQueryFieldName());
             return builder.build();
         } else {
             Query percolateTypeQuery = new TermQuery(new Term(TypeFieldMapper.NAME, MapperService.PERCOLATOR_LEGACY_TYPE_NAME));
             PercolateQuery.Builder builder = new PercolateQuery.Builder(
-                    documentType, createLegacyStore(context, mapUnmappedFieldsAsString), document, docSearcher
+                    documentType, createLegacyStore(context, mapUnmappedFieldsAsString), null, document, docSearcher
             );
             builder.setPercolateTypeQuery(percolateTypeQuery);
             return builder.build();

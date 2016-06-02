@@ -53,10 +53,13 @@ import org.elasticsearch.index.mapper.ParseContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Utility to extract query terms from queries and create queries from documents.
@@ -64,64 +67,179 @@ import java.util.Set;
 public final class ExtractQueryTermsService {
 
     private static final byte FIELD_VALUE_SEPARATOR = 0;  // nul code point
+    public static final String EXTRACTION_COMPLETE = "complete";
+    public static final String EXTRACTION_PARTIAL = "partial";
+    public static final String EXTRACTION_FAILED = "failed";
+
+    static final Map<Class<? extends Query>, Function<Query, Result>> queryProcessors;
+
+    static {
+        Map<Class<? extends Query>, Function<Query, Result>> map = new HashMap<>(16);
+        map.put(MatchNoDocsQuery.class, matchNoDocsQuery());
+        map.put(ConstantScoreQuery.class, constantScoreQuery());
+        map.put(BoostQuery.class, boostQuery());
+        map.put(TermQuery.class, termQuery());
+        map.put(TermsQuery.class, termsQuery());
+        map.put(CommonTermsQuery.class, commonTermsQuery());
+        map.put(BlendedTermQuery.class, blendedTermQuery());
+        map.put(PhraseQuery.class, phraseQuery());
+        map.put(SpanTermQuery.class, spanTermQuery());
+        map.put(SpanNearQuery.class, spanNearQuery());
+        map.put(SpanOrQuery.class, spanOrQuery());
+        map.put(SpanFirstQuery.class, spanFirstQuery());
+        map.put(SpanNotQuery.class, spanNotQuery());
+        map.put(BooleanQuery.class, booleanQuery());
+        map.put(DisjunctionMaxQuery.class, disjunctionMaxQuery());
+        queryProcessors = Collections.unmodifiableMap(map);
+    }
 
     private ExtractQueryTermsService() {
     }
 
     /**
      * Extracts all terms from the specified query and adds it to the specified document.
+     *
      * @param query                 The query to extract terms from
      * @param document              The document to add the extracted terms to
      * @param queryTermsFieldField  The field in the document holding the extracted terms
-     * @param unknownQueryField     The field used to mark a document that not all query terms could be extracted.
-     *                              For example the query contained an unsupported query (e.g. WildcardQuery).
-     * @param fieldType The field type for the query metadata field
+     * @param extractionResultField The field contains whether query term extraction was successful, partial or
+     *                              failed. (For example the query contained an unsupported query (e.g. WildcardQuery)
+     *                              then query extraction would fail)
+     * @param fieldType             The field type for the query metadata field
      */
     public static void extractQueryTerms(Query query, ParseContext.Document document, String queryTermsFieldField,
-                                         String unknownQueryField, FieldType fieldType) {
-        Set<Term> queryTerms;
+                                         String extractionResultField, FieldType fieldType) {
+        Result result;
         try {
-            queryTerms = extractQueryTerms(query);
+            result = extractQueryTerms(query);
         } catch (UnsupportedQueryException e) {
-            document.add(new Field(unknownQueryField, new BytesRef(), fieldType));
+            document.add(new Field(extractionResultField, EXTRACTION_FAILED, fieldType));
             return;
         }
-        for (Term term : queryTerms) {
+        for (Term term : result.terms) {
             BytesRefBuilder builder = new BytesRefBuilder();
             builder.append(new BytesRef(term.field()));
             builder.append(FIELD_VALUE_SEPARATOR);
             builder.append(term.bytes());
             document.add(new Field(queryTermsFieldField, builder.toBytesRef(), fieldType));
         }
+        if (result.verified) {
+            document.add(new Field(extractionResultField, EXTRACTION_COMPLETE, fieldType));
+        } else {
+            document.add(new Field(extractionResultField, EXTRACTION_PARTIAL, fieldType));
+        }
+    }
+
+    /**
+     * Creates a terms query containing all terms from all fields of the specified index reader.
+     */
+    public static Query createQueryTermsQuery(IndexReader indexReader, String queryMetadataField,
+                                              Term... optionalTerms) throws IOException {
+        Objects.requireNonNull(queryMetadataField);
+
+        List<Term> extractedTerms = new ArrayList<>();
+        Collections.addAll(extractedTerms, optionalTerms);
+
+        Fields fields = MultiFields.getFields(indexReader);
+        for (String field : fields) {
+            Terms terms = fields.terms(field);
+            if (terms == null) {
+                continue;
+            }
+
+            BytesRef fieldBr = new BytesRef(field);
+            TermsEnum tenum = terms.iterator();
+            for (BytesRef term = tenum.next(); term != null; term = tenum.next()) {
+                BytesRefBuilder builder = new BytesRefBuilder();
+                builder.append(fieldBr);
+                builder.append(FIELD_VALUE_SEPARATOR);
+                builder.append(term);
+                extractedTerms.add(new Term(queryMetadataField, builder.toBytesRef()));
+            }
+        }
+        return new TermsQuery(extractedTerms);
     }
 
     /**
      * Extracts all query terms from the provided query and adds it to specified list.
-     *
+     * <p>
      * From boolean query with no should clauses or phrase queries only the longest term are selected,
      * since that those terms are likely to be the rarest. Boolean query's must_not clauses are always ignored.
-     *
+     * <p>
      * If from part of the query, no query terms can be extracted then term extraction is stopped and
      * an UnsupportedQueryException is thrown.
      */
-    static Set<Term> extractQueryTerms(Query query) {
-        if (query instanceof MatchNoDocsQuery) {
-            // no terms to extract as this query matches no docs
-            return Collections.emptySet();
-        } else if (query instanceof TermQuery) {
-            return Collections.singleton(((TermQuery) query).getTerm());
-        } else if (query instanceof TermsQuery) {
-            Set<Term> terms = new HashSet<>();
+    static Result extractQueryTerms(Query query) {
+        Class queryClass = query.getClass();
+        if (queryClass.isAnonymousClass()) {
+            // Sometimes queries have anonymous classes in that case we need the direct super class.
+            // (for example blended term query)
+            queryClass = queryClass.getSuperclass();
+        }
+        Function<Query, Result> queryProcessor = queryProcessors.get(queryClass);
+        if (queryProcessor != null) {
+            return queryProcessor.apply(query);
+        } else {
+            throw new UnsupportedQueryException(query);
+        }
+    }
+
+    static Function<Query, Result> matchNoDocsQuery() {
+        return (query -> new Result(true, Collections.emptySet()));
+    }
+
+    static Function<Query, Result> constantScoreQuery() {
+        return query -> {
+            Query wrappedQuery = ((ConstantScoreQuery) query).getQuery();
+            return extractQueryTerms(wrappedQuery);
+        };
+    }
+
+    static Function<Query, Result> boostQuery() {
+        return query -> {
+            Query wrappedQuery = ((BoostQuery) query).getQuery();
+            return extractQueryTerms(wrappedQuery);
+        };
+    }
+
+    static Function<Query, Result> termQuery() {
+        return (query -> {
+            TermQuery termQuery = (TermQuery) query;
+            return new Result(true, Collections.singleton(termQuery.getTerm()));
+        });
+    }
+
+    static Function<Query, Result> termsQuery() {
+        return query -> {
             TermsQuery termsQuery = (TermsQuery) query;
+            Set<Term> terms = new HashSet<>();
             PrefixCodedTerms.TermIterator iterator = termsQuery.getTermData().iterator();
             for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
                 terms.add(new Term(iterator.field(), term));
             }
-            return terms;
-        } else if (query instanceof PhraseQuery) {
+            return new Result(true, terms);
+        };
+    }
+
+    static Function<Query, Result> commonTermsQuery() {
+        return query -> {
+            List<Term> terms = ((CommonTermsQuery) query).getTerms();
+            return new Result(false, new HashSet<>(terms));
+        };
+    }
+
+    static Function<Query, Result> blendedTermQuery() {
+        return query -> {
+            List<Term> terms = ((BlendedTermQuery) query).getTerms();
+            return new Result(true, new HashSet<>(terms));
+        };
+    }
+
+    static Function<Query, Result> phraseQuery() {
+        return query -> {
             Term[] terms = ((PhraseQuery) query).getTerms();
             if (terms.length == 0) {
-                return Collections.emptySet();
+                return new Result(true, Collections.emptySet());
             }
 
             // the longest term is likely to be the rarest,
@@ -132,19 +250,76 @@ public final class ExtractQueryTermsService {
                     longestTerm = term;
                 }
             }
-            return Collections.singleton(longestTerm);
-        } else if (query instanceof BooleanQuery) {
-            List<BooleanClause> clauses = ((BooleanQuery) query).clauses();
-            boolean hasRequiredClauses = false;
+            return new Result(false, Collections.singleton(longestTerm));
+        };
+    }
+
+    static Function<Query, Result> spanTermQuery() {
+        return query -> {
+            Term term = ((SpanTermQuery) query).getTerm();
+            return new Result(true, Collections.singleton(term));
+        };
+    }
+
+    static Function<Query, Result> spanNearQuery() {
+        return query -> {
+            Set<Term> bestClauses = null;
+            SpanNearQuery spanNearQuery = (SpanNearQuery) query;
+            for (SpanQuery clause : spanNearQuery.getClauses()) {
+                Result temp = extractQueryTerms(clause);
+                bestClauses = selectTermListWithTheLongestShortestTerm(temp.terms, bestClauses);
+            }
+            return new Result(false, bestClauses);
+        };
+    }
+
+    static Function<Query, Result> spanOrQuery() {
+        return query -> {
+            Set<Term> terms = new HashSet<>();
+            SpanOrQuery spanOrQuery = (SpanOrQuery) query;
+            for (SpanQuery clause : spanOrQuery.getClauses()) {
+                terms.addAll(extractQueryTerms(clause).terms);
+            }
+            return new Result(false, terms);
+        };
+    }
+
+    static Function<Query, Result> spanNotQuery() {
+        return query -> {
+            Result result = extractQueryTerms(((SpanNotQuery) query).getInclude());
+            return new Result(false, result.terms);
+        };
+    }
+
+    static Function<Query, Result> spanFirstQuery() {
+        return query -> {
+            Result result = extractQueryTerms(((SpanFirstQuery) query).getMatch());
+            return new Result(false, result.terms);
+        };
+    }
+
+    static Function<Query, Result> booleanQuery() {
+        return query -> {
+            BooleanQuery bq = (BooleanQuery) query;
+            List<BooleanClause> clauses = bq.clauses();
+            int minimumShouldMatch = bq.getMinimumNumberShouldMatch();
+            int numRequiredClauses = 0;
+            int numOptionalClauses = 0;
+            int numProhibitedClauses = 0;
             for (BooleanClause clause : clauses) {
                 if (clause.isRequired()) {
-                    hasRequiredClauses = true;
-                    break;
+                    numRequiredClauses++;
+                }
+                if (clause.isProhibited()) {
+                    numProhibitedClauses++;
+                }
+                if (clause.getOccur() == BooleanClause.Occur.SHOULD) {
+                    numOptionalClauses++;
                 }
             }
-            if (hasRequiredClauses) {
-                UnsupportedQueryException uqe = null;
+            if (numRequiredClauses > 0) {
                 Set<Term> bestClause = null;
+                UnsupportedQueryException uqe = null;
                 for (BooleanClause clause : clauses) {
                     if (clause.isRequired() == false) {
                         // skip must_not clauses, we don't need to remember the things that do *not* match...
@@ -153,77 +328,56 @@ public final class ExtractQueryTermsService {
                         continue;
                     }
 
-                    Set<Term> temp;
+                    Result temp;
                     try {
                         temp = extractQueryTerms(clause.getQuery());
                     } catch (UnsupportedQueryException e) {
                         uqe = e;
                         continue;
                     }
-                    bestClause = selectTermListWithTheLongestShortestTerm(temp, bestClause);
+                    bestClause = selectTermListWithTheLongestShortestTerm(temp.terms, bestClause);
                 }
                 if (bestClause != null) {
-                    return bestClause;
+                    return new Result(false, bestClause);
                 } else {
                     if (uqe != null) {
+                        // we're unable to select the best clause and an exception occurred, so we bail
                         throw uqe;
+                    } else {
+                        // We didn't find a clause and no exception occurred, so this bq only contained MatchNoDocsQueries,
+                        return new Result(true, Collections.emptySet());
                     }
-                    return Collections.emptySet();
                 }
             } else {
-                Set<Term> terms = new HashSet<>();
+                List<Query> disjunctions = new ArrayList<>(numOptionalClauses);
                 for (BooleanClause clause : clauses) {
-                    if (clause.isProhibited()) {
-                        // we don't need to remember the things that do *not* match...
-                        continue;
+                    if (clause.getOccur() == BooleanClause.Occur.SHOULD) {
+                        disjunctions.add(clause.getQuery());
                     }
-                    terms.addAll(extractQueryTerms(clause.getQuery()));
                 }
-                return terms;
+                return handleDisjunction(disjunctions, minimumShouldMatch, numProhibitedClauses > 0);
             }
-        } else if (query instanceof ConstantScoreQuery) {
-            Query wrappedQuery = ((ConstantScoreQuery) query).getQuery();
-            return extractQueryTerms(wrappedQuery);
-        } else if (query instanceof BoostQuery) {
-            Query wrappedQuery = ((BoostQuery) query).getQuery();
-            return extractQueryTerms(wrappedQuery);
-        } else if (query instanceof CommonTermsQuery) {
-            List<Term> terms = ((CommonTermsQuery) query).getTerms();
-            return new HashSet<>(terms);
-        } else if (query instanceof BlendedTermQuery) {
-            List<Term> terms = ((BlendedTermQuery) query).getTerms();
-            return new HashSet<>(terms);
-        } else if (query instanceof DisjunctionMaxQuery) {
+        };
+    }
+
+    static Function<Query, Result> disjunctionMaxQuery() {
+        return query -> {
             List<Query> disjuncts = ((DisjunctionMaxQuery) query).getDisjuncts();
-            Set<Term> terms = new HashSet<>();
-            for (Query disjunct : disjuncts) {
-                terms.addAll(extractQueryTerms(disjunct));
+            return handleDisjunction(disjuncts, 1, false);
+        };
+    }
+
+    static Result handleDisjunction(List<Query> disjunctions, int minimumShouldMatch, boolean otherClauses) {
+        boolean verified = minimumShouldMatch <= 1 && otherClauses == false;
+        Set<Term> terms = new HashSet<>();
+        for (Query disjunct : disjunctions) {
+            Result subResult = extractQueryTerms(disjunct);
+            if (subResult.verified == false) {
+                verified = false;
             }
-            return terms;
-        } else if (query instanceof SpanTermQuery) {
-            return Collections.singleton(((SpanTermQuery) query).getTerm());
-        } else if (query instanceof SpanNearQuery) {
-            Set<Term> bestClause = null;
-            SpanNearQuery spanNearQuery = (SpanNearQuery) query;
-            for (SpanQuery clause : spanNearQuery.getClauses()) {
-                Set<Term> temp = extractQueryTerms(clause);
-                bestClause = selectTermListWithTheLongestShortestTerm(temp, bestClause);
-            }
-            return bestClause;
-        } else if (query instanceof SpanOrQuery) {
-            Set<Term> terms = new HashSet<>();
-            SpanOrQuery spanOrQuery = (SpanOrQuery) query;
-            for (SpanQuery clause : spanOrQuery.getClauses()) {
-                terms.addAll(extractQueryTerms(clause));
-            }
-            return terms;
-        } else if (query instanceof SpanFirstQuery) {
-            return extractQueryTerms(((SpanFirstQuery)query).getMatch());
-        } else if (query instanceof SpanNotQuery) {
-            return extractQueryTerms(((SpanNotQuery) query).getInclude());
-        } else {
-            throw new UnsupportedQueryException(query);
+            terms.addAll(subResult.terms);
         }
+        return new Result(verified, terms);
     }
 
     static Set<Term> selectTermListWithTheLongestShortestTerm(Set<Term> terms1, Set<Term> terms2) {
@@ -243,7 +397,7 @@ public final class ExtractQueryTermsService {
         }
     }
 
-    private static int minTermLength(Set<Term> terms) {
+    static int minTermLength(Set<Term> terms) {
         int min = Integer.MAX_VALUE;
         for (Term term : terms) {
             min = Math.min(min, term.bytes().length);
@@ -251,40 +405,22 @@ public final class ExtractQueryTermsService {
         return min;
     }
 
-    /**
-     * Creates a boolean query with a should clause for each term on all fields of the specified index reader.
-     */
-    public static Query createQueryTermsQuery(IndexReader indexReader, String queryMetadataField,
-                                              String unknownQueryField) throws IOException {
-        Objects.requireNonNull(queryMetadataField);
-        Objects.requireNonNull(unknownQueryField);
+    static class Result {
 
-        List<Term> extractedTerms = new ArrayList<>();
-        extractedTerms.add(new Term(unknownQueryField));
-        Fields fields = MultiFields.getFields(indexReader);
-        for (String field : fields) {
-            Terms terms = fields.terms(field);
-            if (terms == null) {
-                continue;
-            }
+        final Set<Term> terms;
+        final boolean verified;
 
-            BytesRef fieldBr = new BytesRef(field);
-            TermsEnum tenum = terms.iterator();
-            for (BytesRef term = tenum.next(); term != null ; term = tenum.next()) {
-                BytesRefBuilder builder = new BytesRefBuilder();
-                builder.append(fieldBr);
-                builder.append(FIELD_VALUE_SEPARATOR);
-                builder.append(term);
-                extractedTerms.add(new Term(queryMetadataField, builder.toBytesRef()));
-            }
+        Result(boolean verified, Set<Term> terms) {
+            this.terms = terms;
+            this.verified = verified;
         }
-        return new TermsQuery(extractedTerms);
+
     }
 
     /**
      * Exception indicating that none or some query terms couldn't extracted from a percolator query.
      */
-    public static class UnsupportedQueryException extends RuntimeException {
+    static class UnsupportedQueryException extends RuntimeException {
 
         private final Query unsupportedQuery;
 

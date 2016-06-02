@@ -105,7 +105,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(EsExecutors.threadName(settings.nodeName, name()));
         Executor executor = EsExecutors.newFixed(name(), size, queueSize, threadFactory, threadContext);
         final ThreadPool.Info info =
-            new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.FIXED, size, size, null, queueSizeValue(queueSize));
+            new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.FIXED, size, size, null, queueSize < 0 ? null : new SizeValue(queueSize));
         return new ThreadPool.ExecutorHolder(executor, info);
     }
 
@@ -117,10 +117,6 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
             info.getName(),
             info.getMax(),
             info.getQueueSize() == null ? "unbounded" : info.getQueueSize());
-    }
-
-    private static SizeValue queueSizeValue(int queueSize) {
-        return queueSize < 0 ? null : new SizeValue(queueSize);
     }
 
     static class FixedExecutorSettings extends ExecutorBuilder.ExecutorSettings {

@@ -54,7 +54,6 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
      * amount of iterations the test allows allocation unless the same shard is
      * already allocated on a node and balances the cluster to gain optimal
      * balance.*/
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/18701")
     public void testRandomDecisions() {
         RandomAllocationDecider randomAllocationDecider = new RandomAllocationDecider(random());
         AllocationService strategy = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,

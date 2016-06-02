@@ -39,19 +39,19 @@ public class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBuilder.F
     private final Setting<Integer> queueSizeSetting;
 
     FixedExecutorBuilder(final Settings settings, final String name, final int size, final int queueSize) {
-        this(settings, name, size, queueSize, "thread_pool");
+        this(settings, name, size, queueSize, "thread_pool." + name);
     }
 
     public FixedExecutorBuilder(final Settings settings, final String name, final int size, final int queueSize, final String prefix) {
         super(name);
-        final String sizeKey = settingsKey(prefix, name, "size");
+        final String sizeKey = settingsKey(prefix, "size");
         this.sizeSetting =
             new Setting<>(
                 sizeKey,
                 s -> Integer.toString(size),
                 s -> Setting.parseInt(s, 1, applyHardSizeLimit(settings, name), sizeKey),
                 Setting.Property.Dynamic, Setting.Property.NodeScope);
-        final String queueSizeKey = settingsKey(prefix, name, "queue_size");
+        final String queueSizeKey = settingsKey(prefix, "queue_size");
         this.queueSizeSetting =
             Setting.intSetting(queueSizeKey, queueSize, Setting.Property.Dynamic, Setting.Property.NodeScope);
     }

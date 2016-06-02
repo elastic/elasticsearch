@@ -40,16 +40,16 @@ public class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecutorBuild
     private final Setting<TimeValue> keepAliveSetting;
 
     public ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive) {
-        this(name, core, max, keepAlive, "thread_pool");
+        this(name, core, max, keepAlive, "thread_pool." + name);
     }
 
     public ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive, final String prefix) {
         super(name);
         this.coreSetting =
-            Setting.intSetting(settingsKey(prefix, name, "core"), core, Setting.Property.NodeScope);
-        this.maxSetting = Setting.intSetting(settingsKey(prefix, name, "max"), max, Setting.Property.NodeScope);
+            Setting.intSetting(settingsKey(prefix, "core"), core, Setting.Property.NodeScope);
+        this.maxSetting = Setting.intSetting(settingsKey(prefix, "max"), max, Setting.Property.NodeScope);
         this.keepAliveSetting =
-            Setting.timeSetting(settingsKey(prefix, name, "keep_alive"), keepAlive, Setting.Property.NodeScope);
+            Setting.timeSetting(settingsKey(prefix, "keep_alive"), keepAlive, Setting.Property.NodeScope);
     }
 
     @Override

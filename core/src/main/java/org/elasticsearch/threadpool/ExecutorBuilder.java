@@ -37,8 +37,8 @@ public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings
         return name;
     }
 
-    protected static String settingsKey(final String prefix, final String name, final String key) {
-        return String.join(".", prefix, name, key);
+    protected static String settingsKey(final String prefix, final String key) {
+        return String.join(".", prefix, key);
     }
 
     public abstract List<Setting<?>> registerSettings();

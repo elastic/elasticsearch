@@ -71,11 +71,11 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     }
 
     public void testInvalidShift() {
-        expectThrows(ClassCastException.class, () -> {
+        expectScriptThrows(ClassCastException.class, () -> {
             exec("float x = 15F; x <<= 2; return x;");
         });
 
-        expectThrows(ClassCastException.class, () -> {
+        expectScriptThrows(ClassCastException.class, () -> {
             exec("double x = 15F; x <<= 2; return x;");
         });
     }
@@ -134,7 +134,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         assertTrue(expected.getMessage().contains(
                    "The maximum number of statements that can be executed in a loop has been reached."));
 
-        RuntimeException parseException = expectThrows(RuntimeException.class, () -> {
+        RuntimeException parseException = expectScriptThrows(RuntimeException.class, () -> {
             exec("try { int x; } catch (PainlessError error) {}");
             fail("should have hit ParseException");
         });
@@ -156,7 +156,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         final char[] tooManyChars = new char[Compiler.MAXIMUM_SOURCE_LENGTH + 1];
         Arrays.fill(tooManyChars, '0');
 
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec(new String(tooManyChars));
         });
         assertTrue(expected.getMessage().contains("Scripts may be no longer than"));

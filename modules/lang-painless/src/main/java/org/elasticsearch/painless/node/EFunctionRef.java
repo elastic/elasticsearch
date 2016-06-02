@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Variables;
 
@@ -29,8 +30,8 @@ public class EFunctionRef extends AExpression {
     public String type;
     public String call;
 
-    public EFunctionRef(int line, int offset, String location, String type, String call) {
-        super(line, offset, location);
+    public EFunctionRef(Location location, String type, String call) {
+        super(location);
 
         this.type = type;
         this.call = call;
@@ -38,11 +39,12 @@ public class EFunctionRef extends AExpression {
 
     @Override
     void analyze(Variables variables) {
-        throw new UnsupportedOperationException(error("Function references [" + type + "::" + call + "] are not currently supported."));
+        throw createError(new UnsupportedOperationException("Function references [" + type + "::" + call + 
+                                                            "] are not currently supported."));
     }
 
     @Override
     void write(MethodWriter writer) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

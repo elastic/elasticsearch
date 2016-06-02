@@ -50,10 +50,10 @@ public class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBuilder.F
                 sizeKey,
                 s -> Integer.toString(size),
                 s -> Setting.parseInt(s, 1, applyHardSizeLimit(settings, name), sizeKey),
-                Setting.Property.Dynamic, Setting.Property.NodeScope);
+                Setting.Property.NodeScope);
         final String queueSizeKey = settingsKey(prefix, "queue_size");
         this.queueSizeSetting =
-            Setting.intSetting(queueSizeKey, queueSize, Setting.Property.Dynamic, Setting.Property.NodeScope);
+            Setting.intSetting(queueSizeKey, queueSize, Setting.Property.NodeScope);
     }
 
     private int applyHardSizeLimit(final Settings settings, final String name) {

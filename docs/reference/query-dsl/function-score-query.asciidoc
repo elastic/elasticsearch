@@ -422,10 +422,8 @@ If the score for a function again should be computed by a different query, use t
 
 [source,js]
 --------------------------------------------------
-"query_function": {
-    "query": {
-          ARBITRARY QUERY
-    }
+"query_score": {
+    ARBITRARY QUERY
 }
 --------------------------------------------------
 

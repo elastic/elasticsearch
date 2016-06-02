@@ -74,7 +74,7 @@ public class QueryFunction extends ScoreFunction {
                 Explanation explanation = Explanation.match(
                     CombineFunction.toFloat(score),
                     String.format(Locale.ROOT,
-                        "%s score as computed by this query: %s: ", QueryFunctionBuilder.NAME, query.toString()), weight.explain(ctx,
+                        "%s as computed by this query: %s: ", QueryFunctionBuilder.NAME, query.toString()), weight.explain(ctx,
                         docId));
                 return explanation;
             }

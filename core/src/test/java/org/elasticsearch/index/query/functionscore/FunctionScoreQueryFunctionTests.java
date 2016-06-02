@@ -126,7 +126,7 @@ public class FunctionScoreQueryFunctionTests extends ESTestCase {
         Weight weight = searcher.createNormalizedWeight(query, true);
         Explanation explanation = weight.explain(searcher.getIndexReader().leaves().get(0), 0);
         assertThat(explanation.getDetails()[1].getDetails()[0].getDetails()[2].getDetails()[1].getDescription(),
-            containsString("query score as computed by this query: function score (*:*, functions: [{filter(test:named), " +
+            containsString("query_score as computed by this query: function score (*:*, functions: [{filter(test:named), " +
                 "function [org.elasticsearch.common.lucene.search.function.WeightFactorFunction"));
 
     }

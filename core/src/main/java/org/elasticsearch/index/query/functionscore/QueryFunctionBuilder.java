@@ -38,7 +38,7 @@ import java.util.Objects;
  * A function that computes a score according to the provided query.
  */
 public class QueryFunctionBuilder extends ScoreFunctionBuilder<QueryFunctionBuilder> {
-    public static final String NAME = "query";
+    public static final String NAME = "query_score";
     public static final ParseField FUNCTION_NAME_FIELD = new ParseField(NAME);
     QueryBuilder queryBuilder;
 
@@ -59,6 +59,9 @@ public class QueryFunctionBuilder extends ScoreFunctionBuilder<QueryFunctionBuil
 
     public QueryFunctionBuilder(QueryBuilder query) {
         this.queryBuilder = query;
+        if (queryBuilder == null) {
+            throw new IllegalArgumentException("Query in query_score must not be null.");
+        }
     }
 
     @Override

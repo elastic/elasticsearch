@@ -713,7 +713,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             "              \"FIELD\": \"VALUE\"\n" +
             "            }\n" +
             "          },\n" +
-            "          \"query\": {\n" +
+            "          \"query_score\": {\n" +
             "            \"match\": {\n" +
             "              \"FIELD\": \"TEXT\"\n" +
             "            }\n" +

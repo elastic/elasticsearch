@@ -70,20 +70,25 @@ public abstract class TransportWriteAction<
 
     @Override
     protected final WritePrimaryResult shardOperationOnPrimary(Request request) throws Exception {
-        final ShardId shardId = request.shardId();
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardId.id());
+        IndexShard indexShard = indexShard(request);
         WriteResult<Response> result = onPrimaryShard(request, indexShard);
         return new WritePrimaryResult(request, result.getResponse(), result.getLocation(), indexShard);
     }
 
     @Override
     protected final WriteReplicaResult shardOperationOnReplica(Request request) {
-        final ShardId shardId = request.shardId();
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardId.id());
+        IndexShard indexShard = indexShard(request);
         Translog.Location location = onReplicaShard(request, indexShard);
         return new WriteReplicaResult(indexShard, request, location);
+    }
+
+    /**
+     * Fetch the IndexShard for the request. Protected so it can be mocked in tests.
+     */
+    protected IndexShard indexShard(Request request) {
+        final ShardId shardId = request.shardId();
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        return indexService.getShard(shardId.id());
     }
 
     /**
@@ -107,7 +112,10 @@ public abstract class TransportWriteAction<
         }
     }
 
-    private class WritePrimaryResult extends PrimaryResult implements RespondingWriteResult {
+    /**
+     * Result of taking the action on the primary.
+     */
+    private class WritePrimaryResult extends PrimaryResult implements RespondingWriteResult<Response> {
         private final ReplicatedWriteRequest<?> request;
         volatile boolean finishedWrite;
         volatile ActionListener<Response> listener = null;
@@ -117,6 +125,10 @@ public abstract class TransportWriteAction<
                                   IndexShard indexShard) {
             super(request, finalResponse);
             this.request = request;
+            /*
+             * We call this before replication because this might wait for a refresh and that can take a while. This way we wait for the
+             * refresh in parallel on the primary and on the replica.
+             */
             finishWrite(indexShard, request, location);
         }
 
@@ -152,7 +164,10 @@ public abstract class TransportWriteAction<
         }
     }
 
-    private class WriteReplicaResult extends ReplicaResult implements RespondingWriteResult {
+    /**
+     * Result of taking the action on the replica.
+     */
+    private class WriteReplicaResult extends ReplicaResult implements RespondingWriteResult<TransportResponse.Empty> {
         private final IndexShard indexShard;
         private final ReplicatedWriteRequest<?> request;
         private final Translog.Location location;
@@ -186,7 +201,13 @@ public abstract class TransportWriteAction<
         }
     }
 
-    private interface RespondingWriteResult {
+    /**
+     * Duplicate code shared between WritePrimaryResult and WriteReplicaResult. Implemented as an interface because it lets us instantiate a
+     * few fewer classes during this process. Package private for testing.
+     */
+    interface RespondingWriteResult<R> {
+        void respond(ActionListener<R> listener);
+
         /**
          * Finish up the write by syncing the translog, flushing, and refreshing or waiting for a refresh. Called on both the primary and
          * the replica.

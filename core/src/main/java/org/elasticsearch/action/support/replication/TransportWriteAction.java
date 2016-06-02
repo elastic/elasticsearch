@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -44,7 +45,7 @@ import java.util.function.Supplier;
  */
 public abstract class TransportWriteAction<
             Request extends ReplicatedWriteRequest<Request>,
-            Response extends ReplicationResponse & ReplicatedWriteResponse
+            Response extends ReplicationResponse & WriteResponse
         > extends TransportReplicationAction<Request, Request, Response> {
 
     protected TransportWriteAction(Settings settings, String actionName, TransportService transportService,

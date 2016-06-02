@@ -20,7 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.support.replication.ReplicatedWriteResponse;
+import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  *
  */
-public class BulkShardResponse extends ReplicationResponse implements ReplicatedWriteResponse {
+public class BulkShardResponse extends ReplicationResponse implements WriteResponse {
 
     private ShardId shardId;
     private BulkItemResponse[] responses;

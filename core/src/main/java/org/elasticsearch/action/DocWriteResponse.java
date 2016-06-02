@@ -19,8 +19,8 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.action.support.replication.ReplicatedWriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,7 +35,7 @@ import java.io.IOException;
 /**
  * A base class for the response of a write operation that involves a single doc
  */
-public abstract class DocWriteResponse extends ReplicationResponse implements ReplicatedWriteResponse, StatusToXContent {
+public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, StatusToXContent {
 
     private ShardId shardId;
     private String id;

@@ -17,16 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.replication;
+package org.elasticsearch.action.support;
 
-import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.index.IndexSettings;
 
 /**
- * Interface for responses that modify data in some shard like delete, index, and shardBulk.
+ * Interface implemented by responses for actions that modify the documents in an index like {@link IndexResponse}, {@link UpdateResponse},
+ * and {@link BulkResponse}. Rather than implement this directly most implementers should extend {@link DocWriteResponse}.
  */
-public interface ReplicatedWriteResponse {
+public interface WriteResponse {
     /**
      * Mark the response as having forced a refresh? Requests that set {@link WriteRequest#setRefreshPolicy(RefreshPolicy)} to
      * {@link RefreshPolicy#IMMEDIATE} should always mark this as true. Requests that set it to {@link RefreshPolicy#WAIT_UNTIL} will only

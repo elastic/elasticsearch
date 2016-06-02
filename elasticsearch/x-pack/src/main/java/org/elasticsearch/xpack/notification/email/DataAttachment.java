@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.support.Exceptions.illegalArgument;
+import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 
 /**
  *

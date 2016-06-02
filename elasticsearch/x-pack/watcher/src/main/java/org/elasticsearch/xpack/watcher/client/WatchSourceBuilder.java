@@ -19,10 +19,10 @@ import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.input.none.NoneInput;
-import org.elasticsearch.xpack.support.Exceptions;
+import org.elasticsearch.xpack.watcher.support.Exceptions;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.transform.Transform;
-import org.elasticsearch.xpack.trigger.Trigger;
+import org.elasticsearch.xpack.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;

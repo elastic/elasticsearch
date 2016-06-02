@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.support;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.support.DateTimeUtils.formatDate;
+import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.formatDate;
 
 import java.io.IOException;
 import java.lang.reflect.Array;

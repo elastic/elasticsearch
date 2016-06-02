@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.watcher.execution.WatchExecutionResult;
 import org.elasticsearch.xpack.watcher.execution.Wid;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
-import org.elasticsearch.xpack.trigger.TriggerEvent;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;

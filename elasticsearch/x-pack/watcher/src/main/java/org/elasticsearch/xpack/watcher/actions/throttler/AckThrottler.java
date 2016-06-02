@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus.AckStatus;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 
-import static org.elasticsearch.xpack.support.DateTimeUtils.formatDate;
+import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.formatDate;
 
 /**
  *

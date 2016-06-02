@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.execution.Wid;
-import org.elasticsearch.xpack.support.DateTimeUtils;
+import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchRequestBuilder;
@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchReq
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
-import org.elasticsearch.xpack.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -34,9 +34,9 @@ import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBu
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.neverCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
-import static org.elasticsearch.xpack.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.xpack.trigger.schedule.Schedules.cron;
-import static org.elasticsearch.xpack.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -132,9 +132,9 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
         ExecuteWatchRequestBuilder requestBuilder = watcherClient.prepareExecuteWatch("_id");
         if (randomBoolean()) {
             Map<String, Object> data = new HashMap<>();
-            data.put("triggered_time", DateTimeUtils.formatDate(triggeredTime));
+            data.put("triggered_time", WatcherDateTimeUtils.formatDate(triggeredTime));
             if (scheduledTime != triggeredTime) {
-                data.put("scheduled_time", DateTimeUtils.formatDate(scheduledTime));
+                data.put("scheduled_time", WatcherDateTimeUtils.formatDate(scheduledTime));
             }
             requestBuilder.setTriggerData(data);
         } else {
@@ -151,8 +151,8 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
         XContentSource record = response.getRecordSource();
         assertValue(record, "watch_id", is("_id"));
         assertValue(record, "trigger_event.type", is("manual"));
-        assertValue(record, "trigger_event.triggered_time", is(DateTimeUtils.formatDate(triggeredTime)));
-        assertValue(record, "trigger_event.manual.schedule.scheduled_time", is(DateTimeUtils.formatDate(scheduledTime)));
+        assertValue(record, "trigger_event.triggered_time", is(WatcherDateTimeUtils.formatDate(triggeredTime)));
+        assertValue(record, "trigger_event.manual.schedule.scheduled_time", is(WatcherDateTimeUtils.formatDate(scheduledTime)));
         assertValue(record, "state", is("executed"));
         assertValue(record, "input.simple.foo", is("bar"));
         assertValue(record, "condition.always", notNullValue());

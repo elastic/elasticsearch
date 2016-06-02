@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
-import org.elasticsearch.xpack.trigger.TriggerService;
+import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 
 import java.io.IOException;
 

@@ -16,7 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
-import org.elasticsearch.xpack.trigger.TriggerService;
+import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;

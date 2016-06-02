@@ -13,7 +13,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.actions.Action;
-import org.elasticsearch.xpack.support.DateTimeUtils;
+import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.joda.time.DateTimeZone;
 
@@ -129,7 +129,7 @@ public class IndexAction implements Action {
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.EXECUTION_TIME_FIELD)) {
                     executionTimeField = parser.text();
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMEOUT)) {
-                    timeout = DateTimeUtils.parseTimeValue(parser, Field.TIMEOUT.toString());
+                    timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT.toString());
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.DYNAMIC_NAME_TIMEZONE)) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         dynamicNameTimeZone = DateTimeZone.forID(parser.text());

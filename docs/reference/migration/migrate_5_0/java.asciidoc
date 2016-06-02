@@ -298,3 +298,8 @@ The `setQuery(BytesReference)` method have been removed in favor of using `setQu
 
 Removed the `getMemoryAvailable` method from `OsStats`, which could be previously accessed calling
 `clusterStatsResponse.getNodesStats().getOs().getMemoryAvailable()`.
+
+=== setRefresh(boolean) has been deprecated
+
+`setRefresh(boolean)` has been deprecated in favor of `setRefreshPolicy(RefreshPolicy)` because there
+are now three options. It will be removed in 5.0.

@@ -31,7 +31,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 
-public class RestClientBuilderTests extends LuceneTestCase {
+public class RestClientTests extends LuceneTestCase {
 
     public void testBuild() throws IOException {
         try {
@@ -103,6 +103,35 @@ public class RestClientBuilderTests extends LuceneTestCase {
         }
         try (RestClient restClient = builder.build()) {
             assertNotNull(restClient);
+        }
+    }
+
+    public void testSetNodes() throws IOException {
+        try (RestClient restClient = RestClient.builder().setHosts(new HttpHost("localhost", 9200)).build()) {
+            try {
+                restClient.setHosts((HttpHost[]) null);
+                fail("setHosts should have failed");
+            } catch (IllegalArgumentException e) {
+                assertEquals("hosts must not be null nor empty", e.getMessage());
+            }
+            try {
+                restClient.setHosts();
+                fail("setHosts should have failed");
+            } catch (IllegalArgumentException e) {
+                assertEquals("hosts must not be null nor empty", e.getMessage());
+            }
+            try {
+                restClient.setHosts((HttpHost) null);
+                fail("setHosts should have failed");
+            } catch (NullPointerException e) {
+                assertEquals("host cannot be null", e.getMessage());
+            }
+            try {
+                restClient.setHosts(new HttpHost("localhost", 9200), null, new HttpHost("localhost", 9201));
+                fail("setHosts should have failed");
+            } catch (NullPointerException e) {
+                assertEquals("host cannot be null", e.getMessage());
+            }
         }
     }
 }

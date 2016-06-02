@@ -78,7 +78,7 @@ many times they modify the shard.
 
 These will create a document and immediately refresh the index so it is visible:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT /test/test/1?refresh
 {"test": "test"}
@@ -90,7 +90,7 @@ PUT /test/test/2?refresh=true
 These will create a document without doing anything to make it visible for
 search:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT /test/test/3
 {"test": "test"}
@@ -101,7 +101,7 @@ PUT /test/test/4?refresh=true
 
 This will create a document and wait for it to become visible for search:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT /test/test/4?refresh=wait_for
 {"test": "test"}

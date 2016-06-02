@@ -30,7 +30,8 @@ The result of the above index operation is:
     "_type" : "tweet",
     "_id" : "1",
     "_version" : 1,
-    "created" : true
+    "created" : true,
+    "forced_refresh": false
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"successful" : 2/"successful" : 1/]
@@ -221,7 +222,8 @@ The result of the above index operation is:
     "_type" : "tweet",
     "_id" : "6a8ca01c-7896-48e9-81cc-9f70661fcb32",
     "_version" : 1,
-    "created" : true
+    "created" : true,
+    "forced_refresh": false
 }
 --------------------------------------------------
 // TESTRESPONSE[s/6a8ca01c-7896-48e9-81cc-9f70661fcb32/$body._id/ s/"successful" : 2/"successful" : 1/]

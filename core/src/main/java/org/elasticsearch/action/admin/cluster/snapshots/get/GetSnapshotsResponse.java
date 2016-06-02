@@ -42,7 +42,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContent {
     }
 
     GetSnapshotsResponse(List<SnapshotInfo> snapshots) {
-        this.snapshots = snapshots;
+        this.snapshots = Collections.unmodifiableList(snapshots);
     }
 
     /**

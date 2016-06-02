@@ -395,7 +395,7 @@ final class StoreRecovery {
             throw new IndexShardRestoreFailedException(shardId, "empty restore source");
         }
         if (logger.isTraceEnabled()) {
-            logger.trace("[{}] restoring shard [{}]", restoreSource.snapshotId(), shardId);
+            logger.trace("[{}] restoring shard [{}]", restoreSource.snapshot(), shardId);
         }
         try {
             translogState.totalOperations(0);
@@ -405,7 +405,7 @@ final class StoreRecovery {
             if (!shardId.getIndexName().equals(restoreSource.index())) {
                 snapshotShardId = new ShardId(restoreSource.index(), IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
             }
-            indexShardRepository.restore(restoreSource.snapshotId(), restoreSource.version(), shardId, snapshotShardId, indexShard.recoveryState());
+            indexShardRepository.restore(restoreSource.snapshot().getSnapshotId(), restoreSource.version(), shardId, snapshotShardId, indexShard.recoveryState());
             indexShard.skipTranslogRecovery();
             indexShard.finalizeRecovery();
             indexShard.postRecovery("restore done");

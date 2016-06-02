@@ -21,7 +21,7 @@ package org.elasticsearch.snapshots.mockstore;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -172,6 +172,10 @@ public class MockRepository extends FsRepository {
 
     public void blockOnControlFiles(boolean blocked) {
         blockOnControlFiles = blocked;
+    }
+
+    public boolean blockOnDataFiles() {
+        return blockOnDataFiles;
     }
 
     public synchronized void unblockExecution() {

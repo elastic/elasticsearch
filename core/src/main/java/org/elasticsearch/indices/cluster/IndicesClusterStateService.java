@@ -645,7 +645,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         @Override
         public void onRecoveryDone(RecoveryState state) {
             if (state.getType() == RecoveryState.Type.SNAPSHOT) {
-                restoreService.indexShardRestoreCompleted(state.getRestoreSource().snapshotId(), shardRouting.shardId());
+                restoreService.indexShardRestoreCompleted(state.getRestoreSource().snapshot(), shardRouting.shardId());
             }
             shardStateAction.shardStarted(shardRouting, message(state), SHARD_STATE_ACTION_LISTENER);
         }
@@ -666,7 +666,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             if (state.getType() == RecoveryState.Type.SNAPSHOT) {
                 try {
                     if (Lucene.isCorruptionException(e.getCause())) {
-                        restoreService.failRestore(state.getRestoreSource().snapshotId(), shardRouting.shardId());
+                        restoreService.failRestore(state.getRestoreSource().snapshot(), shardRouting.shardId());
                     }
                 } catch (Throwable inner) {
                     e.addSuppressed(inner);

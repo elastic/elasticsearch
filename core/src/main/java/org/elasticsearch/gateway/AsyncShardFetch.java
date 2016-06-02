@@ -35,9 +35,11 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -57,24 +59,24 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     /**
      * An action that lists the relevant shard data that needs to be fetched.
      */
-    public interface List<NodesResponse extends BaseNodesResponse<NodeResponse>, NodeResponse extends BaseNodeResponse> {
+    public interface Lister<NodesResponse extends BaseNodesResponse<NodeResponse>, NodeResponse extends BaseNodeResponse> {
         void list(ShardId shardId, String[] nodesIds, ActionListener<NodesResponse> listener);
     }
 
     protected final ESLogger logger;
     protected final String type;
     private final ShardId shardId;
-    private final List<BaseNodesResponse<T>, T> action;
+    private final Lister<BaseNodesResponse<T>, T> action;
     private final Map<String, NodeEntry<T>> cache = new HashMap<>();
     private final Set<String> nodesToIgnore = new HashSet<>();
     private boolean closed;
 
     @SuppressWarnings("unchecked")
-    protected AsyncShardFetch(ESLogger logger, String type, ShardId shardId, List<? extends BaseNodesResponse<T>, T> action) {
+    protected AsyncShardFetch(ESLogger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
         this.logger = logger;
         this.type = type;
         this.shardId = shardId;
-        this.action = (List<BaseNodesResponse<T>, T>) action;
+        this.action = (Lister<BaseNodesResponse<T>, T>) action;
     }
 
     @Override
@@ -167,7 +169,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * the shard (response + failures), issuing a reroute at the end of it to make sure there will be another round
      * of allocations taking this new data into account.
      */
-    protected synchronized void processAsyncFetch(ShardId shardId, T[] responses, FailedNodeException[] failures) {
+    protected synchronized void processAsyncFetch(ShardId shardId, List<T> responses, List<FailedNodeException> failures) {
         if (closed) {
             // we are closed, no need to process this async fetch at all
             logger.trace("{} ignoring fetched [{}] results, already closed", shardId, type);
@@ -276,9 +278,9 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
 
             @Override
             public void onFailure(Throwable e) {
-                FailedNodeException[] failures = new FailedNodeException[nodesIds.length];
-                for (int i = 0; i < failures.length; i++) {
-                    failures[i] = new FailedNodeException(nodesIds[i], "total failure in fetching", e);
+                List<FailedNodeException> failures = new ArrayList<>(nodesIds.length);
+                for (String nodeId : nodesIds) {
+                    failures.add(new FailedNodeException(nodeId, "total failure in fetching", e));
                 }
                 processAsyncFetch(shardId, null, failures);
             }

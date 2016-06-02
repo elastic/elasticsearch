@@ -287,9 +287,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         this.scheduledPing = new ScheduledPing();
         this.pingSchedule = PING_SCHEDULE.get(settings);
-        if (pingSchedule.millis() > 0) {
-            threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, scheduledPing);
-        }
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.circuitBreakerService = circuitBreakerService;
     }
@@ -365,6 +362,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     createServerBootstrap(name, mergedSettings);
                     bindServerBootstrap(name, mergedSettings);
                 }
+            }
+            if (pingSchedule.millis() > 0) {
+                threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, scheduledPing);
             }
             success = true;
         } finally {
@@ -925,7 +925,10 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             ReleaseChannelFutureListener listener = new ReleaseChannelFutureListener(bytes);
             future.addListener(listener);
             addedReleaseListener = true;
-            transportServiceAdapter.onRequestSent(node, requestId, action, request, options);
+            final TransportRequestOptions finalOptions = options;
+            ChannelFutureListener channelFutureListener =
+                f -> transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions);
+            future.addListener(channelFutureListener);
         } finally {
             if (!addedReleaseListener) {
                 Releasables.close(bStream.bytes());

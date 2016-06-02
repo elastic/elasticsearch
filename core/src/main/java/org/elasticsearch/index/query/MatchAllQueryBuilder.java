@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * A query that matches on all documents.
@@ -60,7 +61,7 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
         builder.endObject();
     }
 
-    public static MatchAllQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<MatchAllQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String currentFieldName = null;
@@ -87,7 +88,7 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
         MatchAllQueryBuilder queryBuilder = new MatchAllQueryBuilder();
         queryBuilder.boost(boost);
         queryBuilder.queryName(queryName);
-        return queryBuilder;
+        return Optional.of(queryBuilder);
     }
 
     @Override

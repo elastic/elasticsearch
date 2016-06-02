@@ -29,14 +29,11 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 import org.apache.lucene.index.IndexableField;
@@ -67,7 +64,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
                 .field("field", "value")
                 .endObject()
                 .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source));
 
         boolean stored = false;
         boolean points = false;
@@ -90,7 +87,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
                 .field("field", "value")
                 .endObject()
                 .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
@@ -105,7 +102,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
                 .field("field", "value")
                 .endObject()
                 .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }

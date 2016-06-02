@@ -839,24 +839,6 @@ public abstract class QueryBuilders {
         return new ExistsQueryBuilder(name);
     }
 
-    public static PercolateQueryBuilder percolateQuery(String queryField, String documentType, BytesReference document) {
-        return new PercolateQueryBuilder(queryField, documentType, document);
-    }
-
-    public static PercolateQueryBuilder percolateQuery(String queryField, String documentType, String indexedDocumentIndex,
-                                                       String indexedDocumentType, String indexedDocumentId) {
-        return new PercolateQueryBuilder(queryField, documentType, indexedDocumentIndex, indexedDocumentType, indexedDocumentId,
-                null, null, null);
-    }
-
-    public static PercolateQueryBuilder percolateQuery(String queryField, String documentType, String indexedDocumentIndex,
-                                                       String indexedDocumentType, String indexedDocumentId,
-                                                       String indexedDocumentRouting, String indexedDocumentPreference,
-                                                       Long indexedDocumentVersion) {
-        return new PercolateQueryBuilder(queryField, documentType, indexedDocumentIndex, indexedDocumentType, indexedDocumentId,
-                indexedDocumentRouting, indexedDocumentPreference, indexedDocumentVersion);
-    }
-
     private QueryBuilders() {
 
     }

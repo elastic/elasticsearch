@@ -18,19 +18,6 @@
  */
 package org.elasticsearch.common.settings;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
@@ -49,6 +36,19 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * A setting. Encapsulates typical stuff like default value, parsing, and scope.
@@ -122,7 +122,7 @@ public class Setting<T> extends ToXContentToBytes {
         this.defaultValue = defaultValue;
         this.parser = parser;
         if (properties == null) {
-            throw new IllegalArgumentException("properties can not be null for setting [" + key + "]");
+            throw new IllegalArgumentException("properties cannot be null for setting [" + key + "]");
         }
         if (properties.length == 0) {
             this.properties = EMPTY_PROPERTIES;
@@ -132,7 +132,7 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
-     * Creates a new Setting instance. When no scope is provided, we default to {@link Property#NodeScope}.
+     * Creates a new Setting instance
      * @param key the settings key for this setting.
      * @param defaultValue a default value function that returns the default values string representation.
      * @param parser a parser that parses the string rep into a complex datatype.
@@ -165,7 +165,7 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
-     * Creates a new Setting instance. When no scope is provided, we default to {@link Property#NodeScope}.
+     * Creates a new Setting instance
      * @param key the settings key for this setting.
      * @param fallbackSetting a setting who's value to fallback on if this setting is not defined
      * @param parser a parser that parses the string rep into a complex datatype.
@@ -248,9 +248,9 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
-     * Returns <code>true</code> iff this setting is a group setting. Group settings represent a set of settings
-     * rather than a single value. The key, see {@link #getKey()}, in contrast to non-group settings is a prefix like <tt>cluster.store.</tt>
-     * that matches all settings with this prefix.
+     * Returns <code>true</code> iff this setting is a group setting. Group settings represent a set of settings rather than a single value.
+     * The key, see {@link #getKey()}, in contrast to non-group settings is a prefix like <tt>cluster.store.</tt> that matches all settings
+     * with this prefix.
      */
     boolean isGroupSetting() {
         return false;
@@ -344,7 +344,7 @@ public class Setting<T> extends ToXContentToBytes {
             return get(primary);
         }
         if (fallbackSetting == null) {
-            return get(secondary); 
+            return get(secondary);
         }
         if (exists(secondary)) {
             return get(secondary);
@@ -356,7 +356,8 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public Setting<T> getConcreteSetting(String key) {
-        assert key.startsWith(this.getKey()) : "was " + key + " expected: " + getKey(); // we use startsWith here since the key might be foo.bar.0 if it's an array
+        // we use startsWith here since the key might be foo.bar.0 if it's an array
+        assert key.startsWith(this.getKey()) : "was " + key + " expected: " + getKey();
         return this;
     }
 
@@ -380,10 +381,11 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
-     * this is used for settings that depend on each other... see {@link org.elasticsearch.common.settings.AbstractScopedSettings#addSettingsUpdateConsumer(Setting, Setting, BiConsumer)} and it's
-     * usage for details.
+     * Updates settings that depend on eachother. See {@link AbstractScopedSettings#addSettingsUpdateConsumer(Setting, Setting, BiConsumer)}
+     * and its usage for details.
      */
-    static <A, B> AbstractScopedSettings.SettingUpdater<Tuple<A, B>> compoundUpdater(final BiConsumer<A,B> consumer, final Setting<A> aSetting, final Setting<B> bSetting, ESLogger logger) {
+    static <A, B> AbstractScopedSettings.SettingUpdater<Tuple<A, B>> compoundUpdater(final BiConsumer<A, B> consumer,
+            final Setting<A> aSetting, final Setting<B> bSetting, ESLogger logger) {
         final AbstractScopedSettings.SettingUpdater<A> aSettingUpdater = aSetting.newUpdater(null, logger);
         final AbstractScopedSettings.SettingUpdater<B> bSettingUpdater = bSetting.newUpdater(null, logger);
         return new AbstractScopedSettings.SettingUpdater<Tuple<A, B>>() {
@@ -444,7 +446,8 @@ public class Setting<T> extends ToXContentToBytes {
             try {
                 accept.accept(inst);
             } catch (Exception | AssertionError e) {
-                throw new IllegalArgumentException("illegal value can't update [" + key + "] from [" + value + "] to [" + newValue + "]", e);
+                throw new IllegalArgumentException("illegal value can't update [" + key + "] from [" + value + "] to [" + newValue + "]",
+                        e);
             }
             return inst;
         }
@@ -501,7 +504,7 @@ public class Setting<T> extends ToXContentToBytes {
             throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
         }
         if (value > maxValue) {
-            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be =< " + maxValue);
+            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be <= " + maxValue);
         }
         return value;
     }
@@ -534,6 +537,10 @@ public class Setting<T> extends ToXContentToBytes {
         return new Setting<>(key, fallbackSetting, Booleans::parseBooleanExact, properties);
     }
 
+    public static Setting<Boolean> boolSetting(String key, Function<Settings, String> defaultValueFn, Property... properties) {
+        return new Setting<>(key, defaultValueFn, Booleans::parseBooleanExact, properties);
+    }
+
     public static Setting<ByteSizeValue> byteSizeSetting(String key, String percentage, Property... properties) {
         return new Setting<>(key, (s) -> percentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
     }
@@ -552,8 +559,8 @@ public class Setting<T> extends ToXContentToBytes {
         return new Setting<>(key, defaultValue, (s) -> ByteSizeValue.parseBytesSizeValue(s, key), properties);
     }
 
-    public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue defaultValue, ByteSizeValue minValue, ByteSizeValue maxValue,
-                                                         Property... properties) {
+    public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue defaultValue, ByteSizeValue minValue,
+                                                         ByteSizeValue maxValue, Property... properties) {
         return byteSizeSetting(key, (s) -> defaultValue.toString(), minValue, maxValue, properties);
     }
 
@@ -569,7 +576,7 @@ public class Setting<T> extends ToXContentToBytes {
             throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
         }
         if (value.bytes() > maxValue.bytes()) {
-            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be =< " + maxValue);
+            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be <= " + maxValue);
         }
         return value;
     }
@@ -596,7 +603,6 @@ public class Setting<T> extends ToXContentToBytes {
 
         return new Setting<List<T>>(new ListKey(key),
             (s) -> arrayToParsableString(defaultStringValue.apply(s).toArray(Strings.EMPTY_ARRAY)), parser, properties) {
-            private final Pattern pattern = Pattern.compile(Pattern.quote(key)+"(\\.\\d+)?");
             @Override
             public String getRaw(Settings settings) {
                 String[] array = settings.getAsArray(getKey(), null);
@@ -606,6 +612,12 @@ public class Setting<T> extends ToXContentToBytes {
             @Override
             boolean hasComplexMatcher() {
                 return true;
+            }
+
+            @Override
+            public boolean exists(Settings settings) {
+                boolean exists = super.exists(settings);
+                return exists || settings.get(getKey() + ".0") != null;
             }
         };
     }
@@ -685,7 +697,8 @@ public class Setting<T> extends ToXContentToBytes {
             }
 
             @Override
-            public AbstractScopedSettings.SettingUpdater<Settings> newUpdater(Consumer<Settings> consumer, ESLogger logger, Consumer<Settings> validator) {
+            public AbstractScopedSettings.SettingUpdater<Settings> newUpdater(Consumer<Settings> consumer, ESLogger logger,
+                    Consumer<Settings> validator) {
                 if (isDynamic() == false) {
                     throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
                 }
@@ -706,7 +719,8 @@ public class Setting<T> extends ToXContentToBytes {
                         try {
                             validator.accept(currentSettings);
                         } catch (Exception | AssertionError e) {
-                            throw new IllegalArgumentException("illegal value can't update [" + key + "] from [" + previousSettings.getAsMap() + "] to [" + currentSettings.getAsMap() + "]", e);
+                            throw new IllegalArgumentException("illegal value can't update [" + key + "] from ["
+                                    + previousSettings.getAsMap() + "] to [" + currentSettings.getAsMap() + "]", e);
                         }
                         return currentSettings;
                     }

@@ -113,7 +113,6 @@ public class MockFSDirectoryService extends FsDirectoryService {
         throw new UnsupportedOperationException();
     }
 
-    @SuppressWarnings("deprecation") // https://github.com/elastic/elasticsearch/issues/15846
     public static void checkIndex(ESLogger logger, Store store, ShardId shardId) {
         if (store.tryIncRef()) {
             logger.info("start check index");

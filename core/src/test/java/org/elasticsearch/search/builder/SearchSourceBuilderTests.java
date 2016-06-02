@@ -48,12 +48,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.AbstractQueryTestCase;
-import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.support.InnerHitBuilderTests;
-import org.elasticsearch.index.query.support.InnerHitsBuilder;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -73,6 +69,7 @@ import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.rescore.QueryRescoreBuilderTests;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -81,6 +78,7 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilderTests;
 import org.elasticsearch.search.suggest.Suggesters;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -98,8 +96,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchSourceBuilderTests extends ESTestCase {
@@ -153,7 +151,9 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 engines.add(mockScriptEngine);
                 List<ScriptContext.Plugin> customContexts = new ArrayList<>();
                 ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections
-                        .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
+                        .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class,
+                                                                                         MockScriptEngine.NAME,
+                                                                                         true)));
                 bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
                 ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
                 bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
@@ -411,14 +411,6 @@ public class SearchSourceBuilderTests extends ESTestCase {
             builder.suggest(SuggestBuilderTests.randomSuggestBuilder());
         }
         if (randomBoolean()) {
-            InnerHitsBuilder innerHitsBuilder = new InnerHitsBuilder();
-            int num = randomIntBetween(0, 3);
-            for (int i = 0; i < num; i++) {
-                innerHitsBuilder.addInnerHit(randomAsciiOfLengthBetween(5, 20), InnerHitBuilderTests.randomInnerHits());
-            }
-            builder.innerHits(innerHitsBuilder);
-        }
-        if (randomBoolean()) {
             int numRescores = randomIntBetween(1, 5);
             for (int i = 0; i < numRescores; i++) {
                 builder.addRescorer(QueryRescoreBuilderTests.randomRescoreBuilder());
@@ -447,11 +439,17 @@ public class SearchSourceBuilderTests extends ESTestCase {
         assertParseSearchSource(testSearchSourceBuilder, builder.bytes());
     }
 
-    private void assertParseSearchSource(SearchSourceBuilder testBuilder, BytesReference searchSourceAsBytes) throws IOException {
+    private static void assertParseSearchSource(SearchSourceBuilder testBuilder, BytesReference searchSourceAsBytes) throws IOException {
+        assertParseSearchSource(testBuilder, searchSourceAsBytes, ParseFieldMatcher.STRICT);
+    }
+
+    private static void assertParseSearchSource(SearchSourceBuilder testBuilder, BytesReference searchSourceAsBytes, ParseFieldMatcher pfm)
+            throws IOException {
         XContentParser parser = XContentFactory.xContent(searchSourceAsBytes).createParser(searchSourceAsBytes);
-        QueryParseContext parseContext = createParseContext(parser);
+        QueryParseContext parseContext = new QueryParseContext(indicesQueriesRegistry, parser, pfm);
         if (randomBoolean()) {
-            parser.nextToken(); // sometimes we move it on the START_OBJECT to test the embedded case
+            parser.nextToken(); // sometimes we move it on the START_OBJECT to
+                                // test the embedded case
         }
         SearchSourceBuilder newBuilder = SearchSourceBuilder.fromXContent(parseContext, aggParsers, suggesters);
         assertNull(parser.nextToken());
@@ -568,10 +566,66 @@ public class SearchSourceBuilderTests extends ESTestCase {
         }
     }
 
+    /**
+     * test that we can parse the `rescore` element either as single object or as array
+     */
+    public void testParseRescore() throws IOException {
+        {
+            String restContent = "{\n" +
+                "    \"query\" : {\n" +
+                "        \"match\": { \"content\": { \"query\": \"foo bar\" }}\n" +
+                "     },\n" +
+                "    \"rescore\": {" +
+                "        \"window_size\": 50,\n" +
+                "        \"query\": {\n" +
+                "            \"rescore_query\" : {\n" +
+                "                \"match\": { \"content\": { \"query\": \"baz\" } }\n" +
+                "            }\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
+                        aggParsers, suggesters);
+                assertEquals(1, searchSourceBuilder.rescores().size());
+                assertEquals(new QueryRescorerBuilder(QueryBuilders.matchQuery("content", "baz")).windowSize(50),
+                        searchSourceBuilder.rescores().get(0));
+            }
+        }
+
+        {
+            String restContent = "{\n" +
+                "    \"query\" : {\n" +
+                "        \"match\": { \"content\": { \"query\": \"foo bar\" }}\n" +
+                "     },\n" +
+                "    \"rescore\": [ {" +
+                "        \"window_size\": 50,\n" +
+                "        \"query\": {\n" +
+                "            \"rescore_query\" : {\n" +
+                "                \"match\": { \"content\": { \"query\": \"baz\" } }\n" +
+                "            }\n" +
+                "        }\n" +
+                "    } ]\n" +
+                "}\n";
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
+                        aggParsers, suggesters);
+                assertEquals(1, searchSourceBuilder.rescores().size());
+                assertEquals(new QueryRescorerBuilder(QueryBuilders.matchQuery("content", "baz")).windowSize(50),
+                        searchSourceBuilder.rescores().get(0));
+            }
+        }
+    }
+
     public void testEmptyPostFilter() throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
-        builder.postFilter(new EmptyQueryBuilder());
         String query = "{ \"post_filter\": {} }";
-        assertParseSearchSource(builder, new BytesArray(query));
+        assertParseSearchSource(builder, new BytesArray(query), ParseFieldMatcher.EMPTY);
+    }
+
+    public void testEmptyQuery() throws IOException {
+        SearchSourceBuilder builder = new SearchSourceBuilder();
+        String query = "{ \"query\": {} }";
+        assertParseSearchSource(builder, new BytesArray(query), ParseFieldMatcher.EMPTY);
     }
 }

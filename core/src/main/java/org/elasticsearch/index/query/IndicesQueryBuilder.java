@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A query that will execute the wrapped query only for the specified indices,
@@ -55,17 +56,17 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(IndicesQueryBuilder.class));
 
-    private final QueryBuilder<?> innerQuery;
+    private final QueryBuilder innerQuery;
 
     private final String[] indices;
 
-    private QueryBuilder<?> noMatchQuery = defaultNoMatchQuery();
+    private QueryBuilder noMatchQuery = defaultNoMatchQuery();
 
     /**
      * @deprecated instead search on the `_index` field
      */
     @Deprecated
-    public IndicesQueryBuilder(QueryBuilder<?> innerQuery, String... indices) {
+    public IndicesQueryBuilder(QueryBuilder innerQuery, String... indices) {
         DEPRECATION_LOGGER.deprecated("{} query is deprecated. Instead search on the '_index' field", NAME);
         if (innerQuery == null) {
             throw new IllegalArgumentException("inner query cannot be null");
@@ -94,7 +95,7 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
         out.writeNamedWriteable(noMatchQuery);
     }
 
-    public QueryBuilder<?> innerQuery() {
+    public QueryBuilder innerQuery() {
         return this.innerQuery;
     }
 
@@ -105,7 +106,7 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
     /**
      * Sets the query to use when it executes on an index that does not match the indices provided.
      */
-    public IndicesQueryBuilder noMatchQuery(QueryBuilder<?> noMatchQuery) {
+    public IndicesQueryBuilder noMatchQuery(QueryBuilder noMatchQuery) {
         if (noMatchQuery == null) {
             throw new IllegalArgumentException("noMatch query cannot be null");
         }
@@ -121,11 +122,11 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
         return this;
     }
 
-    public QueryBuilder<?> noMatchQuery() {
+    public QueryBuilder noMatchQuery() {
         return this.noMatchQuery;
     }
 
-    private static QueryBuilder<?> defaultNoMatchQuery() {
+    private static QueryBuilder defaultNoMatchQuery() {
         return QueryBuilders.matchAllQuery();
     }
 
@@ -141,12 +142,12 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
         builder.endObject();
     }
 
-    public static IndicesQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
+    public static Optional<IndicesQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
-        QueryBuilder<?> innerQuery = null;
+        QueryBuilder innerQuery = null;
         Collection<String> indices = new ArrayList<>();
-        QueryBuilder<?> noMatchQuery = defaultNoMatchQuery();
+        QueryBuilder noMatchQuery = defaultNoMatchQuery();
 
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -158,9 +159,10 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
-                    innerQuery = parseContext.parseInnerQueryBuilder();
+                    // the 2.0 behaviour when encountering "query" : {} is to return no docs for matching indices
+                    innerQuery = parseContext.parseInnerQueryBuilder().orElse(new MatchNoneQueryBuilder());
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, NO_MATCH_QUERY)) {
-                    noMatchQuery = parseContext.parseInnerQueryBuilder();
+                    noMatchQuery = parseContext.parseInnerQueryBuilder().orElse(defaultNoMatchQuery());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[indices] query does not support [" + currentFieldName + "]");
                 }
@@ -203,13 +205,13 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
         if (indices.isEmpty()) {
             throw new ParsingException(parser.getTokenLocation(), "[indices] requires 'indices' or 'index' element");
         }
-        return new IndicesQueryBuilder(innerQuery, indices.toArray(new String[indices.size()]))
+        return Optional.of(new IndicesQueryBuilder(innerQuery, indices.toArray(new String[indices.size()]))
                 .noMatchQuery(noMatchQuery)
                 .boost(boost)
-                .queryName(queryName);
+                .queryName(queryName));
     }
 
-    static QueryBuilder<?> parseNoMatchQuery(String type) {
+    static QueryBuilder parseNoMatchQuery(String type) {
         if ("all".equals(type)) {
             return QueryBuilders.matchAllQuery();
         } else if ("none".equals(type)) {
@@ -244,9 +246,9 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder<?> newInnnerQuery = innerQuery.rewrite(queryShardContext);
-        QueryBuilder<?> newNoMatchQuery = noMatchQuery.rewrite(queryShardContext);
+    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        QueryBuilder newInnnerQuery = innerQuery.rewrite(queryShardContext);
+        QueryBuilder newNoMatchQuery = noMatchQuery.rewrite(queryShardContext);
         if (newInnnerQuery != innerQuery || newNoMatchQuery != noMatchQuery) {
             return new IndicesQueryBuilder(innerQuery, indices).noMatchQuery(noMatchQuery);
         }

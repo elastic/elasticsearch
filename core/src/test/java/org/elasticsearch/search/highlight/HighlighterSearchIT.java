@@ -19,10 +19,11 @@
 package org.elasticsearch.search.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,15 +37,18 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.Type;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder.Field;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -85,6 +89,12 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 public class HighlighterSearchIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
+
     public void testHighlightingWithWildcardName() throws IOException {
         // test the kibana case with * as fieldname that will try highlight all fields including meta fields
         XContentBuilder mappings = jsonBuilder();
@@ -187,6 +197,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                         .field("type", "text")
+                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject())
@@ -818,7 +829,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                             .endObject()
                         .endObject()
                     .endObject()
-                .endObject()));
+                .endObject().endObject().endObject()));
         ensureGreen();
 
         index("test", "type1", "1",
@@ -2258,7 +2269,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
     }
 
-    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 4.0
     public void testPostingsHighlighterFuzzyQuery() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
@@ -2541,5 +2551,102 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         // Try with a boosting query using a negative boost
         response = search.setQuery(boostingQuery(phrase, terms).boost(1).negativeBoost(1/boost)).get();
         assertHighlight(response, 0, "field1", 0, 1, highlightedMatcher);
+    }
+
+    public void testGeoFieldHighlightingWithDifferentHighlighters() throws IOException {
+        // check that we do not get an exception for geo_point fields in case someone tries to highlight
+        // it accidentially with a wildcard
+        // see https://github.com/elastic/elasticsearch/issues/17537
+        XContentBuilder mappings = jsonBuilder();
+        mappings.startObject();
+        mappings.startObject("type")
+            .startObject("properties")
+            .startObject("geo_point")
+            .field("type", "geo_point")
+            .field("geohash", true)
+            .endObject()
+            .startObject("text")
+            .field("type", "text")
+            .field("term_vector", "with_positions_offsets_payloads")
+            .field("index_options", "offsets")
+            .endObject()
+            .endObject()
+            .endObject();
+        mappings.endObject();
+        assertAcked(prepareCreate("test")
+            .addMapping("type", mappings));
+        ensureYellow();
+
+        client().prepareIndex("test", "type", "1")
+            .setSource(jsonBuilder().startObject().field("text", "Arbitrary text field which will should not cause a failure").endObject())
+            .get();
+        refresh();
+        String highlighterType = randomFrom("plain", "fvh", "postings");
+        QueryBuilder query = QueryBuilders.boolQuery().should(QueryBuilders.geoBoundingBoxQuery("geo_point")
+            .setCorners(61.10078883158897, -170.15625, -64.92354174306496, 118.47656249999999))
+            .should(QueryBuilders.termQuery("text", "failure"));
+        SearchResponse search = client().prepareSearch().setSource(
+            new SearchSourceBuilder().query(query)
+                .highlighter(new HighlightBuilder().field("*").highlighterType(highlighterType))).get();
+        assertNoFailures(search);
+        assertThat(search.getHits().totalHits(), equalTo(1L));
+        assertThat(search.getHits().getAt(0).highlightFields().get("text").fragments().length, equalTo(1));
+    }
+
+    public void testKeywordFieldHighlighting() throws IOException {
+        // check that keyword highlighting works
+        XContentBuilder mappings = jsonBuilder();
+        mappings.startObject();
+        mappings.startObject("type")
+            .startObject("properties")
+            .startObject("keyword_field")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject();
+        mappings.endObject();
+        assertAcked(prepareCreate("test")
+            .addMapping("type", mappings));
+        ensureYellow();
+
+        client().prepareIndex("test", "type", "1")
+            .setSource(jsonBuilder().startObject().field("keyword_field", "some text").endObject())
+            .get();
+        refresh();
+        SearchResponse search = client().prepareSearch().setSource(
+            new SearchSourceBuilder().query(QueryBuilders.matchQuery("keyword_field", "some text")).highlighter(new HighlightBuilder().field("*")))
+            .get();
+        assertNoFailures(search);
+        assertThat(search.getHits().totalHits(), equalTo(1L));
+        assertThat(search.getHits().getAt(0).getHighlightFields().get("keyword_field").getFragments()[0].string(), equalTo("<em>some text</em>"));
+    }
+
+    public void testStringFieldHighlighting() throws IOException {
+        // check that string field highlighting on old indexes works
+        XContentBuilder mappings = jsonBuilder();
+        mappings.startObject();
+        mappings.startObject("type")
+            .startObject("properties")
+            .startObject("string_field")
+            .field("type", "string")
+            .endObject()
+            .endObject()
+            .endObject();
+        mappings.endObject();
+        assertAcked(prepareCreate("test")
+            .addMapping("type", mappings)
+        .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_2)));
+        ensureYellow();
+
+        client().prepareIndex("test", "type", "1")
+            .setSource(jsonBuilder().startObject().field("string_field", "some text").endObject())
+            .get();
+        refresh();
+        SearchResponse search = client().prepareSearch().setSource(
+            new SearchSourceBuilder().query(QueryBuilders.matchQuery("string_field", "some text")).highlighter(new HighlightBuilder().field("*")))
+            .get();
+        assertNoFailures(search);
+        assertThat(search.getHits().totalHits(), equalTo(1L));
+        assertThat(search.getHits().getAt(0).getHighlightFields().get("string_field").getFragments()[0].string(), equalTo("<em>some</em> <em>text</em>"));
     }
 }

@@ -129,18 +129,18 @@ class NodeInfo {
         }
 
         env = [ 'JAVA_HOME' : project.javaHome ]
-        args.addAll("-E", "es.node.portsfile=true")
+        args.addAll("-E", "node.portsfile=true")
         String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
         String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs
         env.put('ES_JAVA_OPTS', esJavaOpts)
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
-            if (property.getKey().startsWith('es.')) {
+            if (property.key.startsWith('tests.es.')) {
                 args.add("-E")
-                args.add("${property.getKey()}=${property.getValue()}")
+                args.add("${property.key.substring('tests.es.'.size())}=${property.value}")
             }
         }
         env.put('ES_JVM_OPTIONS', new File(confDir, 'jvm.options'))
-        args.addAll("-E", "es.path.conf=${confDir}")
+        args.addAll("-E", "path.conf=${confDir}")
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             args.add('"') // end the entire command, quoted
         }

@@ -402,7 +402,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                             // connect to the node, see if we manage to do it, if not, bail
                             if (!nodeFoundByAddress) {
                                 logger.trace("[{}] connecting (light) to {}", sendPingsHandler.id(), finalNodeToSend);
-                                transportService.connectToNodeLight(finalNodeToSend);
+                                transportService.connectToNodeLightAndHandshake(finalNodeToSend, timeout.getMillis());
                             } else {
                                 logger.trace("[{}] connecting to {}", sendPingsHandler.id(), finalNodeToSend);
                                 transportService.connectToNode(finalNodeToSend);
@@ -471,12 +471,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                     for (PingResponse pingResponse : response.pingResponses) {
                         if (pingResponse.node().getId().equals(discoveryNodes.getLocalNodeId())) {
                             // that's us, ignore
-                            continue;
-                        }
-                        if (!pingResponse.clusterName().equals(clusterName)) {
-                            // not part of the cluster
-                            logger.debug("[{}] filtering out response from {}, not same cluster_name [{}]", id, pingResponse.node(),
-                                    pingResponse.clusterName().value());
                             continue;
                         }
                         SendPingsHandler sendPingsHandler = receivedResponses.get(response.id);

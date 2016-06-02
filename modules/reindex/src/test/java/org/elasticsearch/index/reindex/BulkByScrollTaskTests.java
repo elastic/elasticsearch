@@ -21,6 +21,9 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,6 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -49,7 +53,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
 
     @Before
     public void createTask() {
-        task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID, 0);
+        task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID, Float.POSITIVE_INFINITY);
     }
 
     public void testBasicData() {
@@ -123,25 +127,28 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     public void testStatusHatesNegatives() {
-        expectThrows(IllegalArgumentException.class, status(-1, 0, 0, 0, 0, 0, 0, 0));
-        expectThrows(IllegalArgumentException.class, status(0, -1, 0, 0, 0, 0, 0, 0));
-        expectThrows(IllegalArgumentException.class, status(0, 0, -1, 0, 0, 0, 0, 0));
-        expectThrows(IllegalArgumentException.class, status(0, 0, 0, -1, 0, 0, 0, 0));
-        expectThrows(IllegalArgumentException.class, status(0, 0, 0, 0, -1, 0, 0, 0));
-        expectThrows(IllegalArgumentException.class, status(0, 0, 0, 0, 0, -1, 0, 0));
-        expectThrows(IllegalArgumentException.class, status(0, 0, 0, 0, 0, 0, -1, 0));
-        expectThrows(IllegalArgumentException.class, status(0, 0, 0, 0, 0, 0, 0, -1));
+        checkStatusNegatives(-1, 0, 0, 0, 0, 0, 0, 0, 0, "total");
+        checkStatusNegatives(0, -1, 0, 0, 0, 0, 0, 0, 0, "updated");
+        checkStatusNegatives(0, 0, -1, 0, 0, 0, 0, 0, 0, "created");
+        checkStatusNegatives(0, 0, 0, -1, 0, 0, 0, 0, 0, "deleted");
+        checkStatusNegatives(0, 0, 0, 0, -1, 0, 0, 0, 0, "batches");
+        checkStatusNegatives(0, 0, 0, 0, 0, -1, 0, 0, 0, "versionConflicts");
+        checkStatusNegatives(0, 0, 0, 0, 0, 0, -1, 0, 0, "noops");
+        checkStatusNegatives(0, 0, 0, 0, 0, 0, 0, -1, 0, "bulkRetries");
+        checkStatusNegatives(0, 0, 0, 0, 0, 0, 0, 0, -1, "searchRetries");
     }
 
     /**
      * Build a task status with only some values. Used for testing negative values.
      */
-    private ThrowingRunnable status(long total, long updated, long created, long deleted, int batches, long versionConflicts,
-            long noops, long retries) {
+    private void checkStatusNegatives(long total, long updated, long created, long deleted, int batches, long versionConflicts,
+            long noops, long bulkRetries, long searchRetries, String fieldName) {
         TimeValue throttle = parseTimeValue(randomPositiveTimeValue(), "test");
         TimeValue throttledUntil = parseTimeValue(randomPositiveTimeValue(), "test");
 
-        return () -> new BulkByScrollTask.Status(-1, 0, 0, 0, 0, 0, 0, 0, throttle, 0f, null, throttledUntil);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new BulkByScrollTask.Status(total, updated, created,
+                deleted, batches, versionConflicts, noops, bulkRetries, searchRetries, throttle, 0f, null, throttledUntil));
+        assertEquals(e.getMessage(), fieldName + " must be greater than 0 but was [-1]");
     }
 
     /**
@@ -269,5 +276,11 @@ public class BulkByScrollTaskTests extends ESTestCase {
         } finally {
             threadPool.shutdown();
         }
+    }
+
+    public void testXContentRepresentationOfUnlimitedRequestsPerSecon() throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        task.getStatus().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertThat(builder.string(), containsString("\"requests_per_second\":\"unlimited\""));
     }
 }

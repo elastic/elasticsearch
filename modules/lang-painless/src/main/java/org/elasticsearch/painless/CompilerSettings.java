@@ -22,11 +22,7 @@ package org.elasticsearch.painless;
 /**
  * Settings to use when compiling a script.
  */
-final class CompilerSettings {
-    /**
-     * Constant to be used when specifying numeric overflow when compiling a script.
-     */
-    public static final String NUMERIC_OVERFLOW = "numeric_overflow";
+public final class CompilerSettings {
 
     /**
      * Constant to be used when specifying the maximum loop counter when compiling a script.
@@ -34,9 +30,9 @@ final class CompilerSettings {
     public static final String MAX_LOOP_COUNTER = "max_loop_counter";
 
     /**
-     * Whether or not to allow numeric values to overflow without exception.
+     * Constant to be used for enabling additional internal compilation checks (slower).
      */
-    private boolean numericOverflow = true;
+    public static final String PICKY = "picky";
 
     /**
      * The maximum number of statements allowed to be run in a loop.
@@ -44,31 +40,17 @@ final class CompilerSettings {
     private int maxLoopCounter = 10000;
 
     /**
-     * Returns {@code true} if numeric operations should overflow, {@code false}
-     * if they should signal an exception.
-     * <p>
-     * If this value is {@code true} (default), then things behave like java:
-     * overflow for integer types can result in unexpected values / unexpected
-     * signs, and overflow for floating point types can result in infinite or
-     * {@code NaN} values.
+     * Whether to throw exception on ambiguity or other internal parsing issues. This option
+     * makes things slower too, it is only for debugging.
      */
-    public boolean getNumericOverflow() {
-        return numericOverflow;
-    }
-
-    /**
-     * Set {@code true} for numerics to overflow, false to deliver exceptions.
-     * @see #getNumericOverflow
-     */
-    public void setNumericOverflow(boolean allow) {
-        this.numericOverflow = allow;
-    }
+    private boolean picky = false;
 
     /**
      * Returns the value for the cumulative total number of statements that can be made in all loops
-     * in a script before an exception is thrown.  This attempts to prevent infinite loops.
+     * in a script before an exception is thrown.  This attempts to prevent infinite loops.  Note if
+     * the counter is set to 0, no loop counter will be written.
      */
-    public int getMaxLoopCounter() {
+    public final int getMaxLoopCounter() {
         return maxLoopCounter;
     }
 
@@ -76,7 +58,24 @@ final class CompilerSettings {
      * Set the cumulative total number of statements that can be made in all loops.
      * @see #getMaxLoopCounter
      */
-    public void setMaxLoopCounter(int max) {
+    public final void setMaxLoopCounter(int max) {
         this.maxLoopCounter = max;
+    }
+
+    /**
+     * Returns true if the compiler should be picky. This means it runs slower and enables additional
+     * runtime checks, throwing an exception if there are ambiguities in the grammar or other low level
+     * parsing problems.
+     */
+    public boolean isPicky() {
+      return picky;
+    }
+
+    /**
+     * Set to true if compilation should be picky.
+     * @see #isPicky
+     */
+    public void setPicky(boolean picky) {
+      this.picky = picky;
     }
 }

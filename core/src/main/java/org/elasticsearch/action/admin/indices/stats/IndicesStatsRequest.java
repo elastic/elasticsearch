@@ -184,15 +184,6 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return flags.isSet(Flag.FieldData);
     }
 
-    public IndicesStatsRequest percolate(boolean percolate) {
-        flags.set(Flag.PercolatorCache, percolate);
-        return this;
-    }
-
-    public boolean percolate() {
-        return flags.isSet(Flag.PercolatorCache);
-    }
-
     public IndicesStatsRequest segments(boolean segments) {
         flags.set(Flag.Segments, segments);
         return this;

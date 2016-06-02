@@ -57,7 +57,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.SuppressLocalMode
-@ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numDataNodes = 2, numClientNodes = 0)
 @SuppressForbidden(reason = "use http server")
 // TODO this should be a IT but currently all ITs in this project run against a real cluster
 public class Ec2DiscoveryClusterFormationTests extends ESIntegTestCase {
@@ -248,7 +248,7 @@ public class Ec2DiscoveryClusterFormationTests extends ESIntegTestCase {
         logDir = null;
     }
 
-    public void testJoin() throws ExecutionException, InterruptedException, XMLStreamException {
+    public void testJoin() throws ExecutionException, InterruptedException {
         // only wait for the cluster to form
         assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(2)).get());
         // add one more node and wait for it to join

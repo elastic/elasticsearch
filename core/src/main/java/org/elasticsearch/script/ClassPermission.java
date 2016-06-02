@@ -69,6 +69,8 @@ import java.util.Set;
  *   <li>{@link org.joda.time.DateTimeUtils}</li>
  *   <li>{@link org.joda.time.DateTimeZone}</li>
  *   <li>{@link org.joda.time.Instant}</li>
+ *   <li>{@link org.joda.time.ReadableDateTime}</li>
+ *   <li>{@link org.joda.time.ReadableInstant}</li>
  * </ul>
  */
 public final class ClassPermission extends BasicPermission {
@@ -102,7 +104,9 @@ public final class ClassPermission extends BasicPermission {
             org.joda.time.DateTime.class.getName(),
             org.joda.time.DateTimeUtils.class.getName(),
             org.joda.time.DateTimeZone.class.getName(),
-            org.joda.time.Instant.class.getName()
+            org.joda.time.Instant.class.getName(),
+            org.joda.time.ReadableDateTime.class.getName(),
+            org.joda.time.ReadableInstant.class.getName()
      )));
 
     /**

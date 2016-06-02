@@ -245,7 +245,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 }
                 indexShard.addShard(
                         TestShardRouting.newShardRouting(index, i, randomFrom(nodeIds), null, null, j == 0,
-                                ShardRoutingState.fromValue((byte) randomIntBetween(2, 4)), unassignedInfo));
+                                ShardRoutingState.fromValue((byte) randomIntBetween(2, 3)), unassignedInfo));
             }
             builder.addIndexShard(indexShard.build());
         }
@@ -259,9 +259,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(original.getIndex());
         for (ObjectCursor<IndexShardRoutingTable> indexShardRoutingTable :  original.shards().values()) {
             for (ShardRouting shardRouting : indexShardRoutingTable.value.shards()) {
-                final ShardRouting newShardRouting = new ShardRouting(shardRouting);
-                randomChange(newShardRouting, nodes);
-                builder.addShard(indexShardRoutingTable.value, newShardRouting);
+                final ShardRouting updatedShardRouting = randomChange(shardRouting, nodes);
+                builder.addShard(updatedShardRouting);
             }
         }
         return builder.build();

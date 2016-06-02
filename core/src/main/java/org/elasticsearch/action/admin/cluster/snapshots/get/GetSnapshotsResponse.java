@@ -60,7 +60,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContent {
         int size = in.readVInt();
         List<SnapshotInfo> builder = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            builder.add(SnapshotInfo.readSnapshotInfo(in));
+            builder.add(new SnapshotInfo(in));
         }
         snapshots = Collections.unmodifiableList(builder);
     }
@@ -74,13 +74,9 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContent {
         }
     }
 
-    static final class Fields {
-        static final String SNAPSHOTS = "snapshots";
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startArray(Fields.SNAPSHOTS);
+        builder.startArray("snapshots");
         for (SnapshotInfo snapshotInfo : snapshots) {
             snapshotInfo.toXContent(builder, params);
         }

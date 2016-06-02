@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -39,9 +40,9 @@ import static org.hamcrest.Matchers.containsString;
 public class SimpleNettyTransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
-    protected MockTransportService build(Settings settings, Version version, NamedWriteableRegistry namedWriteableRegistry) {
+    protected MockTransportService build(Settings settings, Version version, ClusterName clusterName) {
         settings = Settings.builder().put(settings).put(TransportSettings.PORT.getKey(), "0").build();
-        MockTransportService transportService = MockTransportService.nettyFromThreadPool(settings, version, threadPool);
+        MockTransportService transportService = MockTransportService.nettyFromThreadPool(settings, version, threadPool, clusterName);
         transportService.start();
         return transportService;
     }

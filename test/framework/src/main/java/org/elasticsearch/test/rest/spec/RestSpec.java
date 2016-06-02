@@ -41,7 +41,11 @@ public class RestSpec {
     }
 
     void addApi(RestApi restApi) {
-        restApiMap.put(restApi.getName(), restApi);
+        RestApi previous = restApiMap.putIfAbsent(restApi.getName(), restApi);
+        if (previous != null) {
+            throw new IllegalArgumentException("cannot register api [" + restApi.getName() + "] found in [" + restApi.getLocation() + "]. "
+                    + "api with same name was already found in [" + previous.getLocation() + "]");
+        }
     }
 
     public RestApi getApi(String api) {
@@ -57,12 +61,20 @@ public class RestSpec {
      */
     public static RestSpec parseFrom(FileSystem fileSystem, String optionalPathPrefix, String... paths) throws IOException {
         RestSpec restSpec = new RestSpec();
+        RestApiParser restApiParser = new RestApiParser();
         for (String path : paths) {
             for (Path jsonFile : FileUtils.findJsonSpec(fileSystem, optionalPathPrefix, path)) {
                 try (InputStream stream = Files.newInputStream(jsonFile)) {
-                    XContentParser parser = JsonXContent.jsonXContent.createParser(stream);
-                    RestApi restApi = new RestApiParser().parse(parser);
-                    restSpec.addApi(restApi);
+                    try (XContentParser parser = JsonXContent.jsonXContent.createParser(stream)) {
+                        RestApi restApi = restApiParser.parse(jsonFile.toString(), parser);
+                        String filename = jsonFile.getFileName().toString();
+                        String expectedApiName = filename.substring(0, filename.lastIndexOf('.'));
+                        if (restApi.getName().equals(expectedApiName) == false) {
+                            throw new IllegalArgumentException("found api [" + restApi.getName() + "] in [" + jsonFile.toString() + "]. " +
+                                    "Each api is expected to have the same name as the file that defines it.");
+                        }
+                        restSpec.addApi(restApi);
+                    }
                 } catch (Throwable ex) {
                     throw new IOException("Can't parse rest spec file: [" + jsonFile + "]", ex);
                 }

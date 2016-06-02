@@ -74,7 +74,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Geo-point expressed as an object, with `lat` and `lon` keys.
 <2> Geo-point expressed as a string with the format: `"lat,lon"`.
 <3> Geo-point expressed as a geohash.

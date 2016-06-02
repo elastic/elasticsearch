@@ -33,3 +33,4 @@ artifacts {
     project.signArchives.singleSignature.type = 'tar.gz.asc'
   }
 }
+

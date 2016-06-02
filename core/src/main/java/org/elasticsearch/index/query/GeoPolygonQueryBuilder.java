@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQueryBuilder> {
 
@@ -54,8 +55,10 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
      */
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
-    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
-    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
+    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize")
+            .withAllDeprecated("use validation_method instead");
+    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed")
+            .withAllDeprecated("use validation_method instead");
     private static final ParseField VALIDATION_METHOD = new ParseField("validation_method");
     private static final ParseField POINTS_FIELD = new ParseField("points");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
@@ -232,16 +235,14 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         builder.endArray();
         builder.endObject();
 
-        builder.field(COERCE_FIELD.getPreferredName(), GeoValidationMethod.isCoerce(validationMethod));
-        builder.field(IGNORE_MALFORMED_FIELD.getPreferredName(),
-                GeoValidationMethod.isIgnoreMalformed(validationMethod));
+        builder.field(VALIDATION_METHOD.getPreferredName(), validationMethod);
         builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
 
         printBoostAndQueryName(builder);
         builder.endObject();
     }
 
-    public static GeoPolygonQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<GeoPolygonQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -322,7 +323,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             builder.boost(boost);
         }
         builder.ignoreUnmapped(ignoreUnmapped);
-        return builder;
+        return Optional.of(builder);
     }
 
     @Override

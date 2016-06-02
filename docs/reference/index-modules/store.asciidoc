@@ -8,9 +8,8 @@ The store module allows you to control how index data is stored and accessed on 
 === File system storage types
 
 There are different file system implementations or _storage types_. The best
-one for the operating environment will be automatically chosen: `mmapfs` on
-Windows 64bit, `simplefs` on Windows 32bit, and `default` (hybrid `niofs` and
-`mmapfs`) for the rest.
+one for the operating environment will be automatically chosen: `simplefs` on
+Windows 32bit, `niofs` on other 32bit systems and `mmapfs` on 64bit systems.
 
 This can be overridden for all indices by adding this to the
 `config/elasticsearch.yml` file:
@@ -61,12 +60,13 @@ process equal to the size of the file being mapped. Before using this
 class, be sure you have allowed plenty of
 <<vm-max-map-count,virtual address space>>.
 
-[[default_fs]]`default_fs`::
+[[default_fs]]`default_fs` deprecated[5.0.0, The `default_fs` store type is deprecated - use `mmapfs` instead]::
 
 The `default` type is a hybrid of NIO FS and MMapFS, which chooses the best
-file system for each type of file. Currently only the Lucene term dictionary
-and doc values files are memory mapped to reduce the impact on the operating
-system. All other files are opened using Lucene `NIOFSDirectory`. Address
-space settings (<<vm-max-map-count>>) might also apply if your term
-dictionaries are large.
+file system for each type of file. Currently only the Lucene term dictionary,
+doc values and points files are memory mapped to reduce the impact on the
+operating system. All other files are opened using Lucene `NIOFSDirectory`.
+Address space settings (<<vm-max-map-count>>) might also apply if your term
+dictionary are large, if you index many fields that use points (numerics, dates
+and ip addresses) or if you have many fields with doc values.
 

@@ -20,10 +20,13 @@
 
 package org.elasticsearch.tasks;
 
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
+
+import java.io.IOException;
 
 /**
  * Current task information
@@ -132,4 +135,16 @@ public class Task {
     }
 
     public interface Status extends ToXContent, NamedWriteable {}
+
+    public TaskResult result(DiscoveryNode node, Throwable error) throws IOException {
+        return new TaskResult(taskInfo(node, true), error);
+    }
+
+    public TaskResult result(DiscoveryNode node, ActionResponse response) throws IOException {
+        if (response instanceof ToXContent) {
+            return new TaskResult(taskInfo(node, true), (ToXContent) response);
+        } else {
+            throw new IllegalStateException("response has to implement ToXContent for persistence");
+        }
+    }
 }

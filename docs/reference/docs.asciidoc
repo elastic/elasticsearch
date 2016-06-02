@@ -29,6 +29,8 @@ include::docs/get.asciidoc[]
 
 include::docs/delete.asciidoc[]
 
+include::docs/delete-by-query.asciidoc[]
+
 include::docs/update.asciidoc[]
 
 include::docs/update-by-query.asciidoc[]

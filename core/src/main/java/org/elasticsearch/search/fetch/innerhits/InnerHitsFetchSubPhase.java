@@ -28,9 +28,6 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsParseElement;
-import org.elasticsearch.search.fetch.script.ScriptFieldsParseElement;
-import org.elasticsearch.search.fetch.source.FetchSourceParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
@@ -73,7 +70,7 @@ public class InnerHitsFetchSubPhase implements FetchSubPhase {
             } catch (IOException e) {
                 throw ExceptionsHelper.convertToElastic(e);
             }
-            innerHits.queryResult().topDocs(topDocs);
+            innerHits.queryResult().topDocs(topDocs, innerHits.sort() == null ? null : innerHits.sort().formats);
             int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
             for (int i = 0; i < topDocs.scoreDocs.length; i++) {
                 docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
@@ -89,7 +86,7 @@ public class InnerHitsFetchSubPhase implements FetchSubPhase {
                 searchHitFields.score(scoreDoc.score);
                 if (scoreDoc instanceof FieldDoc) {
                     FieldDoc fieldDoc = (FieldDoc) scoreDoc;
-                    searchHitFields.sortValues(fieldDoc.fields);
+                    searchHitFields.sortValues(fieldDoc.fields, innerHits.sort().formats);
                 }
             }
             results.put(entry.getKey(), fetchResult.hits());

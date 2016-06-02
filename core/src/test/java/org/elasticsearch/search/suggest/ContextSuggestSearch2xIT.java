@@ -193,6 +193,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
             .field("type", "geo")
             .field("precision", precision)
             .endObject()
+            .endObject()
             .endObject().endObject()
             .endObject().endObject();
 
@@ -211,6 +212,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
             .startObject("location")
             .field("type", "geo")
             .field("precision", precision)
+            .endObject()
             .endObject()
             .endObject().endObject()
             .endObject().endObject();

@@ -35,8 +35,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class SettingTests extends ESTestCase {
-
-
     public void testGet() {
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.NodeScope);
         assertFalse(booleanSetting.get(Settings.EMPTY));
@@ -62,7 +60,8 @@ public class SettingTests extends ESTestCase {
             settingUpdater.apply(Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY);
             fail("no unit");
         } catch (IllegalArgumentException ex) {
-            assertEquals("failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized", ex.getMessage());
+            assertEquals("failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized",
+                    ex.getMessage());
         }
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
@@ -86,7 +85,8 @@ public class SettingTests extends ESTestCase {
             settingUpdater.apply(build, Settings.EMPTY);
             fail("not a boolean");
         } catch (IllegalArgumentException ex) {
-            assertEquals("Failed to parse value [I am not a boolean] cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]", ex.getMessage());
+            assertEquals("Failed to parse value [I am not a boolean] cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]",
+                    ex.getMessage());
         }
     }
 
@@ -184,7 +184,10 @@ public class SettingTests extends ESTestCase {
         assertTrue(setting.isGroupSetting());
         ClusterSettings.SettingUpdater<Settings> settingUpdater = setting.newUpdater(ref::set, logger);
 
-        Settings currentInput = Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").put("foo.bar.3.value", "3").build();
+        Settings currentInput = Settings.builder()
+                .put("foo.bar.1.value", "1")
+                .put("foo.bar.2.value", "2")
+                .put("foo.bar.3.value", "3").build();
         Settings previousInput = Settings.EMPTY;
         assertTrue(settingUpdater.apply(currentInput, previousInput));
         assertNotNull(ref.get());
@@ -228,7 +231,8 @@ public class SettingTests extends ESTestCase {
 
         ClusterSettings.SettingUpdater<Settings> predicateSettingUpdater = setting.newUpdater(ref::set, logger,(s) -> assertFalse(true));
         try {
-            predicateSettingUpdater.apply(Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build(), Settings.EMPTY);
+            predicateSettingUpdater.apply(Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build(),
+                    Settings.EMPTY);
             fail("not accepted");
         } catch (IllegalArgumentException ex) {
             assertEquals(ex.getMessage(), "illegal value can't update [foo.bar.] from [{}] to [{1.value=1, 2.value=2}]");
@@ -290,11 +294,13 @@ public class SettingTests extends ESTestCase {
         Setting<List<String>> listSetting = Setting.listSetting("foo.bar", Arrays.asList("foo,bar"), (s) -> s.toString(),
             Property.Dynamic, Property.NodeScope);
         List<String> value = listSetting.get(Settings.EMPTY);
+        assertFalse(listSetting.exists(Settings.EMPTY));
         assertEquals(1, value.size());
         assertEquals("foo,bar", value.get(0));
 
         List<String> input = Arrays.asList("test", "test1, test2", "test", ",,,,");
         Settings.Builder builder = Settings.builder().putArray("foo.bar", input.toArray(new String[0]));
+        assertTrue(listSetting.exists(builder.build()));
         value = listSetting.get(builder.build());
         assertEquals(input.size(), value.size());
         assertArrayEquals(value.toArray(new String[0]), input.toArray(new String[0]));
@@ -307,6 +313,7 @@ public class SettingTests extends ESTestCase {
         value = listSetting.get(builder.build());
         assertEquals(input.size(), value.size());
         assertArrayEquals(value.toArray(new String[0]), input.toArray(new String[0]));
+        assertTrue(listSetting.exists(builder.build()));
 
         AtomicReference<List<String>> ref = new AtomicReference<>();
         AbstractScopedSettings.SettingUpdater<List<String>> settingUpdater = listSetting.newUpdater(ref::set, logger);
@@ -423,7 +430,7 @@ public class SettingTests extends ESTestCase {
             integerSetting.get(Settings.builder().put("foo.bar", 11).build());
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals("Failed to parse value [11] for setting [foo.bar] must be =< 10", ex.getMessage());
+            assertEquals("Failed to parse value [11] for setting [foo.bar] must be <= 10", ex.getMessage());
         }
 
         try {
@@ -468,7 +475,7 @@ public class SettingTests extends ESTestCase {
             Setting.simpleString("foo.bar", (Property[]) null);
             fail();
         } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), containsString("properties can not be null for setting"));
+            assertThat(ex.getMessage(), containsString("properties cannot be null for setting"));
         }
     }
 }

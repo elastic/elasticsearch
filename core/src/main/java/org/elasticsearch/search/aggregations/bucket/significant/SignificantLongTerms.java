@@ -81,18 +81,15 @@ public class SignificantLongTerms extends InternalSignificantTerms<SignificantLo
     static class Bucket extends InternalSignificantTerms.Bucket {
 
         long term;
-        private transient final DocValueFormat format;
 
-        public Bucket(long subsetSize, long supersetSize, DocValueFormat formatter) {
-            super(subsetSize, supersetSize);
-            this.format = formatter;
+        public Bucket(long subsetSize, long supersetSize, DocValueFormat format) {
+            super(subsetSize, supersetSize, format);
             // for serialization
         }
 
         public Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, long term, InternalAggregations aggregations,
                 DocValueFormat format) {
-            super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations);
-            this.format = format;
+            super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format);
             this.term = term;
         }
 
@@ -160,7 +157,6 @@ public class SignificantLongTerms extends InternalSignificantTerms<SignificantLo
             return builder;
         }
     }
-    private DocValueFormat format;
 
     SignificantLongTerms() {
     } // for serialization
@@ -169,8 +165,7 @@ public class SignificantLongTerms extends InternalSignificantTerms<SignificantLo
             long minDocCount, SignificanceHeuristic significanceHeuristic, List<? extends InternalSignificantTerms.Bucket> buckets,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
 
-        super(subsetSize, supersetSize, name, requiredSize, minDocCount, significanceHeuristic, buckets, pipelineAggregators, metaData);
-        this.format = Objects.requireNonNull(format);
+        super(subsetSize, supersetSize, name, format, requiredSize, minDocCount, significanceHeuristic, buckets, pipelineAggregators, metaData);
     }
 
     @Override

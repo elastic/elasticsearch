@@ -20,7 +20,6 @@
 package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
@@ -45,6 +44,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
@@ -54,7 +54,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -83,6 +82,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -111,6 +111,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -231,7 +232,7 @@ public class InternalEngineTests extends ESTestCase {
         Field versionField = new NumericDocValuesField("_version", 0);
         document.add(uidField);
         document.add(versionField);
-        return new ParsedDocument(uidField, versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
+        return new ParsedDocument(versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
     }
 
     protected Store createStore() throws IOException {
@@ -598,6 +599,77 @@ public class InternalEngineTests extends ESTestCase {
         engine.flush();
     }
 
+    public void testTranslogMultipleOperationsSameDocument() throws IOException {
+        final int ops = randomIntBetween(1, 32);
+        Engine initialEngine;
+        final List<Engine.Operation> operations = new ArrayList<>();
+        try {
+            initialEngine = engine;
+            for (int i = 0; i < ops; i++) {
+                final ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+                if (randomBoolean()) {
+                    final Engine.Index operation = new Engine.Index(newUid("test#1"), doc, i, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime());
+                    operations.add(operation);
+                    initialEngine.index(operation);
+                } else {
+                    final Engine.Delete operation = new Engine.Delete("test", "1", newUid("test#1"), i, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false);
+                    operations.add(operation);
+                    initialEngine.delete(operation);
+                }
+            }
+        } finally {
+            IOUtils.close(engine);
+        }
+
+        Engine recoveringEngine = null;
+        try {
+            recoveringEngine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
+            recoveringEngine.recoverFromTranslog();
+            try (Engine.Searcher searcher = recoveringEngine.acquireSearcher("test")) {
+                final TotalHitCountCollector collector = new TotalHitCountCollector();
+                searcher.searcher().search(new MatchAllDocsQuery(), collector);
+                assertThat(collector.getTotalHits(), equalTo(operations.get(operations.size() - 1) instanceof Engine.Delete ? 0 : 1));
+            }
+        } finally {
+            IOUtils.close(recoveringEngine);
+        }
+    }
+
+    public void testTranslogRecoveryDoesNotReplayIntoTranslog() throws IOException {
+        final int docs = randomIntBetween(1, 32);
+        Engine initialEngine = null;
+        try {
+            initialEngine = engine;
+            for (int i = 0; i < docs; i++) {
+                final String id = Integer.toString(i);
+                final ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocumentWithTextField(), new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+                initialEngine.index(new Engine.Index(newUid(id), doc));
+            }
+        } finally {
+            IOUtils.close(initialEngine);
+        }
+
+        Engine recoveringEngine = null;
+        try {
+            final AtomicBoolean flushed = new AtomicBoolean();
+            recoveringEngine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG)) {
+                @Override
+                public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
+                    assertThat(getTranslog().totalOperations(), equalTo(docs));
+                    final CommitId commitId = super.flush(force, waitIfOngoing);
+                    flushed.set(true);
+                    return commitId;
+                }
+            };
+
+            assertThat(recoveringEngine.getTranslog().totalOperations(), equalTo(docs));
+            recoveringEngine.recoverFromTranslog();
+            assertTrue(flushed.get());
+        } finally {
+            IOUtils.close(recoveringEngine);
+        }
+    }
+
     public void testConcurrentGetAndFlush() throws Exception {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         engine.index(new Engine.Index(newUid("1"), doc));
@@ -835,7 +907,7 @@ public class InternalEngineTests extends ESTestCase {
             engine.index(new Engine.Index(newUid("1"), doc));
             Engine.CommitId commitID = engine.flush();
             assertThat(commitID, equalTo(new Engine.CommitId(store.readLastCommittedSegmentsInfo().getId())));
-            byte[] wrongBytes = Base64.decode(commitID.toString());
+            byte[] wrongBytes = Base64.getDecoder().decode(commitID.toString());
             wrongBytes[0] = (byte) ~wrongBytes[0];
             Engine.CommitId wrongId = new Engine.CommitId(wrongBytes);
             assertEquals("should fail to sync flush with wrong id (but no docs)", engine.syncFlush(syncId + "1", wrongId),
@@ -2116,5 +2188,32 @@ public class InternalEngineTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testDocStats() throws IOException {
+        final int numDocs = randomIntBetween(2, 10); // at least 2 documents otherwise we don't see any deletes below
+        for (int i = 0; i < numDocs; i++) {
+            ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
+            Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime());
+            engine.index(firstIndexRequest);
+            assertThat(firstIndexRequest.version(), equalTo(1L));
+        }
+        DocsStats docStats = engine.getDocStats();
+        assertEquals(numDocs, docStats.getCount());
+        assertEquals(0, docStats.getDeleted());
+        engine.forceMerge(randomBoolean(), 1, false, false, false);
+
+        ParsedDocument doc = testParsedDocument(Integer.toString(0), Integer.toString(0), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
+        Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(0)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime());
+        engine.index(firstIndexRequest);
+        assertThat(firstIndexRequest.version(), equalTo(2L));
+        engine.flush(); // flush - buffered deletes are not counted
+        docStats = engine.getDocStats();
+        assertEquals(1, docStats.getDeleted());
+        assertEquals(numDocs, docStats.getCount());
+        engine.forceMerge(randomBoolean(), 1, false, false, false);
+        docStats = engine.getDocStats();
+        assertEquals(0, docStats.getDeleted());
+        assertEquals(numDocs, docStats.getCount());
     }
 }

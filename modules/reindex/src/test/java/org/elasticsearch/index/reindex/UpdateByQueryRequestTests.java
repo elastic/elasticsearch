@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.reindex;
 
-import java.util.List;
-
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.List;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.hamcrest.Matchers.arrayWithSize;

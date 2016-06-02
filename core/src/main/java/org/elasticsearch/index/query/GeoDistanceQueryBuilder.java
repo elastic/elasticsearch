@@ -45,6 +45,7 @@ import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Filter results of a query to include only those within a specific distance to some
@@ -73,8 +74,10 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
-    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
-    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
+    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed")
+            .withAllDeprecated("use validation_method instead");
+    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize")
+            .withAllDeprecated("use validation_method instead");
     private static final ParseField OPTIMIZE_BBOX_FIELD = new ParseField("optimize_bbox");
     private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
     private static final ParseField UNIT_FIELD = new ParseField("unit");
@@ -328,7 +331,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         builder.endObject();
     }
 
-    public static GeoDistanceQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<GeoDistanceQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token;
@@ -443,7 +446,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         qb.boost(boost);
         qb.queryName(queryName);
         qb.ignoreUnmapped(ignoreUnmapped);
-        return qb;
+        return Optional.of(qb);
     }
 
     @Override

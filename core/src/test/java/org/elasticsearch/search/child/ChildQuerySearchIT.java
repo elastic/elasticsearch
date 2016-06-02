@@ -1323,29 +1323,6 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         }
     }
 
-    public void testAddParentFieldAfterIndexingParentDocButBeforeIndexingChildDoc() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder()
-                        .put(indexSettings())
-                        .put("index.refresh_interval", -1)));
-        ensureGreen();
-
-        String parentId = "p1";
-        client().prepareIndex("test", "parent", parentId).setSource("p_field", "1").get();
-        refresh();
-
-        try {
-            assertAcked(client().admin()
-                    .indices()
-                    .preparePutMapping("test")
-                    .setType("child")
-                    .setSource("_parent", "type=parent"));
-            fail("Shouldn't be able the add the _parent field pointing to an already existing parent type");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("can't add a _parent field that points to an already existing type"));
-        }
-    }
-
     public void testParentChildCaching() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(

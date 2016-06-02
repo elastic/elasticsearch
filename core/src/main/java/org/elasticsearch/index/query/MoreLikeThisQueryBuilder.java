@@ -57,7 +57,6 @@ import org.elasticsearch.index.mapper.core.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.mapper.core.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -806,7 +805,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         builder.endObject();
     }
 
-    public static MoreLikeThisQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<MoreLikeThisQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         // document inputs
@@ -956,7 +955,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         if (stopWords != null) {
             moreLikeThisQueryBuilder.stopWords(stopWords);
         }
-        return moreLikeThisQueryBuilder;
+        return Optional.of(moreLikeThisQueryBuilder);
     }
 
     private static void parseLikeField(QueryParseContext parseContext, List<String> texts, List<Item> items) throws IOException {
@@ -1197,7 +1196,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         // TODO this needs heavy cleanups before we can rewrite it
         return this;
     }

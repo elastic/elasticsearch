@@ -85,6 +85,20 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
     final String transportNodeBroadcastAction;
 
     public TransportBroadcastByNodeAction(
+        Settings settings,
+        String actionName,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<Request> request,
+        String executor) {
+        this(settings, actionName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, request,
+            executor, true);
+    }
+
+    public TransportBroadcastByNodeAction(
             Settings settings,
             String actionName,
             ThreadPool threadPool,
@@ -93,7 +107,8 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<Request> request,
-            String executor) {
+            String executor,
+            boolean canTripCircuitBreaker) {
         super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
 
         this.clusterService = clusterService;
@@ -101,7 +116,8 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         transportNodeBroadcastAction = actionName + "[n]";
 
-        transportService.registerRequestHandler(transportNodeBroadcastAction, NodeRequest::new, executor, new BroadcastByNodeTransportRequestHandler());
+        transportService.registerRequestHandler(transportNodeBroadcastAction, NodeRequest::new, executor, false, canTripCircuitBreaker,
+            new BroadcastByNodeTransportRequestHandler());
     }
 
     private Response newResponse(
@@ -475,7 +491,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             int size = in.readVInt();
             shards = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                shards.add(ShardRouting.readShardRoutingEntry(in));
+                shards.add(new ShardRouting(in));
             }
             nodeId = in.readString();
         }

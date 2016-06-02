@@ -36,6 +36,7 @@ public class MustachePlugin extends Plugin {
     }
 
     public void onModule(ScriptModule module) {
-        module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.TYPES));
+        module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class,
+                        MustacheScriptEngineService.NAME, true));
     }
 }

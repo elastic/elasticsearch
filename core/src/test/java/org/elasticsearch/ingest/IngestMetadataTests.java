@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -57,7 +56,7 @@ public class IngestMetadataTests extends ESTestCase {
         builder.startObject();
         ingestMetadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
+        XContentBuilder shuffled = shuffleXContent(builder);
         final XContentParser parser = XContentFactory.xContent(shuffled.bytes()).createParser(shuffled.bytes());
         MetaData.Custom custom = ingestMetadata.fromXContent(parser);
         assertTrue(custom instanceof IngestMetadata);

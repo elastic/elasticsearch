@@ -35,22 +35,22 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.network.Cidrs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper;
 import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper.CustomLongNumericField;
 import org.elasticsearch.index.mapper.core.LegacyNumberFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.bucket.range.ipv4.InternalIPv4Range;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -218,7 +218,7 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
                 }
                 if (fromTo != null) {
                     return rangeQuery(fromTo[0] == 0 ? null : fromTo[0],
-                            fromTo[1] == InternalIPv4Range.MAX_IP ? null : fromTo[1], true, false);
+                            fromTo[1] == MAX_IP ? null : fromTo[1], true, false);
                 }
             }
             return super.termQuery(value, context);
@@ -233,21 +233,6 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            long iValue = parseValue(value);
-            long iSim;
-            try {
-                iSim = ipToLong(fuzziness.asString());
-            } catch (IllegalArgumentException e) {
-                iSim = fuzziness.asLong();
-            }
-            return LegacyNumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
-        }
-
-        @Override
         public FieldStats stats(IndexReader reader) throws IOException {
             int maxDoc = reader.maxDoc();
             Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
@@ -256,16 +241,23 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
             }
             long minValue = LegacyNumericUtils.getMinLong(terms);
             long maxValue = LegacyNumericUtils.getMaxLong(terms);
-            return new FieldStats.Ip(maxDoc, terms.getDocCount(), terms.getSumDocFreq(),
-                    terms.getSumTotalTermFreq(),
-                    InetAddress.getByName(longToIp(minValue)),
-                    InetAddress.getByName(longToIp(maxValue)));
+            return new FieldStats.Ip(maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(),
+                isSearchable(), isAggregatable(),
+                InetAddress.getByName(longToIp(minValue)),
+                InetAddress.getByName(longToIp(maxValue)));
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
+            return new IndexFieldData.Builder() {
+                @Override
+                public IndexFieldData<?> build(IndexSettings indexSettings,
+                        MappedFieldType fieldType, IndexFieldDataCache cache,
+                        CircuitBreakerService breakerService, MapperService mapperService) {
+                    return new LegacyIpIndexFieldData(indexSettings.getIndex(), name());
+                }
+            };
         }
 
         @Override

@@ -44,8 +44,8 @@ public class Queries {
     }
 
     /** Return a query that matches no document. */
-    public static Query newMatchNoDocsQuery() {
-        return new BooleanQuery.Builder().build();
+    public static Query newMatchNoDocsQuery(String reason) {
+        return new MatchNoDocsQuery(reason);
     }
 
     public static Query newNestedFilter() {

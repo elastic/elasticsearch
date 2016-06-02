@@ -31,7 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -54,8 +54,6 @@ import java.util.Map;
 public final class MustacheScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     public static final String NAME = "mustache";
-
-    public static final List<String> TYPES = Collections.singletonList(NAME);
 
     static final String CONTENT_TYPE_PARAM = "content_type";
     static final String JSON_CONTENT_TYPE = "application/json";
@@ -88,12 +86,12 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
      * Compile a template string to (in this case) a Mustache object than can
      * later be re-used for execution to fill in missing parameter values.
      *
-     * @param template
+     * @param templateSource
      *            a string representing the template to compile.
      * @return a compiled template object for later execution.
      * */
     @Override
-    public Object compile(String template, Map<String, String> params) {
+    public Object compile(String templateName, String templateSource, Map<String, String> params) {
         String contentType = params.getOrDefault(CONTENT_TYPE_PARAM, JSON_CONTENT_TYPE);
         final DefaultMustacheFactory mustacheFactory;
         switch (contentType){
@@ -107,23 +105,18 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
                 break;
         }
         mustacheFactory.setObjectHandler(new CustomReflectionObjectHandler());
-        Reader reader = new FastStringReader(template);
+        Reader reader = new FastStringReader(templateSource);
         return mustacheFactory.compile(reader, "query-template");
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override
-    public List<String> getExtensions() {
-        return TYPES;
-    }
-
-    @Override
-    public boolean isSandboxed() {
-        return true;
+    public String getExtension() {
+        return NAME;
     }
 
     @Override
@@ -192,7 +185,7 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
                 });
             } catch (Exception e) {
                 logger.error("Error running {}", e, template);
-                throw new ScriptException("Error running " + template, e);
+                throw new GeneralScriptException("Error running " + template, e);
             }
             return result.bytes();
         }

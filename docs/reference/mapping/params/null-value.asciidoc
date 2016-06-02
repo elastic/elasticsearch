@@ -43,7 +43,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Replace explicit `null` values with the term `NULL`.
 <2> An empty array does not contain an explicit `null`, and so won't be replaced with the `null_value`.
 <3> A query for `NULL` returns document 1, but not document 2.

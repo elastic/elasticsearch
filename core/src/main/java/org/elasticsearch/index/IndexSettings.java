@@ -393,7 +393,7 @@ public final class IndexSettings {
      */
     synchronized boolean updateIndexMetaData(IndexMetaData indexMetaData) {
         final Settings newSettings = indexMetaData.getSettings();
-        if (Version.indexCreated(newSettings) != version) {
+        if (version.equals(Version.indexCreated(newSettings)) == false) {
             throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + Version.indexCreated(newSettings));
         }
         final String newUUID = newSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);

@@ -29,6 +29,8 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -61,7 +63,8 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
                 .string();
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        MapperService mapperService = createIndex("test").mapperService();
+        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);
 
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -86,7 +89,7 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
         CustomFieldsVisitor fieldsVisitor = new CustomFieldsVisitor(
                 Collections.emptySet(), Collections.singletonList("field*"), false);
         searcher.doc(0, fieldsVisitor);
-        fieldsVisitor.postProcess(mapper);
+        fieldsVisitor.postProcess(mapperService);
         assertThat(fieldsVisitor.fields().size(), equalTo(10));
         assertThat(fieldsVisitor.fields().get("field1").size(), equalTo(1));
         assertThat(fieldsVisitor.fields().get("field1").get(0), equalTo((byte) 1));

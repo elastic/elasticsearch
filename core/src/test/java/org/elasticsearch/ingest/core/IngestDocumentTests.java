@@ -199,7 +199,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testGetFieldValueNull() {
         try {
-            ingestDocument.getFieldValue(null, String.class);
+            ingestDocument.getFieldValue((String) null, String.class);
             fail("get field value should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -263,7 +263,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testHasFieldNull() {
         try {
-            ingestDocument.hasField(null);
+            ingestDocument.hasField((String) null);
             fail("has field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));

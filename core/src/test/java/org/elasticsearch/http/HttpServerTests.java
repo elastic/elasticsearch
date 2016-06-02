@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.ByteBufferBytesReference;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -66,7 +67,8 @@ public class HttpServerTests extends ESTestCase {
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         RestController restController = new RestController(settings);
         restController.registerHandler(RestRequest.Method.GET, "/",
-            (request, channel) -> channel.sendResponse(new BytesRestResponse(RestStatus.OK)));
+            (request, channel) -> channel.sendResponse(
+                new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
         restController.registerHandler(RestRequest.Method.GET, "/error", (request, channel) -> {
                 throw new IllegalArgumentException("test error");
             });

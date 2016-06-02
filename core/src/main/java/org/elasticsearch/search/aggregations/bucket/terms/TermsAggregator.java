@@ -139,10 +139,10 @@ public abstract class TermsAggregator extends BucketsAggregator {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(TermsAggregatorBuilder.REQUIRED_SIZE_FIELD_NAME.getPreferredName(), requiredSize);
-            builder.field(TermsAggregatorBuilder.SHARD_SIZE_FIELD_NAME.getPreferredName(), shardSize);
-            builder.field(TermsAggregatorBuilder.MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), minDocCount);
-            builder.field(TermsAggregatorBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), shardMinDocCount);
+            builder.field(TermsAggregationBuilder.REQUIRED_SIZE_FIELD_NAME.getPreferredName(), requiredSize);
+            builder.field(TermsAggregationBuilder.SHARD_SIZE_FIELD_NAME.getPreferredName(), shardSize);
+            builder.field(TermsAggregationBuilder.MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), minDocCount);
+            builder.field(TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), shardMinDocCount);
             return builder;
         }
 
@@ -199,7 +199,6 @@ public abstract class TermsAggregator extends BucketsAggregator {
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
         return collectMode == SubAggCollectionMode.BREADTH_FIRST
-                && aggregator.needsScores() == false
                 && !aggsUsedForSorting.contains(aggregator);
     }
 

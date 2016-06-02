@@ -43,10 +43,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -54,6 +56,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.shard.RefreshListeners;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.store.DirectoryService;
@@ -76,6 +79,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
@@ -173,7 +177,7 @@ public class ShadowEngineTests extends ESTestCase {
         document.add(uidField);
         document.add(versionField);
         document.add(new LongPoint("point_field", 42)); // so that points report memory/disk usage
-        return new ParsedDocument(uidField, versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingsUpdate);
+        return new ParsedDocument(versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingsUpdate);
     }
 
     protected Store createStore(Path p) throws IOException {
@@ -984,6 +988,33 @@ public class ShadowEngineTests extends ESTestCase {
         } catch (UnsupportedOperationException ex) {
             // all good
         }
+    }
+
+    public void testDocStats() throws IOException {
+        final int numDocs = randomIntBetween(2, 10); // at least 2 documents otherwise we don't see any deletes below
+        for (int i = 0; i < numDocs; i++) {
+            ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
+            Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime());
+            primaryEngine.index(firstIndexRequest);
+            assertThat(firstIndexRequest.version(), equalTo(1L));
+        }
+        DocsStats docStats = primaryEngine.getDocStats();
+        assertEquals(numDocs, docStats.getCount());
+        assertEquals(0, docStats.getDeleted());
+
+        docStats = replicaEngine.getDocStats();
+        assertEquals(0, docStats.getCount());
+        assertEquals(0, docStats.getDeleted());
+        primaryEngine.flush();
+
+        docStats = replicaEngine.getDocStats();
+        assertEquals(0, docStats.getCount());
+        assertEquals(0, docStats.getDeleted());
+        replicaEngine.refresh("test");
+        docStats = replicaEngine.getDocStats();
+        assertEquals(numDocs, docStats.getCount());
+        assertEquals(0, docStats.getDeleted());
+        primaryEngine.forceMerge(randomBoolean(), 1, false, false, false);
     }
 
     public void testRefreshListenersFails() throws IOException {

@@ -23,6 +23,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -66,9 +67,9 @@ public class RestHeadAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(GetResponse response) {
                 if (!response.isExists()) {
-                    return new BytesRestResponse(NOT_FOUND);
+                    return new BytesRestResponse(NOT_FOUND, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
                 } else {
-                    return new BytesRestResponse(OK);
+                    return new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
                 }
             }
         });

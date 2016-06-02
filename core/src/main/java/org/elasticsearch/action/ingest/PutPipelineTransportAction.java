@@ -80,7 +80,7 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
             public void onResponse(NodesInfoResponse nodeInfos) {
                 try {
                     Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
-                    for (NodeInfo nodeInfo : nodeInfos) {
+                    for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
                         ingestInfos.put(nodeInfo.getNode(), nodeInfo.getIngest());
                     }
                     pipelineStore.put(clusterService, ingestInfos, request, listener);

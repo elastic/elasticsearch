@@ -105,10 +105,10 @@ LimitMEMLOCK=infinity
 ==== Setting JVM system properties
 
 The preferred method of setting Java Virtual Machine options (including
-system properties and JVM flags) is via the jvm.options configuration
-file. The default location of this file is config/jvm.options (when
+system properties and JVM flags) is via the `jvm.options` configuration
+file. The default location of this file is `config/jvm.options` (when
 installing from the tar or zip distributions) and
-/etc/elasticsearch/jvm.options (when installing from the Debian or RPM
+`/etc/elasticsearch/jvm.options` (when installing from the Debian or RPM
 packages). This file contains a line-delimited list of JVM arguments,
 which must begin with `-`. You can add custom JVM flags to this file and
 check this configuration into your version control system.

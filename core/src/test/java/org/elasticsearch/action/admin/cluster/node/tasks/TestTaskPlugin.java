@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -44,6 +45,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -56,7 +59,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
 
@@ -109,48 +111,51 @@ public class TestTaskPlugin extends Plugin {
         }
     }
 
-    public static class NodesResponse extends BaseNodesResponse<NodeResponse> {
-
-        private int failureCount;
+    public static class NodesResponse extends BaseNodesResponse<NodeResponse> implements ToXContent {
 
         NodesResponse() {
 
         }
 
-        public NodesResponse(ClusterName clusterName, NodeResponse[] nodes, int failureCount) {
-            super(clusterName, nodes);
-            this.failureCount = failureCount;
+        public NodesResponse(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
+            super(clusterName, nodes, failures);
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            failureCount = in.readVInt();
+        protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
+            return in.readStreamableList(NodeResponse::new);
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeVInt(failureCount);
+        protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
+            out.writeStreamableList(nodes);
         }
 
-        public int failureCount() {
-            return failureCount;
+        public int getFailureCount() {
+            return failures().size();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field("failure_count", getFailureCount());
+            return builder;
         }
     }
 
     public static class NodeRequest extends BaseNodeRequest {
         protected String requestName;
         protected String nodeId;
+        protected boolean shouldBlock;
 
         public NodeRequest() {
             super();
         }
 
-        public NodeRequest(NodesRequest request, String nodeId) {
+        public NodeRequest(NodesRequest request, String nodeId, boolean shouldBlock) {
             super(nodeId);
             requestName = request.requestName;
             this.nodeId = nodeId;
+            this.shouldBlock = shouldBlock;
         }
 
         @Override
@@ -158,6 +163,7 @@ public class TestTaskPlugin extends Plugin {
             super.readFrom(in);
             requestName = in.readString();
             nodeId = in.readString();
+            shouldBlock = in.readBoolean();
         }
 
         @Override
@@ -165,6 +171,7 @@ public class TestTaskPlugin extends Plugin {
             super.writeTo(out);
             out.writeString(requestName);
             out.writeString(nodeId);
+            out.writeBoolean(shouldBlock);
         }
 
         @Override
@@ -180,6 +187,9 @@ public class TestTaskPlugin extends Plugin {
 
     public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
         private String requestName;
+        private boolean shouldPersistResult = false;
+        private boolean shouldBlock = true;
+        private boolean shouldFail = false;
 
         NodesRequest() {
             super();
@@ -190,16 +200,47 @@ public class TestTaskPlugin extends Plugin {
             this.requestName = requestName;
         }
 
+        public void setShouldPersistResult(boolean shouldPersistResult) {
+            this.shouldPersistResult = shouldPersistResult;
+        }
+
+        @Override
+        public boolean getShouldPersistResult() {
+            return shouldPersistResult;
+        }
+
+        public void setShouldBlock(boolean shouldBlock) {
+            this.shouldBlock = shouldBlock;
+        }
+
+        public boolean getShouldBlock() {
+            return shouldBlock;
+        }
+
+        public void setShouldFail(boolean shouldFail) {
+            this.shouldFail = shouldFail;
+        }
+
+        public boolean getShouldFail() {
+            return shouldFail;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             requestName = in.readString();
+            shouldPersistResult = in.readBoolean();
+            shouldBlock = in.readBoolean();
+            shouldFail = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(requestName);
+            out.writeBoolean(shouldPersistResult);
+            out.writeBoolean(shouldBlock);
+            out.writeBoolean(shouldFail);
         }
 
         @Override
@@ -219,32 +260,23 @@ public class TestTaskPlugin extends Plugin {
         public TransportTestTaskAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                        ClusterService clusterService, TransportService transportService) {
             super(settings, TestTaskAction.NAME, clusterName, threadPool, clusterService, transportService,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
-                NodesRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC);
+                  new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
+                  NodesRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeResponse.class);
         }
 
         @Override
-        protected NodesResponse newResponse(NodesRequest request, AtomicReferenceArray responses) {
-            final List<NodeResponse> nodesList = new ArrayList<>();
-            int failureCount = 0;
-            for (int i = 0; i < responses.length(); i++) {
-                Object resp = responses.get(i);
-                if (resp instanceof NodeResponse) { // will also filter out null response for unallocated ones
-                    nodesList.add((NodeResponse) resp);
-                } else if (resp instanceof FailedNodeException) {
-                    failureCount++;
-                } else {
-                    logger.warn("unknown response type [{}], expected NodeLocalGatewayMetaState or FailedNodeException", resp);
-                }
+        protected NodesResponse newResponse(NodesRequest request, List<NodeResponse> responses, List<FailedNodeException> failures) {
+            if (request.getShouldFail()) {
+                throw new IllegalStateException("Simulating operation failure");
             }
-            return new NodesResponse(clusterName, nodesList.toArray(new NodeResponse[nodesList.size()]), failureCount);
+            return new NodesResponse(clusterName, responses, failures);
         }
 
         @Override
         protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
             List<String> list = new ArrayList<>();
             for (String node : nodesIds) {
-                if (nodes.getDataNodes().containsKey(node)) {
+                if (nodes.nodeExists(node)) {
                     list.add(node);
                 }
             }
@@ -253,7 +285,7 @@ public class TestTaskPlugin extends Plugin {
 
         @Override
         protected NodeRequest newNodeRequest(String nodeId, NodesRequest request) {
-            return new NodeRequest(request, nodeId);
+            return new NodeRequest(request, nodeId, request.getShouldBlock());
         }
 
         @Override
@@ -269,15 +301,17 @@ public class TestTaskPlugin extends Plugin {
         @Override
         protected NodeResponse nodeOperation(NodeRequest request, Task task) {
             logger.info("Test task started on the node {}", clusterService.localNode());
-            try {
-                awaitBusy(() -> {
-                    if (((CancellableTask) task).isCancelled()) {
-                        throw new RuntimeException("Cancelled!");
-                    }
-                    return ((TestTask) task).isBlocked() == false;
-                });
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
+            if (request.shouldBlock) {
+                try {
+                    awaitBusy(() -> {
+                        if (((CancellableTask) task).isCancelled()) {
+                            throw new RuntimeException("Cancelled!");
+                        }
+                        return ((TestTask) task).isBlocked() == false;
+                    });
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
             }
             logger.info("Test task finished on the node {}", clusterService.localNode());
             return new NodeResponse(clusterService.localNode());
@@ -314,10 +348,26 @@ public class TestTaskPlugin extends Plugin {
         }
     }
 
-    public static class NodesRequestBuilder extends ActionRequestBuilder<NodesRequest, NodesResponse, NodesRequestBuilder> {
+    public static class NodesRequestBuilder extends NodesOperationRequestBuilder<NodesRequest, NodesResponse, NodesRequestBuilder> {
 
         protected NodesRequestBuilder(ElasticsearchClient client, Action<NodesRequest, NodesResponse, NodesRequestBuilder> action) {
             super(client, action, new NodesRequest("test"));
+        }
+
+
+        public NodesRequestBuilder setShouldPersistResult(boolean shouldPersistResult) {
+            request().setShouldPersistResult(shouldPersistResult);
+            return this;
+        }
+
+        public NodesRequestBuilder setShouldBlock(boolean shouldBlock) {
+            request().setShouldBlock(shouldBlock);
+            return this;
+        }
+
+        public NodesRequestBuilder setShouldFail(boolean shouldFail) {
+            request().setShouldFail(shouldFail);
+            return this;
         }
     }
 

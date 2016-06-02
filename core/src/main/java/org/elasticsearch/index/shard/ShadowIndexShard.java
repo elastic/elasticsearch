@@ -48,12 +48,12 @@ import java.util.function.Consumer;
  */
 public final class ShadowIndexShard extends IndexShard {
 
-    public ShadowIndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache,
+    public ShadowIndexShard(ShardRouting shardRouting, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache,
                             MapperService mapperService, SimilarityService similarityService, IndexFieldDataService indexFieldDataService,
                             @Nullable EngineFactory engineFactory, IndexEventListener indexEventListener, IndexSearcherWrapper wrapper,
                             ThreadPool threadPool, BigArrays bigArrays, Engine.Warmer engineWarmer,
                             List<SearchOperationListener> searchOperationListeners) throws IOException {
-        super(shardId, indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldDataService, engineFactory,
+        super(shardRouting, indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldDataService, engineFactory,
             indexEventListener, wrapper, threadPool, bigArrays, engineWarmer, searchOperationListeners, Collections.emptyList());
     }
 
@@ -97,10 +97,6 @@ public final class ShadowIndexShard extends IndexShard {
     @Override
     public boolean shouldFlush() {
         // we don't need to flush since we don't write - all dominated by the primary
-        return false;
-    }
-
-    public boolean allowsPrimaryPromotion() {
         return false;
     }
 

@@ -29,11 +29,9 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -66,7 +64,6 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.containsString;
@@ -113,39 +110,6 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
 
         assertSuggestionsNotInOrder("f", "Foo Fighters", "Firestarter", "Foo Fighters Generator", "Foo Fighters Learn to Fly");
         assertSuggestionsNotInOrder("t", "The Prodigy", "Turbonegro", "Turbonegro Get it on", "The Prodigy Firestarter");
-    }
-
-    public void testSuggestFieldWithPercolateApi() throws Exception {
-        createIndexAndMapping(completionMappingBuilder);
-        String[][] inputs = {{"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"},
-            {"Generator", "Foo Fighters Generator"}, {"Learn to Fly", "Foo Fighters Learn to Fly"},
-            {"The Prodigy"}, {"The Prodigy"}, {"The Prodigy"}, {"Firestarter", "The Prodigy Firestarter"},
-            {"Turbonegro"}, {"Turbonegro"}, {"Get it on", "Turbonegro Get it on"}}; // work with frequencies
-        for (int i = 0; i < inputs.length; i++) {
-            XContentBuilder source = jsonBuilder()
-                .startObject().startObject(FIELD)
-                .startArray("input");
-            for (String input : inputs[i]) {
-                source.value(input);
-            }
-            source.endArray()
-                .endObject()
-                .endObject();
-            client().prepareIndex(INDEX, TYPE, "" + i)
-                .setSource(source).execute().actionGet();
-        }
-
-        client().prepareIndex(INDEX, ".percolator", "4")
-            .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
-            .execute().actionGet();
-
-        refresh();
-
-        PercolateResponse response = client().preparePercolate().setIndices(INDEX).setDocumentType(TYPE)
-            .setGetRequest(Requests.getRequest(INDEX).type(TYPE).id("1"))
-            .execute().actionGet();
-        assertThat(response.getCount(), equalTo(1L));
-
     }
 
     public void testBasicPrefixSuggestion() throws Exception {

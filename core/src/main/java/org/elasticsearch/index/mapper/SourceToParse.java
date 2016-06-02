@@ -19,38 +19,33 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.util.Objects;
+
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 /**
  *
  */
 public class SourceToParse {
 
-    public static SourceToParse source(XContentParser parser) {
-        return new SourceToParse(Origin.PRIMARY, parser);
+    public static SourceToParse source(String index, String type, String id, BytesReference source) {
+        return source(Origin.PRIMARY, index, type, id, source);
     }
 
-    public static SourceToParse source(BytesReference source) {
-        return new SourceToParse(Origin.PRIMARY, source);
-    }
-
-    public static SourceToParse source(Origin origin, BytesReference source) {
-        return new SourceToParse(origin, source);
+    public static SourceToParse source(Origin origin, String index, String type, String id, BytesReference source) {
+        return new SourceToParse(origin, index, type, id, source);
     }
 
     private final Origin origin;
 
     private final BytesReference source;
 
-    private final XContentParser parser;
+    private final String index;
 
-    private String index;
+    private final String type;
 
-    private String type;
-
-    private String id;
+    private final String id;
 
     private String routing;
 
@@ -60,26 +55,18 @@ public class SourceToParse {
 
     private long ttl;
 
-    private SourceToParse(Origin origin, XContentParser parser) {
-        this.origin = origin;
-        this.parser = parser;
-        this.source = null;
-    }
-
-    private SourceToParse(Origin origin, BytesReference source) {
-        this.origin = origin;
+    private SourceToParse(Origin origin, String index, String type, String id, BytesReference source) {
+        this.origin = Objects.requireNonNull(origin);
+        this.index = Objects.requireNonNull(index);
+        this.type = Objects.requireNonNull(type);
+        this.id = Objects.requireNonNull(id);
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
         this.source = source.toBytesArray();
-        this.parser = null;
     }
 
     public Origin origin() {
         return origin;
-    }
-
-    public XContentParser parser() {
-        return this.parser;
     }
 
     public BytesReference source() {
@@ -90,27 +77,12 @@ public class SourceToParse {
         return this.index;
     }
 
-    public SourceToParse index(String index) {
-        this.index = index;
-        return this;
-    }
-
     public String type() {
         return this.type;
     }
 
-    public SourceToParse type(String type) {
-        this.type = type;
-        return this;
-    }
-
     public String id() {
         return this.id;
-    }
-
-    public SourceToParse id(String id) {
-        this.id = id;
-        return this;
     }
 
     public String parent() {

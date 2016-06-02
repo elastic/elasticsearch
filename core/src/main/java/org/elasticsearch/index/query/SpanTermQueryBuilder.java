@@ -31,12 +31,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * A Span Query that matches documents containing a term.
  * @see SpanTermQuery
  */
-public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuilder> implements SpanQueryBuilder<SpanTermQueryBuilder> {
+public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuilder> implements SpanQueryBuilder {
 
     public static final String NAME = "span_term";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
@@ -93,7 +94,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
         return new SpanTermQuery(term);
     }
 
-    public static SpanTermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
+    public static Optional<SpanTermQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.currentToken();
@@ -142,7 +143,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
 
         SpanTermQueryBuilder result = new SpanTermQueryBuilder(fieldName, value);
         result.boost(boost).queryName(queryName);
-        return result;
+        return Optional.of(result);
     }
 
     @Override

@@ -19,8 +19,12 @@
 
 package org.elasticsearch.tasks;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -28,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.transport.TransportRequest;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,11 +57,18 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
 
     private final Map<TaskId, String> banedParents = new ConcurrentHashMap<>();
 
+    private TaskResultsService taskResultsService;
+
+    private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
+
     public TaskManager(Settings settings) {
         super(settings);
     }
 
-    private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
+    public void setTaskResultsService(TaskResultsService taskResultsService) {
+        assert this.taskResultsService == null;
+        this.taskResultsService = taskResultsService;
+    }
 
     /**
      * Registers a task without parent task
@@ -128,6 +140,72 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
         } else {
             return tasks.remove(task.getId());
         }
+    }
+
+    /**
+     * Stores the task failure
+     */
+    public <Response extends  ActionResponse> void persistResult(Task task, Throwable error, ActionListener<Response> listener) {
+        DiscoveryNode localNode = lastDiscoveryNodes.getLocalNode();
+        if (localNode == null) {
+            // too early to persist anything, shouldn't really be here - just pass the error along
+            listener.onFailure(error);
+            return;
+        }
+        final TaskResult taskResult;
+        try {
+            taskResult = task.result(localNode, error);
+        } catch (IOException ex) {
+            logger.warn("couldn't persist error {}", ex, ExceptionsHelper.detailedMessage(error));
+            listener.onFailure(ex);
+            return;
+        }
+        taskResultsService.persist(taskResult, new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void aVoid) {
+                listener.onFailure(error);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                logger.warn("couldn't persist error {}", e, ExceptionsHelper.detailedMessage(error));
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    /**
+     * Stores the task result
+     */
+    public <Response extends  ActionResponse> void persistResult(Task task, Response response, ActionListener<Response> listener) {
+        DiscoveryNode localNode = lastDiscoveryNodes.getLocalNode();
+        if (localNode == null) {
+            // too early to persist anything, shouldn't really be here - just pass the response along
+            logger.warn("couldn't persist response {}, the node didn't join the cluster yet", response);
+            listener.onResponse(response);
+            return;
+        }
+        final TaskResult taskResult;
+        try {
+            taskResult = task.result(localNode, response);
+        } catch (IOException ex) {
+            logger.warn("couldn't persist response {}", ex, response);
+            listener.onFailure(ex);
+            return;
+        }
+
+        taskResultsService.persist(taskResult, new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void aVoid) {
+                listener.onResponse(response);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                logger.warn("couldn't persist response {}", e, response);
+                listener.onFailure(e);
+            }
+        });
     }
 
     /**
@@ -223,6 +301,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        lastDiscoveryNodes = event.state().getNodes();
         if (event.nodesRemoved()) {
             synchronized (banedParents) {
                 lastDiscoveryNodes = event.state().getNodes();

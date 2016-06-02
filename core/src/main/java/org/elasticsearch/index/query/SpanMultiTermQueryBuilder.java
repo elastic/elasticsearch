@@ -33,22 +33,23 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Query that allows wraping a {@link MultiTermQueryBuilder} (one of wildcard, fuzzy, prefix, term, range or regexp query)
  * as a {@link SpanQueryBuilder} so it can be nested.
  */
 public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTermQueryBuilder>
-        implements SpanQueryBuilder<SpanMultiTermQueryBuilder> {
+        implements SpanQueryBuilder {
 
     public static final String NAME = "span_multi";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField MATCH_FIELD = new ParseField("match");
 
-    private final MultiTermQueryBuilder<?> multiTermQueryBuilder;
+    private final MultiTermQueryBuilder multiTermQueryBuilder;
 
-    public SpanMultiTermQueryBuilder(MultiTermQueryBuilder<?> multiTermQueryBuilder) {
+    public SpanMultiTermQueryBuilder(MultiTermQueryBuilder multiTermQueryBuilder) {
         if (multiTermQueryBuilder == null) {
             throw new IllegalArgumentException("inner multi term query cannot be null");
         }
@@ -60,7 +61,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
      */
     public SpanMultiTermQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        multiTermQueryBuilder = (MultiTermQueryBuilder<?>) in.readNamedWriteable(QueryBuilder.class);
+        multiTermQueryBuilder = (MultiTermQueryBuilder) in.readNamedWriteable(QueryBuilder.class);
     }
 
     @Override
@@ -68,7 +69,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
         out.writeNamedWriteable(multiTermQueryBuilder);
     }
 
-    public MultiTermQueryBuilder<?> innerQuery() {
+    public MultiTermQueryBuilder innerQuery() {
         return this.multiTermQueryBuilder;
     }
 
@@ -82,7 +83,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
         builder.endObject();
     }
 
-    public static SpanMultiTermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<SpanMultiTermQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         String currentFieldName = null;
         MultiTermQueryBuilder subQuery = null;
@@ -94,12 +95,12 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseContext.getParseFieldMatcher().match(currentFieldName, MATCH_FIELD)) {
-                    QueryBuilder innerQuery = parseContext.parseInnerQueryBuilder();
-                    if (innerQuery instanceof MultiTermQueryBuilder == false) {
+                    Optional<QueryBuilder> query = parseContext.parseInnerQueryBuilder();
+                    if (query.isPresent() == false || query.get() instanceof MultiTermQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(),
                                 "[span_multi] [" + MATCH_FIELD.getPreferredName() + "] must be of type multi term query");
                     }
-                    subQuery = (MultiTermQueryBuilder) innerQuery;
+                    subQuery = (MultiTermQueryBuilder) query.get();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_multi] query does not support [" + currentFieldName + "]");
                 }
@@ -119,7 +120,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                     "[span_multi] must have [" + MATCH_FIELD.getPreferredName() + "] multi term query clause");
         }
 
-        return new SpanMultiTermQueryBuilder(subQuery).queryName(queryName).boost(boost);
+        return Optional.of(new SpanMultiTermQueryBuilder(subQuery).queryName(queryName).boost(boost));
     }
 
     @Override

@@ -23,13 +23,18 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 public class QueryParseContext implements ParseFieldMatcherSupplier {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(QueryParseContext.class));
 
     private static final ParseField CACHE = new ParseField("_cache").withAllDeprecated("Elasticsearch makes its own caching decisions");
     private static final ParseField CACHE_KEY = new ParseField("_cache_key").withAllDeprecated("Filters are always used as cache keys");
@@ -55,14 +60,14 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
     /**
      * Parses a top level query including the query element that wraps it
      */
-    public QueryBuilder<?> parseTopLevelQueryBuilder() {
+    public QueryBuilder parseTopLevelQueryBuilder() {
         try {
-            QueryBuilder<?> queryBuilder = null;
+            QueryBuilder queryBuilder = null;
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String fieldName = parser.currentName();
                     if ("query".equals(fieldName)) {
-                        queryBuilder = parseInnerQueryBuilder();
+                        queryBuilder = parseInnerQueryBuilder().orElse(null);
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "request does not support [" + parser.currentName() + "]");
                     }
@@ -82,7 +87,7 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
     /**
      * Parses a query excluding the query element that wraps it
      */
-    public QueryBuilder<?> parseInnerQueryBuilder() throws IOException {
+    public Optional<QueryBuilder> parseInnerQueryBuilder() throws IOException {
         // move to START object
         XContentParser.Token token;
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
@@ -93,8 +98,13 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
         }
         token = parser.nextToken();
         if (token == XContentParser.Token.END_OBJECT) {
-            // empty query
-            return new EmptyQueryBuilder();
+            // we encountered '{}' for a query clause
+            String msg = "query malformed, empty clause found at [" + parser.getTokenLocation() +"]";
+            DEPRECATION_LOGGER.deprecated(msg);
+            if (parseFieldMatcher.isStrict()) {
+                throw new IllegalArgumentException(msg);
+            }
+            return Optional.empty();
         }
         if (token != XContentParser.Token.FIELD_NAME) {
             throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
@@ -105,7 +115,9 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
         if (token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY) {
             throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
         }
-        QueryBuilder<?> result = indicesQueriesRegistry.lookup(queryName, parseFieldMatcher, parser.getTokenLocation()).fromXContent(this);
+        @SuppressWarnings("unchecked")
+        Optional<QueryBuilder> result = (Optional<QueryBuilder>) indicesQueriesRegistry.lookup(queryName, parseFieldMatcher,
+                parser.getTokenLocation()).fromXContent(this);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
             // if we are at END_OBJECT, move to the next one...
             parser.nextToken();

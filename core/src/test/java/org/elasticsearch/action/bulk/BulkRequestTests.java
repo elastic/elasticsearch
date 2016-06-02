@@ -88,7 +88,7 @@ public class BulkRequestTests extends ESTestCase {
         Script script = ((UpdateRequest) bulkRequest.requests().get(1)).script();
         assertThat(script, notNullValue());
         assertThat(script.getScript(), equalTo("counter += param1"));
-        assertThat(script.getLang(), equalTo("js"));
+        assertThat(script.getLang(), equalTo("javascript"));
         Map<String, Object> scriptParams = script.getParams();
         assertThat(scriptParams, notNullValue());
         assertThat(scriptParams.size(), equalTo(1));
@@ -210,5 +210,12 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(validate.validationErrors(), contains(
                 "script or doc is missing",
                 "source is missing"));
+    }
+
+    public void testCannotAddNullRequests() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest();
+        expectThrows(NullPointerException.class, () -> bulkRequest.add((IndexRequest) null));
+        expectThrows(NullPointerException.class, () -> bulkRequest.add((UpdateRequest) null));
+        expectThrows(NullPointerException.class, () -> bulkRequest.add((DeleteRequest) null));
     }
 }

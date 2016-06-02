@@ -107,4 +107,12 @@ public class ParseField {
     public String[] getDeprecatedNames() {
         return deprecatedNames;
     }
+
+    public static class CommonFields {
+        public static final ParseField FIELD = new ParseField("field");
+        public static final ParseField FIELDS = new ParseField("fields");
+        public static final ParseField FORMAT = new ParseField("format");
+        public static final ParseField MISSING = new ParseField("missing");
+        public static final ParseField TIME_ZONE = new ParseField("time_zone");
+    }
 }

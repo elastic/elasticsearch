@@ -47,7 +47,7 @@ GET my_index/my_parent/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `my_parent` type is parent to the `my_child` type.
 <2> Index a parent document.
 <3> Index two child documents, specifying the parent document's ID.
@@ -59,8 +59,8 @@ See the <<query-dsl-has-child-query,`has_child`>> and
 the <<search-aggregations-bucket-children-aggregation,`children`>> aggregation,
 and <<parent-child-inner-hits,inner hits>> for more information.
 
-The value of the `_parent` field is accessible in queries, aggregations, scripts,
-and when sorting:
+The value of the `_parent` field is accessible in queries, aggregations,
+and scripts:
 
 [source,js]
 --------------------------
@@ -79,26 +79,19 @@ GET my_index/_search
       }
     }
   },
-  "sort": [
-    {
-      "_parent": { <3>
-        "order": "desc"
-      }
-    }
-  ],
   "script_fields": {
     "parent": {
-      "script": "doc['_parent']" <4>
+      "script": "doc['_parent']" <3>
     }
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
 
 <1> Querying on the `_parent` field (also see the <<query-dsl-has-parent-query,`has_parent` query>> and the <<query-dsl-has-child-query,`has_child` query>>)
 <2> Aggregating on the `_parent` field (also see the <<search-aggregations-bucket-children-aggregation,`children`>> aggregation)
-<3> Sorting on the `_parent` field
-<4> Accessing the `_parent` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)
+<3> Accessing the `_parent` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)
 
 
 ==== Parent-child restrictions
@@ -145,7 +138,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The amount of heap used by global ordinals can be checked as follows:
 
@@ -157,5 +150,4 @@ GET _stats/fielddata?human&fields=_parent
 # Per-node per-index
 GET _nodes/stats/indices/fielddata?human&fields=_parent
 --------------------------------------------------
-// AUTOSENSE
-
+// CONSOLE

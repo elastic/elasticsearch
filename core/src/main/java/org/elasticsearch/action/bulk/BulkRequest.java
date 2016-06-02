@@ -44,6 +44,7 @@ import org.elasticsearch.index.VersionType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -131,6 +132,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     }
 
     BulkRequest internalAdd(IndexRequest request, @Nullable Object payload) {
+        Objects.requireNonNull(request, "'request' must not be null");
         requests.add(request);
         addPayload(payload);
         // lack of source is validated in validate() method
@@ -150,6 +152,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     }
 
     BulkRequest internalAdd(UpdateRequest request, @Nullable Object payload) {
+        Objects.requireNonNull(request, "'request' must not be null");
         requests.add(request);
         addPayload(payload);
         if (request.doc() != null) {
@@ -172,6 +175,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     }
 
     public BulkRequest add(DeleteRequest request, @Nullable Object payload) {
+        Objects.requireNonNull(request, "'request' must not be null");
         requests.add(request);
         addPayload(payload);
         sizeInBytes += REQUEST_OVERHEAD;

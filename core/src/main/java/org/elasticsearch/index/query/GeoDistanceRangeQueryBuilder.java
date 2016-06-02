@@ -46,6 +46,7 @@ import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.apache.lucene.spatial.util.GeoEncodingUtils.TOLERANCE;
 
@@ -78,8 +79,10 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
     private static final ParseField NAME_FIELD = new ParseField("_name");
     private static final ParseField BOOST_FIELD = new ParseField("boost");
     private static final ParseField OPTIMIZE_BBOX_FIELD = new ParseField("optimize_bbox");
-    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
-    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
+    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize")
+            .withAllDeprecated("use validation_method instead");
+    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed")
+            .withAllDeprecated("use validation_method instead");
     private static final ParseField VALIDATION_METHOD = new ParseField("validation_method");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
@@ -338,7 +341,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                 fromValue = geoDistance.normalize(fromValue, DistanceUnit.DEFAULT);
             }
         } else {
-            fromValue = new Double(0);
+            fromValue = 0.0;
         }
 
         if (to != null) {
@@ -389,7 +392,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         builder.endObject();
     }
 
-    public static GeoDistanceRangeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<GeoDistanceRangeQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token;
@@ -601,7 +604,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             queryBuilder.setValidationMethod(GeoValidationMethod.infer(coerce, ignoreMalformed));
         }
         queryBuilder.ignoreUnmapped(ignoreUnmapped);
-        return queryBuilder;
+        return Optional.of(queryBuilder);
     }
 
     @Override

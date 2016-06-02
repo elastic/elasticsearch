@@ -43,8 +43,11 @@ public abstract class AbstractMustacheTestCase extends ESTestCase {
             .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
             .build();
         MustacheScriptEngineService mustache = new MustacheScriptEngineService(settings);
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(
-                new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.TYPES)));
+        ScriptEngineRegistry scriptEngineRegistry =
+                new ScriptEngineRegistry(Collections.singletonList(
+                                new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class,
+                                                                                  MustacheScriptEngineService.NAME,
+                                                                                  true)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         ScriptService scriptService = new ScriptService(settings, new Environment(settings), Collections.singleton(mustache), null,

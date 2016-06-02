@@ -1,80 +1,323 @@
 [[analysis-edgengram-tokenizer]]
 === Edge NGram Tokenizer
 
-A tokenizer of type `edgeNGram`.
+The `edge_ngram` tokenizer first breaks text down into words whenever it
+encounters one of a list of specified characters, then it emits
+https://en.wikipedia.org/wiki/N-gram[N-grams] of each word where the start of
+the N-gram is anchored to the beginning of the word.
 
-This tokenizer is very similar to `nGram` but only keeps n-grams which
-start at the beginning of a token.
+Edge N-Grams are useful for _search-as-you-type_ queries.
 
-The following are settings that can be set for a `edgeNGram` tokenizer
-type:
+TIP: When you need _search-as-you-type_ for text which has a widely known
+order, such as movie or song titles, the
+<<search-suggesters-completion,completion suggester>> is a much more efficient
+choice than edge N-grams.  Edge N-grams have the advantage when trying to
+autocomplete words that can appear in any order.
 
-[cols="<,<,<",options="header",]
-|=======================================================================
-|Setting |Description |Default value
-|`min_gram` |Minimum size in codepoints of a single n-gram |`1`.
+[float]
+=== Example output
 
-|`max_gram` |Maximum size in codepoints of a single n-gram |`2`.
+With the default settings, the `edge_ngram` tokenizer treats the initial text as a
+single token and produces N-grams with minimum length `1` and maximum length
+`2`:
 
-|`token_chars` | Characters classes to keep in the
-tokens, Elasticsearch will split on characters that don't belong to any
-of these classes. |`[]` (Keep all characters)
-|=======================================================================
+[source,js]
+---------------------------
+POST _analyze
+{
+  "tokenizer": "edge_ngram",
+  "text": "Quick Fox"
+}
+---------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "Q",
+      "start_offset": 0,
+      "end_offset": 1,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "Qu",
+      "start_offset": 0,
+      "end_offset": 2,
+      "type": "word",
+      "position": 1
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
 
 
-`token_chars` accepts the following character classes:
+The above sentence would produce the following terms:
+
+[source,text]
+---------------------------
+[ Q, Qu ]
+---------------------------
+
+NOTE: These default gram lengths are almost entirely useless.  You need to
+configure the `edge_ngram` before using it.
+
+[float]
+=== Configuration
+
+The `edge_ngram` tokenizer accepts the following parameters:
 
 [horizontal]
-`letter`::      for example `a`, `b`, `ï` or `京`
-`digit`::       for example `3` or `7`
-`whitespace`::  for example `" "` or `"\n"`
-`punctuation`:: for example `!` or `"`
-`symbol`::      for example `$` or `√`
+`min_gram`::
+    Minimum length of characters in a gram.  Defaults to `1`.
+
+`max_gram`::
+    Maximum length of characters in a gram.  Defaults to `2`.
+
+`token_chars`::
+
+    Character classes that should be included in a token.  Elasticsearch
+    will split on characters that don't belong to the classes specified.
+    Defaults to `[]` (keep all characters).
++
+Character classes may be any of the following:
++
+* `letter` --      for example `a`, `b`, `ï` or `京`
+* `digit` --       for example `3` or `7`
+* `whitespace` --  for example `" "` or `"\n"`
+* `punctuation` -- for example `!` or `"`
+* `symbol` --      for example `$` or `√`
 
 [float]
-==== Example
+=== Example configuration
+
+In this example, we configure the `edge_ngram` tokenizer to treat letters and
+digits as tokens, and to produce grams with minimum length `2` and maximum
+length `10`:
 
 [source,js]
---------------------------------------------------
-    curl -XPUT 'localhost:9200/test' -d '
-    {
-        "settings" : {
-            "analysis" : {
-                "analyzer" : {
-                    "my_edge_ngram_analyzer" : {
-                        "tokenizer" : "my_edge_ngram_tokenizer"
-                    }
-                },
-                "tokenizer" : {
-                    "my_edge_ngram_tokenizer" : {
-                        "type" : "edgeNGram",
-                        "min_gram" : "2",
-                        "max_gram" : "5",
-                        "token_chars": [ "letter", "digit" ]
-                    }
-                }
-            }
+----------------------------
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "my_tokenizer"
         }
-    }'
+      },
+      "tokenizer": {
+        "my_tokenizer": {
+          "type": "edge_ngram",
+          "min_gram": 2,
+          "max_gram": 10,
+          "token_chars": [
+            "letter",
+            "digit"
+          ]
+        }
+      }
+    }
+  }
+}
 
-    curl 'localhost:9200/test/_analyze?pretty=1&analyzer=my_edge_ngram_analyzer' -d 'FC Schalke 04'
-    # FC, Sc, Sch, Scha, Schal, 04
---------------------------------------------------
+GET _cluster/health?wait_for_status=yellow
 
-[float]
-==== `side` deprecated
+POST my_index/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "2 Quick Foxes."
+}
+----------------------------
+// CONSOLE
 
-There used to be a `side` parameter up to `0.90.1` but it is now deprecated. In
-order to emulate the behavior of `"side" : "BACK"` a
-<<analysis-reverse-tokenfilter,`reverse` token filter>>  should be used together
-with the <<analysis-edgengram-tokenfilter,`edgeNGram` token filter>>. The
-`edgeNGram` filter must be enclosed in `reverse` filters like this:
+/////////////////////
 
 [source,js]
---------------------------------------------------
-    "filter" : ["reverse", "edgeNGram", "reverse"]
---------------------------------------------------
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "Qu",
+      "start_offset": 2,
+      "end_offset": 4,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "Qui",
+      "start_offset": 2,
+      "end_offset": 5,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "Quic",
+      "start_offset": 2,
+      "end_offset": 6,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "Quick",
+      "start_offset": 2,
+      "end_offset": 7,
+      "type": "word",
+      "position": 3
+    },
+    {
+      "token": "Fo",
+      "start_offset": 8,
+      "end_offset": 10,
+      "type": "word",
+      "position": 4
+    },
+    {
+      "token": "Fox",
+      "start_offset": 8,
+      "end_offset": 11,
+      "type": "word",
+      "position": 5
+    },
+    {
+      "token": "Foxe",
+      "start_offset": 8,
+      "end_offset": 12,
+      "type": "word",
+      "position": 6
+    },
+    {
+      "token": "Foxes",
+      "start_offset": 8,
+      "end_offset": 13,
+      "type": "word",
+      "position": 7
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
 
-which essentially reverses the token, builds front `EdgeNGrams` and reverses
-the ngram again. This has the same effect as the previous `"side" : "BACK"` setting.
+/////////////////////
+
+The above example produces the following terms:
+
+[source,text]
+---------------------------
+[ Qu, Qui, Quic, Quick, Fo, Fox, Foxe, Foxes ]
+---------------------------
+
+Usually we recommend using the same `analyzer` at index time and at search
+time. In the case of the `edge_ngram` tokenizer, the advice is different.  It
+only makes sense to use the `edge_ngram` tokenizer at index time, to ensure
+that partial words are available for matching in the index.  At search time,
+just search for the terms the user has typed in, for instance: `Quick Fo`.
+
+Below is an example of how to set up a field for _search-as-you-type_:
+
+[source,js]
+-----------------------------------
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "autocomplete": {
+          "tokenizer": "autocomplete",
+          "filter": [
+            "lowercase"
+          ]
+        },
+        "autocomplete_search": {
+          "tokenizer": "lowercase"
+        }
+      },
+      "tokenizer": {
+        "autocomplete": {
+          "type": "edge_ngram",
+          "min_gram": 2,
+          "max_gram": 10,
+          "token_chars": [
+            "letter"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "doc": {
+      "properties": {
+        "title": {
+          "type": "text",
+          "analyzer": "autocomplete",
+          "search_analyzer": "autocomplete_search"
+        }
+      }
+    }
+  }
+}
+
+PUT my_index/doc/1
+{
+  "title": "Quick Foxes" <1>
+}
+
+POST my_index/_refresh
+
+GET my_index/_search
+{
+  "query": {
+    "match": {
+      "title": {
+        "query": "Quick Fo", <2>
+        "operator": "and"
+      }
+    }
+  }
+}
+-----------------------------------
+// CONSOLE
+
+<1> The `autocomplete` analyzer indexes the terms `[qu, qui, quic, quick, fo, fox, foxe, foxes]`.
+<2> The `autocomplete_search` analyzer searches for the terms `[quick, fo]`, both of which appear in the index.
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "took": $body.took,
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "failed": 0
+  },
+  "hits": {
+    "total": 1,
+    "max_score": 0.44194174,
+    "hits": [
+      {
+        "_index": "my_index",
+        "_type": "doc",
+        "_id": "1",
+        "_score": 0.44194174,
+        "_source": {
+          "title": "Quick Foxes"
+        }
+      }
+    ]
+  }
+}
+----------------------------
+// TESTRESPONSE[s/"took".*/"took": "$body.took",/]
+/////////////////////
+
 

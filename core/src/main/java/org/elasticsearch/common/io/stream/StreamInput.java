@@ -64,6 +64,14 @@ import static org.elasticsearch.ElasticsearchException.readStackTrace;
 
 /**
  * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
+ *
+ * This class's methods are optimized so you can put the methods that read and write a class next to each other and you can scan them
+ * visually for differences. That means that most variables should be read and written in a single line so even large objects fit both
+ * reading and writing on the screen. It also means that the methods on this class are named very similarly to {@link StreamOutput}. Finally
+ * it means that the "barrier to entry" for adding new methods to this class is relatively low even though it is a shared class with code
+ * everywhere. That being said, this class deals primarily with {@code List}s rather than Arrays. For the most part calls should adapt to
+ * lists, either by storing {@code List}s internally or just converting to and from a {@code List} when calling. This comment is repeated
+ * on {@link StreamInput}.
  */
 public abstract class StreamInput extends InputStream {
     private Version version = Version.CURRENT;
@@ -729,6 +737,29 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Read a {@link List} of {@link Streamable} objects, using the {@code constructor} to instantiate each instance.
+     * <p>
+     * This is expected to take the form:
+     * <code>
+     * List&lt;MyStreamableClass&gt; list = in.readStreamList(MyStreamableClass::new);
+     * </code>
+     *
+     * @param constructor Streamable instance creator
+     * @return Never {@code null}.
+     * @throws IOException if any step fails
+     */
+    public <T extends Streamable> List<T> readStreamableList(Supplier<T> constructor) throws IOException {
+        int count = readVInt();
+        List<T> builder = new ArrayList<>(count);
+        for (int i=0; i<count; i++) {
+            T instance = constructor.get();
+            instance.readFrom(this);
+            builder.add(instance);
+        }
+        return builder;
+    }
+
+    /**
      * Reads a list of objects
      */
     public <T> List<T> readList(StreamInputReader<T> reader) throws IOException {
@@ -754,4 +785,5 @@ public abstract class StreamInput extends InputStream {
     public static StreamInput wrap(byte[] bytes, int offset, int length) {
         return new InputStreamStreamInput(new ByteArrayInputStream(bytes, offset, length));
     }
+
 }

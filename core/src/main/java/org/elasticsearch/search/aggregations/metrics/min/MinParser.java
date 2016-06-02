@@ -45,8 +45,8 @@ public class MinParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected MinAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new MinAggregatorBuilder(aggregationName);
+    protected MinAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                  ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        return new MinAggregationBuilder(aggregationName);
     }
 }

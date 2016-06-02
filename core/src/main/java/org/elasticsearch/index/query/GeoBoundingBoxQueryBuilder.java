@@ -43,6 +43,7 @@ import org.elasticsearch.index.search.geo.IndexedGeoBoundingBoxQuery;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Creates a Lucene query that will filter for all documents that lie within the specified
@@ -64,10 +65,12 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
      */
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
-    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
-    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
+    private static final ParseField COERCE_FIELD =new ParseField("coerce", "normalize")
+            .withAllDeprecated("use field validation_method instead");
+    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed")
+            .withAllDeprecated("use field validation_method instead");
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField TOP_FIELD = new ParseField("top");
     private static final ParseField BOTTOM_FIELD = new ParseField("bottom");
@@ -383,7 +386,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         builder.endObject();
     }
 
-    public static GeoBoundingBoxQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<GeoBoundingBoxQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -494,7 +497,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         } else {
             builder.setValidationMethod(GeoValidationMethod.infer(coerce, ignoreMalformed));
         }
-        return builder;
+        return Optional.of(builder);
     }
 
     @Override

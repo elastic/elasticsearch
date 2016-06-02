@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 import org.junit.After;
@@ -261,7 +262,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         } catch (UnsupportedOperationException e) {
             assertEquals("query must be rewritten first", e.getMessage());
         }
-        QueryBuilder<?> rewrite = sqb.rewrite(createShardContext());
+        QueryBuilder rewrite = sqb.rewrite(createShardContext());
         GeoShapeQueryBuilder geoShapeQueryBuilder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, indexedShapeToReturn);
         geoShapeQueryBuilder.strategy(sqb.strategy());
         geoShapeQueryBuilder.relation(sqb.relation());

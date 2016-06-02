@@ -22,7 +22,6 @@ package org.elasticsearch.messy.tests;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -45,8 +44,10 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -413,7 +414,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
                 .field("double_field", 6.0d)
                 .field("date_field", Joda.forPattern("dateOptionalTime").printer().print(new DateTime(2012, 3, 22, 0, 0, DateTimeZone.UTC)))
                 .field("boolean_field", true)
-                .field("binary_field", Base64.encodeBytes("testing text".getBytes("UTF8")))
+                .field("binary_field", Base64.getEncoder().encodeToString("testing text".getBytes("UTF-8")))
                 .endObject()).execute().actionGet();
 
         client().admin().indices().prepareRefresh().execute().actionGet();
@@ -483,15 +484,32 @@ public class SearchFieldsTests extends ESIntegTestCase {
     public void testGetFieldsComplexField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
                 .setSettings(Settings.builder().put("index.refresh_interval", -1))
-                .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
-                        .startObject("field1").field("type", "object").startObject("properties")
-                        .startObject("field2").field("type", "object").startObject("properties")
-                        .startObject("field3").field("type", "object").startObject("properties")
-                        .startObject("field4").field("type", "text").field("store", true)
-                        .endObject().endObject()
-                        .endObject().endObject()
-                        .endObject().endObject()
-                        .endObject().endObject().endObject())
+                .addMapping("my-type2", jsonBuilder()
+                        .startObject()
+                            .startObject("my-type2")
+                                .startObject("properties")
+                                    .startObject("field1")
+                                        .field("type", "object")
+                                        .startObject("properties")
+                                            .startObject("field2")
+                                                .field("type", "object")
+                                                .startObject("properties")
+                                                    .startObject("field3")
+                                                        .field("type", "object")
+                                                        .startObject("properties")
+                                                            .startObject("field4")
+                                                                .field("type", "text")
+                                                                .field("store", true)
+                                                            .endObject()
+                                                        .endObject()
+                                                    .endObject()
+                                                .endObject()
+                                            .endObject()
+                                        .endObject()
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject())
                 .get();
 
         BytesReference source = jsonBuilder().startObject()

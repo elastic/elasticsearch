@@ -154,7 +154,7 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
      */
     public static Engine.Index executeIndexRequestOnReplica(IndexRequest request, IndexShard indexShard) {
         final ShardId shardId = indexShard.shardId();
-        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, request.source()).index(shardId.getIndexName()).type(request.type()).id(request.id())
+        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, shardId.getIndexName(), request.type(), request.id(), request.source())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
 
         final Engine.Index operation = indexShard.prepareIndexOnReplica(sourceToParse, request.version(), request.versionType());
@@ -168,7 +168,7 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
 
     /** Utility method to prepare an index operation on primary shards */
     public static Engine.Index prepareIndexOperationOnPrimary(IndexRequest request, IndexShard indexShard) {
-        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, request.source()).index(request.index()).type(request.type()).id(request.id())
+        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, request.index(), request.type(), request.id(), request.source())
             .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
         return indexShard.prepareIndexOnPrimary(sourceToParse, request.version(), request.versionType());
     }

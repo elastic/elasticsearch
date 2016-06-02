@@ -39,6 +39,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -65,8 +66,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.shuffle;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -99,6 +100,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(
                 DiscoveryNodes.builder(initialNodes).masterNodeId(localNode.getId())));
         nodeJoinController = new NodeJoinController(clusterService, new NoopRoutingService(Settings.EMPTY),
+                new ElectMasterService(Settings.EMPTY, Version.CURRENT),
                 new DiscoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
                 Settings.EMPTY);
     }
@@ -519,7 +521,7 @@ public class NodeJoinControllerTests extends ESTestCase {
     static class NoopRoutingService extends RoutingService {
 
         public NoopRoutingService(Settings settings) {
-            super(settings, null, null, new NoopAllocationService(settings));
+            super(settings, null, new NoopAllocationService(settings));
         }
 
         @Override

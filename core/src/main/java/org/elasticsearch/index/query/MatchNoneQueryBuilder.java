@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * A query that matches no document.
@@ -60,7 +61,7 @@ public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBu
         builder.endObject();
     }
 
-    public static MatchNoneQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<MatchNoneQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String currentFieldName = null;
@@ -88,12 +89,12 @@ public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBu
         MatchNoneQueryBuilder matchNoneQueryBuilder = new MatchNoneQueryBuilder();
         matchNoneQueryBuilder.boost(boost);
         matchNoneQueryBuilder.queryName(queryName);
-        return matchNoneQueryBuilder;
+        return Optional.of(matchNoneQueryBuilder);
     }
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return Queries.newMatchNoDocsQuery();
+        return Queries.newMatchNoDocsQuery("User requested \"" + this.getName() + "\" query.");
     }
 
     @Override

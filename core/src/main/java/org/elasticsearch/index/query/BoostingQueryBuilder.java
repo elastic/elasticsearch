@@ -29,7 +29,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * The BoostingQuery class can be used to effectively demote results that match a given query.
@@ -52,9 +54,9 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     private static final ParseField NEGATIVE_FIELD = new ParseField("negative");
     private static final ParseField NEGATIVE_BOOST_FIELD = new ParseField("negative_boost");
 
-    private final QueryBuilder<?> positiveQuery;
+    private final QueryBuilder positiveQuery;
 
-    private final QueryBuilder<?> negativeQuery;
+    private final QueryBuilder negativeQuery;
 
     private float negativeBoost = -1;
 
@@ -65,7 +67,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
      * @param positiveQuery the positive query for this boosting query.
      * @param negativeQuery the negative query for this boosting query.
      */
-    public BoostingQueryBuilder(QueryBuilder<?> positiveQuery, QueryBuilder<?> negativeQuery) {
+    public BoostingQueryBuilder(QueryBuilder positiveQuery, QueryBuilder negativeQuery) {
         if (positiveQuery == null) {
             throw new IllegalArgumentException("inner clause [positive] cannot be null.");
         }
@@ -137,12 +139,12 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         builder.endObject();
     }
 
-    public static BoostingQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<BoostingQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
-        QueryBuilder positiveQuery = null;
+        Optional<QueryBuilder> positiveQuery = null;
         boolean positiveQueryFound = false;
-        QueryBuilder negativeQuery = null;
+        Optional<QueryBuilder> negativeQuery = null;
         boolean negativeQueryFound = false;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         float negativeBoost = -1;
@@ -186,12 +188,15 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
             throw new ParsingException(parser.getTokenLocation(),
                     "[boosting] query requires 'negative_boost' to be set to be a positive value'");
         }
+        if (positiveQuery.isPresent() == false || negativeQuery.isPresent() == false) {
+            return Optional.empty();
+        }
 
-        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery, negativeQuery);
+        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery.get(), negativeQuery.get());
         boostingQuery.negativeBoost(negativeBoost);
         boostingQuery.boost(boost);
         boostingQuery.queryName(queryName);
-        return boostingQuery;
+        return Optional.of(boostingQuery);
     }
 
     @Override
@@ -203,12 +208,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Query positive = positiveQuery.toQuery(context);
         Query negative = negativeQuery.toQuery(context);
-        // make upstream queries ignore this query by returning `null`
-        // if either inner query builder returns null
-        if (positive == null || negative == null) {
-            return null;
-        }
-
         return new BoostingQuery(positive, negative, negativeBoost);
     }
 
@@ -225,7 +224,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder positiveQuery = this.positiveQuery.rewrite(queryRewriteContext);
         QueryBuilder negativeQuery = this.negativeQuery.rewrite(queryRewriteContext);
         if (positiveQuery != this.positiveQuery || negativeQuery != this.negativeQuery) {
@@ -234,5 +233,11 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
             return newQueryBuilder;
         }
         return this;
+    }
+
+    @Override
+    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+        InnerHitBuilder.extractInnerHits(positiveQuery, innerHits);
+        InnerHitBuilder.extractInnerHits(negativeQuery, innerHits);
     }
 }

@@ -55,7 +55,7 @@ GET index_1,index_2/_search
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Querying on the `_index` field
 <2> Aggregating on the `_index` field

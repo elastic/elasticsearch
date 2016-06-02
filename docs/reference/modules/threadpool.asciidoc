@@ -11,12 +11,13 @@ There are several thread pools, but the important ones include:
 
 `generic`::
     For generic operations (e.g., background node discovery).
-    Thread pool type is `cached`.
+    Thread pool type is `scaling`.
 
 `index`::
     For index/delete operations. Thread pool type is `fixed`
     with a size of `# of available processors`,
-    queue_size of `200`.
+    queue_size of `200`.  The maximum size for this pool
+    is `# of available processors`.
 
 `search`::
     For count/search/suggest operations. Thread pool type is `fixed`
@@ -31,7 +32,8 @@ There are several thread pools, but the important ones include:
 `bulk`::
     For bulk operations. Thread pool type is `fixed`
     with a size of `# of available processors`,
-    queue_size of `50`.
+    queue_size of `50`.  The maximum size for this pool
+    is `# of available processors`.
 
 `percolate`::
     For percolate operations. Thread pool type is `fixed`
@@ -73,26 +75,6 @@ NOTE: you can update thread pool settings dynamically using <<cluster-update-set
 The following are the types of thread pools and their respective parameters:
 
 [float]
-==== `cached`
-
-The `cached` thread pool is an unbounded thread pool that will spawn a
-thread if there are pending requests. This thread pool is used to
-prevent requests submitted to this pool from blocking or being
-rejected. Unused threads in this thread pool will be terminated after
-a keep alive expires (defaults to five minutes). The `cached` thread
-pool is reserved for the <<modules-threadpool,`generic`>> thread pool.
-
-The `keep_alive` parameter determines how long a thread should be kept
-around in the thread pool without doing any work.
-
-[source,js]
---------------------------------------------------
-threadpool:
-    generic:
-        keep_alive: 2m
---------------------------------------------------
-
-[float]
 ==== `fixed`
 
 The `fixed` thread pool holds a fixed size of threads to handle the
@@ -118,9 +100,9 @@ threadpool:
 [float]
 ==== `scaling`
 
-The `scaling` thread pool holds a dynamic number of threads. This number is
-proportional to the workload and varies between 1 and the value of the
-`size` parameter.
+The `scaling` thread pool holds a dynamic number of threads. This
+number is proportional to the workload and varies between the value of
+the `min` and `size` parameters.
 
 The `keep_alive` parameter determines how long a thread should be kept
 around in the thread pool without it doing any work.
@@ -129,6 +111,7 @@ around in the thread pool without it doing any work.
 --------------------------------------------------
 threadpool:
     warmer:
+        min: 1
         size: 8
         keep_alive: 2m
 --------------------------------------------------

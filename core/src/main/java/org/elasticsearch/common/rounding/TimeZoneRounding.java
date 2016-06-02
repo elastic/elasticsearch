@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTimeField;
 import org.joda.time.DateTimeZone;
-import org.joda.time.DurationField;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -46,8 +45,8 @@ public abstract class TimeZoneRounding extends Rounding {
 
     public static class Builder {
 
-        private DateTimeUnit unit;
-        private long interval = -1;
+        private final DateTimeUnit unit;
+        private final long interval;
 
         private DateTimeZone timeZone = DateTimeZone.UTC;
 
@@ -108,7 +107,6 @@ public abstract class TimeZoneRounding extends Rounding {
 
         private DateTimeUnit unit;
         private DateTimeField field;
-        private DurationField durationField;
         private DateTimeZone timeZone;
 
         TimeUnitRounding() { // for serialization
@@ -116,8 +114,7 @@ public abstract class TimeZoneRounding extends Rounding {
 
         TimeUnitRounding(DateTimeUnit unit, DateTimeZone timeZone) {
             this.unit = unit;
-            this.field = unit.field();
-            this.durationField = field.getDurationField();
+            this.field = unit.field(timeZone);
             this.timeZone = timeZone;
         }
 
@@ -128,10 +125,16 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long roundKey(long utcMillis) {
-            long timeLocal = utcMillis;
-            timeLocal = timeZone.convertUTCToLocal(utcMillis);
-            long rounded = field.roundFloor(timeLocal);
-            return timeZone.convertLocalToUTC(rounded, false, utcMillis);
+            long rounded = field.roundFloor(utcMillis);
+            if (timeZone.isFixed() == false && timeZone.getOffset(utcMillis) != timeZone.getOffset(rounded)) {
+                // in this case, we crossed a time zone transition. In some edge cases this will
+                // result in a value that is not a rounded value itself. We need to round again
+                // to make sure. This will have no affect in cases where 'rounded' was already a proper
+                // rounded value
+                rounded = field.roundFloor(rounded);
+            }
+            assert rounded == field.roundFloor(rounded);
+            return rounded;
         }
 
         @Override
@@ -141,19 +144,22 @@ public abstract class TimeZoneRounding extends Rounding {
         }
 
         @Override
-        public long nextRoundingValue(long time) {
-            long timeLocal = time;
-            timeLocal = timeZone.convertUTCToLocal(time);
-            long nextInLocalTime = durationField.add(timeLocal, 1);
-            return timeZone.convertLocalToUTC(nextInLocalTime, false);
+        public long nextRoundingValue(long utcMillis) {
+            long floor = roundKey(utcMillis);
+            // add one unit and round to get to next rounded value
+            long next = roundKey(field.add(floor, 1));
+            if (next == floor) {
+                // in rare case we need to add more than one unit
+                next = roundKey(field.add(floor, 2));
+            }
+            return next;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             unit = DateTimeUnit.resolve(in.readByte());
-            field = unit.field();
-            durationField = field.getDurationField();
             timeZone = DateTimeZone.forID(in.readString());
+            field = unit.field(timeZone);
         }
 
         @Override
@@ -161,12 +167,12 @@ public abstract class TimeZoneRounding extends Rounding {
             out.writeByte(unit.id());
             out.writeString(timeZone.getID());
         }
-        
+
         @Override
         public int hashCode() {
             return Objects.hash(unit, timeZone);
         }
-        
+
         @Override
         public boolean equals(Object obj) {
             if (obj == null) {
@@ -178,6 +184,11 @@ public abstract class TimeZoneRounding extends Rounding {
             TimeUnitRounding other = (TimeUnitRounding) obj;
             return Objects.equals(unit, other.unit)
                     && Objects.equals(timeZone, other.timeZone);
+        }
+
+        @Override
+        public String toString() {
+            return "[" + timeZone + "][" + unit +"]";
         }
     }
 
@@ -236,12 +247,12 @@ public abstract class TimeZoneRounding extends Rounding {
             out.writeVLong(interval);
             out.writeString(timeZone.getID());
         }
-        
+
         @Override
         public int hashCode() {
             return Objects.hash(interval, timeZone);
         }
-        
+
         @Override
         public boolean equals(Object obj) {
             if (obj == null) {

@@ -33,7 +33,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.SpatialStrategy;
@@ -48,6 +47,7 @@ import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * {@link QueryBuilder} that builds a GeoShape Query
@@ -379,7 +379,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() + "] not found");
         }
 
-        String[] pathElements = Strings.splitStringToArray(path, '.');
+        String[] pathElements = path.split("\\.");
         int currentPathSlot = 0;
 
         try (XContentParser parser = XContentHelper.createParser(response.getSourceAsBytesRef())) {
@@ -454,7 +454,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         builder.endObject();
     }
 
-    public static GeoShapeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<GeoShapeQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -560,7 +560,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         }
         builder.boost(boost);
         builder.ignoreUnmapped(ignoreUnmapped);
-        return builder;
+        return Optional.of(builder);
     }
 
     @Override
@@ -588,7 +588,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     }
 
     @Override
-    protected QueryBuilder<GeoShapeQueryBuilder> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         if (this.shape == null) {
             GetRequest getRequest = new GetRequest(indexedShapeIndex, indexedShapeType, indexedShapeId);
             ShapeBuilder shape = fetch(queryShardContext.getClient(), getRequest, indexedShapePath);

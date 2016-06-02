@@ -363,4 +363,28 @@ public class XContentBuilderTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("field name cannot be null"));
         }
     }
+
+    public void testMissingEndObject() throws IOException {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
+                builder.startObject();
+                builder.field("foo", true);
+            }
+        });
+        assertThat(e.getMessage(), equalTo("failed to close the XContentBuilder"));
+        assertThat(e.getCause().getMessage(), equalTo("unclosed object or array found"));
+    }
+
+    public void testMissingEndArray() throws IOException {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
+                builder.startObject();
+                builder.startArray("foo");
+                builder.value(0);
+                builder.value(1);
+            }
+        });
+        assertThat(e.getMessage(), equalTo("failed to close the XContentBuilder"));
+        assertThat(e.getCause().getMessage(), equalTo("unclosed object or array found"));
+    }
 }

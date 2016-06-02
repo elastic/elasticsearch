@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -154,7 +155,8 @@ public class IngestClientIT extends ESIntegTestCase {
             BulkItemResponse itemResponse = response.getItems()[i];
             if (i % 2 == 0) {
                 BulkItemResponse.Failure failure = itemResponse.getFailure();
-                assertThat(failure.getMessage(), equalTo("java.lang.IllegalArgumentException: test processor failed"));
+                ElasticsearchException compoundProcessorException = (ElasticsearchException) failure.getCause();
+                assertThat(compoundProcessorException.getRootCause().getMessage(), equalTo("test processor failed"));
             } else {
                 IndexResponse indexResponse = itemResponse.getResponse();
                 assertThat("Expected a successful response but found failure [" + itemResponse.getFailure() + "].",

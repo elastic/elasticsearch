@@ -74,10 +74,10 @@ public class NativeScriptTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
             ScriptType scriptType = randomFrom(ScriptType.values());
-            builder.put("script" + "." + scriptType.getScriptType(), randomFrom(ScriptMode.values()));
+            builder.put("script" + "." + scriptType.getScriptType(), randomBoolean());
         } else {
             ScriptContext scriptContext = randomFrom(ScriptContext.Standard.values());
-            builder.put("script" + "." + scriptContext.getKey(), randomFrom(ScriptMode.values()));
+            builder.put("script" + "." + scriptContext.getKey(), randomBoolean());
         }
         Settings settings = builder.put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         Environment environment = new Environment(settings);
@@ -85,7 +85,7 @@ public class NativeScriptTests extends ESTestCase {
         Map<String, NativeScriptFactory> nativeScriptFactoryMap = new HashMap<>();
         nativeScriptFactoryMap.put("my", new MyNativeScriptFactory());
         Set<ScriptEngineService> scriptEngineServices = singleton(new NativeScriptEngineService(settings, nativeScriptFactoryMap));
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class, NativeScriptEngineService.TYPES)));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class, NativeScriptEngineService.NAME, true)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(new ArrayList<>());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings);

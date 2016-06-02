@@ -139,8 +139,8 @@ public class TranslogTests extends ESTestCase {
 
     private TranslogConfig getTranslogConfig(Path path) {
         Settings build = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
-                .build();
+            .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
+            .build();
         ByteSizeValue bufferSize = randomBoolean() ? TranslogConfig.DEFAULT_BUFFER_SIZE : new ByteSizeValue(10 + randomInt(128 * 1024), ByteSizeUnit.BYTES);
         return new TranslogConfig(shardId, path, IndexSettingsModule.newIndexSettings(shardId.getIndex(), build), BigArrays.NON_RECYCLING_INSTANCE, bufferSize);
     }
@@ -353,9 +353,9 @@ public class TranslogTests extends ESTestCase {
         assertEquals(6, copy.estimatedNumberOfOperations());
         assertEquals(431, copy.getTranslogSizeInBytes());
         assertEquals("\"translog\"{\n" +
-                "  \"operations\" : 6,\n" +
-                "  \"size_in_bytes\" : 431\n" +
-                "}", copy.toString().trim());
+            "  \"operations\" : 6,\n" +
+            "  \"size_in_bytes\" : 431\n" +
+            "}", copy.toString().trim());
 
         try {
             new TranslogStats(1, -1);
@@ -627,7 +627,8 @@ public class TranslogTests extends ESTestCase {
         final List<Throwable> errors = new CopyOnWriteArrayList<>();
         logger.debug("using [{}] readers. [{}] writers. flushing every ~[{}] ops.", readers.length, writers.length, flushEveryOps);
         for (int i = 0; i < writers.length; i++) {
-            final String threadId = "writer_" + i;
+            final String threadName = "writer_" + i;
+            final int threadId = i;
             writers[i] = new Thread(new AbstractRunnable() {
                 @Override
                 public void doRun() throws BrokenBarrierException, InterruptedException, IOException {
@@ -652,18 +653,21 @@ public class TranslogTests extends ESTestCase {
                         if (existing != null) {
                             fail("duplicate op [" + op + "], old entry at " + location);
                         }
+                        if (id % writers.length == threadId) {
+                            translog.ensureSynced(location);
+                        }
                         writtenOpsLatch.get().countDown();
                         counter++;
                     }
-                    logger.debug("--> [{}] done. wrote [{}] ops.", threadId, counter);
+                    logger.debug("--> [{}] done. wrote [{}] ops.", threadName, counter);
                 }
 
                 @Override
                 public void onFailure(Throwable t) {
-                    logger.error("--> writer [{}] had an error", t, threadId);
+                    logger.error("--> writer [{}] had an error", t, threadName);
                     errors.add(t);
                 }
-            }, threadId);
+            }, threadName);
             writers[i].start();
         }
 
@@ -1285,12 +1289,12 @@ public class TranslogTests extends ESTestCase {
                         case CREATE:
                         case INDEX:
                             op = new Translog.Index("test", threadId + "_" + opCount,
-                                    randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8"));
+                                randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8"));
                             break;
                         case DELETE:
                             op = new Translog.Delete(new Term("_uid", threadId + "_" + opCount),
-                                    1 + randomInt(100000),
-                                    randomFrom(VersionType.values()));
+                                1 + randomInt(100000),
+                                randomFrom(VersionType.values()));
                             break;
                         default:
                             throw new ElasticsearchException("not supported op type");

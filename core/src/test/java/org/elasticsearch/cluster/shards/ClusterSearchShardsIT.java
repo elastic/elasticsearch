@@ -43,7 +43,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        switch(nodeOrdinal) {
+        switch(nodeOrdinal % 2) {
         case 1:
             return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put("node.attr.tag", "B").build();
         case 0:

@@ -82,12 +82,6 @@ public final class ScriptMetaData implements MetaData.Custom {
             parser.nextToken();
             switch (parser.currentName()) {
                 case "script":
-                    if (parser.nextToken() == Token.VALUE_STRING) {
-                        return parser.text();
-                    } else {
-                        builder.copyCurrentStructure(parser);
-                    }
-                    break;
                 case "template":
                     if (parser.nextToken() == Token.VALUE_STRING) {
                         return parser.text();
@@ -100,6 +94,7 @@ public final class ScriptMetaData implements MetaData.Custom {
                     // because the parsers current location is already beyond the beginning we need to add a START_OBJECT:
                     builder.startObject();
                     builder.copyCurrentStructure(parser);
+                    builder.endObject();
                     break;
             }
             return builder.string();

@@ -32,14 +32,12 @@ import java.io.IOException;
 
 /**
  */
-@SuppressWarnings("deprecation")
 public class Version {
-
-    // The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator
-    // AA values below 25 are for alpha builder (since 5.0), and above 25 and below 50 are beta builds, and below 99 are RC builds, with 99 indicating a release
-    // the (internal) format of the id is there so we can easily do after/before checks on the id
-
-
+    /*
+     * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA
+     * values below 25 are for alpha builder (since 5.0), and above 25 and below 50 are beta builds, and below 99 are RC builds, with 99
+     * indicating a release the (internal) format of the id is there so we can easily do after/before checks on the id
+     */
     public static final int V_2_0_0_beta1_ID = 2000001;
     public static final Version V_2_0_0_beta1 = new Version(V_2_0_0_beta1_ID, org.apache.lucene.util.Version.LUCENE_5_2_1);
     public static final int V_2_0_0_beta2_ID = 2000002;
@@ -68,11 +66,19 @@ public class Version {
     public static final Version V_2_3_0 = new Version(V_2_3_0_ID, org.apache.lucene.util.Version.LUCENE_5_5_0);
     public static final int V_2_3_1_ID = 2030199;
     public static final Version V_2_3_1 = new Version(V_2_3_1_ID, org.apache.lucene.util.Version.LUCENE_5_5_0);
+    public static final int V_2_3_2_ID = 2030299;
+    public static final Version V_2_3_2 = new Version(V_2_3_2_ID, org.apache.lucene.util.Version.LUCENE_5_5_0);
+    public static final int V_2_3_3_ID = 2030399;
+    public static final Version V_2_3_3 = new Version(V_2_3_3_ID, org.apache.lucene.util.Version.LUCENE_5_5_0);
     public static final int V_5_0_0_alpha1_ID = 5000001;
     public static final Version V_5_0_0_alpha1 = new Version(V_5_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_6_0_0);
     public static final int V_5_0_0_alpha2_ID = 5000002;
     public static final Version V_5_0_0_alpha2 = new Version(V_5_0_0_alpha2_ID, org.apache.lucene.util.Version.LUCENE_6_0_0);
-    public static final Version CURRENT = V_5_0_0_alpha2;
+    public static final int V_5_0_0_alpha3_ID = 5000003;
+    public static final Version V_5_0_0_alpha3 = new Version(V_5_0_0_alpha3_ID, org.apache.lucene.util.Version.LUCENE_6_0_0);
+    public static final int V_5_0_0_ID = 5000099;
+    public static final Version V_5_0_0 = new Version(V_5_0_0_ID, org.apache.lucene.util.Version.LUCENE_6_0_1);
+    public static final Version CURRENT = V_5_0_0;
 
     static {
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
@@ -85,10 +91,18 @@ public class Version {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_5_0_0_ID:
+                return V_5_0_0;
+            case V_5_0_0_alpha3_ID:
+                return V_5_0_0_alpha3;
             case V_5_0_0_alpha2_ID:
                 return V_5_0_0_alpha2;
             case V_5_0_0_alpha1_ID:
                 return V_5_0_0_alpha1;
+            case V_2_3_3_ID:
+                return V_2_3_3;
+            case V_2_3_2_ID:
+                return V_2_3_2;
             case V_2_3_1_ID:
                 return V_2_3_1;
             case V_2_3_0_ID:
@@ -125,12 +139,15 @@ public class Version {
     /**
      * Return the {@link Version} of Elasticsearch that has been used to create an index given its settings.
      *
-     * @throws IllegalStateException if the given index settings doesn't contain a value for the key {@value IndexMetaData#SETTING_VERSION_CREATED}
+     * @throws IllegalStateException if the given index settings doesn't contain a value for the key
+     *         {@value IndexMetaData#SETTING_VERSION_CREATED}
      */
     public static Version indexCreated(Settings indexSettings) {
         final Version indexVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null);
         if (indexVersion == null) {
-            throw new IllegalStateException("[" + IndexMetaData.SETTING_VERSION_CREATED + "] is not present in the index settings for index with uuid: [" + indexSettings.get(IndexMetaData.SETTING_INDEX_UUID) + "]");
+            throw new IllegalStateException(
+                    "[" + IndexMetaData.SETTING_VERSION_CREATED + "] is not present in the index settings for index with uuid: ["
+                            + indexSettings.get(IndexMetaData.SETTING_INDEX_UUID) + "]");
         }
         return indexVersion;
     }
@@ -159,7 +176,8 @@ public class Version {
         }
         String[] parts = version.split("\\.|\\-");
         if (parts.length < 3 || parts.length > 4) {
-            throw new IllegalArgumentException("the version needs to contain major, minor, and revision, and optionally the build: " + version);
+            throw new IllegalArgumentException(
+                    "the version needs to contain major, minor, and revision, and optionally the build: " + version);
         }
 
         try {
@@ -243,7 +261,8 @@ public class Version {
 
     @SuppressForbidden(reason = "System.out.*")
     public static void main(String[] args) {
-        System.out.println("Version: " + Version.CURRENT + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date() + ", JVM: " + JvmInfo.jvmInfo().version());
+        System.out.println("Version: " + Version.CURRENT + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date() + ", JVM: "
+                + JvmInfo.jvmInfo().version());
     }
 
     @Override

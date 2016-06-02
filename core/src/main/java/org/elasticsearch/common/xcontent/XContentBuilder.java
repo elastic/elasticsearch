@@ -113,6 +113,10 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
+    public boolean isPrettyPrint() {
+        return generator.isPrettyPrint();
+    }
+
     public XContentBuilder lfAtEnd() {
         generator.usePrintLineFeedAtEnd();
         return this;
@@ -777,7 +781,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         try {
             generator.close();
         } catch (IOException e) {
-            // ignore
+            throw new IllegalStateException("failed to close the XContentBuilder", e);
         }
     }
 

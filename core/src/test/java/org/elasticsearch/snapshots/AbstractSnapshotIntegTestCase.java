@@ -71,7 +71,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static long getFailureCount(String repository) {
         long failureCount = 0;
-        for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+        for (RepositoriesService repositoriesService :
+            internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class)) {
             MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
             failureCount += mockRepository.getFailureCount();
         }

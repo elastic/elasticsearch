@@ -363,6 +363,7 @@ public class TransportClientNodesService extends AbstractComponent {
                         transportService.connectToNodeLight(listedNode);
                     } catch (Throwable e) {
                         logger.debug("failed to connect to node [{}], removed from nodes list", e, listedNode);
+                        newFilteredNodes.add(listedNode);
                         continue;
                     }
                 }

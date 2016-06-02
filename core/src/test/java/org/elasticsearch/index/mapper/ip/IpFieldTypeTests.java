@@ -22,6 +22,7 @@ import java.net.InetAddress;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.XInetAddressPoint;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
@@ -73,6 +74,11 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         ip = "192.168.1.7";
         prefix = ip + "/16";
         assertEquals(XInetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16), ft.termQuery(prefix, null));
+
+        ft.setIndexOptions(IndexOptions.NONE);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> ft.termQuery("::1", null));
+        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testRangeQuery() {
@@ -156,5 +162,10 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                         InetAddresses.forString("192.168.1.7"),
                         InetAddresses.forString("2001:db8::")),
                 ft.rangeQuery("::ffff:c0a8:107", "2001:db8::", true, true));
+
+        ft.setIndexOptions(IndexOptions.NONE);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> ft.rangeQuery("::1", "2001::", true, true));
+        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 }

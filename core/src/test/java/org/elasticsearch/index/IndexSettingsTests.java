@@ -110,6 +110,15 @@ public class IndexSettingsTests extends ESTestCase {
             assertTrue(ex.getMessage(), ex.getMessage().startsWith("version mismatch on settings update expected: "));
         }
 
+        // use version number that is unknown
+        metaData = newIndexMeta("index", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.fromId(999999))
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(Version.fromId(999999), settings.getIndexVersionCreated());
+        assertEquals("_na_", settings.getUUID());
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED,
+            Version.fromId(999999)).put("index.test.setting.int", 42).build()));
+
         metaData = newIndexMeta("index", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_INDEX_UUID, "0xdeadbeef").build());
         settings = new IndexSettings(metaData, Settings.EMPTY);

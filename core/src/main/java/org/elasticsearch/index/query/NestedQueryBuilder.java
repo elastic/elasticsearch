@@ -32,10 +32,11 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.support.InnerHitBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
 
@@ -57,7 +58,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     private final String path;
     private final ScoreMode scoreMode;
-    private final QueryBuilder<?> query;
+    private final QueryBuilder query;
     private InnerHitBuilder innerHitBuilder;
     private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
@@ -109,9 +110,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     }
 
     public NestedQueryBuilder innerHit(InnerHitBuilder innerHit) {
-        innerHit.setNestedPath(path);
-        innerHit.setQuery(query);
-        this.innerHitBuilder = innerHit;
+        this.innerHitBuilder = new InnerHitBuilder(innerHit, path, query);
         return this;
     }
 
@@ -158,12 +157,12 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         builder.endObject();
     }
 
-    public static NestedQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<NestedQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         ScoreMode scoreMode = ScoreMode.Avg;
         String queryName = null;
-        QueryBuilder<?> query = null;
+        Optional<QueryBuilder> query = Optional.empty();
         String path = null;
         String currentFieldName = null;
         InnerHitBuilder innerHitBuilder = null;
@@ -196,8 +195,19 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 }
             }
         }
-        return new NestedQueryBuilder(path, query, scoreMode, innerHitBuilder).ignoreUnmapped(ignoreUnmapped).queryName(queryName)
+
+        if (query.isPresent() == false) {
+            // if inner query is empty, bubble this up to caller so they can decide how to deal with it
+            return Optional.empty();
+        }
+        NestedQueryBuilder queryBuilder =  new NestedQueryBuilder(path, query.get(), scoreMode)
+                .ignoreUnmapped(ignoreUnmapped)
+                .queryName(queryName)
                 .boost(boost);
+        if (innerHitBuilder != null) {
+            queryBuilder.innerHit(innerHitBuilder);
+        }
+        return Optional.of(queryBuilder);
     }
 
     @Override
@@ -236,9 +246,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         final Query childFilter;
         final Query innerQuery;
         ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
-        if (innerHitBuilder != null) {
-            context.addInnerHit(innerHitBuilder);
-        }
         if (objectMapper == null) {
             parentFilter = context.bitsetFilter(Queries.newNonNestedFilter());
         } else {
@@ -248,9 +255,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         try {
             context.nestedScope().nextLevel(nestedObjectMapper);
             innerQuery = this.query.toQuery(context);
-            if (innerQuery == null) {
-                return null;
-            }
         } finally {
             context.nestedScope().previousLevel();
         }
@@ -258,11 +262,18 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewrite = query.rewrite(queryRewriteContext);
         if (rewrite != query) {
             return new NestedQueryBuilder(path, rewrite, scoreMode, innerHitBuilder);
         }
         return this;
+    }
+
+    @Override
+    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+        if (innerHitBuilder != null) {
+            innerHitBuilder.inlineInnerHits(innerHits);
+        }
     }
 }

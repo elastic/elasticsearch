@@ -44,7 +44,7 @@ public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
         createIndex("test");
 
         // connect to each node with a custom TransportClient, issue a ClusterStateRequest to test serialization
-        for (NodeInfo n : clusterNodes()) {
+        for (NodeInfo n : clusterNodes().getNodes()) {
             try (TransportClient tc = newTransportClient()) {
                 tc.addTransportAddress(n.getNode().getAddress());
                 ClusterStateResponse response = tc.admin().cluster().prepareState().execute().actionGet();
@@ -68,7 +68,7 @@ public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
             try {
                 enableIndexBlock("test-blocks", block.getKey());
 
-                for (NodeInfo n : clusterNodes()) {
+                for (NodeInfo n : clusterNodes().getNodes()) {
                     try (TransportClient tc = newTransportClient()) {
                         tc.addTransportAddress(n.getNode().getAddress());
 

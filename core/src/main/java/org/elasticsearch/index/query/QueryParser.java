@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * Defines a query parser that is able to parse {@link QueryBuilder}s from {@link org.elasticsearch.common.xcontent.XContent}.
@@ -36,5 +37,12 @@ public interface QueryParser<QB extends QueryBuilder> {
      *            call
      * @return the new QueryBuilder
      */
-    QB fromXContent(QueryParseContext parseContext) throws IOException;
+    Optional<QB> fromXContent(QueryParseContext parseContext) throws IOException;
+
+    /**
+     * @return an empty {@link QueryBuilder} instance for this parser that can be used for deserialization
+     */
+    default QB getBuilderPrototype() { // TODO remove this when nothing implements it
+        throw new UnsupportedOperationException();
+    }
 }

@@ -7,6 +7,7 @@ if DEFINED JAVA_EXE set JAVA_HOME=%JAVA_EXE:\bin\java.exe=%
 if DEFINED JAVA_EXE (
     ECHO Using JAVA_HOME=%JAVA_HOME% retrieved from %ProgramData%\Oracle\java\javapath\java.exe
 )
+set JAVA_EXE=
 if DEFINED JAVA_HOME goto cont
 
 :err

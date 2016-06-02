@@ -139,8 +139,6 @@ public class ThreadPool extends AbstractLifecycleComponent<ThreadPool> {
 
     private volatile Map<String, ExecutorHolder> executors = new HashMap<>();
 
-    private final Queue<ExecutorHolder> retiredExecutors = new ConcurrentLinkedQueue<>();
-
     private final ScheduledThreadPoolExecutor scheduler;
 
     private final EstimatedTimeThread estimatedTimeThread;

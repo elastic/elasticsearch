@@ -55,10 +55,8 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
 
 /**
  *

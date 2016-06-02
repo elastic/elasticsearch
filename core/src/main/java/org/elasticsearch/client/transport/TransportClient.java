@@ -30,7 +30,6 @@ import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.transport.support.TransportProxyClient;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;

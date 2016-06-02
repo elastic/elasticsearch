@@ -79,6 +79,11 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         return this;
     }
 
+    public PutUserRequestBuilder passwordHash(char[] passwordHash) {
+        request.passwordHash(passwordHash);
+        return this;
+    }
+
     public PutUserRequestBuilder source(String username, BytesReference source) throws IOException {
         username(username);
         try (XContentParser parser = XContentHelper.createParser(source)) {
@@ -95,6 +100,14 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                         password(passwordChars);
                         password = null;
                         Arrays.fill(passwordChars, (char) 0);
+                    } else {
+                        throw new ElasticsearchParseException(
+                                "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);
+                    }
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.PASSWORD_HASH)) {
+                    if (token == XContentParser.Token.VALUE_STRING) {
+                        char[] passwordChars = parser.text().toCharArray();
+                        passwordHash(passwordChars);
                     } else {
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);

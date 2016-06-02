@@ -294,6 +294,7 @@ public class User implements ToXContent {
     public interface Fields {
         ParseField USERNAME = new ParseField("username");
         ParseField PASSWORD = new ParseField("password");
+        ParseField PASSWORD_HASH = new ParseField("password_hash");
         ParseField ROLES = new ParseField("roles");
         ParseField FULL_NAME = new ParseField("full_name");
         ParseField EMAIL = new ParseField("email");

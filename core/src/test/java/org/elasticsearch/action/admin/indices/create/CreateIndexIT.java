@@ -311,10 +311,9 @@ public class CreateIndexIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put("index.number_of_replicas", 0).build()).get());
         ensureGreen();
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
-        // let it be allocated anywhere and bump replicas
+        // bump replicas
         client().admin().indices().prepareUpdateSettings("target")
             .setSettings(Settings.builder()
-                .putNull("index.routing.allocation.include._id")
                 .put("index.number_of_replicas", 1)).get();
         ensureGreen();
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);

@@ -301,7 +301,7 @@ public final class EChain extends AExpression {
 
                     if (!(expression instanceof EBinary) ||
                         ((EBinary)expression).operation != Operation.ADD || expression.actual.sort != Sort.STRING) {
-                        writer.writeAppendStrings(expression.actual); // append the expression's value unless its also a concatenation
+                        writer.writeAppendStrings(expression.actual); // append the expression's value unless it's also a concatenation
                     }
 
                     writer.writeToStrings(); // put the value of the StringBuilder on the stack

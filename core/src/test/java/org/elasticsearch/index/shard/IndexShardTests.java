@@ -556,7 +556,8 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         SearchResponse response = client().prepareSearch("test").get();
         assertHitCount(response, 1L);
         client().admin().indices().prepareDelete("test").get();
-        assertBusyPathHasBeenCleared(idxPath);
+        assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
+        assertPathHasBeenCleared(idxPath);
     }
 
     public void testExpectedShardSizeIsPresent() throws InterruptedException {
@@ -639,8 +640,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertThat("found the hit", resp.getHits().getTotalHits(), equalTo(1L));
 
         assertAcked(client().admin().indices().prepareDelete(INDEX));
-        assertBusyPathHasBeenCleared(startDir.toAbsolutePath());
-        assertBusyPathHasBeenCleared(endDir.toAbsolutePath());
+        assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
+        assertPathHasBeenCleared(startDir.toAbsolutePath());
+        assertPathHasBeenCleared(endDir.toAbsolutePath());
     }
 
     public void testShardStats() throws IOException {

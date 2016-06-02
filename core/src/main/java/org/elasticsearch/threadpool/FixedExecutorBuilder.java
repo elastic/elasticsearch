@@ -33,15 +33,36 @@ import java.util.Locale;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadFactory;
 
-public class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBuilder.FixedExecutorSettings> {
+/**
+ * A builder for fixed executors.
+ */
+public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBuilder.FixedExecutorSettings> {
 
     private final Setting<Integer> sizeSetting;
     private final Setting<Integer> queueSizeSetting;
 
+    /**
+     * Construct a fixed executor builder; the settings will have the
+     * key prefix "thread_pool." followed by the executor name.
+     *
+     * @param settings  the node-level settings
+     * @param name      the name of the executor
+     * @param size      the fixed number of threads
+     * @param queueSize the size of the backing queue, -1 for unbounded
+     */
     FixedExecutorBuilder(final Settings settings, final String name, final int size, final int queueSize) {
         this(settings, name, size, queueSize, "thread_pool." + name);
     }
 
+    /**
+     * Construct a fixed executor builder.
+     *
+     * @param settings  the node-level settings
+     * @param name      the name of the executor
+     * @param size      the fixed number of threads
+     * @param queueSize the size of the backing queue, -1 for unbounded
+     * @param prefix    the prefix for the settings keys
+     */
     public FixedExecutorBuilder(final Settings settings, final String name, final int size, final int queueSize, final String prefix) {
         super(name);
         final String sizeKey = settingsKey(prefix, "size");
@@ -65,12 +86,12 @@ public class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBuilder.F
     }
 
     @Override
-    public List<Setting<?>> registerSettings() {
+    List<Setting<?>> registeredSettings() {
         return Arrays.asList(sizeSetting, queueSizeSetting);
     }
 
     @Override
-    public FixedExecutorSettings settings(Settings settings) {
+    FixedExecutorSettings settings(Settings settings) {
         final String nodeName = Node.NODE_NAME_SETTING.get(settings);
         final int size = sizeSetting.get(settings);
         final int queueSize = queueSizeSetting.get(settings);
@@ -78,7 +99,7 @@ public class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBuilder.F
     }
 
     @Override
-    public ThreadPool.ExecutorHolder holder(final FixedExecutorSettings settings, final ThreadContext threadContext) {
+    ThreadPool.ExecutorHolder build(final FixedExecutorSettings settings, final ThreadContext threadContext) {
         int size = settings.size;
         int queueSize = settings.queueSize;
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(EsExecutors.threadName(settings.nodeName, name()));
@@ -89,7 +110,7 @@ public class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBuilder.F
     }
 
     @Override
-    public String formatInfo(ThreadPool.Info info) {
+    String formatInfo(ThreadPool.Info info) {
         return String.format(
             Locale.ROOT,
             "name [%s], size [%d], queue size [%s]",

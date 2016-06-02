@@ -25,7 +25,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.List;
 
-public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings> {
+/**
+ * Base class for executor builders.
+ *
+ * @param <U> the underlying type of the executor settings
+ */
+abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings> {
 
     private final String name;
 
@@ -41,13 +46,37 @@ public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings
         return String.join(".", prefix, key);
     }
 
-    public abstract List<Setting<?>> registerSettings();
+    /**
+     * The list of settings this builder will register.
+     *
+     * @return the list of registered settings
+     */
+    abstract List<Setting<?>> registeredSettings();
 
-    public abstract U settings(Settings settings);
+    /**
+     * Return an executor settings object from the node-level settings.
+     *
+     * @param settings the node-level settings
+     * @return the executor settings object
+     */
+    abstract U settings(Settings settings);
 
-    public abstract ThreadPool.ExecutorHolder holder(U settings, ThreadContext threadContext);
+    /**
+     * Builds the executor with the specified executor settings.
+     *
+     * @param settings      the executor settings
+     * @param threadContext the current thread context
+     * @return a new executor built from the specified executor settings
+     */
+    abstract ThreadPool.ExecutorHolder build(U settings, ThreadContext threadContext);
 
-    public abstract String formatInfo(ThreadPool.Info info);
+    /**
+     * Format the thread pool info object for this executor.
+     *
+     * @param info the thread pool info object to format
+     * @return a formatted thread pool info (useful for logging)
+     */
+    abstract String formatInfo(ThreadPool.Info info);
 
     static abstract class ExecutorSettings {
 

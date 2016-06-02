@@ -36,10 +36,10 @@ public class ThreadPoolModule extends AbstractModule {
 
     public void prepareSettings(SettingsModule settingsModule) {
         for (final ExecutorBuilder<?> builder : threadPool.builders()) {
-            builder.registerSettings().forEach(settingsModule::registerSetting);
+            builder.registeredSettings().forEach(settingsModule::registerSetting);
         }
         for (final ExecutorBuilder<?> builder : builders) {
-            builder.registerSettings().forEach(settingsModule::registerSetting);
+            builder.registeredSettings().forEach(settingsModule::registerSetting);
             threadPool.add(builder);
         }
     }

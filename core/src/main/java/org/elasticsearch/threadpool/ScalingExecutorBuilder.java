@@ -33,16 +33,40 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
-public class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecutorBuilder.ScalingExecutorSettings> {
+/**
+ * A builder for scaling executors.
+ */
+public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecutorBuilder.ScalingExecutorSettings> {
 
     private final Setting<Integer> coreSetting;
     private final Setting<Integer> maxSetting;
     private final Setting<TimeValue> keepAliveSetting;
 
+    /**
+     * Construct a scaling executor builder; the settings will have the
+     * key prefix "thread_pool." followed by the executor name.
+     *
+     * @param name      the name of the executor
+     * @param core      the minimum number of threads in the pool
+     * @param max       the maximum number of threads in the pool
+     * @param keepAlive the time that spare threads above {@code core}
+     *                  threads will be kept alive
+     */
     public ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive) {
         this(name, core, max, keepAlive, "thread_pool." + name);
     }
 
+    /**
+     * Construct a scaling executor builder; the settings will have the
+     * specified key prefix.
+     *
+     * @param name      the name of the executor
+     * @param core      the minimum number of threads in the pool
+     * @param max       the maximum number of threads in the pool
+     * @param keepAlive the time that spare threads above {@code core}
+     *                  threads will be kept alive
+     * @param prefix    the prefix for the settings keys
+     */
     public ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive, final String prefix) {
         super(name);
         this.coreSetting =
@@ -53,12 +77,12 @@ public class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecutorBuild
     }
 
     @Override
-    public List<Setting<?>> registerSettings() {
+    List<Setting<?>> registeredSettings() {
         return Arrays.asList(coreSetting, maxSetting, keepAliveSetting);
     }
 
     @Override
-    public ScalingExecutorSettings settings(Settings settings) {
+    ScalingExecutorSettings settings(Settings settings) {
         final String nodeName = Node.NODE_NAME_SETTING.get(settings);
         final int coreThreads = coreSetting.get(settings);
         final int maxThreads = maxSetting.get(settings);
@@ -66,7 +90,7 @@ public class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecutorBuild
         return new ScalingExecutorSettings(nodeName, coreThreads, maxThreads, keepAlive);
     }
 
-    public ThreadPool.ExecutorHolder holder(final ScalingExecutorSettings settings, final ThreadContext threadContext) {
+    ThreadPool.ExecutorHolder build(final ScalingExecutorSettings settings, final ThreadContext threadContext) {
         TimeValue keepAlive = settings.keepAlive;
         int core = settings.core;
         int max = settings.max;
@@ -78,7 +102,7 @@ public class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecutorBuild
     }
 
     @Override
-    public String formatInfo(ThreadPool.Info info) {
+    String formatInfo(ThreadPool.Info info) {
         return String.format(
             Locale.ROOT,
             "name [%s], core [%d], max [%d], keep alive [%s]",

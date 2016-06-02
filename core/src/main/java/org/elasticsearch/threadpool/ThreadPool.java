@@ -137,7 +137,7 @@ public class ThreadPool extends AbstractLifecycleComponent<ThreadPool> {
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
-    private volatile Map<String, ExecutorHolder> executors = new HashMap<>();
+    private Map<String, ExecutorHolder> executors = new HashMap<>();
 
     private final ScheduledThreadPoolExecutor scheduler;
 

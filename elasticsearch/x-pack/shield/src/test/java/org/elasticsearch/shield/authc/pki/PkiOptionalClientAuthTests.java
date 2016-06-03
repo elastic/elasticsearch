@@ -80,7 +80,7 @@ public class PkiOptionalClientAuthTests extends ShieldIntegTestCase {
     }
 
     public void testRestClientWithoutClientCertificate() throws Exception {
-        CloseableHttpClient httpClient = HttpClients.custom().setSslcontext(getSSLContext()).build();
+        CloseableHttpClient httpClient = HttpClients.custom().setSSLContext(getSSLContext()).build();
         try (RestClient restClient = restClient(httpClient, "https")) {
             try {
                 restClient.performRequest("GET", "_nodes", Collections.emptyMap(), null);

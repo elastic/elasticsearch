@@ -79,7 +79,7 @@ public class PkiWithoutClientAuthenticationTests extends ShieldIntegTestCase {
     public void testThatHttpWorks() throws Exception {
         SSLContext sc = SSLContext.getInstance("SSL");
         sc.init(null, trustAllCerts, new SecureRandom());
-        CloseableHttpClient httpClient = HttpClients.custom().setSslcontext(sc).build();
+        CloseableHttpClient httpClient = HttpClients.custom().setSSLContext(sc).build();
         try (RestClient restClient =  restClient(httpClient, "https")) {
             try (ElasticsearchResponse response = restClient.performRequest("GET", "/_nodes", Collections.emptyMap(), null,
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,

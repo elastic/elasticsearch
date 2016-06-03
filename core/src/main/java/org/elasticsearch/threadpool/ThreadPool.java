@@ -167,7 +167,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         builders.put(Names.INDEX, new FixedExecutorBuilder(settings, Names.INDEX, availableProcessors, 200));
         builders.put(Names.BULK, new FixedExecutorBuilder(settings, Names.BULK, availableProcessors, 50));
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, availableProcessors, 1000));
-        builders.put(Names.SEARCH, new FixedExecutorBuilder(settings, Names.SEARCH, ((availableProcessors * 3) / 2) + 1, 1000));
+        builders.put(Names.SEARCH, new FixedExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(availableProcessors), 1000));
         builders.put(Names.MANAGEMENT, new ScalingExecutorBuilder(Names.MANAGEMENT, 1, 5, TimeValue.timeValueMinutes(5)));
         // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
         // the assumption here is that the listeners should be very lightweight on the listeners side
@@ -387,6 +387,10 @@ public class ThreadPool extends AbstractComponent implements Closeable {
 
     static int twiceNumberOfProcessors(int numberOfProcessors) {
         return boundedBy(2 * numberOfProcessors, 2, Integer.MAX_VALUE);
+    }
+
+    public static int searchThreadPoolSize(int availableProcessors) {
+        return ((availableProcessors * 3) / 2) + 1;
     }
 
     class LoggingRunnable implements Runnable {

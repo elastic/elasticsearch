@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.msearch;
 
+import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -29,9 +30,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
-public class SimpleMultiSearchIT extends ESIntegTestCase {
+public class MultiSearchIT extends ESIntegTestCase {
+
     public void testSimpleMultiSearch() {
         createIndex("test");
         ensureGreen();
@@ -54,4 +54,30 @@ public class SimpleMultiSearchIT extends ESIntegTestCase {
         assertFirstHit(response.getResponses()[0].getResponse(), hasId("1"));
         assertFirstHit(response.getResponses()[1].getResponse(), hasId("2"));
     }
+
+    public void testSimpleMultiSearchMoreRequests() {
+        createIndex("test");
+        int numDocs = randomIntBetween(0, 16);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test", "type", Integer.toString(i)).setSource("{}").get();
+        }
+        refresh();
+
+        int numSearchRequests = randomIntBetween(0, 64);
+        MultiSearchRequest request = new MultiSearchRequest();
+        if (randomBoolean()) {
+            request.maxConcurrentSearchRequests(randomIntBetween(1, numSearchRequests));
+        }
+        for (int i = 0; i < numSearchRequests; i++) {
+            request.add(client().prepareSearch("test"));
+        }
+
+        MultiSearchResponse response = client().multiSearch(request).actionGet();
+        assertThat(response.getResponses().length, equalTo(numSearchRequests));
+        for (MultiSearchResponse.Item item : response) {
+            assertNoFailures(item.getResponse());
+            assertHitCount(item.getResponse(), numDocs);
+        }
+    }
+
 }

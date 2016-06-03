@@ -91,6 +91,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        if (request.hasParam("max_concurrent_searches")) {
+            multiSearchRequest.maxConcurrentSearchRequests(request.paramAsInt("max_concurrent_searches", 0));
+        }
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));

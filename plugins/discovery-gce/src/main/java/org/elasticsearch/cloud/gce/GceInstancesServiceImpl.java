@@ -60,14 +60,6 @@ public class GceInstancesServiceImpl extends AbstractLifecycleComponent<GceInsta
 
     private final String project;
     private final List<String> zones;
-    // Forcing Google Token API URL as set in GCE SDK to
-    //      http://metadata/computeMetadata/v1/instance/service-accounts/default/token
-    // See https://developers.google.com/compute/docs/metadata#metadataserver
-    private final String gceHost;
-    private final String metaDataUrl;
-    private final String tokenServerEncodedUrl;
-    private String gceRootUrl;
-
 
     @Override
     public Collection<Instance> instances() {
@@ -124,10 +116,6 @@ public class GceInstancesServiceImpl extends AbstractLifecycleComponent<GceInsta
         super(settings);
         this.project = PROJECT_SETTING.get(settings);
         this.zones = ZONE_SETTING.get(settings);
-        this.gceHost = GceMetadataServiceImpl.GCE_HOST.get(settings);
-        this.metaDataUrl =  gceHost + "/computeMetadata/v1/instance";
-        this.gceRootUrl = GCE_ROOT_URL.get(settings);
-        this.tokenServerEncodedUrl = metaDataUrl + "/service-accounts/default/token";
         this.validateCerts = GCE_VALIDATE_CERTIFICATES.get(settings);
     }
 
@@ -157,8 +145,13 @@ public class GceInstancesServiceImpl extends AbstractLifecycleComponent<GceInsta
             gceJsonFactory = new JacksonFactory();
 
             logger.info("starting GCE discovery service");
+            // Forcing Google Token API URL as set in GCE SDK to
+            //      http://metadata/computeMetadata/v1/instance/service-accounts/default/token
+            // See https://developers.google.com/compute/docs/metadata#metadataserver
+            String tokenServerEncodedUrl = GceMetadataServiceImpl.GCE_HOST.get(settings) +
+                "/computeMetadata/v1/instance/service-accounts/default/token";
             ComputeCredential credential = new ComputeCredential.Builder(getGceHttpTransport(), gceJsonFactory)
-                    .setTokenServerEncodedUrl(this.tokenServerEncodedUrl)
+                    .setTokenServerEncodedUrl(tokenServerEncodedUrl)
                     .build();
 
             // hack around code messiness in GCE code
@@ -182,7 +175,7 @@ public class GceInstancesServiceImpl extends AbstractLifecycleComponent<GceInsta
 
 
             Compute.Builder builder = new Compute.Builder(getGceHttpTransport(), gceJsonFactory, null).setApplicationName(VERSION)
-                .setRootUrl(gceRootUrl);
+                .setRootUrl(GCE_ROOT_URL.get(settings));
 
             if (RETRY_SETTING.exists(settings)) {
                 TimeValue maxWait = MAX_WAIT_SETTING.get(settings);

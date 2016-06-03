@@ -19,11 +19,20 @@
 
 package org.elasticsearch.painless;
 
+
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptModule;
 
+/**
+ * Registers Painless as a plugin.
+ */
 public final class PainlessPlugin extends Plugin {
+
+    // force to pare our definition at startup (not on the user's first script)
+    static {
+        Definition.VOID_TYPE.hashCode();
+    }
 
     @Override
     public String name() {
@@ -37,6 +46,6 @@ public final class PainlessPlugin extends Plugin {
 
     public void onModule(final ScriptModule module) {
         module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(
-            PainlessScriptEngineService.class, PainlessScriptEngineService.TYPES));
+                        PainlessScriptEngineService.class, PainlessScriptEngineService.NAME, true));
     }
 }

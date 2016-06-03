@@ -26,13 +26,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.shard.ShardPath;
 
 import java.io.IOException;
-
-import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
 
 /**
  */
@@ -92,7 +89,7 @@ public class ShardStats implements Streamable, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        shardRouting = readShardRoutingEntry(in);
+        shardRouting = new ShardRouting(in);
         commonStats = CommonStats.readCommonStats(in);
         commitStats = CommitStats.readOptionalCommitStatsFrom(in);
         statePath = in.readString();
@@ -132,14 +129,14 @@ public class ShardStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString ROUTING = new XContentBuilderString("routing");
-        static final XContentBuilderString STATE = new XContentBuilderString("state");
-        static final XContentBuilderString STATE_PATH = new XContentBuilderString("state_path");
-        static final XContentBuilderString DATA_PATH = new XContentBuilderString("data_path");
-        static final XContentBuilderString IS_CUSTOM_DATA_PATH = new XContentBuilderString("is_custom_data_path");
-        static final XContentBuilderString SHARD_PATH = new XContentBuilderString("shard_path");
-        static final XContentBuilderString PRIMARY = new XContentBuilderString("primary");
-        static final XContentBuilderString NODE = new XContentBuilderString("node");
-        static final XContentBuilderString RELOCATING_NODE = new XContentBuilderString("relocating_node");
+        static final String ROUTING = "routing";
+        static final String STATE = "state";
+        static final String STATE_PATH = "state_path";
+        static final String DATA_PATH = "data_path";
+        static final String IS_CUSTOM_DATA_PATH = "is_custom_data_path";
+        static final String SHARD_PATH = "shard_path";
+        static final String PRIMARY = "primary";
+        static final String NODE = "node";
+        static final String RELOCATING_NODE = "relocating_node";
     }
 }

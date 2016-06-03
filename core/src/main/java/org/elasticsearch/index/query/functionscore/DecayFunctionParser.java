@@ -65,7 +65,7 @@ import java.util.function.BiFunction;
  * To write a new decay scoring function, create a new class that extends
  * {@link DecayFunctionBuilder}, setup a PARSER field with this class, and
  * register them both using
- * {@link org.elasticsearch.search.SearchModule#registerScoreFunction(ScoreFunctionParser, Writeable.Reader, ParseField)}.
+ * {@link org.elasticsearch.search.SearchModule#registerScoreFunction(Writeable.Reader, ScoreFunctionParser, ParseField)}.
  * See {@link GaussDecayFunctionBuilder#PARSER} for an example.
  */
 public final class DecayFunctionParser<DFB extends DecayFunctionBuilder<DFB>> implements ScoreFunctionParser<DFB> {
@@ -97,7 +97,8 @@ public final class DecayFunctionParser<DFB extends DecayFunctionBuilder<DFB>> im
      * </pre>
      */
     @Override
-    public DFB fromXContent(QueryParseContext context, XContentParser parser) throws IOException, ParsingException {
+    public DFB fromXContent(QueryParseContext context) throws IOException, ParsingException {
+        XContentParser parser = context.parser();
         String currentFieldName;
         XContentParser.Token token;
         MultiValueMode multiValueMode = DecayFunctionBuilder.DEFAULT_MULTI_VALUE_MODE;
@@ -111,7 +112,7 @@ public final class DecayFunctionParser<DFB extends DecayFunctionBuilder<DFB>> im
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.copyCurrentStructure(parser);
                 functionBytes = builder.bytes();
-            } else if (context.parseFieldMatcher().match(currentFieldName, MULTI_VALUE_MODE)) {
+            } else if (context.getParseFieldMatcher().match(currentFieldName, MULTI_VALUE_MODE)) {
                 multiValueMode = MultiValueMode.fromString(parser.text());
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "malformed score function score parameters.");

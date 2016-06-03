@@ -19,20 +19,70 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBuilder> {
+
+    @Override
+    protected TermQueryBuilder doCreateTestQueryBuilder() {
+        String fieldName = null;
+        Object value;
+        switch (randomIntBetween(0, 3)) {
+            case 0:
+                if (randomBoolean()) {
+                    fieldName = BOOLEAN_FIELD_NAME;
+                }
+                value = randomBoolean();
+                break;
+            case 1:
+                if (randomBoolean()) {
+                    fieldName = STRING_FIELD_NAME;
+                }
+                if (frequently()) {
+                    value = randomAsciiOfLengthBetween(1, 10);
+                } else {
+                    // generate unicode string in 10% of cases
+                    JsonStringEncoder encoder = JsonStringEncoder.getInstance();
+                    value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
+                }
+                break;
+            case 2:
+                if (randomBoolean()) {
+                    fieldName = INT_FIELD_NAME;
+                }
+                value = randomInt(10000);
+                break;
+            case 3:
+                if (randomBoolean()) {
+                    fieldName = DOUBLE_FIELD_NAME;
+                }
+                value = randomDouble();
+                break;
+            default:
+                throw new UnsupportedOperationException();
+        }
+
+        if (fieldName == null) {
+            fieldName = randomAsciiOfLengthBetween(1, 10);
+        }
+        return createQueryBuilder(fieldName, value);
+    }
+
     /**
      * @return a TermQuery with random field name and value, optional random boost and queryname
      */
@@ -43,15 +93,19 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
 
     @Override
     protected void doAssertLuceneQuery(TermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, instanceOf(TermQuery.class));
-        TermQuery termQuery = (TermQuery) query;
-        assertThat(termQuery.getTerm().field(), equalTo(queryBuilder.fieldName()));
+        assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class)));
         MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
-        if (mapper != null) {
-            BytesRef bytesRef = mapper.indexedValueForSearch(queryBuilder.value());
-            assertThat(termQuery.getTerm().bytes(), equalTo(bytesRef));
+        if (query instanceof TermQuery) {
+            TermQuery termQuery = (TermQuery) query;
+            assertThat(termQuery.getTerm().field(), equalTo(queryBuilder.fieldName()));
+            if (mapper != null) {
+                Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();
+                assertThat(termQuery.getTerm(), equalTo(term));
+            } else {
+                assertThat(termQuery.getTerm().bytes(), equalTo(BytesRefs.toBytesRef(queryBuilder.value())));
+            }
         } else {
-            assertThat(termQuery.getTerm().bytes(), equalTo(BytesRefs.toBytesRef(queryBuilder.value())));
+            assertEquals(query, mapper.termQuery(queryBuilder.value(), null));
         }
     }
 
@@ -84,5 +138,15 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         checkGeneratedJson(json, parsed);
 
         assertEquals(json, "Quick Foxes!", parsed.value());
+    }
+
+    public void testGeo() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        TermQueryBuilder query = new TermQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
+        QueryShardContext context = createShardContext();
+        QueryShardException e = expectThrows(QueryShardException.class,
+                () -> query.toQuery(context));
+        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
+                e.getMessage());
     }
 }

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # This file contains some utilities to test the elasticsearch scripts,
 # the .deb/.rpm packages and the SysV/Systemd scripts.
@@ -134,14 +134,18 @@ skip_not_zip() {
 
 assert_file_exist() {
     local file="$1"
-    echo "Should exist: ${file}"
+    if [ ! -e "$file" ]; then
+        echo "Should exist: ${file} but does not"
+    fi
     local file=$(readlink -m "${file}")
     [ -e "$file" ]
 }
 
 assert_file_not_exist() {
     local file="$1"
-    echo "Should not exist: ${file}"
+    if [ -e "$file" ]; then
+        echo "Should not exist: ${file} but does"
+    fi
     local file=$(readlink -m "${file}")
     [ ! -e "$file" ]
 }
@@ -156,28 +160,38 @@ assert_file() {
     assert_file_exist "$file"
 
     if [ "$type" = "d" ]; then
-        echo "And be a directory...."
+        if [ ! -d "$file" ]; then
+            echo "[$file] should be a directory but is not"
+        fi
         [ -d "$file" ]
     else
-        echo "And be a regular file...."
+        if [ ! -f "$file" ]; then
+            echo "[$file] should be a regular file but is not"
+        fi
         [ -f "$file" ]
     fi
 
     if [ "x$user" != "x" ]; then
         realuser=$(find "$file" -maxdepth 0 -printf "%u")
-        echo "Expected user: $user, found $realuser"
+        if [ "$realuser" != "$user" ]; then
+            echo "Expected user: $user, found $realuser [$file]"
+        fi
         [ "$realuser" = "$user" ]
     fi
 
     if [ "x$group" != "x" ]; then
         realgroup=$(find "$file" -maxdepth 0 -printf "%g")
-        echo "Expected group: $group, found $realgroup"
+        if [ "$realgroup" != "$group" ]; then
+            echo "Expected group: $group, found $realgroup [$file]"
+        fi
         [ "$realgroup" = "$group" ]
     fi
 
     if [ "x$privileges" != "x" ]; then
         realprivileges=$(find "$file" -maxdepth 0 -printf "%m")
-        echo "Expected privileges: $privileges, found $realprivileges"
+        if [ "$realprivileges" != "$privileges" ]; then
+            echo "Expected privileges: $privileges, found $realprivileges [$file]"
+        fi
         [ "$realprivileges" = "$privileges" ]
     fi
 }
@@ -190,10 +204,8 @@ assert_module_or_plugin_directory() {
     #just make sure that everything is the same as $CONFIG_DIR, which was properly set up during install
     config_user=$(find "$ESHOME" -maxdepth 0 -printf "%u")
     config_owner=$(find "$ESHOME" -maxdepth 0 -printf "%g")
-    # directories should use the user file-creation mask
-    config_privileges=$(executable_privileges_for_user_from_umask $ESPLUGIN_COMMAND_USER)
 
-    assert_file $directory d $config_user $config_owner $(printf "%o" $config_privileges)
+    assert_file $directory d $config_user $config_owner 755
 }
 
 assert_module_or_plugin_file() {
@@ -201,11 +213,7 @@ assert_module_or_plugin_file() {
     shift
 
     assert_file_exist "$(readlink -m $file)"
-
-    # config files should not be executable and otherwise use the user
-    # file-creation mask
-    expected_file_privileges=$(file_privileges_for_user_from_umask $ESPLUGIN_COMMAND_USER)
-    assert_file $file f $config_user $config_owner $(printf "%o" $expected_file_privileges)
+    assert_file $file f $config_user $config_owner 644
 }
 
 assert_output() {
@@ -332,7 +340,7 @@ run_elasticsearch_service() {
             local CONF_DIR=""
             local ES_PATH_CONF=""
         else
-            local ES_PATH_CONF="-Ees.path.conf=$CONF_DIR"
+            local ES_PATH_CONF="-Epath.conf=$CONF_DIR"
         fi
         # we must capture the exit code to compare so we don't want to start as background process in case we expect something other than 0
         local background=""
@@ -351,6 +359,8 @@ run_elasticsearch_service() {
 # This line is attempting to emulate the on login behavior of /usr/share/upstart/sessions/jayatana.conf
 [ -f /usr/share/java/jayatanaag.jar ] && export JAVA_TOOL_OPTIONS="-javaagent:/usr/share/java/jayatanaag.jar"
 # And now we can start Elasticsearch normally, in the background (-d) and with a pidfile (-p).
+export ES_JVM_OPTIONS=$ES_JVM_OPTIONS
+export ES_JAVA_OPTS=$ES_JAVA_OPTS
 $timeoutCommand/tmp/elasticsearch/bin/elasticsearch $background -p /tmp/elasticsearch/elasticsearch.pid $ES_PATH_CONF $commandLineArgs
 BASH
         [ "$status" -eq "$expectedStatus" ]

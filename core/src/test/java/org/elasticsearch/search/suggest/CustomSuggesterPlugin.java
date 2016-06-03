@@ -37,7 +37,7 @@ public class CustomSuggesterPlugin extends Plugin {
     }
 
     public void onModule(SearchModule searchModule) {
-        searchModule.registerSuggester("custom", CustomSuggester.PROTOTYPE);
+        searchModule.registerSuggester("custom", CustomSuggester.INSTANCE);
     }
 
 }

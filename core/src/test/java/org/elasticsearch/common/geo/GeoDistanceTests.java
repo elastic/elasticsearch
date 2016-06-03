@@ -47,7 +47,7 @@ public class GeoDistanceTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             geoDistance.writeTo(out);
             try (StreamInput in = StreamInput.wrap(out.bytes())) {;
-                GeoDistance copy = GeoDistance.readGeoDistanceFrom(in);
+                GeoDistance copy = GeoDistance.readFromStream(in);
                 assertEquals(copy.toString() + " vs. " + geoDistance.toString(), copy, geoDistance);
             }
         }
@@ -61,7 +61,7 @@ public class GeoDistanceTests extends ESTestCase {
                 out.writeVInt(randomIntBetween(Integer.MIN_VALUE, -1));
             }
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                GeoDistance.readGeoDistanceFrom(in);
+                GeoDistance.readFromStream(in);
             } catch (IOException e) {
                 assertThat(e.getMessage(), containsString("Unknown GeoDistance ordinal ["));
             }

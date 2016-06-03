@@ -9,17 +9,21 @@ in the same manner as the `has_child` query.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "has_parent" : {
-        "parent_type" : "blog",
-        "query" : {
-            "term" : {
-                "tag" : "something"
-            }
+    "query": {
+        "has_parent" : {
+            "parent_type" : "blog",
+                "query" : {
+                    "term" : {
+                        "tag" : "something"
+                    }
+                }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ==== Scoring capabilities
@@ -30,19 +34,32 @@ case equal to the boost on the `has_parent` query (Defaults to 1). If
 the score is set to `true`, then the score of the matching parent
 document is aggregated into the child documents belonging to the
 matching parent document. The score mode can be specified with the
-`score_mode` field inside the `has_parent` query:
+`score` field inside the `has_parent` query:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "has_parent" : {
-        "parent_type" : "blog",
-        "score" : true,
-        "query" : {
-            "term" : {
-                "tag" : "something"
-            }
+    "query": {
+        "has_parent" : {
+            "parent_type" : "blog",
+                "score" : true,
+                "query" : {
+                    "term" : {
+                        "tag" : "something"
+                    }
+                }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
+
+[float]
+==== Ignore Unmapped
+
+When set to `true` the `ignore_unmapped` option will ignore an unmapped `type`
+and will not match any documents for this query. This can be useful when
+querying multiple indexes which might have different mappings. When set to
+`false` (the default value) the query will throw an exception if the `type`
+is not mapped.

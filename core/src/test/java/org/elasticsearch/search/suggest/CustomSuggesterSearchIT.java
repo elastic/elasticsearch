@@ -91,8 +91,6 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
     }
 
     public static class CustomSuggestionBuilder extends SuggestionBuilder<CustomSuggestionBuilder> {
-
-        public final static CustomSuggestionBuilder PROTOTYPE = new CustomSuggestionBuilder("_na_", "_na_");
         protected static final ParseField RANDOM_SUFFIX_FIELD = new ParseField("suffix");
 
         private String randomSuffix;
@@ -138,7 +136,7 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
 
         static CustomSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
             XContentParser parser = parseContext.parser();
-            ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
+            ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
             XContentParser.Token token;
             String currentFieldName = null;
             String fieldname = null;

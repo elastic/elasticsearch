@@ -28,7 +28,7 @@ curl -XGET 'localhost:9200/_analyze' -d '
 --------------------------------------------------
 
 Or by building a custom transient analyzer out of tokenizers,
-token filters and char filters. Token filters can use the shorter 'filters'
+token filters and char filters. Token filters can use the shorter 'filter'
 parameter name:
 
 [source,js]
@@ -36,18 +36,20 @@ parameter name:
 curl -XGET 'localhost:9200/_analyze' -d '
 {
   "tokenizer" : "keyword",
-  "filters" : ["lowercase"],
+  "filter" : ["lowercase"],
   "text" : "this is a test"
 }'
 
 curl -XGET 'localhost:9200/_analyze' -d '
 {
   "tokenizer" : "keyword",
-  "token_filters" : ["lowercase"],
-  "char_filters" : ["html_strip"],
+  "token_filter" : ["lowercase"],
+  "char_filter" : ["html_strip"],
   "text" : "this is a <b>test</b>"
 }'
 --------------------------------------------------
+
+deprecated[5.0.0, Use `filter`/`token_filter`/`char_filter` instead of `filters`/`token_filters`/`char_filters`]
 
 It can also run against a specific index:
 
@@ -90,7 +92,7 @@ All parameters can also supplied as request parameters. For example:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&filters=lowercase&text=this+is+a+test'
+curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&filter=lowercase&text=this+is+a+test'
 --------------------------------------------------
 
 For backwards compatibility, we also accept the text parameter as the body of the request,
@@ -98,7 +100,7 @@ provided it doesn't start with `{` :
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&token_filters=lowercase&char_filters=html_strip' -d 'this is a <b>test</b>'
+curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&token_filter=lowercase&char_filter=html_strip' -d 'this is a <b>test</b>'
 --------------------------------------------------
 
 === Explain Analyze
@@ -110,16 +112,16 @@ experimental[The format of the additional detail information is experimental and
 
 [source,js]
 --------------------------------------------------
-GET test/_analyze
+GET _analyze
 {
   "tokenizer" : "standard",
-  "token_filters" : ["snowball"],
+  "token_filter" : ["snowball"],
   "text" : "detailed output",
   "explain" : true,
   "attributes" : ["keyword"] <1>
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Set "keyword" to output "keyword" attribute only
 
 coming[2.0.0, body based parameters were added in 2.0.0]
@@ -170,4 +172,3 @@ The request returns the following result:
 }
 --------------------------------------------------
 <1> Output only "keyword" attribute, since specify "attributes" in the request.
-

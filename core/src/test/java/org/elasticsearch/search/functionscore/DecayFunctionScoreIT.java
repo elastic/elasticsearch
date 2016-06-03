@@ -78,7 +78,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         return pluginList(InternalSettingsPlugin.class); // uses index.version.created
     }
 
-    private final QueryBuilder<?> baseQuery = constantScoreQuery(termQuery("test", "value"));
+    private final QueryBuilder baseQuery = constantScoreQuery(termQuery("test", "value"));
 
     public void testDistanceScoreGeoLinGaussExp() throws Exception {
         assertAcked(prepareCreate("test").addMapping(

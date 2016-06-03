@@ -33,7 +33,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesMethod;
 
 import java.util.Arrays;
@@ -88,7 +88,7 @@ public class TDigestPercentileRanksTests extends AbstractNumericTestCase {
         return percents;
     }
 
-    private static PercentileRanksAggregatorBuilder randomCompression(PercentileRanksAggregatorBuilder builder) {
+    private static PercentileRanksAggregationBuilder randomCompression(PercentileRanksAggregationBuilder builder) {
         if (randomBoolean()) {
             builder.compression(randomIntBetween(20, 120) + randomDouble());
         }

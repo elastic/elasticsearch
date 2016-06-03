@@ -1,0 +1,99 @@
+---
+"no body fails":
+  - do:
+      catch: param
+      delete_by_query:
+        index: _all
+
+---
+"invalid conflicts fails":
+  - do:
+      index:
+        index:   test
+        type:    test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /conflicts may only be .* but was \[cat\]/
+      delete_by_query:
+        index: test
+        conflicts: cat
+        body:
+          query:
+            match_all: {}
+
+---
+"invalid size fails":
+  - do:
+      index:
+        index:   test
+        type:    test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /size should be greater than 0 if the request is limited to some number of documents or -1 if it isn't but it was \[-4\]/
+      delete_by_query:
+        index: test
+        size: -4
+        body:
+          query:
+            match_all: {}
+
+---
+"invalid scroll_size fails":
+  - do:
+      index:
+        index:   test
+        type:    test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /Failed to parse int parameter \[scroll_size\] with value \[asdf\]/
+      delete_by_query:
+        index: test
+        scroll_size: asdf
+        body:
+          query:
+            match_all: {}
+
+---
+"source fields may not be modified":
+  - do:
+      catch: /fields is not supported in this context/
+      delete_by_query:
+        index: test
+        body:
+          fields: [_id]
+
+---
+"requests_per_second cannot be an empty string":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      delete_by_query:
+        requests_per_second: ""
+        index: test
+        body:
+          query:
+            match_all: {}
+
+---
+"requests_per_second cannot be negative":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      delete_by_query:
+        requests_per_second: -12
+        index: test
+        body:
+          query:
+            match_all: {}
+
+---
+"requests_per_second cannot be zero":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      delete_by_query:
+        requests_per_second: 0
+        index: test
+        body:
+          query:
+            match_all: {}

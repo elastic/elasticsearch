@@ -627,7 +627,7 @@ public class GetActionIT extends ESIntegTestCase {
                                     .startObject("field4").field("type", "text").field("store", true)
                                 .endObject().endObject()
                             .endObject().endObject()
-                        .endObject().endObject()
+                        .endObject().endObject().endObject()
                         .endObject().endObject().endObject()));
 
         BytesReference source = jsonBuilder().startObject()

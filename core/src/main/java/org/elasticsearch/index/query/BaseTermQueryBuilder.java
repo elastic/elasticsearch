@@ -119,6 +119,21 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
         this.value = convertToBytesRefIfString(value);
     }
 
+    /**
+     * Read from a stream.
+     */
+    protected BaseTermQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        value = in.readGenericValue();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeGenericValue(value);
+    }
+
     /** Returns the field name used in this query. */
     public String fieldName() {
         return this.fieldName;
@@ -151,18 +166,5 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
     protected final boolean doEquals(BaseTermQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
                Objects.equals(value, other.value);
-    }
-
-    @Override
-    protected final QB doReadFrom(StreamInput in) throws IOException {
-        return createBuilder(in.readString(), in.readGenericValue());
-    }
-
-    protected abstract QB createBuilder(String fieldName, Object value);
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeGenericValue(value);
     }
 }

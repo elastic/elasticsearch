@@ -51,7 +51,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -86,7 +86,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     private TransportBulkAction createAction(boolean controlled, AtomicLong expected) {
         CapturingTransport capturingTransport = new CapturingTransport();
-        TransportService transportService = new TransportService(capturingTransport, threadPool);
+        TransportService transportService = new TransportService(capturingTransport, threadPool, clusterService.state().getClusterName());
         transportService.start();
         transportService.acceptIncomingRequests();
         IndexNameExpressionResolver resolver = new Resolver(Settings.EMPTY);
@@ -122,12 +122,13 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
                 @Override
                 void executeBulk(
+                        Task task,
                         BulkRequest bulkRequest,
                         long startTimeNanos,
                         ActionListener<BulkResponse> listener,
                         AtomicArray<BulkItemResponse> responses) {
                     expected.set(1000000);
-                    super.executeBulk(bulkRequest, startTimeNanos, listener, responses);
+                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, responses);
                 }
             };
         } else {
@@ -151,13 +152,14 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
                 @Override
                 void executeBulk(
+                        Task task,
                         BulkRequest bulkRequest,
                         long startTimeNanos,
                         ActionListener<BulkResponse> listener,
                         AtomicArray<BulkItemResponse> responses) {
                     long elapsed = spinForAtLeastOneMillisecond();
                     expected.set(elapsed);
-                    super.executeBulk(bulkRequest, startTimeNanos, listener, responses);
+                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, responses);
                 }
             };
         }
@@ -183,7 +185,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
         AtomicLong expected = new AtomicLong();
         TransportBulkAction action = createAction(controlled, expected);
-        action.doExecute(bulkRequest, new ActionListener<BulkResponse>() {
+        action.doExecute(null, bulkRequest, new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse bulkItemResponses) {
                 if (controlled) {

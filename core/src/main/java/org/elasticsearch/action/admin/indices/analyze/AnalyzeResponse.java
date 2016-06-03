@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -204,12 +203,12 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
     }
 
     static final class Fields {
-        static final XContentBuilderString TOKENS = new XContentBuilderString("tokens");
-        static final XContentBuilderString TOKEN = new XContentBuilderString("token");
-        static final XContentBuilderString START_OFFSET = new XContentBuilderString("start_offset");
-        static final XContentBuilderString END_OFFSET = new XContentBuilderString("end_offset");
-        static final XContentBuilderString TYPE = new XContentBuilderString("type");
-        static final XContentBuilderString POSITION = new XContentBuilderString("position");
-        static final XContentBuilderString DETAIL = new XContentBuilderString("detail");
+        static final String TOKENS = "tokens";
+        static final String TOKEN = "token";
+        static final String START_OFFSET = "start_offset";
+        static final String END_OFFSET = "end_offset";
+        static final String TYPE = "type";
+        static final String POSITION = "position";
+        static final String DETAIL = "detail";
     }
 }

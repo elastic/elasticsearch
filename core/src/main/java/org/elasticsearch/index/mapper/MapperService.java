@@ -24,24 +24,24 @@ import com.carrotsearch.hppc.ObjectHashSet;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.script.ScriptService;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -63,7 +63,7 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 /**
  *
  */
-public class MapperService extends AbstractIndexComponent implements Closeable {
+public class MapperService extends AbstractIndexComponent {
 
     /**
      * The reason why a mapping is being merged.
@@ -90,11 +90,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             Setting.longSetting("index.mapping.depth.limit", 20L, 1, Property.Dynamic, Property.IndexScope);
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
     public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING =
-        Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, Property.IndexScope);
+        Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, Property.Dynamic, Property.IndexScope);
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
     );
+    @Deprecated
+    public static final String PERCOLATOR_LEGACY_TYPE_NAME = ".percolator";
 
     private final AnalysisService analysisService;
 
@@ -104,7 +106,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final boolean dynamic;
 
     private volatile String defaultMappingSource;
-    private volatile String defaultPercolatorMappingSource;
 
     private volatile Map<String, DocumentMapper> mappers = emptyMap();
 
@@ -137,39 +138,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.mapperRegistry = mapperRegistry;
 
         this.dynamic = this.indexSettings.getValue(INDEX_MAPPER_DYNAMIC_SETTING);
-        defaultPercolatorMappingSource = "{\n" +
-            "\"_default_\":{\n" +
-                "\"properties\" : {\n" +
-                    "\"query\" : {\n" +
-                        "\"type\" : \"percolator\"\n" +
-                    "}\n" +
-                "}\n" +
-            "}\n" +
-        "}";
-        if (index().getName().equals(ScriptService.SCRIPT_INDEX)){
-            defaultMappingSource =  "{" +
-                "\"_default_\": {" +
-                    "\"properties\": {" +
-                        "\"script\": { \"enabled\": false }," +
-                        "\"template\": { \"enabled\": false }" +
-                    "}" +
-                "}" +
-            "}";
-        } else {
-            defaultMappingSource = "{\"_default_\":{}}";
-        }
+        defaultMappingSource = "{\"_default_\":{}}";
 
         if (logger.isTraceEnabled()) {
-            logger.trace("using dynamic[{}], default mapping source[{}], default percolator mapping source[{}]", dynamic, defaultMappingSource, defaultPercolatorMappingSource);
+            logger.trace("using dynamic[{}], default mapping source[{}]", dynamic, defaultMappingSource);
         } else if (logger.isDebugEnabled()) {
             logger.debug("using dynamic[{}]", dynamic);
-        }
-    }
-
-    @Override
-    public void close() {
-        for (DocumentMapper documentMapper : mappers.values()) {
-            documentMapper.close();
         }
     }
 
@@ -201,6 +175,35 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public DocumentMapperParser documentMapperParser() {
         return this.documentParser;
+    }
+
+    public static Map<String, Object> parseMapping(String mappingSource) throws Exception {
+        try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource)) {
+            return parser.map();
+        }
+    }
+
+    //TODO: make this atomic
+    public void merge(Map<String, Map<String, Object>> mappings, boolean updateAllTypes) throws MapperParsingException {
+        // first, add the default mapping
+        if (mappings.containsKey(DEFAULT_MAPPING)) {
+            try {
+                this.merge(DEFAULT_MAPPING, new CompressedXContent(XContentFactory.jsonBuilder().map(mappings.get(DEFAULT_MAPPING)).string()), MergeReason.MAPPING_UPDATE, updateAllTypes);
+            } catch (Exception e) {
+                throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, DEFAULT_MAPPING, e.getMessage());
+            }
+        }
+        for (Map.Entry<String, Map<String, Object>> entry : mappings.entrySet()) {
+            if (entry.getKey().equals(DEFAULT_MAPPING)) {
+                continue;
+            }
+            try {
+                // apply the default here, its the first time we parse it
+                this.merge(entry.getKey(), new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).string()), MergeReason.MAPPING_UPDATE, updateAllTypes);
+            } catch (Exception e) {
+                throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
+            }
+        }
     }
 
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason, boolean updateAllTypes) {
@@ -344,7 +347,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private boolean typeNameStartsWithIllegalDot(DocumentMapper mapper) {
-        return mapper.type().startsWith(".") && !PercolatorFieldMapper.TYPE_NAME.equals(mapper.type());
+        boolean legacyIndex = getIndexSettings().getIndexVersionCreated().before(Version.V_5_0_0_alpha1);
+        if (legacyIndex) {
+            return mapper.type().startsWith(".") && !PERCOLATOR_LEGACY_TYPE_NAME.equals(mapper.type());
+        } else {
+            return mapper.type().startsWith(".");
+        }
     }
 
     private boolean assertSerialization(DocumentMapper mapper) {
@@ -453,12 +461,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
-        String defaultMappingSource;
-        if (PercolatorFieldMapper.TYPE_NAME.equals(mappingType)) {
-            defaultMappingSource = this.defaultPercolatorMappingSource;
-        }  else {
-            defaultMappingSource = this.defaultMappingSource;
-        }
         return documentParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
     }
 

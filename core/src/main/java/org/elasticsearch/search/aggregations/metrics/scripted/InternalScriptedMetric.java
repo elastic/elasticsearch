@@ -92,7 +92,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
                 vars.putAll(firstAggregation.reduceScript.getParams());
             }
             CompiledScript compiledScript = reduceContext.scriptService().compile(firstAggregation.reduceScript,
-                    ScriptContext.Standard.AGGS, Collections.emptyMap());
+                    ScriptContext.Standard.AGGS, Collections.emptyMap(), reduceContext.clusterState());
             ExecutableScript script = reduceContext.scriptService().executable(compiledScript, vars);
             aggregation = script.run();
         } else {
@@ -121,7 +121,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
-            reduceScript = Script.readScript(in);
+            reduceScript = new Script(in);
         }
         aggregation = in.readGenericValue();
     }

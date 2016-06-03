@@ -48,7 +48,6 @@
                     merges.total_docs                .+   \n
                     merges.total_size                .+   \n
                     merges.total_time                .+   \n
-                    percolate.queries                .+   \n
                     refresh.total                    .+   \n
                     refresh.time                     .+   \n
                     search.fetch_current             .+   \n
@@ -64,7 +63,6 @@
                     segments.count                   .+   \n
                     segments.memory                  .+   \n
                     segments.index_writer_memory     .+   \n
-                    segments.index_writer_max_memory .+   \n
                     segments.version_map_memory      .+   \n
                     segments.fixed_bitset_memory     .+   \n
                     warmer.current                   .+   \n

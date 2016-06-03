@@ -34,13 +34,13 @@ import java.io.IOException;
  *  On IGNORE_MALFORMED invalid coordinates are being accepted.
  *  On COERCE invalid coordinates are being corrected to the most likely valid coordinate.
  * */
-public enum GeoValidationMethod implements Writeable<GeoValidationMethod>{
+public enum GeoValidationMethod implements Writeable {
     COERCE, IGNORE_MALFORMED, STRICT;
 
     public static final GeoValidationMethod DEFAULT = STRICT;
     public static final boolean DEFAULT_LENIENT_PARSING = (DEFAULT != STRICT);
 
-    public static GeoValidationMethod readGeoValidationMethodFrom(StreamInput in) throws IOException {
+    public static GeoValidationMethod readFromStream(StreamInput in) throws IOException {
         return GeoValidationMethod.values()[in.readVInt()];
     }
 

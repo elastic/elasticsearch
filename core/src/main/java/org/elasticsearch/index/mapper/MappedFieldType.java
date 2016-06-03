@@ -25,22 +25,16 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.joda.DateMathParser;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -97,9 +91,13 @@ public abstract class MappedFieldType extends FieldType {
     @Override
     public abstract MappedFieldType clone();
 
-    /** Return a fielddata builder for this field. */
+    /** Return a fielddata builder for this field
+     *  @throws IllegalArgumentException if the fielddata is not supported on this type.
+     *  An IllegalArgumentException is needed in order to return an http error 400
+     *  when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
+     **/
     public IndexFieldData.Builder fielddataBuilder() {
-        throw new IllegalArgumentException("Fielddata is not supported on fields of type [" + typeName() + "]");
+        throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
 
     @Override
@@ -222,14 +220,6 @@ public abstract class MappedFieldType extends FieldType {
         }
     }
 
-    public boolean isNumeric() {
-        return false;
-    }
-
-    public boolean isSortable() {
-        return true;
-    }
-
     public String name() {
         return name;
     }
@@ -310,85 +300,63 @@ public abstract class MappedFieldType extends FieldType {
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
 
-    /** Returns the actual value of the field. */
-    public Object value(Object value) {
-        return value;
-    }
-
-    /** Returns the value that will be used as a result for search. Can be only of specific types... */
+    /** Given a value that comes from the stored fields API, convert it to the
+     *  expected type. For instance a date field would store dates as longs and
+     *  format it back to a string in this method. */
     public Object valueForSearch(Object value) {
         return value;
     }
 
-    /** Returns the indexed value used to construct search "values". */
-    public BytesRef indexedValueForSearch(Object value) {
-        return BytesRefs.toBytesRef(value);
-    }
-
-    /**
-     * Should the field query {@link #termQuery(Object, org.elasticsearch.index.query.QueryShardContext)}  be used when detecting this
-     * field in query string.
+    /** Returns true if the field is searchable.
+     *
      */
-    public boolean useTermQueryWithQueryString() {
-        return false;
+    protected boolean isSearchable() {
+        return indexOptions() != IndexOptions.NONE;
     }
 
-    /**
-     * Creates a term associated with the field of this mapper for the given
-     * value. Its important to use termQuery when building term queries because
-     * things like ParentFieldMapper override it to make more interesting
-     * queries.
+    /** Returns true if the field is aggregatable.
+     *
      */
-    protected Term createTerm(Object value) {
-        return new Term(name(), indexedValueForSearch(value));
+    protected boolean isAggregatable() {
+        try {
+            fielddataBuilder();
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
-    public Query termQuery(Object value, @Nullable QueryShardContext context) {
-        TermQuery query = new TermQuery(createTerm(value));
-        if (boost == 1f ||
-            (context != null && context.indexVersionCreated().before(Version.V_5_0_0_alpha1))) {
-            return query;
-        }
-        return new BoostQuery(query, boost);
-    }
+    /** Generates a query that will only match documents that contain the given value.
+     *  The default implementation returns a {@link TermQuery} over the value bytes,
+     *  boosted by {@link #boost()}.
+     *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type */
+    public abstract Query termQuery(Object value, @Nullable QueryShardContext context);
 
-    public Query termsQuery(List values, @Nullable QueryShardContext context) {
-        BytesRef[] bytesRefs = new BytesRef[values.size()];
-        for (int i = 0; i < bytesRefs.length; i++) {
-            bytesRefs[i] = indexedValueForSearch(values.get(i));
+    /** Build a constant-scoring query that matches all values. The default implementation uses a
+     * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
+     * are generated with {@link #termQuery}. */
+    public Query termsQuery(List<?> values, @Nullable QueryShardContext context) {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        for (Object value : values) {
+            builder.add(termQuery(value, context), Occur.SHOULD);
         }
-        return new TermsQuery(name(), bytesRefs);
+        return new ConstantScoreQuery(builder.build());
     }
 
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-        return new TermRangeQuery(name(),
-            lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-            upperTerm == null ? null : indexedValueForSearch(upperTerm),
-            includeLower, includeUpper);
+        throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support range queries");
     }
 
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        return new FuzzyQuery(createTerm(value), fuzziness.asDistance(BytesRefs.toString(value)), prefixLength, maxExpansions, transpositions);
+        throw new IllegalArgumentException("Can only use fuzzy queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
-    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
-        PrefixQuery query = new PrefixQuery(createTerm(value));
-        if (method != null) {
-            query.setRewriteMethod(method);
-        }
-        return query;
+    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        throw new QueryShardException(context, "Can only use prefix queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
-    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
-        if (numericType() != null) {
-            throw new QueryShardException(context, "Cannot use regular expression to filter numeric field [" + name + "]");
-        }
-
-        RegexpQuery query = new RegexpQuery(createTerm(value), flags, maxDeterminizedStates);
-        if (method != null) {
-            query.setRewriteMethod(method);
-        }
-        return query;
+    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        throw new QueryShardException(context, "Can only use regexp queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
     public Query nullValueQuery() {
@@ -409,9 +377,11 @@ public abstract class MappedFieldType extends FieldType {
         if (terms == null) {
             return null;
         }
-        return new FieldStats.Text(
-            maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), terms.getMin(), terms.getMax()
-        );
+        FieldStats stats = new FieldStats.Text(maxDoc, terms.getDocCount(),
+            terms.getSumDocFreq(), terms.getSumTotalTermFreq(),
+            isSearchable(), isAggregatable(),
+            terms.getMin(), terms.getMax());
+        return stats;
     }
 
     /**
@@ -442,11 +412,22 @@ public abstract class MappedFieldType extends FieldType {
         return null;
     }
 
+    /** @throws IllegalArgumentException if the fielddata is not supported on this type.
+     *  An IllegalArgumentException is needed in order to return an http error 400
+     *  when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
+     **/
     protected final void failIfNoDocValues() {
         if (hasDocValues() == false) {
-            throw new IllegalStateException("Can't load fielddata on [" + name()
+            throw new IllegalArgumentException("Can't load fielddata on [" + name()
                 + "] because fielddata is unsupported on fields of type ["
                 + typeName() + "]. Use doc values instead.");
+        }
+    }
+
+    protected final void failIfNotIndexed() {
+        if (indexOptions() == IndexOptions.NONE && pointDimensionCount() == 0) {
+            // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
+            throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
         }
     }
 
@@ -472,4 +453,19 @@ public abstract class MappedFieldType extends FieldType {
         return DocValueFormat.RAW;
     }
 
+    /**
+     * Extract a {@link Term} from a query created with {@link #termQuery} by
+     * recursively removing {@link BoostQuery} wrappers.
+     * @throws IllegalArgumentException if the wrapped query is not a {@link TermQuery}
+     */
+    public static Term extractTerm(Query termQuery) {
+        while (termQuery instanceof BoostQuery) {
+            termQuery = ((BoostQuery) termQuery).getQuery();
+        }
+        if (termQuery instanceof TermQuery == false) {
+            throw new IllegalArgumentException("Cannot extract a term from a query of type "
+                    + termQuery.getClass() + ": " + termQuery);
+        }
+        return ((TermQuery) termQuery).getTerm();
+    }
 }

@@ -30,7 +30,7 @@ PUT music/song/_mapping
         "properties" : {
             ...
             "suggest" : {
-                "type" : "completion",
+                "type" : "completion"
             }
         }
     }

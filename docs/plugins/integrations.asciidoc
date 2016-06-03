@@ -85,11 +85,6 @@ releases 2.0 and later do not support rivers.
 * https://github.com/elastic/cookbook-elasticsearch[Chef]:
   Chef cookbook for Elasticsearch
 
-This project appears to have been abandoned:
-
-* https://github.com/medcl/salt-elasticsearch[SaltStack]:
-  SaltStack Module for Elasticsearch
-
 [float]
 [[framework-integrations]]
 === Framework integrations
@@ -135,23 +130,6 @@ This project appears to have been abandoned:
 * https://github.com/twitter/storehaus[Twitter Storehaus]:
   Thin asynchronous Scala client for Storehaus.
 
-These projects appear to have been abandoned:
-
-* https://metacpan.org/module/Catalyst::Model::Search::Elasticsearch[Catalyst]:
-  Elasticsearch and Catalyst integration.
-
-* http://github.com/aparo/django-elasticsearch[django-elasticsearch]:
-  Django Elasticsearch Backend.
-
-* https://github.com/kzwang/elasticsearch-osem[elasticsearch-osem]:
-  A Java Object Search Engine Mapping (OSEM) for Elasticsearch
-
-* http://geeks.aretotally.in/play-framework-module-elastic-search-distributed-searching-with-json-http-rest-or-java[Play!Framework]:
-  Integrate with Play! Framework Application.
-
-* http://code.google.com/p/terrastore/wiki/Search_Integration[Terrastore Search]:
-  http://code.google.com/p/terrastore/[Terrastore] integration module with elasticsearch.
-
 
 [float]
 [[hadoop-integrations]]
@@ -163,18 +141,6 @@ These projects appear to have been abandoned:
 * link:/guide/en/elasticsearch/hadoop/current/[es-hadoop]: Elasticsearch real-time
   search and analytics natively integrated with Hadoop. Supports Map/Reduce,
   Cascading, Apache Hive, Apache Pig, Apache Spark and Apache Storm.
-
-[float]
-==== Supported by the community:
-
-These projects appear to have been abandoned:
-
-* http://github.com/Aconex/elasticflume[elasticflume]:
-  http://github.com/cloudera/flume[Flume] sink implementation.
-
-
-* https://github.com/infochimps-labs/wonderdog[Wonderdog]:
-  Hadoop bulk loader into elasticsearch.
 
 
 [float]
@@ -221,14 +187,3 @@ These projects appear to have been abandoned:
 * https://www.wireshark.org/[Wireshark]:
   Protocol dissection for Zen discovery, HTTP and the binary protocol
 
-
-These projects appear to have been abandoned:
-
-* http://www.github.com/neogenix/daikon[daikon]:
-  Daikon Elasticsearch CLI
-
-* https://github.com/fullscale/dangle[dangle]:
-  A set of AngularJS directives that provide common visualizations for elasticsearch based on
-  D3.
-* https://github.com/OlegKunitsyn/eslogd[eslogd]:
-  Linux daemon that replicates events to a central Elasticsearch server in realtime

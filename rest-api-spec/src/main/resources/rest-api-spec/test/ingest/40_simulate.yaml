@@ -143,7 +143,7 @@
                 {
                   "rename" : {
                     "field" : "does_not_exist",
-                    "to" : "field2",
+                    "target_field" : "field2",
                     "on_failure" : [
                       {
                         "set" : {
@@ -341,7 +341,7 @@
             ]
           }
   - length: { docs: 2 }
-  - match: { docs.0.error.type: "illegal_argument_exception" }
+  - match: { docs.0.error.type: "exception" }
   - match: { docs.1.doc._source.foo: "BAR" }
   - length: { docs.1.doc._ingest: 1 }
   - is_true: docs.1.doc._ingest.timestamp
@@ -425,7 +425,7 @@
                   "rename" : {
                     "tag" : "rename-1",
                     "field" : "foofield",
-                    "to" : "field1",
+                    "target_field" : "field1",
                     "on_failure" : [
                       {
                         "set" : {
@@ -437,7 +437,7 @@
                       {
                         "rename" : {
                           "field" : "foofield2",
-                          "to" : "field1",
+                          "target_field" : "field1",
                           "on_failure" : [
                             {
                               "set" : {

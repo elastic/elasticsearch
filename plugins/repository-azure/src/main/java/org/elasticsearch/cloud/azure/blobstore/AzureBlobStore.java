@@ -85,11 +85,7 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
 
     @Override
     public void delete(BlobPath path) {
-        String keyPath = path.buildAsString("/");
-        if (!keyPath.isEmpty()) {
-            keyPath = keyPath + "/";
-        }
-
+        String keyPath = path.buildAsString();
         try {
             this.client.deleteFiles(this.accountName, this.locMode, container, keyPath);
         } catch (URISyntaxException | StorageException e) {

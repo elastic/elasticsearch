@@ -6,8 +6,7 @@ contains any value other than `null`.  This field is used by the
 <<query-dsl-exists-query,`exists`>> query to find documents that
 either have or don't have any non-+null+ value for a particular field.
 
-The value of the `_field_name` field is accessible in queries, aggregations, and
-scripts:
+The value of the `_field_name` field is accessible in queries and scripts:
 
 [source,js]
 --------------------------
@@ -30,24 +29,15 @@ GET my_index/_search
       "_field_names": [ "title" ] <1>
     }
   },
-  "aggs": {
-    "Field names": {
-      "terms": {
-        "field": "_field_names", <2>
-        "size": 10
-      }
-    }
-  },
   "script_fields": {
     "Field names": {
-      "script": "doc['_field_names']" <3>
+      "script": "doc['_field_names']" <2>
     }
   }
 }
 
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Querying on the `_field_names` field (also see the <<query-dsl-exists-query,`exists`>> query)
-<2> Aggregating on the `_field_names` field
-<3> Accessing the `_field_names` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)
+<2> Accessing the `_field_names` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)

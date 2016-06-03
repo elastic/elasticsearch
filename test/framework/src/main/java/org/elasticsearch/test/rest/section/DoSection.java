@@ -129,7 +129,11 @@ public class DoSection implements ExecutableSection {
     }
 
     private String formatStatusCodeMessage(RestResponse restResponse, String expected) {
-        return "expected [" + expected + "] status code but api [" + apiCallSection.getApi() + "] returned ["
+        String api = apiCallSection.getApi();
+        if ("raw".equals(api)) {
+            api += "[method=" + apiCallSection.getParams().get("method") + " path=" + apiCallSection.getParams().get("path") + "]";
+        }
+        return "expected [" + expected + "] status code but api [" + api + "] returned ["
                 + restResponse.getStatusCode() + " " + restResponse.getReasonPhrase() + "] [" + restResponse.getBodyAsString() + "]";
     }
 

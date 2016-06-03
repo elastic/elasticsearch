@@ -57,11 +57,13 @@ class PluginPropertiesTask extends Copy {
             // configure property substitution
             from(templateFile)
             into(generatedResourcesDir)
-            expand(generateSubstitutions())
+            Map<String, String> properties = generateSubstitutions()
+            expand(properties)
+            inputs.properties(properties)
         }
     }
 
-    Map generateSubstitutions() {
+    Map<String, String> generateSubstitutions() {
         def stringSnap = { version ->
             if (version.endsWith("-SNAPSHOT")) {
                return version.substring(0, version.length() - 9)

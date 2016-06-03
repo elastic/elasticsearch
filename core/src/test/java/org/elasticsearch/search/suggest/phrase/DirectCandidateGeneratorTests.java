@@ -23,7 +23,6 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -36,12 +35,11 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCan
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
-
 import static org.hamcrest.Matchers.equalTo;
 
 public class DirectCandidateGeneratorTests extends ESTestCase{
 
+    private static final IndicesQueriesRegistry mockRegistry = new IndicesQueriesRegistry();
     private static final int NUMBER_OF_RUNS = 20;
 
 
@@ -111,8 +109,6 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
      *  creates random candidate generator, renders it to xContent and back to new instance that should be equal to original
      */
     public void testFromXContent() throws IOException {
-        QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry(Settings.EMPTY, Collections.emptyMap()));
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
             DirectCandidateGeneratorBuilder generator = randomCandidateGenerator();
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -120,9 +116,8 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
                 builder.prettyPrint();
             }
             generator.toXContent(builder, ToXContent.EMPTY_PARAMS);
-
-            XContentParser parser = XContentHelper.createParser(builder.bytes());
-            context.reset(parser);
+            XContentParser parser = XContentHelper.createParser(shuffleXContent(builder).bytes());
+            QueryParseContext context = new QueryParseContext(mockRegistry, parser, ParseFieldMatcher.STRICT);
             parser.nextToken();
             DirectCandidateGeneratorBuilder secondGenerator = DirectCandidateGeneratorBuilder.fromXContent(context);
             assertNotSame(generator, secondGenerator);
@@ -153,43 +148,38 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
      * test that bad xContent throws exception
      */
     public void testIllegalXContent() throws IOException {
-        QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry(Settings.EMPTY, Collections.emptyMap()));
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
-
         // test missing fieldname
         String directGenerator = "{ }";
-        XContentParser parser = XContentFactory.xContent(directGenerator).createParser(directGenerator);
-        context.reset(parser);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> DirectCandidateGeneratorBuilder.fromXContent(context));
-        assertEquals("[direct_generator] expects exactly one field parameter, but found []", e.getMessage());
+        assertIllegalXContent(directGenerator, IllegalArgumentException.class,
+                "[direct_generator] expects exactly one field parameter, but found []");
 
         // test two fieldnames
         directGenerator = "{ \"field\" : \"f1\", \"field\" : \"f2\" }";
-        parser = XContentFactory.xContent(directGenerator).createParser(directGenerator);
-        context.reset(parser);
-        e = expectThrows(IllegalArgumentException.class, () -> DirectCandidateGeneratorBuilder.fromXContent(context));
-        assertEquals("[direct_generator] expects exactly one field parameter, but found [f2, f1]", e.getMessage());
+        assertIllegalXContent(directGenerator, IllegalArgumentException.class,
+                "[direct_generator] expects exactly one field parameter, but found [f2, f1]");
 
         // test unknown field
         directGenerator = "{ \"unknown_param\" : \"f1\" }";
-        parser = XContentFactory.xContent(directGenerator).createParser(directGenerator);
-        context.reset(parser);
-        e = expectThrows(IllegalArgumentException.class, () -> DirectCandidateGeneratorBuilder.fromXContent(context));
-        assertEquals("[direct_generator] unknown field [unknown_param], parser not found", e.getMessage());
+        assertIllegalXContent(directGenerator, IllegalArgumentException.class,
+                "[direct_generator] unknown field [unknown_param], parser not found");
 
         // test bad value for field (e.g. size expects an int)
         directGenerator = "{ \"size\" : \"xxl\" }";
-        parser = XContentFactory.xContent(directGenerator).createParser(directGenerator);
-        context.reset(parser);
-        e = expectThrows(ParsingException.class, () -> DirectCandidateGeneratorBuilder.fromXContent(context));
-        assertEquals("[direct_generator] failed to parse field [size]", e.getMessage());
+        assertIllegalXContent(directGenerator, ParsingException.class,
+                "[direct_generator] failed to parse field [size]");
 
         // test unexpected token
         directGenerator = "{ \"size\" : [ \"xxl\" ] }";
-        parser = XContentFactory.xContent(directGenerator).createParser(directGenerator);
-        context.reset(parser);
-        e = expectThrows(IllegalArgumentException.class, () -> DirectCandidateGeneratorBuilder.fromXContent(context));
-        assertEquals("[direct_generator] size doesn't support values of type: START_ARRAY", e.getMessage());
+        assertIllegalXContent(directGenerator, IllegalArgumentException.class,
+                "[direct_generator] size doesn't support values of type: START_ARRAY");
+    }
+
+    private static void assertIllegalXContent(String directGenerator, Class<? extends Exception> exceptionClass, String exceptionMsg)
+            throws IOException {
+        XContentParser parser = XContentFactory.xContent(directGenerator).createParser(directGenerator);
+        QueryParseContext context = new QueryParseContext(mockRegistry, parser, ParseFieldMatcher.STRICT);
+        Exception e = expectThrows(exceptionClass, () -> DirectCandidateGeneratorBuilder.fromXContent(context));
+        assertEquals(exceptionMsg, e.getMessage());
     }
 
     /**

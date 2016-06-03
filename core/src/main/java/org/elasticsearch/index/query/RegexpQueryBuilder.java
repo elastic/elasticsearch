@@ -37,15 +37,15 @@ import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A Query that does fuzzy matching for a specific value.
  */
-public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder> implements MultiTermQueryBuilder<RegexpQueryBuilder> {
+public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder> implements MultiTermQueryBuilder {
 
     public static final String NAME = "regexp";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final RegexpQueryBuilder PROTOTYPE = new RegexpQueryBuilder("field", "value");
 
     public static final int DEFAULT_FLAGS_VALUE = RegexpFlag.ALL.value();
     public static final int DEFAULT_MAX_DETERMINIZED_STATES = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
@@ -83,6 +83,27 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         }
         this.fieldName = fieldName;
         this.value = value;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public RegexpQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        value = in.readString();
+        flagsValue = in.readVInt();
+        maxDeterminizedStates = in.readVInt();
+        rewrite = in.readOptionalString();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeString(value);
+        out.writeVInt(flagsValue);
+        out.writeVInt(maxDeterminizedStates);
+        out.writeOptionalString(rewrite);
     }
 
     /** Returns the field name used in this query. */
@@ -159,7 +180,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         builder.endObject();
     }
 
-    public static RegexpQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<RegexpQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = parser.currentName();
@@ -183,20 +204,20 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if (parseContext.parseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
+                        if (parseContext.getParseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
                             value = parser.textOrNull();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                             boost = parser.floatValue();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
                             rewrite = parser.textOrNull();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, FLAGS_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, FLAGS_FIELD)) {
                             String flags = parser.textOrNull();
                             flagsValue = RegexpFlag.resolveValue(flags);
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, MAX_DETERMINIZED_STATES_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MAX_DETERMINIZED_STATES_FIELD)) {
                             maxDeterminizedStates = parser.intValue();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, FLAGS_VALUE_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, FLAGS_VALUE_FIELD)) {
                             flagsValue = parser.intValue();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                             queryName = parser.text();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
@@ -205,7 +226,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                     }
                 }
             } else {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     fieldName = currentFieldName;
@@ -217,12 +238,12 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         if (value == null) {
             throw new ParsingException(parser.getTokenLocation(), "No value specified for regexp query");
         }
-        return new RegexpQueryBuilder(fieldName, value)
+        return Optional.of(new RegexpQueryBuilder(fieldName, value)
                 .flags(flagsValue)
                 .maxDeterminizedStates(maxDeterminizedStates)
                 .rewrite(rewrite)
                 .boost(boost)
-                .queryName(queryName);
+                .queryName(queryName));
     }
 
     @Override
@@ -232,7 +253,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws QueryShardException, IOException {
-        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(context.parseFieldMatcher(), rewrite, null);
+        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(context.getParseFieldMatcher(), rewrite, null);
 
         Query query = null;
         MappedFieldType fieldType = context.fieldMapper(fieldName);
@@ -247,24 +268,6 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             query = regexpQuery;
         }
         return query;
-    }
-
-    @Override
-    protected RegexpQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        RegexpQueryBuilder regexpQueryBuilder = new RegexpQueryBuilder(in.readString(), in.readString());
-        regexpQueryBuilder.flagsValue = in.readVInt();
-        regexpQueryBuilder.maxDeterminizedStates = in.readVInt();
-        regexpQueryBuilder.rewrite = in.readOptionalString();
-        return regexpQueryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeString(value);
-        out.writeVInt(flagsValue);
-        out.writeVInt(maxDeterminizedStates);
-        out.writeOptionalString(rewrite);
     }
 
     @Override

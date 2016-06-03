@@ -23,15 +23,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
 import java.io.IOException;
 import java.util.Objects;
 
 public abstract class AbstractHistogramBuilder<AB extends AbstractHistogramBuilder<AB>>
-        extends ValuesSourceAggregatorBuilder<ValuesSource.Numeric, AB> {
+        extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, AB> {
 
     protected long interval;
     protected long offset = 0;
@@ -40,8 +40,43 @@ public abstract class AbstractHistogramBuilder<AB extends AbstractHistogramBuild
     protected long minDocCount = 0;
     protected ExtendedBounds extendedBounds;
 
-    AbstractHistogramBuilder(String name, InternalHistogram.Factory<?> histogramFactory) {
+    protected AbstractHistogramBuilder(String name, InternalHistogram.Factory<?> histogramFactory) {
         super(name, histogramFactory.type(), ValuesSourceType.NUMERIC, histogramFactory.valueType());
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected AbstractHistogramBuilder(StreamInput in, InternalHistogram.Factory<?> histogramFactory) throws IOException {
+        super(in, histogramFactory.type(), ValuesSourceType.NUMERIC, histogramFactory.valueType());
+        interval = in.readVLong();
+        offset = in.readLong();
+        if (in.readBoolean()) {
+            order = InternalOrder.Streams.readOrder(in);
+        }
+        keyed = in.readBoolean();
+        minDocCount = in.readVLong();
+        if (in.readBoolean()) {
+            extendedBounds = new ExtendedBounds(in);
+        }
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeVLong(interval);
+        out.writeLong(offset);
+        boolean hasOrder = order != null;
+        out.writeBoolean(hasOrder);
+        if (hasOrder) {
+            InternalOrder.Streams.writeOrder(order, out);
+        }
+        out.writeBoolean(keyed);
+        out.writeVLong(minDocCount);
+        boolean hasExtendedBounds = extendedBounds != null;
+        out.writeBoolean(hasExtendedBounds);
+        if (hasExtendedBounds) {
+            extendedBounds.writeTo(out);
+        }
     }
 
     public long interval() {
@@ -150,53 +185,10 @@ public abstract class AbstractHistogramBuilder<AB extends AbstractHistogramBuild
         return InternalHistogram.TYPE.name();
     }
 
-    @SuppressWarnings("unchecked")
-    @Override
-    protected AB innerReadFrom(String name, ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in)
-            throws IOException {
-        AbstractHistogramBuilder<AB> factory = createFactoryFromStream(name, in);
-        factory.interval = in.readVLong();
-        factory.offset = in.readLong();
-        if (in.readBoolean()) {
-            factory.order = InternalOrder.Streams.readOrder(in);
-        }
-        factory.keyed = in.readBoolean();
-        factory.minDocCount = in.readVLong();
-        if (in.readBoolean()) {
-            factory.extendedBounds = ExtendedBounds.readFrom(in);
-        }
-        return (AB) factory;
-    }
-
-    protected abstract AB createFactoryFromStream(String name, StreamInput in) throws IOException;
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        writeFactoryToStream(out);
-        out.writeVLong(interval);
-        out.writeLong(offset);
-        boolean hasOrder = order != null;
-        out.writeBoolean(hasOrder);
-        if (hasOrder) {
-            InternalOrder.Streams.writeOrder(order, out);
-        }
-        out.writeBoolean(keyed);
-        out.writeVLong(minDocCount);
-        boolean hasExtendedBounds = extendedBounds != null;
-        out.writeBoolean(hasExtendedBounds);
-        if (hasExtendedBounds) {
-            extendedBounds.writeTo(out);
-        }
-    }
-
-    protected void writeFactoryToStream(StreamOutput out) throws IOException {
-        // Default impl does nothing
-}
-
     @Override
     protected int innerHashCode() {
         return Objects.hash(interval, offset, order, keyed, minDocCount, extendedBounds);
-}
+    }
 
     @Override
     protected boolean innerEquals(Object obj) {

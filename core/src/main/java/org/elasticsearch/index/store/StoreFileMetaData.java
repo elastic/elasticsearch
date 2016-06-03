@@ -49,16 +49,6 @@ public class StoreFileMetaData implements Writeable {
 
     private final BytesRef hash;
 
-    public StoreFileMetaData(StreamInput in) throws IOException {
-        name = in.readString();
-        length = in.readVLong();
-        checksum = in.readString();
-        String versionString = in.readString();
-        assert versionString != null;
-        writtenBy = Lucene.parseVersionLenient(versionString, FIRST_LUCENE_CHECKSUM_VERSION);
-        hash = in.readBytesRef();
-    }
-
     public StoreFileMetaData(String name, long length, String checksum) {
         this(name, length, checksum, FIRST_LUCENE_CHECKSUM_VERSION);
     }
@@ -79,6 +69,26 @@ public class StoreFileMetaData implements Writeable {
         this.hash = hash == null ? new BytesRef() : hash;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public StoreFileMetaData(StreamInput in) throws IOException {
+        name = in.readString();
+        length = in.readVLong();
+        checksum = in.readString();
+        // TODO Why not Version.parse?
+        writtenBy = Lucene.parseVersionLenient(in.readString(), FIRST_LUCENE_CHECKSUM_VERSION);
+        hash = in.readBytesRef();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeVLong(length);
+        out.writeString(checksum);
+        out.writeString(writtenBy.toString());
+        out.writeBytesRef(hash);
+    }
 
     /**
      * Returns the name of this file
@@ -116,20 +126,6 @@ public class StoreFileMetaData implements Writeable {
     @Override
     public String toString() {
         return "name [" + name + "], length [" + length + "], checksum [" + checksum + "], writtenBy [" + writtenBy + "]" ;
-    }
-
-    @Override
-    public StoreFileMetaData readFrom(StreamInput in) throws IOException {
-        return new StoreFileMetaData(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        out.writeVLong(length);
-        out.writeString(checksum);
-        out.writeString(writtenBy.toString());
-        out.writeBytesRef(hash);
     }
 
     /**

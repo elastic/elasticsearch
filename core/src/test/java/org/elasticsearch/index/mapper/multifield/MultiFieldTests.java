@@ -42,9 +42,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Map;
-import java.util.TreeMap;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
@@ -239,6 +237,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
                 .startObject("raw.foo")
                 .field("type", "text")
                 .field("index", "not_analyzed")
+                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()

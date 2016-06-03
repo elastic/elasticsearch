@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -119,11 +118,11 @@ public class CircuitBreakerStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString LIMIT = new XContentBuilderString("limit_size_in_bytes");
-        static final XContentBuilderString LIMIT_HUMAN = new XContentBuilderString("limit_size");
-        static final XContentBuilderString ESTIMATED = new XContentBuilderString("estimated_size_in_bytes");
-        static final XContentBuilderString ESTIMATED_HUMAN = new XContentBuilderString("estimated_size");
-        static final XContentBuilderString OVERHEAD = new XContentBuilderString("overhead");
-        static final XContentBuilderString TRIPPED_COUNT = new XContentBuilderString("tripped");
+        static final String LIMIT = "limit_size_in_bytes";
+        static final String LIMIT_HUMAN = "limit_size";
+        static final String ESTIMATED = "estimated_size_in_bytes";
+        static final String ESTIMATED_HUMAN = "estimated_size";
+        static final String OVERHEAD = "overhead";
+        static final String TRIPPED_COUNT = "tripped";
     }
 }

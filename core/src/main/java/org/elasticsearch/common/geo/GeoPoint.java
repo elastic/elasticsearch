@@ -21,8 +21,8 @@ package org.elasticsearch.common.geo;
 
 import org.apache.lucene.util.BitUtil;
 
-import static org.apache.lucene.spatial.util.GeoHashUtils.mortonEncode;
-import static org.apache.lucene.spatial.util.GeoHashUtils.stringEncode;
+import static org.elasticsearch.common.geo.GeoHashUtils.mortonEncode;
+import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 import static org.apache.lucene.spatial.util.GeoEncodingUtils.mortonUnhashLat;
 import static org.apache.lucene.spatial.util.GeoEncodingUtils.mortonUnhashLon;
 
@@ -38,7 +38,7 @@ public final class GeoPoint {
     }
 
     /**
-     * Create a new Geopointform a string. This String must either be a geohash
+     * Create a new Geopoint from a string. This String must either be a geohash
      * or a lat-lon tuple.
      *
      * @param value String to create the point from

@@ -24,12 +24,21 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommandRegistry;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -42,29 +51,31 @@ import java.util.EnumSet;
 /**
  */
 public class RestClusterRerouteAction extends BaseRestHandler {
+    private static final ObjectParser<ClusterRerouteRequest, ParseContext> PARSER = new ObjectParser<>("cluster_reroute");
+    static {
+        PARSER.declareField((p, v, c) -> v.commands(AllocationCommands.fromXContent(p, c.getParseFieldMatcher(), c.registry)),
+                new ParseField("commands"), ValueType.OBJECT_ARRAY);
+        PARSER.declareBoolean(ClusterRerouteRequest::dryRun, new ParseField("dry_run"));
+    }
+
+    private static final String DEFAULT_METRICS = Strings
+            .arrayToCommaDelimitedString(EnumSet.complementOf(EnumSet.of(ClusterState.Metric.METADATA)).toArray());
 
     private final SettingsFilter settingsFilter;
-
-    private static String DEFAULT_METRICS = Strings.arrayToCommaDelimitedString(EnumSet.complementOf(EnumSet.of(ClusterState.Metric.METADATA)).toArray());
+    private final AllocationCommandRegistry registry;
 
     @Inject
-    public RestClusterRerouteAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
+    public RestClusterRerouteAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter,
+            AllocationCommandRegistry registry) {
         super(settings, client);
         this.settingsFilter = settingsFilter;
+        this.registry = registry;
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/reroute", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
-        final ClusterRerouteRequest clusterRerouteRequest = Requests.clusterRerouteRequest();
-        clusterRerouteRequest.dryRun(request.paramAsBoolean("dry_run", clusterRerouteRequest.dryRun()));
-        clusterRerouteRequest.explain(request.paramAsBoolean("explain", clusterRerouteRequest.explain()));
-        clusterRerouteRequest.timeout(request.paramAsTime("timeout", clusterRerouteRequest.timeout()));
-        clusterRerouteRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterRerouteRequest.masterNodeTimeout()));
-        if (request.hasContent()) {
-            clusterRerouteRequest.source(request.content());
-        }
-
+        ClusterRerouteRequest clusterRerouteRequest = createRequest(request, registry, parseFieldMatcher);
         client.admin().cluster().reroute(clusterRerouteRequest, new AcknowledgedRestListener<ClusterRerouteResponse>(channel) {
             @Override
             protected void addCustomFields(XContentBuilder builder, ClusterRerouteResponse response) throws IOException {
@@ -82,5 +93,36 @@ public class RestClusterRerouteAction extends BaseRestHandler {
                 }
             }
         });
+    }
+
+    public static ClusterRerouteRequest createRequest(RestRequest request, AllocationCommandRegistry registry,
+            ParseFieldMatcher parseFieldMatcher) throws IOException {
+        ClusterRerouteRequest clusterRerouteRequest = Requests.clusterRerouteRequest();
+        clusterRerouteRequest.dryRun(request.paramAsBoolean("dry_run", clusterRerouteRequest.dryRun()));
+        clusterRerouteRequest.explain(request.paramAsBoolean("explain", clusterRerouteRequest.explain()));
+        clusterRerouteRequest.timeout(request.paramAsTime("timeout", clusterRerouteRequest.timeout()));
+        clusterRerouteRequest.setRetryFailed(request.paramAsBoolean("retry_failed", clusterRerouteRequest.isRetryFailed()));
+        clusterRerouteRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterRerouteRequest.masterNodeTimeout()));
+        if (request.hasContent()) {
+            try (XContentParser parser = XContentHelper.createParser(request.content())) {
+                PARSER.parse(parser, clusterRerouteRequest, new ParseContext(registry, parseFieldMatcher));
+            }
+        }
+        return clusterRerouteRequest;
+    }
+
+    private static class ParseContext implements ParseFieldMatcherSupplier {
+        private final AllocationCommandRegistry registry;
+        private final ParseFieldMatcher parseFieldMatcher;
+
+        private ParseContext(AllocationCommandRegistry registry, ParseFieldMatcher parseFieldMatcher) {
+            this.registry = registry;
+            this.parseFieldMatcher = parseFieldMatcher;
+        }
+
+        @Override
+        public ParseFieldMatcher getParseFieldMatcher() {
+            return parseFieldMatcher;
+        }
     }
 }

@@ -40,7 +40,8 @@ public class ScriptModule extends AbstractModule {
     private final List<ScriptEngineRegistry.ScriptEngineRegistration> scriptEngineRegistrations = new ArrayList<>();
 
     {
-        scriptEngineRegistrations.add(new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class, NativeScriptEngineService.TYPES));
+        scriptEngineRegistrations.add(new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class,
+                        NativeScriptEngineService.NAME, true));
     }
 
     private final Map<String, Class<? extends NativeScriptFactory>> scripts = new HashMap<>();

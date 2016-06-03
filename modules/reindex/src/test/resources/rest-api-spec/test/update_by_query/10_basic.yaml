@@ -23,6 +23,7 @@
   # Update by query can't create
   - is_false: created
   - is_false: task
+  - is_false: deleted
 
 ---
 "wait_for_completion=false":
@@ -49,6 +50,7 @@
   - is_false: took
   - is_false: throttled_millis
   - is_false: created
+  - is_false: deleted
 
   - do:
       tasks.list:
@@ -226,3 +228,27 @@
         index: test
         scroll_size: 1
   - match: {batches: 3}
+
+---
+"Source document without any fields works":
+  - do:
+      index:
+        index:   test
+        type:    foo
+        id:      1
+        body:    {}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update_by_query:
+        index: test
+  - match: {updated: 1}
+
+  - do:
+      get:
+        index:   test
+        type:    foo
+        id:      1
+  - match: { _source: {} }
+  - match: { _version: 2 }

@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
 import java.io.IOException;
@@ -141,7 +141,7 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
             parseTextField(builder, fieldName, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String propName = Strings.toUnderscoreCase(entry.getKey());
+                String propName = entry.getKey();
                 Object propNode = entry.getValue();
                 if (propName.equals("position_increment_gap")) {
                     int newPositionIncrementGap = XContentMapValues.nodeIntegerValue(propNode, -1);
@@ -167,7 +167,7 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         }
     }
 
-    public static final class TextFieldType extends MappedFieldType {
+    public static final class TextFieldType extends StringFieldType {
 
         private boolean fielddata;
         private double fielddataMinFrequency;
@@ -279,14 +279,6 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         }
 
         @Override
-        public String value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return value.toString();
-        }
-
-        @Override
         public Query nullValueQuery() {
             if (nullValue() == null) {
                 return null;
@@ -297,7 +289,7 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
             if (fielddata == false) {
-                throw new IllegalStateException("Fielddata is disabled on text fields by default. Set fielddata=true on [" + name()
+                throw new IllegalArgumentException("Fielddata is disabled on text fields by default. Set fielddata=true on [" + name()
                         + "] in order to load fielddata in memory by uninverting the inverted index. Note that this can however "
                         + "use significant memory.");
             }
@@ -314,6 +306,9 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.tokenized();
         assert fieldType.hasDocValues() == false;
+        if (fieldType().indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
+            throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + name() + "]");
+        }
         this.positionIncrementGap = positionIncrementGap;
     }
 

@@ -19,28 +19,45 @@
 
 package org.elasticsearch.search.aggregations.pipeline.movavg;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelBuilder;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelStreams;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 
 import java.io.IOException;
+import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class MovAvgPipelineAggregatorBuilder extends PipelineAggregatorBuilder<MovAvgPipelineAggregatorBuilder> {
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
-    static final MovAvgPipelineAggregatorBuilder PROTOTYPE = new MovAvgPipelineAggregatorBuilder("", "");
+public class MovAvgPipelineAggregatorBuilder extends AbstractPipelineAggregatorBuilder<MovAvgPipelineAggregatorBuilder> {
+    public static final String NAME = MovAvgPipelineAggregator.TYPE.name();
+    public static final ParseField AGGREGATION_FIELD_NAME = new ParseField(NAME);
+
+    public static final ParseField MODEL = new ParseField("model");
+    private static final ParseField WINDOW = new ParseField("window");
+    public static final ParseField SETTINGS = new ParseField("settings");
+    private static final ParseField PREDICT = new ParseField("predict");
+    private static final ParseField MINIMIZE = new ParseField("minimize");
 
     private String format;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
@@ -50,11 +67,30 @@ public class MovAvgPipelineAggregatorBuilder extends PipelineAggregatorBuilder<M
     private Boolean minimize;
 
     public MovAvgPipelineAggregatorBuilder(String name, String bucketsPath) {
-        this(name, new String[] { bucketsPath });
+        super(name, MovAvgPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
     }
 
-    private MovAvgPipelineAggregatorBuilder(String name, String[] bucketsPaths) {
-        super(name, MovAvgPipelineAggregator.TYPE.name(), bucketsPaths);
+    /**
+     * Read from a stream.
+     */
+    public MovAvgPipelineAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, MovAvgPipelineAggregator.TYPE.name());
+        format = in.readOptionalString();
+        gapPolicy = GapPolicy.readFrom(in);
+        window = in.readVInt();
+        model = in.readNamedWriteable(MovAvgModel.class);
+        predict = in.readVInt();
+        minimize = in.readOptionalBoolean();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(format);
+        gapPolicy.writeTo(out);
+        out.writeVInt(window);
+        out.writeNamedWriteable(model);
+        out.writeVInt(predict);
+        out.writeOptionalBoolean(minimize);
     }
 
     /**
@@ -221,7 +257,7 @@ public class MovAvgPipelineAggregatorBuilder extends PipelineAggregatorBuilder<M
 
     @Override
     public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-            List<PipelineAggregatorBuilder<?>> pipelineAggregatoractories) {
+            List<PipelineAggregatorBuilder> pipelineAggregatoractories) {
         if (minimize != null && minimize && !model.canBeMinimized()) {
             // If the user asks to minimize, but this model doesn't support
             // it, throw exception
@@ -246,40 +282,134 @@ public class MovAvgPipelineAggregatorBuilder extends PipelineAggregatorBuilder<M
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         if (format != null) {
-            builder.field(MovAvgParser.FORMAT.getPreferredName(), format);
+            builder.field(FORMAT.getPreferredName(), format);
         }
-        builder.field(MovAvgParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
+        builder.field(GAP_POLICY.getPreferredName(), gapPolicy.getName());
         model.toXContent(builder, params);
-        builder.field(MovAvgParser.WINDOW.getPreferredName(), window);
+        builder.field(WINDOW.getPreferredName(), window);
         if (predict > 0) {
-            builder.field(MovAvgParser.PREDICT.getPreferredName(), predict);
+            builder.field(PREDICT.getPreferredName(), predict);
         }
         if (minimize != null) {
-            builder.field(MovAvgParser.MINIMIZE.getPreferredName(), minimize);
+            builder.field(MINIMIZE.getPreferredName(), minimize);
         }
         return builder;
     }
 
-    @Override
-    protected MovAvgPipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
-        MovAvgPipelineAggregatorBuilder factory = new MovAvgPipelineAggregatorBuilder(name, bucketsPaths);
-        factory.format = in.readOptionalString();
-        factory.gapPolicy = GapPolicy.readFrom(in);
-        factory.window = in.readVInt();
-        factory.model = MovAvgModelStreams.read(in);
-        factory.predict = in.readVInt();
-        factory.minimize = in.readOptionalBoolean();
-        return factory;
-    }
+    public static MovAvgPipelineAggregatorBuilder parse(ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageMdelParserRegistry,
+            String pipelineAggregatorName, QueryParseContext context) throws IOException {
+        XContentParser parser = context.parser();
+        XContentParser.Token token;
+        String currentFieldName = null;
+        String[] bucketsPaths = null;
+        String format = null;
 
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(format);
-        gapPolicy.writeTo(out);
-        out.writeVInt(window);
-        model.writeTo(out);
-        out.writeVInt(predict);
-        out.writeOptionalBoolean(minimize);
+        GapPolicy gapPolicy = null;
+        Integer window = null;
+        Map<String, Object> settings = null;
+        String model = null;
+        Integer predict = null;
+        Boolean minimize = null;
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                if (context.getParseFieldMatcher().match(currentFieldName, WINDOW)) {
+                    window = parser.intValue();
+                    if (window <= 0) {
+                        throw new ParsingException(parser.getTokenLocation(), "[" + currentFieldName + "] value must be a positive, "
+                                + "non-zero integer.  Value supplied was [" + predict + "] in [" + pipelineAggregatorName + "].");
+                    }
+                } else if (context.getParseFieldMatcher().match(currentFieldName, PREDICT)) {
+                    predict = parser.intValue();
+                    if (predict <= 0) {
+                        throw new ParsingException(parser.getTokenLocation(), "[" + currentFieldName + "] value must be a positive integer."
+                                + "  Value supplied was [" + predict + "] in [" + pipelineAggregatorName + "].");
+                    }
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
+                }
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                if (context.getParseFieldMatcher().match(currentFieldName, FORMAT)) {
+                    format = parser.text();
+                } else if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
+                    bucketsPaths = new String[] { parser.text() };
+                } else if (context.getParseFieldMatcher().match(currentFieldName, GAP_POLICY)) {
+                    gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
+                } else if (context.getParseFieldMatcher().match(currentFieldName, MODEL)) {
+                    model = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
+                    List<String> paths = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        String path = parser.text();
+                        paths.add(path);
+                    }
+                    bucketsPaths = paths.toArray(new String[paths.size()]);
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (context.getParseFieldMatcher().match(currentFieldName, SETTINGS)) {
+                    settings = parser.map();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
+                }
+            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                if (context.getParseFieldMatcher().match(currentFieldName, MINIMIZE)) {
+                    minimize = parser.booleanValue();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(),
+                        "Unexpected token " + token + " in [" + pipelineAggregatorName + "].");
+            }
+        }
+
+        if (bucketsPaths == null) {
+            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + BUCKETS_PATH.getPreferredName()
+                    + "] for movingAvg aggregation [" + pipelineAggregatorName + "]");
+        }
+
+        MovAvgPipelineAggregatorBuilder factory =
+                new MovAvgPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPaths[0]);
+        if (format != null) {
+            factory.format(format);
+        }
+        if (gapPolicy != null) {
+            factory.gapPolicy(gapPolicy);
+        }
+        if (window != null) {
+            factory.window(window);
+        }
+        if (predict != null) {
+            factory.predict(predict);
+        }
+        if (model != null) {
+            MovAvgModel.AbstractModelParser modelParser = movingAverageMdelParserRegistry.lookup(model, context.getParseFieldMatcher(),
+                    parser.getTokenLocation());
+            MovAvgModel movAvgModel;
+            try {
+                movAvgModel = modelParser.parse(settings, pipelineAggregatorName, factory.window(), context.getParseFieldMatcher());
+            } catch (ParseException exception) {
+                throw new ParsingException(parser.getTokenLocation(), "Could not parse settings for model [" + model + "].", exception);
+            }
+            factory.model(movAvgModel);
+        }
+        if (minimize != null) {
+            factory.minimize(minimize);
+        }
+        return factory;
     }
 
     @Override
@@ -298,4 +428,8 @@ public class MovAvgPipelineAggregatorBuilder extends PipelineAggregatorBuilder<M
                 && Objects.equals(minimize, other.minimize);
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

@@ -130,7 +130,7 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
             }
 
             public TypeParser typeParser(String type) {
-                return typeParsers.apply(Strings.toUnderscoreCase(type));
+                return typeParsers.apply(type);
             }
 
             public Version indexVersionCreated() {

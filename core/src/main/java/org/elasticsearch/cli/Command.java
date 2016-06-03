@@ -19,14 +19,14 @@
 
 package org.elasticsearch.cli;
 
-import java.io.IOException;
-import java.util.Arrays;
-
 import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.common.SuppressForbidden;
+
+import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * An action to execute within a cli.
@@ -56,6 +56,9 @@ public abstract class Command {
             terminal.println(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
             return ExitCodes.USAGE;
         } catch (UserError e) {
+            if (e.exitCode == ExitCodes.USAGE) {
+                printHelp(terminal);
+            }
             terminal.println(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
             return e.exitCode;
         }
@@ -109,4 +112,5 @@ public abstract class Command {
      *
      * Any runtime user errors (like an input file that does not exist), should throw a {@link UserError}. */
     protected abstract void execute(Terminal terminal, OptionSet options) throws Exception;
+
 }

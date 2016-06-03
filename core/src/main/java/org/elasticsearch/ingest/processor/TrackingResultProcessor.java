@@ -83,7 +83,7 @@ public final class TrackingResultProcessor implements Processor {
                 onFailureProcessors.add(new TrackingResultProcessor(processor, processorResultList));
             }
         }
-        return new CompoundProcessor(processors, onFailureProcessors);
+        return new CompoundProcessor(false, processors, onFailureProcessors);
     }
 }
 

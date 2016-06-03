@@ -19,7 +19,6 @@
 package org.elasticsearch.gradle.test
 
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -129,19 +128,19 @@ class NodeInfo {
             args.add("${esScript}")
         }
 
-        env = [
-            'JAVA_HOME' : project.javaHome,
-            'ES_GC_OPTS': config.jvmArgs // we pass these with the undocumented gc opts so the argline can set gc, etc
-        ]
-        args.addAll("-E", "es.node.portsfile=true")
-        env.put('ES_JAVA_OPTS', config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" "))
+        env = [ 'JAVA_HOME' : project.javaHome ]
+        args.addAll("-E", "node.portsfile=true")
+        String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
+        String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs
+        env.put('ES_JAVA_OPTS', esJavaOpts)
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
-            if (property.getKey().startsWith('es.')) {
+            if (property.key.startsWith('tests.es.')) {
                 args.add("-E")
-                args.add("${property.getKey()}=${property.getValue()}")
+                args.add("${property.key.substring('tests.es.'.size())}=${property.value}")
             }
         }
-        args.addAll("-E", "es.path.conf=${confDir}")
+        env.put('ES_JVM_OPTIONS', new File(confDir, 'jvm.options'))
+        args.addAll("-E", "path.conf=${confDir}")
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             args.add('"') // end the entire command, quoted
         }

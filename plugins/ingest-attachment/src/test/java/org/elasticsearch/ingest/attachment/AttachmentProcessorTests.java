@@ -21,7 +21,6 @@ package org.elasticsearch.ingest.attachment;
 
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
@@ -30,6 +29,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,7 +51,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     @Before
     public void createStandardProcessor() throws IOException {
         processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", EnumSet.allOf(AttachmentProcessor.Field.class), 10000);
+            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 10000);
     }
 
     public void testEnglishTextDocument() throws Exception {
@@ -66,25 +66,25 @@ public class AttachmentProcessorTests extends ESTestCase {
 
     public void testHtmlDocumentWithRandomFields() throws Exception {
         //date is not present in the html doc
-        ArrayList<AttachmentProcessor.Field> fieldsList = new ArrayList<>(EnumSet.complementOf(EnumSet.of
-            (AttachmentProcessor.Field.DATE)));
-        Set<AttachmentProcessor.Field> selectedFields = new HashSet<>();
+        ArrayList<AttachmentProcessor.Property> fieldsList = new ArrayList<>(EnumSet.complementOf(EnumSet.of
+            (AttachmentProcessor.Property.DATE)));
+        Set<AttachmentProcessor.Property> selectedProperties = new HashSet<>();
 
         int numFields = randomIntBetween(1, fieldsList.size());
         String[] selectedFieldNames = new String[numFields];
         for (int i = 0; i < numFields; i++) {
-            AttachmentProcessor.Field field;
+            AttachmentProcessor.Property property;
             do {
-                field = randomFrom(fieldsList);
-            } while (selectedFields.add(field) == false);
+                property = randomFrom(fieldsList);
+            } while (selectedProperties.add(property) == false);
 
-            selectedFieldNames[i] = field.toLowerCase();
+            selectedFieldNames[i] = property.toLowerCase();
         }
         if (randomBoolean()) {
-            selectedFields.add(AttachmentProcessor.Field.DATE);
+            selectedProperties.add(AttachmentProcessor.Property.DATE);
         }
         processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", selectedFields, 10000);
+            "target_field", selectedProperties, 10000);
 
         Map<String, Object> attachmentData = parseDocument("htmlWithEmptyDateMeta.html", processor);
         assertThat(attachmentData.keySet(), hasSize(selectedFieldNames.length));
@@ -209,7 +209,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         String path = "/org/elasticsearch/ingest/attachment/test/sample-files/" + filename;
         try (InputStream is = AttachmentProcessorTests.class.getResourceAsStream(path)) {
             byte bytes[] = IOUtils.toByteArray(is);
-            return Base64.encodeBytes(bytes);
+            return Base64.getEncoder().encodeToString(bytes);
         }
     }
 }

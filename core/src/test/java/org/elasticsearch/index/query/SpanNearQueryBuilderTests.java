@@ -24,6 +24,7 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -37,7 +38,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(randomIntBetween(1, 6));
         SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(spanTermQueries[0], randomIntBetween(-10, 10));
         for (int i = 1; i < spanTermQueries.length; i++) {
-            queryBuilder.clause(spanTermQueries[i]);
+            queryBuilder.addClause(spanTermQueries[i]);
         }
         queryBuilder.inOrder(randomBoolean());
         return queryBuilder;
@@ -50,27 +51,25 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         assertThat(spanNearQuery.getSlop(), equalTo(queryBuilder.slop()));
         assertThat(spanNearQuery.isInOrder(), equalTo(queryBuilder.inOrder()));
         assertThat(spanNearQuery.getClauses().length, equalTo(queryBuilder.clauses().size()));
-        Iterator<SpanQueryBuilder<?>> spanQueryBuilderIterator = queryBuilder.clauses().iterator();
+        Iterator<SpanQueryBuilder> spanQueryBuilderIterator = queryBuilder.clauses().iterator();
         for (SpanQuery spanQuery : spanNearQuery.getClauses()) {
             assertThat(spanQuery, equalTo(spanQueryBuilderIterator.next().toQuery(context)));
         }
     }
 
     public void testIllegalArguments() {
-        try {
-            new SpanNearQueryBuilder(null, 1);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // ecpected
-        }
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SpanNearQueryBuilder(null, 1));
+            assertEquals("[span_near] must include at least one clause", e.getMessage());
 
-        try {
-            SpanNearQueryBuilder spanNearQueryBuilder = new SpanNearQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, 1);
-            spanNearQueryBuilder.clause(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // ecpected
-        }
+            SpanNearQueryBuilder spanNearQueryBuilder = new SpanNearQueryBuilder(new SpanTermQueryBuilder("field", "value"), 1);
+            e = expectThrows(IllegalArgumentException.class, () -> spanNearQueryBuilder.addClause(null));
+            assertEquals("[span_near]  clauses cannot be null", e.getMessage());
+    }
+
+    public void testClausesUnmodifiable() {
+        SpanNearQueryBuilder spanNearQueryBuilder = new SpanNearQueryBuilder(new SpanTermQueryBuilder("field", "value"), 1);
+        expectThrows(UnsupportedOperationException.class,
+                () -> spanNearQueryBuilder.clauses().add(new SpanTermQueryBuilder("field", "value2")));
     }
 
     public void testFromJson() throws IOException {

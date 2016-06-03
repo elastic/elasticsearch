@@ -57,6 +57,18 @@ setup() {
     install_package
 }
 
+@test "[INIT.D] elasticsearch fails if startup script is not executable" {
+    local INIT="/etc/init.d/elasticsearch"
+    local DAEMON="$ESHOME/bin/elasticsearch"
+    
+    sudo chmod -x "$DAEMON"
+    run "$INIT"
+    sudo chmod +x "$DAEMON"
+    
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"The elasticsearch startup script does not exists or it is not executable, tried: $DAEMON"* ]]
+}
+
 @test "[INIT.D] daemon isn't enabled on restart" {
     # Rather than restart the VM which would be slow we check for the symlinks
     # that init.d uses to restart the application on startup.
@@ -100,6 +112,23 @@ setup() {
 }
 
 @test "[INIT.D] status (stopped)" {
+    run service elasticsearch status
+    # precise returns 4, trusty 3
+    [ "$status" -eq 3 ] || [ "$status" -eq 4 ]
+}
+
+@test "[INIT.D] don't mkdir when it contains a comma" {
+    # Remove these just in case they exist beforehand
+    rm -rf /tmp/aoeu,/tmp/asdf
+    rm -rf /tmp/aoeu,
+    # set DATA_DIR to DATA_DIR=/tmp/aoeu,/tmp/asdf
+    sed -i 's/DATA_DIR=.*/DATA_DIR=\/tmp\/aoeu,\/tmp\/asdf/' /etc/init.d/elasticsearch
+    cat /etc/init.d/elasticsearch | grep "DATA_DIR"
+    service elasticsearch start
+    wait_for_elasticsearch_status
+    assert_file_not_exist /tmp/aoeu,/tmp/asdf
+    assert_file_not_exist /tmp/aoeu,
+    service elasticsearch stop
     run service elasticsearch status
     # precise returns 4, trusty 3
     [ "$status" -eq 3 ] || [ "$status" -eq 4 ]

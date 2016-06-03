@@ -39,6 +39,10 @@ public abstract class ActionRequest<Request extends ActionRequest<Request>> exte
 
     public abstract ActionRequestValidationException validate();
 
+    public boolean getShouldPersistResult() {
+        return false;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);

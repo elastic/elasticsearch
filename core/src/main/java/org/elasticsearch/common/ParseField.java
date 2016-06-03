@@ -32,34 +32,28 @@ public class ParseField {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ParseField.class));
 
-    private final String camelCaseName;
-    private final String underscoreName;
+    private final String name;
     private final String[] deprecatedNames;
     private String allReplacedWith = null;
     private final String[] allNames;
 
-    public ParseField(String value, String... deprecatedNames) {
-        camelCaseName = Strings.toCamelCase(value);
-        underscoreName = Strings.toUnderscoreCase(value);
+    public ParseField(String name, String... deprecatedNames) {
+        this.name = name;
         if (deprecatedNames == null || deprecatedNames.length == 0) {
             this.deprecatedNames = Strings.EMPTY_ARRAY;
         } else {
             final HashSet<String> set = new HashSet<>();
-            for (String depName : deprecatedNames) {
-                set.add(Strings.toCamelCase(depName));
-                set.add(Strings.toUnderscoreCase(depName));
-            }
+            Collections.addAll(set, deprecatedNames);
             this.deprecatedNames = set.toArray(new String[set.size()]);
         }
         Set<String> allNames = new HashSet<>();
-        allNames.add(camelCaseName);
-        allNames.add(underscoreName);
+        allNames.add(name);
         Collections.addAll(allNames, this.deprecatedNames);
         this.allNames = allNames.toArray(new String[allNames.size()]);
     }
 
     public String getPreferredName(){
-        return underscoreName;
+        return name;
     }
 
     public String[] getAllNamesIncludedDeprecated() {
@@ -67,7 +61,7 @@ public class ParseField {
     }
 
     public ParseField withDeprecation(String... deprecatedNames) {
-        return new ParseField(this.underscoreName, deprecatedNames);
+        return new ParseField(this.name, deprecatedNames);
     }
 
     /**
@@ -80,13 +74,13 @@ public class ParseField {
     }
 
     boolean match(String currentFieldName, boolean strict) {
-        if (allReplacedWith == null && (currentFieldName.equals(camelCaseName) || currentFieldName.equals(underscoreName))) {
+        if (allReplacedWith == null && currentFieldName.equals(name)) {
             return true;
         }
         String msg;
         for (String depName : deprecatedNames) {
             if (currentFieldName.equals(depName)) {
-                msg = "Deprecated field [" + currentFieldName + "] used, expected [" + underscoreName + "] instead";
+                msg = "Deprecated field [" + currentFieldName + "] used, expected [" + name + "] instead";
                 if (allReplacedWith != null) {
                     msg = "Deprecated field [" + currentFieldName + "] used, replaced by [" + allReplacedWith + "]";
                 }
@@ -110,11 +104,15 @@ public class ParseField {
         return allReplacedWith;
     }
 
-    public String getCamelCaseName() {
-        return camelCaseName;
-    }
-
     public String[] getDeprecatedNames() {
         return deprecatedNames;
+    }
+
+    public static class CommonFields {
+        public static final ParseField FIELD = new ParseField("field");
+        public static final ParseField FIELDS = new ParseField("fields");
+        public static final ParseField FORMAT = new ParseField("format");
+        public static final ParseField MISSING = new ParseField("missing");
+        public static final ParseField TIME_ZONE = new ParseField("time_zone");
     }
 }

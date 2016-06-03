@@ -38,7 +38,7 @@ import java.util.Locale;
 /**
  * Geo distance calculation.
  */
-public enum GeoDistance implements Writeable<GeoDistance> {
+public enum GeoDistance implements Writeable {
     /**
      * Calculates distance as points on a plane. Faster, but less accurate than {@link #ARC}.
      */
@@ -89,14 +89,8 @@ public enum GeoDistance implements Writeable<GeoDistance> {
     ARC {
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
-            double x1 = sourceLatitude * Math.PI / 180D;
-            double x2 = targetLatitude * Math.PI / 180D;
-            double h1 = 1D - Math.cos(x1 - x2);
-            double h2 = 1D - Math.cos((sourceLongitude - targetLongitude) * Math.PI / 180D);
-            double h = (h1 + Math.cos(x1) * Math.cos(x2) * h2) / 2;
-            double averageLatitude = (x1 + x2) / 2;
-            double diameter = GeoUtils.earthDiameter(averageLatitude);
-            return unit.fromMeters(diameter * Math.asin(Math.min(1, Math.sqrt(h))));
+            double result = SloppyMath.haversinMeters(sourceLatitude, sourceLongitude, targetLatitude, targetLongitude);
+            return unit.fromMeters(result);
         }
 
         @Override
@@ -113,6 +107,7 @@ public enum GeoDistance implements Writeable<GeoDistance> {
      * Calculates distance as points on a globe in a sloppy way. Close to the pole areas the accuracy
      * of this function decreases.
      */
+    @Deprecated
     SLOPPY_ARC {
 
         @Override
@@ -122,7 +117,7 @@ public enum GeoDistance implements Writeable<GeoDistance> {
 
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
-            return unit.fromMeters(SloppyMath.haversin(sourceLatitude, sourceLongitude, targetLatitude, targetLongitude) * 1000.0);
+            return unit.fromMeters(SloppyMath.haversinMeters(sourceLatitude, sourceLongitude, targetLatitude, targetLongitude));
         }
 
         @Override
@@ -131,18 +126,12 @@ public enum GeoDistance implements Writeable<GeoDistance> {
         }
     };
 
-    /** Returns a GeoDistance object as read from the StreamInput. */
-    @Override
-    public GeoDistance readFrom(StreamInput in) throws IOException {
+    public static GeoDistance readFromStream(StreamInput in) throws IOException {
         int ord = in.readVInt();
         if (ord < 0 || ord >= values().length) {
             throw new IOException("Unknown GeoDistance ordinal [" + ord + "]");
         }
         return GeoDistance.values()[ord];
-    }
-
-    public static GeoDistance readGeoDistanceFrom(StreamInput in) throws IOException {
-        return DEFAULT.readFrom(in);
     }
 
     @Override

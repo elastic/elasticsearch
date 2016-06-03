@@ -23,14 +23,17 @@ import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -214,6 +217,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         Setting.groupSetting("index.routing.allocation.include.", Property.Dynamic, Property.IndexScope);
     public static final Setting<Settings> INDEX_ROUTING_EXCLUDE_GROUP_SETTING =
         Setting.groupSetting("index.routing.allocation.exclude.", Property.Dynamic, Property.IndexScope);
+    public static final Setting<Settings> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING =
+        Setting.groupSetting("index.routing.allocation.initial_recovery."); // this is only setable internally not a registered setting!!
 
     public static final IndexMetaData PROTO = IndexMetaData.builder("")
             .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
@@ -253,6 +258,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     private final DiscoveryNodeFilters requireFilters;
     private final DiscoveryNodeFilters includeFilters;
     private final DiscoveryNodeFilters excludeFilters;
+    private final DiscoveryNodeFilters initialRecoveryFilters;
 
     private final Version indexCreatedVersion;
     private final Version indexUpgradedVersion;
@@ -261,7 +267,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     private IndexMetaData(Index index, long version, long[] primaryTerms, State state, int numberOfShards, int numberOfReplicas, Settings settings,
                           ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases,
                           ImmutableOpenMap<String, Custom> customs, ImmutableOpenIntMap<Set<String>> activeAllocationIds,
-                          DiscoveryNodeFilters requireFilters, DiscoveryNodeFilters includeFilters, DiscoveryNodeFilters excludeFilters,
+                          DiscoveryNodeFilters requireFilters, DiscoveryNodeFilters initialRecoveryFilters, DiscoveryNodeFilters includeFilters, DiscoveryNodeFilters excludeFilters,
                           Version indexCreatedVersion, Version indexUpgradedVersion, org.apache.lucene.util.Version minimumCompatibleLuceneVersion) {
 
         this.index = index;
@@ -280,6 +286,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         this.requireFilters = requireFilters;
         this.includeFilters = includeFilters;
         this.excludeFilters = excludeFilters;
+        this.initialRecoveryFilters = initialRecoveryFilters;
         this.indexCreatedVersion = indexCreatedVersion;
         this.indexUpgradedVersion = indexUpgradedVersion;
         this.minimumCompatibleLuceneVersion = minimumCompatibleLuceneVersion;
@@ -312,7 +319,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     /**
      * The term of the current selected primary. This is a non-negative number incremented when
-     * a primary shard is assigned after a full cluster restart or a replica shard is promoted to a primary
+     * a primary shard is assigned after a full cluster restart or a replica shard is promoted to a primary.
+     *
+     * Note: since we increment the term every time a shard is assigned, the term for any operational shard (i.e., a shard
+     * that can be indexed into) is larger than 0.
      * See {@link AllocationService#updateMetaDataWithRoutingTable(MetaData, RoutingTable, RoutingTable)}.
      **/
     public long primaryTerm(int shardId) {
@@ -379,6 +389,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         return mappings.get(mappingType);
     }
 
+    public static final Setting<String> INDEX_SHRINK_SOURCE_UUID = Setting.simpleString("index.shrink.source.uuid");
+    public static final Setting<String> INDEX_SHRINK_SOURCE_NAME = Setting.simpleString("index.shrink.source.name");
+
+
+    public Index getMergeSourceIndex() {
+        return INDEX_SHRINK_SOURCE_UUID.exists(settings) ? new Index(INDEX_SHRINK_SOURCE_NAME.get(settings),  INDEX_SHRINK_SOURCE_UUID.get(settings)) : null;
+    }
+
     /**
      * Sometimes, the default mapping exists and an actual mapping is not created yet (introduced),
      * in this case, we want to return the default mapping in case it has some default mapping definitions.
@@ -416,6 +434,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     @Nullable
     public DiscoveryNodeFilters requireFilters() {
         return requireFilters;
+    }
+
+    @Nullable
+    public DiscoveryNodeFilters getInitialRecoveryFilters() {
+        return initialRecoveryFilters;
     }
 
     @Nullable
@@ -880,6 +903,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             } else {
                 excludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, excludeMap);
             }
+            Map<String, String> initialRecoveryMap = INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.get(settings).getAsMap();
+            final DiscoveryNodeFilters initialRecoveryFilters;
+            if (initialRecoveryMap.isEmpty()) {
+                initialRecoveryFilters = null;
+            } else {
+                initialRecoveryFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, initialRecoveryMap);
+            }
             Version indexCreatedVersion = Version.indexCreated(settings);
             Version indexUpgradedVersion = settings.getAsVersion(IndexMetaData.SETTING_VERSION_UPGRADED, indexCreatedVersion);
             String stringLuceneVersion = settings.get(SETTING_VERSION_MINIMUM_COMPATIBLE);
@@ -903,12 +933,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
             return new IndexMetaData(new Index(index, uuid), version, primaryTerms, state, numberOfShards, numberOfReplicas, tmpSettings, mappings.build(),
-                tmpAliases.build(), customs.build(), filledActiveAllocationIds.build(), requireFilters, includeFilters, excludeFilters,
+                tmpAliases.build(), customs.build(), filledActiveAllocationIds.build(), requireFilters, initialRecoveryFilters, includeFilters, excludeFilters,
                 indexCreatedVersion, indexUpgradedVersion, minimumCompatibleLuceneVersion);
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject(indexMetaData.getIndex().getName(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(indexMetaData.getIndex().getName());
 
             builder.field(KEY_VERSION, indexMetaData.getVersion());
             builder.field(KEY_STATE, indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
@@ -927,16 +957,16 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                     builder.value(cursor.value.source().compressed());
                 } else {
                     byte[] data = cursor.value.source().uncompressed();
-                    XContentParser parser = XContentFactory.xContent(data).createParser(data);
-                    Map<String, Object> mapping = parser.mapOrdered();
-                    parser.close();
-                    builder.map(mapping);
+                    try (XContentParser parser = XContentFactory.xContent(data).createParser(data)) {
+                        Map<String, Object> mapping = parser.mapOrdered();
+                        builder.map(mapping);
+                    }
                 }
             }
             builder.endArray();
 
             for (ObjectObjectCursor<String, Custom> cursor : indexMetaData.getCustoms()) {
-                builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(cursor.key);
                 cursor.value.toXContent(builder, params);
                 builder.endObject();
             }

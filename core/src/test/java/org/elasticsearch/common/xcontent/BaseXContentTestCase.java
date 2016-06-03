@@ -27,6 +27,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public abstract class BaseXContentTestCase extends ESTestCase {
 
     public abstract XContentType xcontentType();
@@ -39,6 +41,29 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         }
         byte[] data = os.toByteArray();
         assertEquals(xcontentType(), XContentFactory.xContentType(data));
+    }
+
+    public void testMissingEndObject() throws IOException {
+        IOException e = expectThrows(IOException.class, () -> {
+            ByteArrayOutputStream os = new ByteArrayOutputStream();
+            try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
+                generator.writeStartObject();
+                generator.writeFieldName("foo");
+                generator.writeNumber(2L);
+            }
+        });
+        assertEquals(e.getMessage(), "unclosed object or array found");
+    }
+
+    public void testMissingEndArray() throws IOException {
+        IOException e = expectThrows(IOException.class, () -> {
+            ByteArrayOutputStream os = new ByteArrayOutputStream();
+            try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
+                generator.writeStartArray();
+                generator.writeNumber(2L);
+            }
+        });
+        assertEquals(e.getMessage(), "unclosed object or array found");
     }
 
     public void testRawField() throws Exception {

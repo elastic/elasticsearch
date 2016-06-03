@@ -20,13 +20,13 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 
-public class SamplerTests extends BaseAggregationTestCase<SamplerAggregatorBuilder> {
+public class SamplerTests extends BaseAggregationTestCase<SamplerAggregationBuilder> {
 
     @Override
-    protected final SamplerAggregatorBuilder createTestAggregatorBuilder() {
-        SamplerAggregatorBuilder factory = new SamplerAggregatorBuilder("foo");
+    protected final SamplerAggregationBuilder createTestAggregatorBuilder() {
+        SamplerAggregationBuilder factory = new SamplerAggregationBuilder("foo");
         if (randomBoolean()) {
             factory.shardSize(randomIntBetween(1, 1000));
         }

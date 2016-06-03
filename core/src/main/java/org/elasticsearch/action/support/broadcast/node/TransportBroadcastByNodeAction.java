@@ -25,7 +25,6 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ChildTaskRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -51,6 +50,7 @@ import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -85,6 +85,20 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
     final String transportNodeBroadcastAction;
 
     public TransportBroadcastByNodeAction(
+        Settings settings,
+        String actionName,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<Request> request,
+        String executor) {
+        this(settings, actionName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, request,
+            executor, true);
+    }
+
+    public TransportBroadcastByNodeAction(
             Settings settings,
             String actionName,
             ThreadPool threadPool,
@@ -93,7 +107,8 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<Request> request,
-            String executor) {
+            String executor,
+            boolean canTripCircuitBreaker) {
         super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
 
         this.clusterService = clusterService;
@@ -101,7 +116,8 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         transportNodeBroadcastAction = actionName + "[n]";
 
-        transportService.registerRequestHandler(transportNodeBroadcastAction, NodeRequest::new, executor, new BroadcastByNodeTransportRequestHandler());
+        transportService.registerRequestHandler(transportNodeBroadcastAction, NodeRequest::new, executor, false, canTripCircuitBreaker,
+            new BroadcastByNodeTransportRequestHandler());
     }
 
     private Response newResponse(
@@ -434,7 +450,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
     }
 
-    public class NodeRequest extends ChildTaskRequest implements IndicesRequest {
+    public class NodeRequest extends TransportRequest implements IndicesRequest {
         private String nodeId;
 
         private List<ShardRouting> shards;
@@ -475,7 +491,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             int size = in.readVInt();
             shards = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                shards.add(ShardRouting.readShardRoutingEntry(in));
+                shards.add(new ShardRouting(in));
             }
             nodeId = in.readString();
         }

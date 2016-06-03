@@ -20,6 +20,7 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.path.PathTrie;
@@ -158,11 +159,11 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         return new ControllerFilterChain(executionFilter);
     }
 
-    public void dispatchRequest(final RestRequest request, final RestChannel channel, ThreadContext threadContext) {
+    public void dispatchRequest(final RestRequest request, final RestChannel channel, ThreadContext threadContext) throws Exception {
         if (!checkRequestParameters(request, channel)) {
             return;
         }
-        try (ThreadContext.StoredContext t = threadContext.stashContext()){
+        try (ThreadContext.StoredContext t = threadContext.stashContext()) {
             for (String key : relevantHeaders) {
                 String httpHeader = request.header(key);
                 if (httpHeader != null) {
@@ -170,19 +171,19 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
                 }
             }
             if (filters.length == 0) {
-                try {
-                    executeHandler(request, channel);
-                } catch (Throwable e) {
-                    try {
-                        channel.sendResponse(new BytesRestResponse(channel, e));
-                    } catch (Throwable e1) {
-                        logger.error("failed to send failure response for uri [{}]", e1, request.uri());
-                    }
-                }
+                executeHandler(request, channel);
             } else {
                 ControllerFilterChain filterChain = new ControllerFilterChain(handlerFilter);
                 filterChain.continueProcessing(request, channel);
             }
+        }
+    }
+
+    public void sendErrorResponse(RestRequest request, RestChannel channel, Throwable e) {
+        try {
+            channel.sendResponse(new BytesRestResponse(channel, e));
+        } catch (Throwable e1) {
+            logger.error("failed to send failure response for uri [{}]", e1, request.uri());
         }
     }
 
@@ -215,9 +216,10 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         } else {
             if (request.method() == RestRequest.Method.OPTIONS) {
                 // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
-                channel.sendResponse(new BytesRestResponse(OK));
+                channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             } else {
-                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
+                final String msg = "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]";
+                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, msg));
             }
         }
     }

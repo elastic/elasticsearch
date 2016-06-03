@@ -170,7 +170,8 @@ public class ScopedSettingsTests extends ESTestCase {
         ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AtomicReference<List<String>> ref = new AtomicReference<>();
         settings.addSettingsUpdateConsumer(TransportService.TRACE_LOG_INCLUDE_SETTING, ref::set);
-        settings.applySettings(Settings.builder().putArray("transport.tracer.include", "internal:index/shard/recovery/*", "internal:gateway/local*").build());
+        settings.applySettings(Settings.builder()
+                .putArray("transport.tracer.include", "internal:index/shard/recovery/*", "internal:gateway/local*").build());
         assertNotNull(ref.get().size());
         assertEquals(ref.get().size(), 2);
         assertTrue(ref.get().contains("internal:index/shard/recovery/*"));
@@ -181,7 +182,8 @@ public class ScopedSettingsTests extends ESTestCase {
         IndexScopedSettings settings = new IndexScopedSettings(
            Settings.EMPTY,
             IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
-        IndexScopedSettings copy = settings.copy(Settings.builder().put("index.store.type", "boom").build(), newIndexMeta("foo", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 3).build()));
+        IndexScopedSettings copy = settings.copy(Settings.builder().put("index.store.type", "boom").build(),
+                newIndexMeta("foo", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 3).build()));
         assertEquals(3, copy.get(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING).intValue());
         assertEquals(1, copy.get(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING).intValue());
         assertEquals("boom", copy.get(IndexModule.INDEX_STORE_TYPE_SETTING)); // test fallback to node settings
@@ -300,11 +302,8 @@ public class ScopedSettingsTests extends ESTestCase {
     public void testLoggingUpdates() {
         final String level = ESLoggerFactory.getRootLogger().getLevel();
         final String testLevel = ESLoggerFactory.getLogger("test").getLevel();
-        String property = System.getProperty("es.logger.level");
-        Settings.Builder builder = Settings.builder();
-        if (property != null) {
-            builder.put("logger.level", property);
-        }
+        String property = randomFrom(ESLoggerFactory.LogLevel.values()).toString();
+        Settings.Builder builder = Settings.builder().put("logger.level", property);
         try {
             ClusterSettings settings = new ClusterSettings(builder.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             try {
@@ -317,7 +316,7 @@ public class ScopedSettingsTests extends ESTestCase {
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
             assertEquals("TRACE", ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().build());
-            assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(property, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger.test", "TRACE").build());
             assertEquals("TRACE", ESLoggerFactory.getLogger("test").getLevel());
             settings.applySettings(Settings.builder().build());
@@ -331,7 +330,8 @@ public class ScopedSettingsTests extends ESTestCase {
     public void testFallbackToLoggerLevel() {
         final String level = ESLoggerFactory.getRootLogger().getLevel();
         try {
-            ClusterSettings settings = new ClusterSettings(Settings.builder().put("logger.level", "ERROR").build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            ClusterSettings settings = new ClusterSettings(Settings.builder().put("logger.level", "ERROR").build(),
+                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
             assertEquals("TRACE", ESLoggerFactory.getRootLogger().getLevel());

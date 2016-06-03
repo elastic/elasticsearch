@@ -36,12 +36,7 @@ import static org.hamcrest.number.IsCloseTo.closeTo;
 public class FuzzinessTests extends ESTestCase {
     public void testNumerics() {
         String[] options = new String[]{"1.0", "1", "1.000000"};
-        assertThat(Fuzziness.build(randomFrom(options)).asByte(), equalTo((byte) 1));
-        assertThat(Fuzziness.build(randomFrom(options)).asInt(), equalTo(1));
         assertThat(Fuzziness.build(randomFrom(options)).asFloat(), equalTo(1f));
-        assertThat(Fuzziness.build(randomFrom(options)).asDouble(), equalTo(1d));
-        assertThat(Fuzziness.build(randomFrom(options)).asLong(), equalTo(1L));
-        assertThat(Fuzziness.build(randomFrom(options)).asShort(), equalTo((short) 1));
     }
 
     public void testParseFromXContent() throws IOException {
@@ -59,7 +54,6 @@ public class FuzzinessTests extends ESTestCase {
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_NUMBER));
                 Fuzziness parse = Fuzziness.parse(parser);
                 assertThat(parse.asFloat(), equalTo(floatValue));
-                assertThat(parse.asDouble(), closeTo(floatValue, 0.000001));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
             }
             {
@@ -78,10 +72,6 @@ public class FuzzinessTests extends ESTestCase {
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
                 assertThat(parser.nextToken(), anyOf(equalTo(XContentParser.Token.VALUE_NUMBER), equalTo(XContentParser.Token.VALUE_STRING)));
                 Fuzziness parse = Fuzziness.parse(parser);
-                assertThat(parse.asInt(), equalTo(value.intValue()));
-                assertThat((int) parse.asShort(), equalTo(value.intValue()));
-                assertThat((int) parse.asByte(), equalTo(value.intValue()));
-                assertThat(parse.asLong(), equalTo(value.longValue()));
                 if (value.intValue() >= 1) {
                     assertThat(parse.asDistance(), equalTo(Math.min(2, value.intValue())));
                 }
@@ -118,35 +108,12 @@ public class FuzzinessTests extends ESTestCase {
                 assertThat(parse, sameInstance(Fuzziness.AUTO));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
             }
-
-            {
-                String[] values = new String[]{"d", "H", "ms", "s", "S", "w"};
-                String actual = randomIntBetween(1, 3) + randomFrom(values);
-                XContent xcontent = XContentType.JSON.xContent();
-                String json = jsonBuilder().startObject()
-                        .field(Fuzziness.X_FIELD_NAME, actual)
-                        .endObject().string();
-                XContentParser parser = xcontent.createParser(json);
-                assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-                assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
-                assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
-                Fuzziness parse = Fuzziness.parse(parser);
-                assertThat(parse.asTimeValue(), equalTo(TimeValue.parseTimeValue(actual, null, "fuzziness")));
-                assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
-            }
         }
 
     }
 
     public void testAuto() {
-        assertThat(Fuzziness.AUTO.asByte(), equalTo((byte) 1));
-        assertThat(Fuzziness.AUTO.asInt(), equalTo(1));
         assertThat(Fuzziness.AUTO.asFloat(), equalTo(1f));
-        assertThat(Fuzziness.AUTO.asDouble(), equalTo(1d));
-        assertThat(Fuzziness.AUTO.asLong(), equalTo(1L));
-        assertThat(Fuzziness.AUTO.asShort(), equalTo((short) 1));
-        assertThat(Fuzziness.AUTO.asTimeValue(), equalTo(TimeValue.parseTimeValue("1ms", TimeValue.timeValueMillis(1), "fuzziness")));
-
     }
 
     public void testAsDistance() {
@@ -172,13 +139,13 @@ public class FuzzinessTests extends ESTestCase {
         Fuzziness fuzziness = Fuzziness.AUTO;
         Fuzziness deserializedFuzziness = doSerializeRoundtrip(fuzziness);
         assertEquals(fuzziness, deserializedFuzziness);
-        assertEquals(fuzziness.asInt(), deserializedFuzziness.asInt());
+        assertEquals(fuzziness.asFloat(), deserializedFuzziness.asFloat(), 0f);
     }
 
     private static Fuzziness doSerializeRoundtrip(Fuzziness in) throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
         in.writeTo(output);
         StreamInput streamInput = StreamInput.wrap(output.bytes());
-        return Fuzziness.readFuzzinessFrom(streamInput);
+        return new Fuzziness(streamInput);
     }
 }

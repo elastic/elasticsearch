@@ -127,7 +127,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
 
     @Override
     public void doReadFrom(StreamInput in) throws IOException {
-        formatter = in.readValueFormat();
+        formatter = in.readNamedWriteable(DocValueFormat.class);
         gapPolicy = GapPolicy.readFrom(in);
         if (in.readBoolean()) {
             xAxisUnits = in.readDouble();
@@ -139,7 +139,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeValueFormat(formatter);
+        out.writeNamedWriteable(formatter);
         gapPolicy.writeTo(out);
         boolean hasXAxisUnitsValue = xAxisUnits != null;
         out.writeBoolean(hasXAxisUnitsValue);

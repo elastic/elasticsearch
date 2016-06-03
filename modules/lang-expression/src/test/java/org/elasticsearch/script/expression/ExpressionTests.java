@@ -22,36 +22,50 @@ package org.elasticsearch.script.expression;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.text.ParseException;
 import java.util.Collections;
 
 public class ExpressionTests extends ESSingleNodeTestCase {
-
-    public void testNeedsScores() {
+    ExpressionScriptEngineService service;
+    SearchLookup lookup;
+    
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
         IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");
-
-        ExpressionScriptEngineService service = new ExpressionScriptEngineService(Settings.EMPTY);
-        SearchLookup lookup = new SearchLookup(index.mapperService(), index.fieldData(), null);
-
-        Object compiled = service.compile("1.2", Collections.emptyMap());
-        SearchScript ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "expression", compiled), lookup, Collections.<String, Object>emptyMap());
-        assertFalse(ss.needsScores());
-
-        compiled = service.compile("doc['d'].value", Collections.emptyMap());
-        ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "expression", compiled), lookup, Collections.<String, Object>emptyMap());
-        assertFalse(ss.needsScores());
-
-        compiled = service.compile("1/_score", Collections.emptyMap());
-        ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "expression", compiled), lookup, Collections.<String, Object>emptyMap());
-        assertTrue(ss.needsScores());
-
-        compiled = service.compile("doc['d'].value * _score", Collections.emptyMap());
-        ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "expression", compiled), lookup, Collections.<String, Object>emptyMap());
-        assertTrue(ss.needsScores());
+        service = new ExpressionScriptEngineService(Settings.EMPTY);
+        lookup = new SearchLookup(index.mapperService(), index.fieldData(), null);
+    }
+    
+    private SearchScript compile(String expression) {
+        Object compiled = service.compile(null, expression, Collections.emptyMap());
+        return service.search(new CompiledScript(ScriptType.INLINE, "randomName", "expression", compiled), lookup, Collections.<String, Object>emptyMap());
     }
 
+    public void testNeedsScores() {
+        assertFalse(compile("1.2").needsScores());
+        assertFalse(compile("doc['d'].value").needsScores());
+        assertTrue(compile("1/_score").needsScores());
+        assertTrue(compile("doc['d'].value * _score").needsScores());
+    }
+    
+    public void testCompileError() {
+        ScriptException e = expectThrows(ScriptException.class, () -> {
+            compile("doc['d'].value * *@#)(@$*@#$ + 4");
+        });
+        assertTrue(e.getCause() instanceof ParseException);
+    }
+    
+    public void testLinkError() {
+        ScriptException e = expectThrows(ScriptException.class, () -> {
+            compile("doc['e'].value * 5");
+        });
+        assertTrue(e.getCause() instanceof ParseException);
+    }
 }

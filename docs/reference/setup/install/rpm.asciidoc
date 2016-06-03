@@ -6,6 +6,9 @@ or from our  <<rpm-repo,RPM repository>>. It can be used to install
 Elasticsearch on any RPM-based system such as OpenSuSE, SLES, Centos, Red Hat,
 and Oracle Enterprise.
 
+NOTE: RPM install is not supported on distributions with old versions of RPM,
+such as SLES 11 and CentOS 5.  Please see <<zip-targz>> instead.
+
 The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].
@@ -18,14 +21,6 @@ include::key.asciidoc[]
 [source,sh]
 -------------------------
 rpm --import https://packages.elastic.co/GPG-KEY-elasticsearch
--------------------------
-
-If using an older version of RPM, you may need to do this in two steps:
-
-[source,sh]
--------------------------
-curl https://packages.elastic.co/GPG-KEY-elasticsearch > elasticsearch.asc
-rpm --import elasticsearch.asc
 -------------------------
 
 [[rpm-repo]]
@@ -159,13 +154,12 @@ locations for an RPM-based system:
 
 | logs
   | Log files location.
-  | /var/logs/elasticsearch
+  | /var/log/elasticsearch
   | path.logs
 
 | plugins
   | Plugin files location. Each plugin will be contained in a subdirectory.
   | /usr/share/elasticsearch/plugins
-  | path.plugins
 
 | repo
   | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here.

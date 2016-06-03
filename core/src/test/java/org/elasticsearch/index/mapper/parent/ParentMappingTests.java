@@ -24,7 +24,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 public class ParentMappingTests extends ESSingleNodeTestCase {
@@ -35,8 +34,8 @@ public class ParentMappingTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         try {
-            docMapper.parse(SourceToParse.source(XContentFactory.jsonBuilder()
-                .startObject().field("_parent", "1122").endObject().bytes()).type("type").id("1"));
+            docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject().field("_parent", "1122").endObject().bytes()));
             fail("Expected failure to parse metadata field");
         } catch (MapperParsingException e) {
             assertTrue(e.getMessage(), e.getMessage().contains("Field [_parent] is a metadata field and cannot be added inside a document"));
@@ -49,11 +48,11 @@ public class ParentMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source(XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("x_field", "x_value")
                 .endObject()
-                .bytes()).type("type").id("1").parent("1122"));
+                .bytes()).parent("1122"));
 
         assertEquals("1122", doc.rootDoc().getBinaryValue("_parent#p_type").utf8ToString());
     }

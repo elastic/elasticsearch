@@ -24,11 +24,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * A Query that matches documents containing a term.
@@ -37,7 +39,6 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
 
     public static final String NAME = "term";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final TermQueryBuilder PROTOTYPE = new TermQueryBuilder("name", "value");
 
     private static final ParseField TERM_FIELD = new ParseField("term");
     private static final ParseField VALUE_FIELD = new ParseField("value");
@@ -77,7 +78,14 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         super(fieldName, value);
     }
 
-    public static TermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    /**
+     * Read from a stream.
+     */
+    public TermQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    public static Optional<TermQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String queryName = null;
@@ -102,13 +110,13 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if (parseContext.parseFieldMatcher().match(currentFieldName, TERM_FIELD)) {
+                        if (parseContext.getParseFieldMatcher().match(currentFieldName, TERM_FIELD)) {
                             value = parser.objectBytes();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
                             value = parser.objectBytes();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                             queryName = parser.text();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                             boost = parser.floatValue();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
@@ -133,7 +141,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         if (queryName != null) {
             termQuery.queryName(queryName);
         }
-        return termQuery;
+        return Optional.of(termQuery);
     }
 
     @Override
@@ -147,11 +155,6 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
             query = new TermQuery(new Term(this.fieldName, BytesRefs.toBytesRef(this.value)));
         }
         return query;
-    }
-
-    @Override
-    protected TermQueryBuilder createBuilder(String fieldName, Object value) {
-        return new TermQueryBuilder(fieldName, value);
     }
 
     @Override

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ingest.SimulateProcessorResult;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.ingest.core.CompoundProcessor;
@@ -73,8 +74,9 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         try {
             trackingProcessor.execute(ingestDocument);
-        } catch (Exception e) {
-            assertThat(e.getMessage(), equalTo(exception.getMessage()));
+            fail("processor should throw exception");
+        } catch (ElasticsearchException e) {
+            assertThat(e.getRootCause().getMessage(), equalTo(exception.getMessage()));
         }
 
         SimulateProcessorResult expectedFirstResult = new SimulateProcessorResult(testProcessor.getTag(), ingestDocument);
@@ -89,8 +91,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
         RuntimeException exception = new RuntimeException("fail");
         TestProcessor failProcessor = new TestProcessor("fail", "test", ingestDocument -> {  throw exception; });
         TestProcessor onFailureProcessor = new TestProcessor("success", "test", ingestDocument -> {});
-        CompoundProcessor actualProcessor = new CompoundProcessor(
-            Arrays.asList(new CompoundProcessor(
+        CompoundProcessor actualProcessor = new CompoundProcessor(false,
+            Arrays.asList(new CompoundProcessor(false,
                 Arrays.asList(failProcessor, onFailureProcessor),
                 Arrays.asList(onFailureProcessor, failProcessor))),
                 Arrays.asList(onFailureProcessor));
@@ -121,8 +123,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         metadata = resultList.get(3).getIngestDocument().getIngestMetadata();
         assertThat(metadata.get(ON_FAILURE_MESSAGE_FIELD), equalTo("fail"));
-        assertThat(metadata.get(ON_FAILURE_PROCESSOR_TYPE_FIELD), equalTo("compound"));
-        assertThat(metadata.get(ON_FAILURE_PROCESSOR_TAG_FIELD), equalTo("CompoundProcessor-fail-success-success-fail"));
+        assertThat(metadata.get(ON_FAILURE_PROCESSOR_TYPE_FIELD), equalTo("test"));
+        assertThat(metadata.get(ON_FAILURE_PROCESSOR_TAG_FIELD), equalTo("fail"));
         assertThat(resultList.get(3).getFailure(), nullValue());
         assertThat(resultList.get(3).getProcessorTag(), equalTo(expectedSuccessResult.getProcessorTag()));
     }

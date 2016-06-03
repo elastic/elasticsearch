@@ -19,29 +19,38 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class SumBucketPipelineAggregatorBuilder
-        extends BucketMetricsPipelineAggregatorBuilder<SumBucketPipelineAggregatorBuilder> {
-
-    static final SumBucketPipelineAggregatorBuilder PROTOTYPE = new SumBucketPipelineAggregatorBuilder("", "");
+public class SumBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAggregatorBuilder<SumBucketPipelineAggregatorBuilder> {
+    public static final String NAME = SumBucketPipelineAggregator.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public SumBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
-        this(name, new String[] { bucketsPath });
+        super(name, SumBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
     }
 
-    private SumBucketPipelineAggregatorBuilder(String name, String[] bucketsPaths) {
-        super(name, SumBucketPipelineAggregator.TYPE.name(), bucketsPaths);
+    /**
+     * Read from a stream.
+     */
+    public SumBucketPipelineAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, NAME);
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        // Do nothing, no extra state to write to stream
     }
 
     @Override
@@ -51,7 +60,7 @@ public class SumBucketPipelineAggregatorBuilder
 
     @Override
     public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-            List<PipelineAggregatorBuilder<?>> pipelineAggregatorFactories) {
+            List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");
@@ -63,16 +72,13 @@ public class SumBucketPipelineAggregatorBuilder
         return builder;
     }
 
-    @Override
-    protected SumBucketPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
-            throws IOException {
-        return new SumBucketPipelineAggregatorBuilder(name, bucketsPaths);
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        // Do nothing, no extra state to write to stream
-    }
+    public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
+        @Override
+        protected SumBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+                String bucketsPath, Map<String, Object> params) {
+            return new SumBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+        }
+    };
 
     @Override
     protected int innerHashCode() {
@@ -84,4 +90,8 @@ public class SumBucketPipelineAggregatorBuilder
         return true;
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

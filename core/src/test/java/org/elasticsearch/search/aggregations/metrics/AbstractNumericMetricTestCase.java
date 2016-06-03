@@ -22,9 +22,9 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
-public abstract class AbstractNumericMetricTestCase<AF extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, AF>>
+public abstract class AbstractNumericMetricTestCase<AF extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, AF>>
         extends BaseAggregationTestCase<AF> {
 
     @Override

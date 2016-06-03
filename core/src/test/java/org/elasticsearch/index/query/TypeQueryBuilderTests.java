@@ -23,6 +23,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
@@ -35,7 +36,7 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
 
     @Override
     protected void doAssertLuceneQuery(TypeQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        if (queryShardContext().getMapperService().documentMapper(queryBuilder.type()) == null) {
+        if (createShardContext().getMapperService().documentMapper(queryBuilder.type()) == null) {
             assertEquals(new MatchNoDocsQuery(), query);
         } else {
             assertEquals(new TypeFieldMapper.TypeQuery(new BytesRef(queryBuilder.type())), query);
@@ -53,11 +54,11 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"type\" : {\n" + 
-                "    \"value\" : \"my_type\",\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"type\" : {\n" +
+                "    \"value\" : \"my_type\",\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
 
         TypeQueryBuilder parsed = (TypeQueryBuilder) parseQuery(json);

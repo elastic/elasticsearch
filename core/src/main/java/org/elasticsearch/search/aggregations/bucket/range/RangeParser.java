@@ -41,19 +41,17 @@ public class RangeParser extends NumericValuesSourceParser {
         this(true, true, false);
     }
 
+    /**
+     * Used by subclasses that parse slightly different kinds of ranges.
+     */
     protected RangeParser(boolean scriptable, boolean formattable, boolean timezoneAware) {
         super(scriptable, formattable, timezoneAware);
     }
 
     @Override
-    public String type() {
-        return InternalRange.TYPE.name();
-    }
-
-    @Override
     protected AbstractRangeBuilder<?, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        RangeAggregatorBuilder factory = new RangeAggregatorBuilder(aggregationName);
+        RangeAggregationBuilder factory = new RangeAggregationBuilder(aggregationName);
         @SuppressWarnings("unchecked")
         List<? extends Range> ranges = (List<? extends Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
         for (Range range : ranges) {
@@ -90,11 +88,6 @@ public class RangeParser extends NumericValuesSourceParser {
     }
 
     protected Range parseRange(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return Range.PROTOTYPE.fromXContent(parser, parseFieldMatcher);
-    }
-
-    @Override
-    public AbstractRangeBuilder<?, ?> getFactoryPrototypes() {
-        return RangeAggregatorBuilder.PROTOTYPE;
+        return Range.fromXContent(parser, parseFieldMatcher);
     }
 }

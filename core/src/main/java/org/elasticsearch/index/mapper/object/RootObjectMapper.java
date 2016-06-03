@@ -54,7 +54,7 @@ public class RootObjectMapper extends ObjectMapper {
     public static class Defaults {
         public static final FormatDateTimeFormatter[] DYNAMIC_DATE_TIME_FORMATTERS =
                 new FormatDateTimeFormatter[]{
-                        DateFieldMapper.Defaults.DATE_TIME_FORMATTER,
+                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                         Joda.getStrictStandardDateFormatter()
                 };
         public static final boolean DATE_DETECTION = true;
@@ -138,7 +138,7 @@ public class RootObjectMapper extends ObjectMapper {
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
                         || processField(builder, fieldName, fieldNode, parserContext.indexVersionCreated())) {
@@ -278,7 +278,7 @@ public class RootObjectMapper extends ObjectMapper {
         return typeParser.parse(name, dynamicTemplate.mappingForName(name, dynamicType), parserContext);
     }
 
-    public DynamicTemplate findTemplate(ContentPath path, String name, String matchType) {
+    private DynamicTemplate findTemplate(ContentPath path, String name, String matchType) {
         for (DynamicTemplate dynamicTemplate : dynamicTemplates) {
             if (dynamicTemplate.match(path, name, matchType)) {
                 return dynamicTemplate;

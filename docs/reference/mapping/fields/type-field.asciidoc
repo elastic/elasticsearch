@@ -21,7 +21,7 @@ PUT my_index/type_2/2
   "text": "Document with type 2"
 }
 
-GET my_index/_search/type_*
+GET my_index/type_*/_search
 {
   "query": {
     "terms": {
@@ -51,7 +51,7 @@ GET my_index/_search/type_*
 }
 
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Querying on the `_type` field
 <2> Aggregating on the `_type` field

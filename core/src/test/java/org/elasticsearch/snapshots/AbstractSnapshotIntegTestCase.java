@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.PendingClusterTask;
@@ -71,7 +70,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static long getFailureCount(String repository) {
         long failureCount = 0;
-        for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+        for (RepositoriesService repositoriesService :
+            internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class)) {
             MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
             failureCount += mockRepository.getFailureCount();
         }
@@ -107,18 +107,29 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         fail("Timeout!!!");
     }
 
-    public SnapshotInfo waitForCompletion(String repository, String snapshot, TimeValue timeout) throws InterruptedException {
+    public SnapshotInfo waitForCompletion(String repository, String snapshotName, TimeValue timeout) throws InterruptedException {
         long start = System.currentTimeMillis();
-        SnapshotId snapshotId = new SnapshotId(repository, snapshot);
         while (System.currentTimeMillis() - start < timeout.millis()) {
-            List<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots(repository).setSnapshots(snapshot).get().getSnapshots();
+            List<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots(repository).setSnapshots(snapshotName).get().getSnapshots();
             assertThat(snapshotInfos.size(), equalTo(1));
             if (snapshotInfos.get(0).state().completed()) {
                 // Make sure that snapshot clean up operations are finished
                 ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
                 SnapshotsInProgress snapshotsInProgress = stateResponse.getState().custom(SnapshotsInProgress.TYPE);
-                if (snapshotsInProgress == null || snapshotsInProgress.snapshot(snapshotId) == null) {
+                if (snapshotsInProgress == null) {
                     return snapshotInfos.get(0);
+                } else {
+                    boolean found = false;
+                    for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
+                        final Snapshot curr = entry.snapshot();
+                        if (curr.getRepository().equals(repository) && curr.getSnapshotId().getName().equals(snapshotName)) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (found == false) {
+                        return snapshotInfos.get(0);
+                    }
                 }
             }
             Thread.sleep(100);
@@ -127,12 +138,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return null;
     }
 
-    public static String blockNodeWithIndex(String index) {
-        for(String node : internalCluster().nodesInclude("test-idx")) {
-            ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository("test-repo")).blockOnDataFiles(true);
+    public static String blockNodeWithIndex(final String repositoryName, final String indexName) {
+        for(String node : internalCluster().nodesInclude(indexName)) {
+            ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repositoryName))
+                .blockOnDataFiles(true);
             return node;
         }
-        fail("No nodes for the index " + index + " found");
+        fail("No nodes for the index " + indexName + " found");
         return null;
     }
 
@@ -162,8 +174,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    public static void unblockNode(String node) {
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository("test-repo")).unblock();
+    public static void unblockNode(final String repository, final String node) {
+        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
     }
 
     protected void assertBusyPendingTasks(final String taskPrefix, final int expectedCount) throws Exception {

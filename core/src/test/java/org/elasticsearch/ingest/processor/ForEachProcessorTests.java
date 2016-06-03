@@ -91,7 +91,7 @@ public class ForEachProcessorTests extends ESTestCase {
         Processor onFailureProcessor = new TestProcessor(ingestDocument1 -> {});
         processor = new ForEachProcessor(
             "_tag", "values",
-            Collections.singletonList(new CompoundProcessor(Arrays.asList(testProcessor), Arrays.asList(onFailureProcessor)))
+            Collections.singletonList(new CompoundProcessor(false, Arrays.asList(testProcessor), Arrays.asList(onFailureProcessor)))
         );
         processor.execute(ingestDocument);
         assertThat(testProcessor.getInvokedCounter(), equalTo(3));

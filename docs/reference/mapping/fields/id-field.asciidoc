@@ -6,9 +6,10 @@ Each document indexed is associated with a <<mapping-type-field,`_type`>> (see
 indexed as its value can be derived automatically from the
 <<mapping-uid-field,`_uid`>> field.
 
-The value of the `_id` field is accessible in queries and scripts, but _not_
-in aggregations or when sorting, where the <<mapping-uid-field,`_uid`>> field
-should be used instead:
+The value of the `_id` field is accessible in certain queries (`term`,
+`terms`, `match`, `query_string`, `simple_query_string`) and scripts, but
+_not_ in aggregations or when sorting, where the <<mapping-uid-field,`_uid`>>
+field should be used instead:
 
 [source,js]
 --------------------------
@@ -37,7 +38,7 @@ GET my_index/_search
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Querying on the `_id` field (also see the <<query-dsl-ids-query,`ids` query>>)
 <2> Accessing the `_id` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)

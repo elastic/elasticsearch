@@ -410,7 +410,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper disabledMapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, disabledMapper.mappingSource().toString());
-        IllegalStateException e = expectThrows(IllegalStateException.class,
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> disabledMapper.mappers().getMapper("field").fieldType().fielddataBuilder());
         assertThat(e.getMessage(), containsString("Fielddata is disabled"));
 
@@ -425,6 +425,17 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, enabledMapper.mappingSource().toString());
         enabledMapper.mappers().getMapper("field").fieldType().fielddataBuilder(); // no exception this time
+
+        String illegalMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                    .field("type", "text")
+                    .field("index", false)
+                    .field("fielddata", true)
+                .endObject().endObject()
+                .endObject().endObject().string();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(illegalMapping)));
+        assertThat(ex.getMessage(), containsString("Cannot enable fielddata on a [text] field that is not indexed"));
     }
 
     public void testFrequencyFilter() throws IOException {

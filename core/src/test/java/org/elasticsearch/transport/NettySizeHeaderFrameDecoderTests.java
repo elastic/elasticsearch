@@ -20,12 +20,13 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -65,13 +66,15 @@ public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
         threadPool = new ThreadPool(settings);
         threadPool.setClusterSettings(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         NetworkService networkService = new NetworkService(settings);
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(settings, threadPool), new NoneCircuitBreakerService());
-        nettyTransport = new NettyTransport(settings, threadPool, networkService, bigArrays, Version.CURRENT, new NamedWriteableRegistry());
+        BigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
+        nettyTransport = new NettyTransport(settings, threadPool, networkService, bigArrays, Version.CURRENT, new NamedWriteableRegistry(),
+            new NoneCircuitBreakerService());
         nettyTransport.start();
-        TransportService transportService = new TransportService(nettyTransport, threadPool);
+        TransportService transportService = new TransportService(nettyTransport, threadPool, ClusterName.DEFAULT);
         nettyTransport.transportServiceAdapter(transportService.createAdapter());
 
-        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) randomFrom(nettyTransport.boundAddress().boundAddresses());
+        TransportAddress[] boundAddresses = nettyTransport.boundAddress().boundAddresses();
+        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) randomFrom(boundAddresses);
         port = transportAddress.address().getPort();
         host = transportAddress.address().getAddress();
 
@@ -81,6 +84,7 @@ public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
     public void terminateThreadPool() throws InterruptedException {
         nettyTransport.stop();
         terminate(threadPool);
+        threadPool = null;
     }
 
     public void testThatTextMessageIsReturnedOnHTTPLikeRequest() throws Exception {

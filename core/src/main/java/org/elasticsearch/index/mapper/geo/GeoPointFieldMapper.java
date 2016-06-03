@@ -28,11 +28,11 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 
 import java.io.IOException;
@@ -78,8 +78,8 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
 
         @Override
         public GeoPointFieldMapper build(BuilderContext context, String simpleName, MappedFieldType fieldType,
-                                         MappedFieldType defaultFieldType, Settings indexSettings, DoubleFieldMapper latMapper,
-                                         DoubleFieldMapper lonMapper, KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                                         MappedFieldType defaultFieldType, Settings indexSettings, FieldMapper latMapper,
+                                         FieldMapper lonMapper, KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                          CopyTo copyTo) {
             fieldType.setTokenized(false);
             if (context.indexCreatedVersion().before(Version.V_2_3_0)) {
@@ -109,7 +109,7 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
     }
 
     public GeoPointFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings,
-                               DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper,
+                               FieldMapper latMapper, FieldMapper lonMapper,
                                KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, latMapper, lonMapper, geoHashMapper, multiFields,
                 ignoreMalformed, copyTo);
@@ -129,7 +129,7 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
             GeoUtils.normalizePoint(point);
         }
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            context.doc().add(new GeoPointField(fieldType().name(), point.lon(), point.lat(), fieldType() ));
+            context.doc().add(new GeoPointField(fieldType().name(), point.lat(), point.lon(), fieldType()));
         }
         super.parse(context, point, geoHash);
     }

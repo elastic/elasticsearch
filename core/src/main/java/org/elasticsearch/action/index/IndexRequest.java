@@ -20,18 +20,16 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,8 +40,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 
@@ -586,10 +582,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     }
 
 
-    public void process(MetaData metaData, @Nullable MappingMetaData mappingMd, boolean allowIdGeneration, String concreteIndex) {
-        // resolve the routing if needed
-        routing(metaData.resolveIndexRouting(parent, routing, index));
-
+    public void process(@Nullable MappingMetaData mappingMd, boolean allowIdGeneration, String concreteIndex) {
         // resolve timestamp if provided externally
         if (timestamp != null) {
             timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp,
@@ -613,7 +606,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         // generate id if not already provided and id generation is allowed
         if (allowIdGeneration) {
             if (id == null) {
-                id(Strings.base64UUID());
+                id(UUIDs.base64UUID());
             }
         }
 
@@ -640,6 +633,11 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
                 timestamp = MappingMetaData.Timestamp.parseStringTimestamp(defaultTimestamp, mappingMd.timestamp().dateTimeFormatter());
             }
         }
+    }
+
+    /* resolve the routing if needed */
+    public void resolveRouting(MetaData metaData) {
+        routing(metaData.resolveIndexRouting(parent, routing, index));
     }
 
     @Override

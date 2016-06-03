@@ -31,17 +31,16 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Builder for {@link org.apache.lucene.search.spans.SpanContainingQuery}.
  */
 public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContainingQueryBuilder>
-        implements SpanQueryBuilder<SpanContainingQueryBuilder> {
+        implements SpanQueryBuilder {
 
     public static final String NAME = "span_containing";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final SpanContainingQueryBuilder PROTOTYPE =
-            new SpanContainingQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, SpanTermQueryBuilder.PROTOTYPE);
 
     private static final ParseField BIG_FIELD = new ParseField("big");
     private static final ParseField LITTLE_FIELD = new ParseField("little");
@@ -62,6 +61,21 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
         }
         this.little = little;
         this.big = big;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public SpanContainingQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        big = (SpanQueryBuilder) in.readNamedWriteable(QueryBuilder.class);
+        little = (SpanQueryBuilder) in.readNamedWriteable(QueryBuilder.class);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(big);
+        out.writeNamedWriteable(little);
     }
 
     /**
@@ -89,12 +103,12 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
         builder.endObject();
     }
 
-    public static SpanContainingQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<SpanContainingQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
-        SpanQueryBuilder<?> big = null;
-        SpanQueryBuilder<?> little = null;
+        SpanQueryBuilder big = null;
+        SpanQueryBuilder little = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -102,25 +116,25 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, BIG_FIELD)) {
-                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
-                    if (!(query instanceof SpanQueryBuilder<?>)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, BIG_FIELD)) {
+                    Optional<QueryBuilder> query = parseContext.parseInnerQueryBuilder();
+                    if (query.isPresent() == false || query.get() instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "span_containing [big] must be of type span query");
                     }
-                    big = (SpanQueryBuilder<?>) query;
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, LITTLE_FIELD)) {
-                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
-                    if (!(query instanceof SpanQueryBuilder<?>)) {
+                    big = (SpanQueryBuilder) query.get();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LITTLE_FIELD)) {
+                    Optional<QueryBuilder> query = parseContext.parseInnerQueryBuilder();
+                    if (query.isPresent() == false || query.get() instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "span_containing [little] must be of type span query");
                     }
-                    little = (SpanQueryBuilder<?>) query;
+                    little = (SpanQueryBuilder) query.get();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "[span_containing] query does not support [" + currentFieldName + "]");
                 }
-            } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+            } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                 boost = parser.floatValue();
-            } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+            } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                 queryName = parser.text();
             } else {
                 throw new ParsingException(parser.getTokenLocation(),
@@ -130,7 +144,7 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
 
         SpanContainingQueryBuilder query = new SpanContainingQueryBuilder(big, little);
         query.boost(boost).queryName(queryName);
-        return query;
+        return Optional.of(query);
     }
 
     @Override
@@ -140,19 +154,6 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
         Query innerLittle = little.toQuery(context);
         assert innerLittle instanceof SpanQuery;
         return new SpanContainingQuery((SpanQuery) innerBig, (SpanQuery) innerLittle);
-    }
-
-    @Override
-    protected SpanContainingQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        SpanQueryBuilder big = (SpanQueryBuilder)in.readQuery();
-        SpanQueryBuilder little = (SpanQueryBuilder)in.readQuery();
-        return new SpanContainingQueryBuilder(big, little);
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(big);
-        out.writeQuery(little);
     }
 
     @Override

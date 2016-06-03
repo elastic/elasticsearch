@@ -1,18 +1,20 @@
 [[search-request-fielddata-fields]]
 === Field Data Fields
 
-Allows to return the field data representation of a field for each hit, for
+Allows to return the <<fielddata,field data>> representation of a field for each hit, for
 example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "query" : {
-        ...
+        "match_all": {}
     },
     "fielddata_fields" : ["test1", "test2"]
 }
 --------------------------------------------------
+// CONSOLE
 
 Field data fields can work on fields that are not stored.
 

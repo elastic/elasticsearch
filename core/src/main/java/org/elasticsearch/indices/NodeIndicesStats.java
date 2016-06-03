@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
@@ -38,7 +37,6 @@ import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.percolator.PercolatorQueryCacheStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -101,11 +99,6 @@ public class NodeIndicesStats implements Streamable, ToXContent {
     @Nullable
     public SearchStats getSearch() {
         return stats.getSearch();
-    }
-
-    @Nullable
-    public PercolatorQueryCacheStats getPercolate() {
-        return stats.getPercolatorCache();
     }
 
     @Nullable
@@ -252,6 +245,6 @@ public class NodeIndicesStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString INDICES = new XContentBuilderString("indices");
+        static final String INDICES = "indices";
     }
 }

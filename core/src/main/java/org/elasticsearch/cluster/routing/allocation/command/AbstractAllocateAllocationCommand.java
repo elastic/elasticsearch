@@ -23,40 +23,46 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.StreamableReader;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Abstract base class for allocating an unassigned shard to a node
  */
-public abstract class AbstractAllocateAllocationCommand implements AllocationCommand, ToXContent {
+public abstract class AbstractAllocateAllocationCommand implements AllocationCommand {
 
-    private static final String INDEX_KEY = "index";
-    private static final String SHARD_KEY = "shard";
-    private static final String NODE_KEY = "node";
+    private static final String INDEX_FIELD = "index";
+    private static final String SHARD_FIELD = "shard";
+    private static final String NODE_FIELD = "node";
 
-    protected static <T extends Builder> ObjectParser<T, Void> createAllocateParser(String command) {
-        ObjectParser<T, Void> parser = new ObjectParser<>(command);
-        parser.declareString(Builder::setIndex, new ParseField(INDEX_KEY));
-        parser.declareInt(Builder::setShard, new ParseField(SHARD_KEY));
-        parser.declareString(Builder::setNode, new ParseField(NODE_KEY));
+    protected static <T extends Builder<?>> ObjectParser<T, ParseFieldMatcherSupplier> createAllocateParser(String command) {
+        ObjectParser<T, ParseFieldMatcherSupplier> parser = new ObjectParser<>(command);
+        parser.declareString(Builder::setIndex, new ParseField(INDEX_FIELD));
+        parser.declareInt(Builder::setShard, new ParseField(SHARD_FIELD));
+        parser.declareString(Builder::setNode, new ParseField(NODE_FIELD));
         return parser;
     }
 
-    protected static abstract class Builder<T extends AbstractAllocateAllocationCommand> implements StreamableReader<Builder<T>> {
+    /**
+     * Works around ObjectParser not supporting constructor arguments.
+     */
+    protected static abstract class Builder<T extends AbstractAllocateAllocationCommand> {
         protected String index;
         protected int shard = -1;
         protected String node;
@@ -71,14 +77,6 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
 
         public void setNode(String node) {
             this.node = node;
-        }
-
-        @Override
-        public Builder<T> readFrom(StreamInput in) throws IOException {
-            index = in.readString();
-            shard = in.readVInt();
-            node = in.readString();
-            return this;
         }
 
         public abstract Builder<T> parse(XContentParser parser) throws IOException;
@@ -98,50 +96,6 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         }
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.field(INDEX_KEY, index());
-        builder.field(SHARD_KEY, shardId());
-        builder.field(NODE_KEY, node());
-        return builder;
-    }
-
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(index);
-        out.writeVInt(shardId);
-        out.writeString(node);
-    }
-
-    public static abstract class Factory<T extends AbstractAllocateAllocationCommand> implements AllocationCommand.Factory<T> {
-
-        protected abstract Builder<T> newBuilder();
-
-        @Override
-        public T readFrom(StreamInput in) throws IOException {
-            return newBuilder().readFrom(in).build();
-        }
-
-        @Override
-        public void writeTo(T command, StreamOutput out) throws IOException {
-            command.writeTo(out);
-        }
-
-        @Override
-        public T fromXContent(XContentParser parser) throws IOException {
-            return newBuilder().parse(parser).build();
-        }
-
-        @Override
-        public void toXContent(T command, XContentBuilder builder, ToXContent.Params params, String objectName) throws IOException {
-            if (objectName == null) {
-                builder.startObject();
-            } else {
-                builder.startObject(objectName);
-            }
-            builder.endObject();
-        }
-    }
-
     protected final String index;
     protected final int shardId;
     protected final String node;
@@ -152,6 +106,21 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         this.node = node;
     }
 
+    /**
+     * Read from a stream.
+     */
+    protected AbstractAllocateAllocationCommand(StreamInput in) throws IOException {
+        index = in.readString();
+        shardId = in.readVInt();
+        node = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(index);
+        out.writeVInt(shardId);
+        out.writeString(node);
+    }
 
     /**
      * Get the index name
@@ -230,21 +199,52 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
      * @param routingNodes the routing nodes
      * @param routingNode the node to initialize it to
      * @param shardRouting the shard routing that is to be matched in unassigned shards
-     * @param shardRoutingChanges changes to apply for shard routing in unassigned shards before initialization
+     * @param unassignedInfo unassigned info to override
      */
     protected void initializeUnassignedShard(RoutingAllocation allocation, RoutingNodes routingNodes, RoutingNode routingNode,
-                                             ShardRouting shardRouting, @Nullable Consumer<ShardRouting> shardRoutingChanges) {
+                                             ShardRouting shardRouting, @Nullable UnassignedInfo unassignedInfo) {
         for (RoutingNodes.UnassignedShards.UnassignedIterator it = routingNodes.unassigned().iterator(); it.hasNext(); ) {
             ShardRouting unassigned = it.next();
             if (!unassigned.equalsIgnoringMetaData(shardRouting)) {
                 continue;
             }
-            if (shardRoutingChanges != null) {
-                shardRoutingChanges.accept(unassigned);
+            if (unassignedInfo != null) {
+                unassigned = it.updateUnassignedInfo(unassignedInfo);
             }
             it.initialize(routingNode.nodeId(), null, allocation.clusterInfo().getShardSize(unassigned, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
             return;
         }
         assert false : "shard to initialize not found in list of unassigned shards";
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder.startObject();
+        builder.field(INDEX_FIELD, index());
+        builder.field(SHARD_FIELD, shardId());
+        builder.field(NODE_FIELD, node());
+        extraXContent(builder);
+        return builder.endObject();
+    }
+
+    protected void extraXContent(XContentBuilder builder) throws IOException {
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        AbstractAllocateAllocationCommand other = (AbstractAllocateAllocationCommand) obj;
+        // Override equals and hashCode for testing
+        return Objects.equals(index, other.index) &&
+                Objects.equals(shardId, other.shardId) &&
+                Objects.equals(node, other.node);
+    }
+
+    @Override
+    public int hashCode() {
+        // Override equals and hashCode for testing
+        return Objects.hash(index, shardId, node);
     }
 }

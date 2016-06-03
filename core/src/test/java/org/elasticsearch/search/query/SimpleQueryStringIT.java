@@ -359,4 +359,42 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
     }
+
+    public void testSimpleQueryStringOnIndexMetaField() throws Exception {
+        client().prepareIndex("test", "type1", "1").setSource("foo", 123, "bar", "abc").get();
+        client().prepareIndex("test", "type1", "2").setSource("foo", 234, "bar", "bcd").get();
+
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("test").field("_index")).get();
+        assertHitCount(searchResponse, 2L);
+        assertSearchHits(searchResponse, "1", "2");
+    }
+
+    public void testEmptySimpleQueryStringWithAnalysis() throws Exception {
+        // https://github.com/elastic/elasticsearch/issues/18202
+        String mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type1")
+                .startObject("properties")
+                .startObject("body")
+                .field("type", "string")
+                .field("analyzer", "stop")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject().string();
+
+        CreateIndexRequestBuilder mappingRequest = client().admin().indices()
+                .prepareCreate("test1")
+                .addMapping("type1", mapping);
+        mappingRequest.execute().actionGet();
+        indexRandom(true, client().prepareIndex("test1", "type1", "1").setSource("body", "Some Text"));
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(simpleQueryStringQuery("the*").analyzeWildcard(true).field("body")).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 0L);
+    }
 }

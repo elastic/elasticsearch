@@ -16,10 +16,10 @@ representation. The processor will skip the base64 decoding then.
 [options="header"]
 |======
 | Name                   | Required  | Default          | Description
-| `source_field`         | yes       | -                | The field to get the base64 encoded field from
+| `field`                | yes       | -                | The field to get the base64 encoded field from
 | `target_field`         | no        | attachment       | The field that will hold the attachment information
 | `indexed_chars`        | no        | 100000           | The number of chars being used for extraction to prevent huge fields. Use `-1` for no limit.
-| `fields`               | no        | all              | Properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language`
+| `properties`           | no        | all              | Properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language`
 |======
 
 [source,js]
@@ -29,7 +29,7 @@ representation. The processor will skip the base64 decoding then.
   "processors" : [
     {
       "attachment" : {
-        "source_field" : "data"
+        "field" : "data"
       }
     }
   ]

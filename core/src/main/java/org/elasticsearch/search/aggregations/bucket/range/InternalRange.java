@@ -324,7 +324,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        format = in.readValueFormat();
+        format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
         int size = in.readVInt();
         List<B> ranges = new ArrayList<>(size);
@@ -338,7 +338,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeValueFormat(format);
+        out.writeNamedWriteable(format);
         out.writeBoolean(keyed);
         out.writeVInt(ranges.size());
         for (B bucket : ranges) {

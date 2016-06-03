@@ -62,6 +62,24 @@ public class GatewayAllocator extends AbstractComponent {
         this.replicaShardAllocator = new InternalReplicaShardAllocator(settings, storeAction);
     }
 
+    /**
+     * Returns true if the given shard has an async fetch pending
+     */
+    public boolean hasFetchPending(ShardId shardId, boolean primary) {
+        if (primary) {
+            AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetch = asyncFetchStarted.get(shardId);
+            if (fetch != null) {
+                return fetch.getNumberOfInFlightFetches() > 0;
+            }
+        } else {
+            AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetch = asyncFetchStore.get(shardId);
+            if (fetch != null) {
+                return fetch.getNumberOfInFlightFetches() > 0;
+            }
+        }
+        return false;
+    }
+
     public void setReallocation(final ClusterService clusterService, final RoutingService routingService) {
         this.routingService = routingService;
         clusterService.add(new ClusterStateListener() {
@@ -125,7 +143,7 @@ public class GatewayAllocator extends AbstractComponent {
 
     class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {
 
-        public InternalAsyncFetch(ESLogger logger, String type, ShardId shardId, List<? extends BaseNodesResponse<T>, T> action) {
+        public InternalAsyncFetch(ESLogger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
             super(logger, type, shardId, action);
         }
 
@@ -153,7 +171,7 @@ public class GatewayAllocator extends AbstractComponent {
                 asyncFetchStarted.put(shard.shardId(), fetch);
             }
             AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState =
-                    fetch.fetchData(allocation.nodes(), allocation.metaData(), allocation.getIgnoreNodes(shard.shardId()));
+                    fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
 
             if (shardState.hasData() == true) {
                 shardState.processAllocation(allocation);
@@ -179,7 +197,7 @@ public class GatewayAllocator extends AbstractComponent {
                 asyncFetchStore.put(shard.shardId(), fetch);
             }
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores =
-                    fetch.fetchData(allocation.nodes(), allocation.metaData(), allocation.getIgnoreNodes(shard.shardId()));
+                    fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
             if (shardStores.hasData() == true) {
                 shardStores.processAllocation(allocation);
             }

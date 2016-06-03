@@ -23,9 +23,9 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.hamcrest.Matchers.equalTo;
@@ -74,13 +74,12 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     }
 
     public void testBlendedRewriteMethod() throws IOException {
-        for (String rewrite : Arrays.asList("top_terms_blended_freqs_10", "topTermsBlendedFreqs10")) {
-            Query parsedQuery = parseQuery(prefixQuery("field", "val").rewrite(rewrite).buildAsBytes()).toQuery(createShardContext());
-            assertThat(parsedQuery, instanceOf(PrefixQuery.class));
-            PrefixQuery prefixQuery = (PrefixQuery) parsedQuery;
-            assertThat(prefixQuery.getPrefix(), equalTo(new Term("field", "val")));
-            assertThat(prefixQuery.getRewriteMethod(), instanceOf(MultiTermQuery.TopTermsBlendedFreqScoringRewrite.class));
-        }
+        String rewrite = "top_terms_blended_freqs_10";
+        Query parsedQuery = parseQuery(prefixQuery("field", "val").rewrite(rewrite).buildAsBytes()).toQuery(createShardContext());
+        assertThat(parsedQuery, instanceOf(PrefixQuery.class));
+        PrefixQuery prefixQuery = (PrefixQuery) parsedQuery;
+        assertThat(prefixQuery.getPrefix(), equalTo(new Term("field", "val")));
+        assertThat(prefixQuery.getRewriteMethod(), instanceOf(MultiTermQuery.TopTermsBlendedFreqScoringRewrite.class));
     }
 
     public void testFromJson() throws IOException {
@@ -93,5 +92,15 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
         assertEquals(json, "ki", parsed.value());
         assertEquals(json, 2.0, parsed.boost(), 0.00001);
         assertEquals(json, "user", parsed.fieldName());
+    }
+
+    public void testNumeric() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        PrefixQueryBuilder query = prefixQuery(INT_FIELD_NAME, "12*");
+        QueryShardContext context = createShardContext();
+        QueryShardException e = expectThrows(QueryShardException.class,
+                () -> query.toQuery(context));
+        assertEquals("Can only use prefix queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
+                e.getMessage());
     }
 }

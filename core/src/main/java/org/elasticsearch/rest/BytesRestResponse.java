@@ -40,10 +40,6 @@ public class BytesRestResponse extends RestResponse {
     private final BytesReference content;
     private final String contentType;
 
-    public BytesRestResponse(RestStatus status) {
-        this(status, TEXT_CONTENT_TYPE, BytesArray.EMPTY);
-    }
-
     /**
      * Creates a new response based on {@link XContentBuilder}.
      */
@@ -127,9 +123,9 @@ public class BytesRestResponse extends RestResponse {
                 params =  new ToXContent.DelegatingMapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false"), channel.request());
             } else {
                 if (status.getStatus() < 500) {
-                    SUPPRESSED_ERROR_LOGGER.debug("{} Params: {}", t, channel.request().path(), channel.request().params());
+                    SUPPRESSED_ERROR_LOGGER.debug("path: {}, params: {}", t, channel.request().rawPath(), channel.request().params());
                 } else {
-                    SUPPRESSED_ERROR_LOGGER.warn("{} Params: {}", t, channel.request().path(), channel.request().params());
+                    SUPPRESSED_ERROR_LOGGER.warn("path: {}, params: {}", t, channel.request().rawPath(), channel.request().params());
                 }
                 params = channel.request();
             }

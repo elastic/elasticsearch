@@ -9,7 +9,7 @@
             "processors": [
               {
                 "attachment" : {
-                  "source_field" : "field1"
+                  "field" : "field1"
                 }
               }
             ]
@@ -51,8 +51,8 @@
             "processors": [
               {
                 "attachment" : {
-                  "source_field" : "field1",
-                  "fields" : ["language"]
+                  "field" : "field1",
+                  "properties" : ["language"]
                 }
               }
             ]
@@ -87,7 +87,7 @@
             "processors": [
               {
                 "attachment" : {
-                  "source_field" : "field1",
+                  "field" : "field1",
                   "indexed_chars": 30
                 }
               }

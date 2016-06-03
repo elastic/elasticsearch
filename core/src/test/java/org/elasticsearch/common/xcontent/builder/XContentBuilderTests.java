@@ -25,7 +25,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -47,8 +46,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
-import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.CAMELCASE;
-import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.UNDERSCORE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class XContentBuilderTests extends ESTestCase {
@@ -169,16 +166,6 @@ public class XContentBuilderTests extends ESTestCase {
         assertThat(sData, equalTo("{\"name\":\"something\", source : { test : \"value\" },\"name2\":\"something2\"}"));
     }
 
-    public void testFieldCaseConversion() throws Exception {
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).fieldCaseConversion(CAMELCASE);
-        builder.startObject().field("test_name", "value").endObject();
-        assertThat(builder.string(), equalTo("{\"testName\":\"value\"}"));
-
-        builder = XContentFactory.contentBuilder(XContentType.JSON).fieldCaseConversion(UNDERSCORE);
-        builder.startObject().field("testName", "value").endObject();
-        assertThat(builder.string(), equalTo("{\"test_name\":\"value\"}"));
-    }
-
     public void testByteConversion() throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject().field("test_name", (Byte)(byte)120).endObject();
@@ -290,9 +277,9 @@ public class XContentBuilderTests extends ESTestCase {
         assertThat(pathBuilder.string(), equalTo(stringBuilder.string()));
     }
 
-    public void testHandlingOfPath_XContentBuilderStringName() throws IOException {
+    public void testHandlingOfPath_StringName() throws IOException {
         Path path = PathUtils.get("path");
-        XContentBuilderString name = new XContentBuilderString("file");
+        String name = new String("file");
 
         XContentBuilder pathBuilder = XContentFactory.contentBuilder(XContentType.JSON);
         pathBuilder.startObject().field(name, path).endObject();
@@ -375,5 +362,29 @@ public class XContentBuilderTests extends ESTestCase {
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field name cannot be null"));
         }
+    }
+
+    public void testMissingEndObject() throws IOException {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
+                builder.startObject();
+                builder.field("foo", true);
+            }
+        });
+        assertThat(e.getMessage(), equalTo("failed to close the XContentBuilder"));
+        assertThat(e.getCause().getMessage(), equalTo("unclosed object or array found"));
+    }
+
+    public void testMissingEndArray() throws IOException {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
+                builder.startObject();
+                builder.startArray("foo");
+                builder.value(0);
+                builder.value(1);
+            }
+        });
+        assertThat(e.getMessage(), equalTo("failed to close the XContentBuilder"));
+        assertThat(e.getCause().getMessage(), equalTo("unclosed object or array found"));
     }
 }

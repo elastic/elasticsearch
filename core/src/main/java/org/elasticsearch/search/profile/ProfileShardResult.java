@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.profile.query.CollectorResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,35 +35,49 @@ import java.util.List;
  * A container class to hold the profile results for a single shard in the request.
  * Contains a list of query profiles, a collector tree and a total rewrite tree.
  */
-public final class ProfileShardResult implements Writeable<ProfileShardResult>, ToXContent {
+public final class ProfileShardResult implements Writeable, ToXContent {
 
-    private final List<ProfileResult> profileResults;
+    private final List<ProfileResult> queryProfileResults;
 
     private final CollectorResult profileCollector;
 
     private final long rewriteTime;
 
-    public ProfileShardResult(List<ProfileResult> profileResults, long rewriteTime,
+    public ProfileShardResult(List<ProfileResult> queryProfileResults, long rewriteTime,
                               CollectorResult profileCollector) {
         assert(profileCollector != null);
-        this.profileResults = profileResults;
+        this.queryProfileResults = queryProfileResults;
         this.profileCollector = profileCollector;
         this.rewriteTime = rewriteTime;
     }
 
+    /**
+     * Read from a stream.
+     */
     public ProfileShardResult(StreamInput in) throws IOException {
         int profileSize = in.readVInt();
-        profileResults = new ArrayList<>(profileSize);
+        queryProfileResults = new ArrayList<>(profileSize);
         for (int j = 0; j < profileSize; j++) {
-            profileResults.add(new ProfileResult(in));
+            queryProfileResults.add(new ProfileResult(in));
         }
 
         profileCollector = new CollectorResult(in);
         rewriteTime = in.readLong();
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(queryProfileResults.size());
+        for (ProfileResult p : queryProfileResults) {
+            p.writeTo(out);
+        }
+        profileCollector.writeTo(out);
+        out.writeLong(rewriteTime);
+    }
+
+
     public List<ProfileResult> getQueryResults() {
-        return Collections.unmodifiableList(profileResults);
+        return Collections.unmodifiableList(queryProfileResults);
     }
 
     public long getRewriteTime() {
@@ -76,7 +91,7 @@ public final class ProfileShardResult implements Writeable<ProfileShardResult>, 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray("query");
-        for (ProfileResult p : profileResults) {
+        for (ProfileResult p : queryProfileResults) {
             p.toXContent(builder, params);
         }
         builder.endArray();
@@ -86,20 +101,4 @@ public final class ProfileShardResult implements Writeable<ProfileShardResult>, 
         builder.endArray();
         return builder;
     }
-
-    @Override
-    public ProfileShardResult readFrom(StreamInput in) throws IOException {
-        return new ProfileShardResult(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(profileResults.size());
-        for (ProfileResult p : profileResults) {
-            p.writeTo(out);
-        }
-        profileCollector.writeTo(out);
-        out.writeLong(rewriteTime);
-    }
-
 }

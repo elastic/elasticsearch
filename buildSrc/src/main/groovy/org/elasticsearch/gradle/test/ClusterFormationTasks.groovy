@@ -418,8 +418,7 @@ class ClusterFormationTasks {
                 // argument are wrapped in an ExecArgWrapper that escapes commas
                 args execArgs.collect { a -> new EscapeCommaWrapper(arg: a) }
             } else {
-                executable 'sh'
-                args execArgs
+                commandLine execArgs
             }
         }
     }
@@ -451,7 +450,7 @@ class ClusterFormationTasks {
             // gradle task options are not processed until the end of the configuration phase
             if (node.config.debug) {
                 println 'Running elasticsearch in debug mode, suspending until connected on port 8000'
-                node.env['JAVA_OPTS'] = '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
+                node.env['ES_JAVA_OPTS'] = '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
             }
 
             node.getCommandString().eachLine { line -> logger.info(line) }

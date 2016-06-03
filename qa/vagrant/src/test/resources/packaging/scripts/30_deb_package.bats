@@ -40,6 +40,10 @@ setup() {
     export_elasticsearch_paths
 }
 
+@test "[DEB] package depends on bash" {
+    dpkg -I elasticsearch-$(cat version).deb | grep "Depends:.*bash.*"
+}
+
 ##################################
 # Install DEB package
 ##################################
@@ -128,6 +132,7 @@ setup() {
     # The configuration files are still here
     assert_file_exist "/etc/elasticsearch"
     assert_file_exist "/etc/elasticsearch/elasticsearch.yml"
+    assert_file_exist "/etc/elasticsearch/jvm.options"
     assert_file_exist "/etc/elasticsearch/logging.yml"
 
     # The env file is still here
@@ -148,6 +153,7 @@ setup() {
     # all remaining files are deleted by the purge
     assert_file_not_exist "/etc/elasticsearch"
     assert_file_not_exist "/etc/elasticsearch/elasticsearch.yml"
+    assert_file_not_exist "/etc/elasticsearch/jvm.options"
     assert_file_not_exist "/etc/elasticsearch/logging.yml"
 
     assert_file_not_exist "/etc/default/elasticsearch"

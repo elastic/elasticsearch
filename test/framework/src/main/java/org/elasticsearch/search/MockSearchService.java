@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -84,10 +83,10 @@ public class MockSearchService extends SearchService {
 
     @Inject
     public MockSearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService,
-            IndicesService indicesService, ThreadPool threadPool, ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
+            IndicesService indicesService, ThreadPool threadPool, ScriptService scriptService,
             BigArrays bigArrays, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase,
             AggregatorParsers aggParsers, Suggesters suggesters) {
-        super(settings, clusterSettings, clusterService, indicesService, threadPool, scriptService, pageCacheRecycler, bigArrays, dfsPhase,
+        super(settings, clusterSettings, clusterService, indicesService, threadPool, scriptService, bigArrays, dfsPhase,
                 queryPhase, fetchPhase, aggParsers, suggesters);
     }
 

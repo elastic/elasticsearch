@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.internal;
 
-import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
@@ -37,12 +36,12 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.QueryShardContext;
 
@@ -52,7 +51,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- *
+ * A mapper for the _id field. It does nothing since _id is neither indexed nor
+ * stored, but we need to keep it so that its FieldType can be used to generate
+ * queries.
  */
 public class IdFieldMapper extends MetadataFieldMapper {
 
@@ -66,6 +67,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         public static final MappedFieldType FIELD_TYPE = new IdFieldType();
 
         static {
+            FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
@@ -73,26 +75,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
-        }
-    }
-
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, IdFieldMapper> {
-
-        public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
-            indexName = Defaults.NAME;
-        }
-
-        // if we are indexed we use DOCS
-        @Override
-        protected IndexOptions getDefaultIndexOption() {
-            return IndexOptions.DOCS;
-        }
-
-        @Override
-        public IdFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            return new IdFieldMapper(fieldType, context.indexSettings());
         }
     }
 
@@ -108,7 +90,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static final class IdFieldType extends MappedFieldType {
+    static final class IdFieldType extends TermBasedFieldType {
 
         public IdFieldType() {
         }
@@ -128,75 +110,20 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public String value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return value.toString();
-        }
-
-        @Override
-        public boolean useTermQueryWithQueryString() {
+        public boolean isSearchable() {
+            // The _id field is always searchable.
             return true;
         }
 
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            if (indexOptions() != IndexOptions.NONE || context == null) {
-                return super.termQuery(value, context);
-            }
             final BytesRef[] uids = Uid.createUidsForTypesAndId(context.queryTypes(), value);
             return new TermsQuery(UidFieldMapper.NAME, uids);
         }
 
         @Override
         public Query termsQuery(List values, @Nullable QueryShardContext context) {
-            if (indexOptions() != IndexOptions.NONE || context == null) {
-                return super.termsQuery(values, context);
-            }
             return new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(context.queryTypes(), values));
-        }
-
-        @Override
-        public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
-            if (indexOptions() != IndexOptions.NONE || context == null) {
-                return super.prefixQuery(value, method, context);
-            }
-            Collection<String> queryTypes = context.queryTypes();
-            BooleanQuery.Builder query = new BooleanQuery.Builder();
-            for (String queryType : queryTypes) {
-                PrefixQuery prefixQuery = new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))));
-                if (method != null) {
-                    prefixQuery.setRewriteMethod(method);
-                }
-                query.add(prefixQuery, BooleanClause.Occur.SHOULD);
-            }
-            return query.build();
-        }
-
-        @Override
-        public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
-            if (indexOptions() != IndexOptions.NONE || context == null) {
-                return super.regexpQuery(value, flags, maxDeterminizedStates, method, context);
-            }
-            Collection<String> queryTypes = context.queryTypes();
-            if (queryTypes.size() == 1) {
-                RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))),
-                    flags, maxDeterminizedStates);
-                if (method != null) {
-                    regexpQuery.setRewriteMethod(method);
-                }
-                return regexpQuery;
-            }
-            BooleanQuery.Builder query = new BooleanQuery.Builder();
-            for (String queryType : queryTypes) {
-                RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))), flags, maxDeterminizedStates);
-                if (method != null) {
-                    regexpQuery.setRewriteMethod(method);
-                }
-                query.add(regexpQuery, BooleanClause.Occur.SHOULD);
-            }
-            return query.build();
         }
     }
 
@@ -209,40 +136,13 @@ public class IdFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
-        if (context.sourceToParse().id() != null) {
-            context.id(context.sourceToParse().id());
-            super.parse(context);
-        }
-    }
+    public void preParse(ParseContext context) throws IOException {}
 
     @Override
-    public void postParse(ParseContext context) throws IOException {
-        if (context.id() == null) {
-            throw new MapperParsingException("No id found while parsing the content source");
-        }
-        // it either get built in the preParse phase, or get parsed...
-    }
+    public void postParse(ParseContext context) throws IOException {}
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        XContentParser parser = context.parser();
-        if (parser.currentName() != null && parser.currentName().equals(Defaults.NAME) && parser.currentToken().isValue()) {
-            // we are in the parse Phase
-            String id = parser.text();
-            if (context.id() != null && !context.id().equals(id)) {
-                throw new MapperParsingException("Provided id [" + context.id() + "] does not match the content one [" + id + "]");
-            }
-            context.id(id);
-        } // else we are in the pre/post parse phase
-
-        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            fields.add(new Field(fieldType().name(), context.id(), fieldType()));
-        }
-        if (fieldType().hasDocValues()) {
-            fields.add(new BinaryDocValuesField(fieldType().name(), new BytesRef(context.id())));
-        }
-    }
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {}
 
     @Override
     protected String contentType() {

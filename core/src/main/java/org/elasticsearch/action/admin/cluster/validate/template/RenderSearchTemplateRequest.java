@@ -63,7 +63,7 @@ public class RenderSearchTemplateRequest extends ActionRequest<RenderSearchTempl
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         if (in.readBoolean()) {
-            template = Template.readTemplate(in);
+            template = new Template(in);
         }
     }
 }

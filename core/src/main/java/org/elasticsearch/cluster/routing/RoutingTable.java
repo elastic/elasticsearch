@@ -145,20 +145,13 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             .orElse(null);
     }
 
-    public RoutingTable validateRaiseException(MetaData metaData) throws RoutingValidationException {
-        RoutingTableValidation validation = validate(metaData);
-        if (!validation.valid()) {
-            throw new RoutingValidationException(validation);
-        }
-        return this;
-    }
-
-    public RoutingTableValidation validate(MetaData metaData) {
-        RoutingTableValidation validation = new RoutingTableValidation();
+    public boolean validate(MetaData metaData) {
         for (IndexRoutingTable indexRoutingTable : this) {
-            indexRoutingTable.validate(validation, metaData);
+            if (indexRoutingTable.validate(metaData) == false) {
+                return false;
+            }
         }
-        return validation;
+        return true;
     }
 
     public List<ShardRouting> shardsWithState(ShardRoutingState state) {
@@ -411,9 +404,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             }
         }
 
-        public Builder updateNodes(RoutingNodes routingNodes) {
+        public Builder updateNodes(long version, RoutingNodes routingNodes) {
             // this is being called without pre initializing the routing table, so we must copy over the version as well
-            this.version = routingNodes.routingTable().version();
+            this.version = version;
 
             Map<String, IndexRoutingTable.Builder> indexRoutingTableBuilders = new HashMap<>();
             for (RoutingNode routingNode : routingNodes) {
@@ -429,8 +422,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                         indexRoutingTableBuilders.put(index.getName(), indexBuilder);
                     }
 
-                    IndexShardRoutingTable refData = routingNodes.routingTable().index(shardRoutingEntry.index().getName()).shard(shardRoutingEntry.id());
-                    indexBuilder.addShard(refData, shardRoutingEntry);
+                    indexBuilder.addShard(shardRoutingEntry);
                 }
             }
 
@@ -443,8 +435,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                     indexBuilder = new IndexRoutingTable.Builder(index);
                     indexRoutingTableBuilders.put(index.getName(), indexBuilder);
                 }
-                IndexShardRoutingTable refData = routingNodes.routingTable().index(shardRoutingEntry.index().getName()).shard(shardRoutingEntry.id());
-                indexBuilder.addShard(refData, shardRoutingEntry);
+                indexBuilder.addShard(shardRoutingEntry);
             }
 
             for (IndexRoutingTable.Builder indexBuilder : indexRoutingTableBuilders.values()) {
@@ -546,7 +537,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             if (indicesRouting == null) {
                 throw new IllegalStateException("once build is called the builder cannot be reused");
             }
-            indexRoutingTable.validate();
             indicesRouting.put(indexRoutingTable.getIndex().getName(), indexRoutingTable);
             return this;
         }

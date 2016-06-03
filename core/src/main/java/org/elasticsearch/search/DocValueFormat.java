@@ -19,39 +19,59 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.spatial.util.GeoHashUtils;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.index.mapper.ip.IpFieldMapper;
+import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.text.ParseException;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 
 /** A formatter for values as returned by the fielddata/doc-values APIs. */
-public interface DocValueFormat extends NamedWriteable<DocValueFormat> {
+public interface DocValueFormat extends NamedWriteable {
 
+    /** Format a long value. This is used by terms and histogram aggregations
+     *  to format keys for fields that use longs as a doc value representation
+     *  such as the {@code long} and {@code date} fields. */
     String format(long value);
 
+    /** Format a double value. This is used by terms and stats aggregations
+     *  to format keys for fields that use numbers as a doc value representation
+     *  such as the {@code long}, {@code double} or {@code date} fields. */
     String format(double value);
 
+    /** Format a double value. This is used by terms aggregations to format
+     *  keys for fields that use binary doc value representations such as the
+     *  {@code keyword} and {@code ip} fields. */
     String format(BytesRef value);
 
+    /** Parse a value that was formatted with {@link #format(long)} back to the
+     *  original long value. */
     long parseLong(String value, boolean roundUp, Callable<Long> now);
 
+    /** Parse a value that was formatted with {@link #format(double)} back to
+     *  the original double value. */
     double parseDouble(String value, boolean roundUp, Callable<Long> now);
+
+    /** Parse a value that was formatted with {@link #format(BytesRef)} back
+     *  to the original BytesRef. */
+    BytesRef parseBytesRef(String value);
 
     public static final DocValueFormat RAW = new DocValueFormat() {
 
@@ -76,7 +96,7 @@ public interface DocValueFormat extends NamedWriteable<DocValueFormat> {
 
         @Override
         public String format(BytesRef value) {
-            return Term.toString(value);
+            return value.utf8ToString();
         }
 
         @Override
@@ -93,6 +113,10 @@ public interface DocValueFormat extends NamedWriteable<DocValueFormat> {
         @Override
         public double parseDouble(String value, boolean roundUp, Callable<Long> now) {
             return Double.parseDouble(value);
+        }
+
+        public BytesRef parseBytesRef(String value) {
+            return new BytesRef(value);
         }
     };
 
@@ -149,6 +173,11 @@ public interface DocValueFormat extends NamedWriteable<DocValueFormat> {
         public double parseDouble(String value, boolean roundUp, Callable<Long> now) {
             return parseLong(value, roundUp, now);
         }
+
+        @Override
+        public BytesRef parseBytesRef(String value) {
+            throw new UnsupportedOperationException();
+        }
     }
 
     public static final DocValueFormat GEOHASH = new DocValueFormat() {
@@ -186,6 +215,11 @@ public interface DocValueFormat extends NamedWriteable<DocValueFormat> {
         public double parseDouble(String value, boolean roundUp, Callable<Long> now) {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public BytesRef parseBytesRef(String value) {
+            throw new UnsupportedOperationException();
+        }
     };
 
     public static final DocValueFormat BOOLEAN = new DocValueFormat() {
@@ -216,11 +250,22 @@ public interface DocValueFormat extends NamedWriteable<DocValueFormat> {
 
         @Override
         public long parseLong(String value, boolean roundUp, Callable<Long> now) {
-            throw new UnsupportedOperationException();
+            switch (value) {
+            case "false":
+                return 0;
+            case "true":
+                return 1;
+            }
+            throw new IllegalArgumentException("Cannot parse boolean [" + value + "], expected either [true] or [false]");
         }
 
         @Override
         public double parseDouble(String value, boolean roundUp, Callable<Long> now) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BytesRef parseBytesRef(String value) {
             throw new UnsupportedOperationException();
         }
     };
@@ -238,27 +283,34 @@ public interface DocValueFormat extends NamedWriteable<DocValueFormat> {
 
         @Override
         public String format(long value) {
-            return IpFieldMapper.longToIp(value);
-        }
-
-        @Override
-        public String format(double value) {
-            return format((long) value);
-        }
-
-        @Override
-        public String format(BytesRef value) {
             throw new UnsupportedOperationException();
         }
 
         @Override
+        public String format(double value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String format(BytesRef value) {
+            byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
+            InetAddress inet = InetAddressPoint.decode(bytes);
+            return NetworkAddress.format(inet);
+        }
+
+        @Override
         public long parseLong(String value, boolean roundUp, Callable<Long> now) {
-            return IpFieldMapper.ipToLong(value);
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public double parseDouble(String value, boolean roundUp, Callable<Long> now) {
-            return parseLong(value, roundUp, now);
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BytesRef parseBytesRef(String value) {
+            return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value)));
         }
     };
 
@@ -336,5 +388,9 @@ public interface DocValueFormat extends NamedWriteable<DocValueFormat> {
             return n.doubleValue();
         }
 
+        @Override
+        public BytesRef parseBytesRef(String value) {
+            throw new UnsupportedOperationException();
+        }
     }
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -56,6 +57,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
@@ -242,6 +244,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     protected volatile BoundTransportAddress boundAddress;
     protected final KeyedLock<String> connectionLock = new KeyedLock<>();
     protected final NamedWriteableRegistry namedWriteableRegistry;
+    private final CircuitBreakerService circuitBreakerService;
 
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on... (this might help with 100% CPU when stopping the transport?)
@@ -252,7 +255,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Inject
     public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version,
-            NamedWriteableRegistry namedWriteableRegistry) {
+                          NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super(settings);
         this.threadPool = threadPool;
         this.networkService = networkService;
@@ -284,10 +287,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         this.scheduledPing = new ScheduledPing();
         this.pingSchedule = PING_SCHEDULE.get(settings);
-        if (pingSchedule.millis() > 0) {
-            threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, scheduledPing);
-        }
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.circuitBreakerService = circuitBreakerService;
     }
 
     public Settings settings() {
@@ -305,6 +306,11 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     ThreadPool threadPool() {
         return threadPool;
+    }
+
+    CircuitBreaker inFlightRequestsBreaker() {
+        // We always obtain a fresh breaker to reflect changes to the breaker configuration.
+        return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
     }
 
     @Override
@@ -356,6 +362,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     createServerBootstrap(name, mergedSettings);
                     bindServerBootstrap(name, mergedSettings);
                 }
+            }
+            if (pingSchedule.millis() > 0) {
+                threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, scheduledPing);
             }
             success = true;
         } finally {
@@ -916,7 +925,10 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             ReleaseChannelFutureListener listener = new ReleaseChannelFutureListener(bytes);
             future.addListener(listener);
             addedReleaseListener = true;
-            transportServiceAdapter.onRequestSent(node, requestId, action, request, options);
+            final TransportRequestOptions finalOptions = options;
+            ChannelFutureListener channelFutureListener =
+                f -> transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions);
+            future.addListener(channelFutureListener);
         } finally {
             if (!addedReleaseListener) {
                 Releasables.close(bStream.bytes());

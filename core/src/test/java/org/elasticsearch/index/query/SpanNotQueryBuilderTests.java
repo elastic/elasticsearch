@@ -24,6 +24,7 @@ import org.apache.lucene.search.spans.SpanNotQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
@@ -62,13 +63,13 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
 
     public void testIllegalArgument() {
         try {
-            new SpanNotQueryBuilder(null, SpanTermQueryBuilder.PROTOTYPE);
+            new SpanNotQueryBuilder(null, new SpanTermQueryBuilder("field", "value"));
             fail("cannot be null");
         } catch (IllegalArgumentException e) {
             // expected
         }
         try {
-            new SpanNotQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, null);
+            new SpanNotQueryBuilder(new SpanTermQueryBuilder("field", "value"), null);
             fail("cannot be null");
         } catch (IllegalArgumentException e) {
             // expected
@@ -110,7 +111,7 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
         spanTermQuery("description", "jumped").toXContent(builder, null);
         builder.field("include");
         spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1)
-                .clause(QueryBuilders.spanTermQuery("description", "fox")).toXContent(builder, null);
+                .addClause(QueryBuilders.spanTermQuery("description", "fox")).toXContent(builder, null);
         builder.field("dist", 3);
         builder.endObject();
         builder.endObject();
@@ -148,7 +149,7 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
             builder.startObject(SpanNotQueryBuilder.NAME);
             builder.field("include");
             spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1)
-                    .clause(QueryBuilders.spanTermQuery("description", "fox")).toXContent(builder, null);
+                    .addClause(QueryBuilders.spanTermQuery("description", "fox")).toXContent(builder, null);
             builder.field("dist", 2);
             builder.endObject();
             builder.endObject();
@@ -166,7 +167,7 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
             builder.startObject(SpanNotQueryBuilder.NAME);
             builder.field("include");
             spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1)
-                    .clause(QueryBuilders.spanTermQuery("description", "fox")).toXContent(builder, null);
+                    .addClause(QueryBuilders.spanTermQuery("description", "fox")).toXContent(builder, null);
             builder.field("exclude");
             spanTermQuery("description", "jumped").toXContent(builder, null);
             builder.field("dist", 2);

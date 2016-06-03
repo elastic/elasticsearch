@@ -19,12 +19,13 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 
@@ -35,17 +36,26 @@ import java.util.Objects;
 
 public class ExtendedStatsBucketPipelineAggregatorBuilder
         extends BucketMetricsPipelineAggregatorBuilder<ExtendedStatsBucketPipelineAggregatorBuilder> {
-
-    static final ExtendedStatsBucketPipelineAggregatorBuilder PROTOTYPE = new ExtendedStatsBucketPipelineAggregatorBuilder("", "");
+    public static final String NAME = ExtendedStatsBucketPipelineAggregator.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private double sigma = 2.0;
 
     public ExtendedStatsBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
-        this(name, new String[] { bucketsPath });
+        super(name, ExtendedStatsBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
     }
 
-    private ExtendedStatsBucketPipelineAggregatorBuilder(String name, String[] bucketsPaths) {
-        super(name, ExtendedStatsBucketPipelineAggregator.TYPE.name(), bucketsPaths);
+    /**
+     * Read from a stream.
+     */
+    public ExtendedStatsBucketPipelineAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, ExtendedStatsBucketPipelineAggregator.TYPE.name());
+        sigma = in.readDouble();
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeDouble(sigma);
     }
 
     /**
@@ -75,7 +85,7 @@ public class ExtendedStatsBucketPipelineAggregatorBuilder
 
     @Override
     public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-            List<PipelineAggregatorBuilder<?>> pipelineAggregatorFactories) {
+            List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(Parser.BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");
@@ -94,19 +104,6 @@ public class ExtendedStatsBucketPipelineAggregatorBuilder
     }
 
     @Override
-    protected ExtendedStatsBucketPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
-            throws IOException {
-        ExtendedStatsBucketPipelineAggregatorBuilder factory = new ExtendedStatsBucketPipelineAggregatorBuilder(name, bucketsPaths);
-        factory.sigma = in.readDouble();
-        return factory;
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeDouble(sigma);
-    }
-
-    @Override
     protected int innerHashCode() {
         return Objects.hash(sigma);
     }
@@ -117,4 +114,8 @@ public class ExtendedStatsBucketPipelineAggregatorBuilder
         return Objects.equals(sigma, other.sigma);
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

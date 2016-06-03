@@ -32,6 +32,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
 import java.util.Arrays;
+import java.util.List;
 
 /** 
  * Implementation of FileStore that supports
@@ -44,6 +45,8 @@ class ESFileStore extends FileStore {
     final FileStore in;
     /** Cached result of Lucene's {@code IOUtils.spins} on path. */
     final Boolean spins;
+    int majorDeviceNumber;
+    int minorDeviceNumber;
     
     @SuppressForbidden(reason = "tries to determine if disk is spinning")
     // TODO: move PathUtils to be package-private here instead of 
@@ -57,6 +60,21 @@ class ESFileStore extends FileStore {
                 spins = IOUtils.spins(PathUtils.get(getMountPointLinux(in)));
             } catch (Exception e) {
                 spins = null;
+            }
+            try {
+                final List<String> lines = Files.readAllLines(PathUtils.get("/proc/self/mountinfo"));
+                for (final String line : lines) {
+                    final String[] fields = line.trim().split("\\s+");
+                    final String mountPoint = fields[4];
+                    if (mountPoint.equals(getMountPointLinux(in))) {
+                        final String[] deviceNumbers = fields[2].split(":");
+                        majorDeviceNumber = Integer.parseInt(deviceNumbers[0]);
+                        minorDeviceNumber = Integer.parseInt(deviceNumbers[1]);
+                    }
+                }
+            } catch (Exception e) {
+                majorDeviceNumber = -1;
+                minorDeviceNumber = -1;
             }
         } else {
             spins = null;
@@ -229,10 +247,13 @@ class ESFileStore extends FileStore {
 
     @Override
     public Object getAttribute(String attribute) throws IOException {
-        if ("lucene:spins".equals(attribute)) {
-            return spins;
-        } else {
-            return in.getAttribute(attribute);
+        switch(attribute) {
+            // for the device
+            case "lucene:spins": return spins;
+            // for the partition
+            case "lucene:major_device_number": return majorDeviceNumber;
+            case "lucene:minor_device_number": return minorDeviceNumber;
+            default: return in.getAttribute(attribute);
         }
     }
 

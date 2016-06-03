@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -47,16 +48,14 @@ import java.util.Map;
 import java.util.Objects;
 
 public class ScriptHeuristic extends SignificanceHeuristic {
+    public static final ParseField NAMES_FIELD = new ParseField("script_heuristic");
 
-    static final ScriptHeuristic PROTOTYPE = new ScriptHeuristic(null);
-
-    protected static final ParseField NAMES_FIELD = new ParseField("script_heuristic");
     private final LongAccessor subsetSizeHolder;
     private final LongAccessor supersetSizeHolder;
     private final LongAccessor subsetDfHolder;
     private final LongAccessor supersetDfHolder;
+    private final Script script;
     ExecutableScript searchScript = null;
-    Script script;
 
     public ScriptHeuristic(Script script) {
         subsetSizeHolder = new LongAccessor();
@@ -64,22 +63,32 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         subsetDfHolder = new LongAccessor();
         supersetDfHolder = new LongAccessor();
         this.script = script;
+    }
 
+    /**
+     * Read from a stream.
+     */
+    public ScriptHeuristic(StreamInput in) throws IOException {
+        this(new Script(in));
+    }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        script.writeTo(out);
     }
 
     @Override
     public void initialize(InternalAggregation.ReduceContext context) {
-        initialize(context.scriptService());
+        initialize(context.scriptService(), context.clusterState());
     }
 
     @Override
     public void initialize(SearchContext context) {
-        initialize(context.scriptService());
+        initialize(context.scriptService(), context.getQueryShardContext().getClusterState());
     }
 
-    public void initialize(ScriptService scriptService) {
-        searchScript = scriptService.executable(script, ScriptContext.Standard.AGGS, Collections.emptyMap());
+    public void initialize(ScriptService scriptService, ClusterState state) {
+        searchScript = scriptService.executable(script, ScriptContext.Standard.AGGS, Collections.emptyMap(), state);
         searchScript.setNextVar("_subset_freq", subsetDfHolder);
         searchScript.setNextVar("_subset_size", subsetSizeHolder);
         searchScript.setNextVar("_superset_freq", supersetDfHolder);
@@ -118,17 +127,6 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     }
 
     @Override
-    public SignificanceHeuristic readFrom(StreamInput in) throws IOException {
-        Script script = Script.readScript(in);
-        return new ScriptHeuristic(script);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        script.writeTo(out);
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.startObject(NAMES_FIELD.getPreferredName());
         builder.field(ScriptField.SCRIPT.getPreferredName());
@@ -154,58 +152,46 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         return Objects.equals(script, other.script);
     }
 
-    public static class ScriptHeuristicParser implements SignificanceHeuristicParser {
-
-        public ScriptHeuristicParser() {
-        }
-
-        @Override
-        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher)
-                throws IOException, QueryShardException {
-            String heuristicName = parser.currentName();
-            Script script = null;
-            XContentParser.Token token;
-            Map<String, Object> params = null;
-            String currentFieldName = null;
-            ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token.equals(XContentParser.Token.FIELD_NAME)) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (parseFieldMatcher.match(currentFieldName, ScriptField.SCRIPT)) {
-                        script = Script.parse(parser, parseFieldMatcher);
-                    } else if ("params".equals(currentFieldName)) { // TODO remove in 3.0 (here to support old script APIs)
-                        params = parser.map();
-                    } else {
-                        throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown object [{}]", heuristicName, currentFieldName);
-                    }
-                } else if (!scriptParameterParser.token(currentFieldName, token, parser, parseFieldMatcher)) {
-                    throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown field [{}]", heuristicName, currentFieldName);
+    public static SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher)
+            throws IOException, QueryShardException {
+        String heuristicName = parser.currentName();
+        Script script = null;
+        XContentParser.Token token;
+        Map<String, Object> params = null;
+        String currentFieldName = null;
+        ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token.equals(XContentParser.Token.FIELD_NAME)) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (parseFieldMatcher.match(currentFieldName, ScriptField.SCRIPT)) {
+                    script = Script.parse(parser, parseFieldMatcher);
+                } else if ("params".equals(currentFieldName)) { // TODO remove in 3.0 (here to support old script APIs)
+                    params = parser.map();
+                } else {
+                    throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown object [{}]", heuristicName, currentFieldName);
                 }
+            } else if (!scriptParameterParser.token(currentFieldName, token, parser, parseFieldMatcher)) {
+                throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown field [{}]", heuristicName, currentFieldName);
             }
+        }
 
-            if (script == null) { // Didn't find anything using the new API so try using the old one instead
-                ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
-                if (scriptValue != null) {
-                    if (params == null) {
-                        params = new HashMap<>();
-                    }
-                    script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
+        if (script == null) { // Didn't find anything using the new API so try using the old one instead
+            ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+            if (scriptValue != null) {
+                if (params == null) {
+                    params = new HashMap<>();
                 }
-            } else if (params != null) {
-                throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. script params must be specified inside script object", heuristicName);
+                script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
             }
-
-            if (script == null) {
-                throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. no script found in script_heuristic", heuristicName);
-            }
-            return new ScriptHeuristic(script);
+        } else if (params != null) {
+            throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. script params must be specified inside script object", heuristicName);
         }
 
-        @Override
-        public String[] getNames() {
-            return NAMES_FIELD.getAllNamesIncludedDeprecated();
+        if (script == null) {
+            throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. no script found in script_heuristic", heuristicName);
         }
+        return new ScriptHeuristic(script);
     }
 
     public static class ScriptHeuristicBuilder implements SignificanceHeuristicBuilder {

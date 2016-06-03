@@ -292,7 +292,7 @@
                   "rename" : {
                     "tag" : "rename-status",
                     "field" : "status",
-                    "to" : "bar",
+                    "target_field" : "bar",
                     "on_failure" : [
                       {
                         "set" : {

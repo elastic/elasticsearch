@@ -22,16 +22,14 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.hamcrest.Description;
-import org.hamcrest.Matcher;
 
 import java.util.Collection;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = SUITE, transportClientRatio = 0)
 public abstract class ReindexTestCase extends ESIntegTestCase {
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(ReindexPlugin.class);
@@ -41,37 +39,19 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
         return ReindexAction.INSTANCE.newRequestBuilder(client());
     }
 
-    public IndexBySearchResponseMatcher responseMatcher() {
-        return new IndexBySearchResponseMatcher();
+    protected UpdateByQueryRequestBuilder updateByQuery() {
+        return UpdateByQueryAction.INSTANCE.newRequestBuilder(client());
     }
 
-    public static class IndexBySearchResponseMatcher
-            extends AbstractBulkIndexByScrollResponseMatcher<ReindexResponse, IndexBySearchResponseMatcher> {
-        private Matcher<Long> createdMatcher = equalTo(0L);
+    protected DeleteByQueryRequestBuilder deleteByQuery() {
+        return DeleteByQueryAction.INSTANCE.newRequestBuilder(client());
+    }
 
-        public IndexBySearchResponseMatcher created(Matcher<Long> updatedMatcher) {
-            this.createdMatcher = updatedMatcher;
-            return this;
-        }
+    protected RethrottleRequestBuilder rethrottle() {
+        return RethrottleAction.INSTANCE.newRequestBuilder(client());
+    }
 
-        public IndexBySearchResponseMatcher created(long created) {
-            return created(equalTo(created));
-        }
-
-        @Override
-        protected boolean matchesSafely(ReindexResponse item) {
-            return super.matchesSafely(item) && createdMatcher.matches(item.getCreated());
-        }
-
-        @Override
-        public void describeTo(Description description) {
-            super.describeTo(description);
-            description.appendText(" and created matches ").appendDescriptionOf(createdMatcher);
-        }
-
-        @Override
-        protected IndexBySearchResponseMatcher self() {
-            return this;
-        }
+    public static BulkIndexByScrollResponseMatcher matcher() {
+        return new BulkIndexByScrollResponseMatcher();
     }
 }

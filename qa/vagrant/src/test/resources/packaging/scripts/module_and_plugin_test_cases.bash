@@ -113,25 +113,26 @@ fi
     fi
 }
 
-@test "[$GROUP] install jvm-example plugin with a custom path.plugins" {
+@test "[$GROUP] install jvm-example plugin with a symlinked plugins path" {
     # Clean up after the last time this test was run
     rm -rf /tmp/plugins.*
+    rm -rf /tmp/old_plugins.*
 
-    local oldPlugins="$ESPLUGINS"
-    export ESPLUGINS=$(mktemp -d -t 'plugins.XXXX')
-
-    # Modify the path.plugins setting in configuration file
-    echo "path.plugins: $ESPLUGINS" >> "$ESCONFIG/elasticsearch.yml"
-    chown -R elasticsearch:elasticsearch "$ESPLUGINS"
+    rm -rf "$ESPLUGINS"
+    local es_plugins=$(mktemp -d -t 'plugins.XXXX')
+    chown -R elasticsearch:elasticsearch "$es_plugins"
+    ln -s "$es_plugins" "$ESPLUGINS"
 
     install_jvm_example
     start_elasticsearch_service
-    # check that configuration was actually picked up
+    # check that symlinked plugin was actually picked up
     curl -s localhost:9200/_cat/configured_example | sed 's/ *$//' > /tmp/installed
     echo "foo" > /tmp/expected
     diff /tmp/installed /tmp/expected
     stop_elasticsearch_service
     remove_jvm_example
+
+    unlink "$ESPLUGINS"
 }
 
 @test "[$GROUP] install jvm-example plugin with a custom CONFIG_DIR" {
@@ -208,10 +209,6 @@ fi
     install_and_check_plugin discovery gce google-api-client-*.jar
 }
 
-@test "[$GROUP] install delete by query plugin" {
-    install_and_check_plugin - delete-by-query
-}
-
 @test "[$GROUP] install discovery-azure plugin" {
     install_and_check_plugin discovery azure azure-core-*.jar
 }
@@ -221,10 +218,10 @@ fi
 }
 
 @test "[$GROUP] install ingest-attachment plugin" {
-    # we specify the version on the poi-3.13.jar so that the test does
+    # we specify the version on the poi-3.15-beta1.jar so that the test does
     # not spuriously pass if the jar is missing but the other poi jars
     # are present
-    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-3.13.jar
+    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-3.15-beta1.jar poi-ooxml-3.15-beta1.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
 }
 
 @test "[$GROUP] install ingest-geoip plugin" {
@@ -289,6 +286,10 @@ fi
     install_and_check_plugin repository azure azure-storage-*.jar
 }
 
+@test "[$GROUP] install repository-gcs plugin" {
+    install_and_check_plugin repository gcs google-api-services-storage-*.jar
+}
+
 @test "[$GROUP] install repository-s3 plugin" {
     install_and_check_plugin repository s3 aws-java-sdk-core-*.jar
 }
@@ -343,10 +344,6 @@ fi
     remove_plugin discovery-gce
 }
 
-@test "[$GROUP] remove delete by query plugin" {
-    remove_plugin delete-by-query
-}
-
 @test "[$GROUP] remove discovery-azure plugin" {
     remove_plugin discovery-azure
 }
@@ -385,6 +382,10 @@ fi
 
 @test "[$GROUP] remove repository-azure plugin" {
     remove_plugin repository-azure
+}
+
+@test "[$GROUP] remove repository-gcs plugin" {
+    remove_plugin repository-gcs
 }
 
 @test "[$GROUP] remove repository-hdfs plugin" {
@@ -438,7 +439,7 @@ fi
     remove_jvm_example
 
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
-    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" -Des.logger.level=DEBUG > /tmp/plugin-cli-output
+    sudo -E -u $ESPLUGIN_COMMAND_USER ES_JAVA_OPTS="-Des.logger.level=DEBUG" "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" > /tmp/plugin-cli-output
     local loglines=$(cat /tmp/plugin-cli-output | wc -l)
     if [ "$GROUP" == "TAR PLUGINS" ]; then
         [ "$loglines" -gt "3" ] || {
@@ -475,4 +476,16 @@ fi
 
     # restore JAVA_HOME
     export JAVA_HOME=$java_home
+}
+
+@test "[$GROUP] test ES_JAVA_OPTS" {
+    # preserve ES_JAVA_OPTS
+    local es_java_opts=$ES_JAVA_OPTS
+
+    export ES_JAVA_OPTS="-XX:+PrintFlagsFinal"
+    # this will fail if ES_JAVA_OPTS is not passed through
+    "$ESHOME/bin/elasticsearch-plugin" list | grep MaxHeapSize
+
+    # restore ES_JAVA_OPTS
+    export ES_JAVA_OPTS=$es_java_opts
 }

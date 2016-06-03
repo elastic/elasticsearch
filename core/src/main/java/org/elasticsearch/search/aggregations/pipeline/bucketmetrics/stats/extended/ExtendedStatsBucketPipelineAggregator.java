@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
@@ -78,7 +79,7 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
         count = 0;
         min = Double.POSITIVE_INFINITY;
         max = Double.NEGATIVE_INFINITY;
-        sumOfSqrs = 1;
+        sumOfSqrs = 0;
     }
 
     @Override
@@ -95,4 +96,13 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
         return new InternalExtendedStatsBucket(name(), count, sum, min, max, sumOfSqrs, sigma, format, pipelineAggregators, metadata);
     }
 
+    @Override
+    protected void innerReadFrom(StreamInput in) throws IOException {
+        sigma = in.readDouble();
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeDouble(sigma);
+    }
 }

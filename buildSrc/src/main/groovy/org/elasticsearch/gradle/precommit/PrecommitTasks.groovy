@@ -62,9 +62,8 @@ class PrecommitTasks {
     private static Task configureForbiddenApis(Project project) {
         project.pluginManager.apply(ForbiddenApisPlugin.class)
         project.forbiddenApis {
-            internalRuntimeForbidden = true
             failOnUnsupportedJava = false
-            bundledSignatures = ['jdk-unsafe', 'jdk-deprecated', 'jdk-system-out']
+            bundledSignatures = ['jdk-unsafe', 'jdk-deprecated', 'jdk-non-portable', 'jdk-system-out']
             signaturesURLs = [getClass().getResource('/forbidden/jdk-signatures.txt'),
                               getClass().getResource('/forbidden/es-all-signatures.txt')]
             suppressAnnotations = ['**.SuppressForbidden']
@@ -87,16 +86,43 @@ class PrecommitTasks {
     }
 
     private static Task configureCheckstyle(Project project) {
+        // Always copy the checkstyle configuration files to 'buildDir/checkstyle' since the resources could be located in a jar
+        // file. If the resources are located in a jar, Gradle will fail when it tries to turn the URL into a file
+        URL checkstyleConfUrl = PrecommitTasks.getResource("/checkstyle.xml")
+        URL checkstyleSuppressionsUrl = PrecommitTasks.getResource("/checkstyle_suppressions.xml")
+        File checkstyleDir = new File(project.buildDir, "checkstyle")
+        File checkstyleSuppressions = new File(checkstyleDir, "checkstyle_suppressions.xml")
+        File checkstyleConf = new File(checkstyleDir, "checkstyle.xml");
+        Task copyCheckstyleConf = project.tasks.create("copyCheckstyleConf")
+
+        // configure inputs and outputs so up to date works properly
+        copyCheckstyleConf.outputs.files(checkstyleSuppressions, checkstyleConf)
+        if ("jar".equals(checkstyleConfUrl.getProtocol())) {
+            JarURLConnection jarURLConnection = (JarURLConnection) checkstyleConfUrl.openConnection()
+            copyCheckstyleConf.inputs.file(jarURLConnection.getJarFileURL())
+        } else if ("file".equals(checkstyleConfUrl.getProtocol())) {
+            copyCheckstyleConf.inputs.files(checkstyleConfUrl.getFile(), checkstyleSuppressionsUrl.getFile())
+        }
+
+        copyCheckstyleConf.doLast {
+            checkstyleDir.mkdirs()
+            // withStream will close the output stream and IOGroovyMethods#getBytes reads the InputStream fully and closes it
+            new FileOutputStream(checkstyleConf).withStream {
+                it.write(checkstyleConfUrl.openStream().getBytes())
+            }
+            new FileOutputStream(checkstyleSuppressions).withStream {
+                it.write(checkstyleSuppressionsUrl.openStream().getBytes())
+            }
+        }
+
         Task checkstyleTask = project.tasks.create('checkstyle')
         // Apply the checkstyle plugin to create `checkstyleMain` and `checkstyleTest`. It only
         // creates them if there is main or test code to check and it makes `check` depend
         // on them. But we want `precommit` to depend on `checkstyle` which depends on them so
         // we have to swap them.
         project.pluginManager.apply('checkstyle')
-        URL checkstyleSuppressions = PrecommitTasks.getResource('/checkstyle_suppressions.xml')
         project.checkstyle {
-            config = project.resources.text.fromFile(
-                PrecommitTasks.getResource('/checkstyle.xml'), 'UTF-8')
+            config = project.resources.text.fromFile(checkstyleConf, 'UTF-8')
             configProperties = [
                 suppressions: checkstyleSuppressions
             ]
@@ -106,6 +132,7 @@ class PrecommitTasks {
             if (task != null) {
                 project.tasks['check'].dependsOn.remove(task)
                 checkstyleTask.dependsOn(task)
+                task.dependsOn(copyCheckstyleConf)
                 task.inputs.file(checkstyleSuppressions)
             }
         }

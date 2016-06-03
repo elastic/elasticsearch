@@ -43,11 +43,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -59,16 +59,10 @@ import java.util.TreeSet;
  * Defines the include/exclude regular expression filtering for string terms aggregation. In this filtering logic,
  * exclusion has precedence, where the {@code include} is evaluated first and then the {@code exclude}.
  */
-public class IncludeExclude implements Writeable<IncludeExclude>, ToXContent {
-
-    private static final IncludeExclude PROTOTYPE = new IncludeExclude(Collections.emptySortedSet(), Collections.emptySortedSet());
+public class IncludeExclude implements Writeable, ToXContent {
     private static final ParseField INCLUDE_FIELD = new ParseField("include");
     private static final ParseField EXCLUDE_FIELD = new ParseField("exclude");
     private static final ParseField PATTERN_FIELD = new ParseField("pattern");
-
-    public static IncludeExclude readFromStream(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
-    }
 
     // The includeValue and excludeValue ByteRefs which are the result of the parsing
     // process are converted into a LongFilter when used on numeric fields
@@ -142,7 +136,8 @@ public class IncludeExclude implements Writeable<IncludeExclude>, ToXContent {
     }
 
     public static abstract class OrdinalsFilter {
-        public abstract LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) throws IOException;
+        public abstract LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource)
+                throws IOException;
 
     }
 
@@ -159,7 +154,8 @@ public class IncludeExclude implements Writeable<IncludeExclude>, ToXContent {
          *
          */
         @Override
-        public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) throws IOException {
+        public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource)
+                throws IOException {
             LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
             TermsEnum globalTermsEnum;
             Terms globalTerms = new DocValuesTerms(globalOrdinals);
@@ -186,7 +182,7 @@ public class IncludeExclude implements Writeable<IncludeExclude>, ToXContent {
         @Override
         public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, WithOrdinals valueSource) throws IOException {
             LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
-            if(includeValues!=null){
+            if (includeValues != null) {
                 for (BytesRef term : includeValues) {
                     long ord = globalOrdinals.lookupTerm(term);
                     if (ord >= 0) {
@@ -255,6 +251,68 @@ public class IncludeExclude implements Writeable<IncludeExclude>, ToXContent {
 
     public IncludeExclude(long[] includeValues, long[] excludeValues) {
         this(convertToBytesRefSet(includeValues), convertToBytesRefSet(excludeValues));
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public IncludeExclude(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            includeValues = null;
+            excludeValues = null;
+            String includeString = in.readOptionalString();
+            include = includeString == null ? null : new RegExp(includeString);
+            String excludeString = in.readOptionalString();
+            exclude = excludeString == null ? null : new RegExp(excludeString);
+            return;
+        }
+        include = null;
+        exclude = null;
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            includeValues = new TreeSet<>();
+            for (int i = 0; i < size; i++) {
+                includeValues.add(in.readBytesRef());
+            }
+        } else {
+            includeValues = null;
+        }
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            excludeValues = new TreeSet<>();
+            for (int i = 0; i < size; i++) {
+                excludeValues.add(in.readBytesRef());
+            }
+        } else {
+            excludeValues = null;
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        boolean regexBased = isRegexBased();
+        out.writeBoolean(regexBased);
+        if (regexBased) {
+            out.writeOptionalString(include == null ? null : include.getOriginalString());
+            out.writeOptionalString(exclude == null ? null : exclude.getOriginalString());
+        } else {
+            boolean hasIncludes = includeValues != null;
+            out.writeBoolean(hasIncludes);
+            if (hasIncludes) {
+                out.writeVInt(includeValues.size());
+                for (BytesRef value : includeValues) {
+                    out.writeBytesRef(value);
+                }
+            }
+            boolean hasExcludes = excludeValues != null;
+            out.writeBoolean(hasExcludes);
+            if (hasExcludes) {
+                out.writeVInt(excludeValues.size());
+                for (BytesRef value : excludeValues) {
+                    out.writeBytesRef(value);
+                }
+            }
+        }
     }
 
     private static SortedSet<BytesRef> convertToBytesRefSet(String[] values) {
@@ -479,33 +537,46 @@ public class IncludeExclude implements Writeable<IncludeExclude>, ToXContent {
         return a;
     }
 
-    public StringFilter convertToStringFilter() {
+    public StringFilter convertToStringFilter(DocValueFormat format) {
         if (isRegexBased()) {
             return new AutomatonBackedStringFilter(toAutomaton());
         }
-        return new TermListBackedStringFilter(includeValues, excludeValues);
+        return new TermListBackedStringFilter(parseForDocValues(includeValues, format), parseForDocValues(excludeValues, format));
     }
 
-    public OrdinalsFilter convertToOrdinalsFilter() {
+    private static SortedSet<BytesRef> parseForDocValues(SortedSet<BytesRef> endUserFormattedValues, DocValueFormat format) {
+        SortedSet<BytesRef> result = endUserFormattedValues;
+        if (endUserFormattedValues != null) {
+            if (format != DocValueFormat.RAW) {
+                result = new TreeSet<>();
+                for (BytesRef formattedVal : endUserFormattedValues) {
+                    result.add(format.parseBytesRef(formattedVal.utf8ToString()));
+                }
+            }
+        }
+        return result;
+    }
+
+    public OrdinalsFilter convertToOrdinalsFilter(DocValueFormat format) {
 
         if (isRegexBased()) {
             return new AutomatonBackedOrdinalsFilter(toAutomaton());
         }
-        return new TermListBackedOrdinalsFilter(includeValues, excludeValues);
+        return new TermListBackedOrdinalsFilter(parseForDocValues(includeValues, format), parseForDocValues(excludeValues, format));
     }
 
-    public LongFilter convertToLongFilter() {
+    public LongFilter convertToLongFilter(DocValueFormat format) {
         int numValids = includeValues == null ? 0 : includeValues.size();
         int numInvalids = excludeValues == null ? 0 : excludeValues.size();
         LongFilter result = new LongFilter(numValids, numInvalids);
         if (includeValues != null) {
             for (BytesRef val : includeValues) {
-                result.addAccept(Long.parseLong(val.utf8ToString()));
+                result.addAccept(format.parseLong(val.utf8ToString(), false, null));
             }
         }
         if (excludeValues != null) {
             for (BytesRef val : excludeValues) {
-                result.addReject(Long.parseLong(val.utf8ToString()));
+                result.addReject(format.parseLong(val.utf8ToString(), false, null));
             }
         }
         return result;
@@ -517,13 +588,13 @@ public class IncludeExclude implements Writeable<IncludeExclude>, ToXContent {
         LongFilter result = new LongFilter(numValids, numInvalids);
         if (includeValues != null) {
             for (BytesRef val : includeValues) {
-                double dval=Double.parseDouble(val.utf8ToString());
+                double dval = Double.parseDouble(val.utf8ToString());
                 result.addAccept(NumericUtils.doubleToSortableLong(dval));
             }
         }
         if (excludeValues != null) {
             for (BytesRef val : excludeValues) {
-                double dval=Double.parseDouble(val.utf8ToString());
+                double dval = Double.parseDouble(val.utf8ToString());
                 result.addReject(NumericUtils.doubleToSortableLong(dval));
             }
         }
@@ -553,68 +624,6 @@ public class IncludeExclude implements Writeable<IncludeExclude>, ToXContent {
             builder.endArray();
         }
         return builder;
-    }
-
-    @Override
-    public IncludeExclude readFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            String includeString = in.readOptionalString();
-            RegExp include = null;
-            if (includeString != null) {
-                include = new RegExp(includeString);
-            }
-            String excludeString = in.readOptionalString();
-            RegExp exclude = null;
-            if (excludeString != null) {
-                exclude = new RegExp(excludeString);
-            }
-            return new IncludeExclude(include, exclude);
-        } else {
-            SortedSet<BytesRef> includes = null;
-            if (in.readBoolean()) {
-                int size = in.readVInt();
-                includes = new TreeSet<>();
-                for (int i = 0; i < size; i++) {
-                    includes.add(in.readBytesRef());
-                }
-            }
-            SortedSet<BytesRef> excludes = null;
-            if (in.readBoolean()) {
-                int size = in.readVInt();
-                excludes = new TreeSet<>();
-                for (int i = 0; i < size; i++) {
-                    excludes.add(in.readBytesRef());
-                }
-            }
-            return new IncludeExclude(includes, excludes);
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        boolean regexBased = isRegexBased();
-        out.writeBoolean(regexBased);
-        if (regexBased) {
-            out.writeOptionalString(include == null ? null : include.getOriginalString());
-            out.writeOptionalString(exclude == null ? null : exclude.getOriginalString());
-        } else {
-            boolean hasIncludes = includeValues != null;
-            out.writeBoolean(hasIncludes);
-            if (hasIncludes) {
-                out.writeVInt(includeValues.size());
-                for (BytesRef value : includeValues) {
-                    out.writeBytesRef(value);
-                }
-            }
-            boolean hasExcludes = excludeValues != null;
-            out.writeBoolean(hasExcludes);
-            if (hasExcludes) {
-                out.writeVInt(excludeValues.size());
-                for (BytesRef value : excludeValues) {
-                    out.writeBytesRef(value);
-                }
-            }
-        }
     }
 
     @Override

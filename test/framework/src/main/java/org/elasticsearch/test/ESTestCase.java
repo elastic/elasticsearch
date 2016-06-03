@@ -37,7 +37,7 @@ import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -61,6 +61,7 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -69,6 +70,7 @@ import org.junit.Rule;
 import org.junit.rules.RuleChain;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -76,16 +78,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
@@ -397,6 +399,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * generate a random DateTimeZone from the ones available in joda library
+     */
+    public static DateTimeZone randomDateTimeZone() {
+        List<String> ids = new ArrayList<>(DateTimeZone.getAvailableIDs());
+        Collections.sort(ids);
+        return DateTimeZone.forID(randomFrom(ids));
+    }
+
+    /**
      * helper to randomly perform on <code>consumer</code> with <code>value</code>
      */
     public static <T> void maybeSet(Consumer<T> consumer, T value) {
@@ -409,10 +420,21 @@ public abstract class ESTestCase extends LuceneTestCase {
      * helper to get a random value in a certain range that's different from the input
      */
     public static <T> T randomValueOtherThan(T input, Supplier<T> randomSupplier) {
+        if (input != null) {
+            return randomValueOtherThanMany(input::equals, randomSupplier);
+        }
+
+        return(randomSupplier.get());
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input
+     */
+    public static <T> T randomValueOtherThanMany(Predicate<T> input, Supplier<T> randomSupplier) {
         T randomValue = null;
         do {
             randomValue = randomSupplier.get();
-        } while (randomValue.equals(input));
+        } while (input.test(randomValue));
         return randomValue;
     }
 
@@ -420,24 +442,13 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Runs the code block for 10 seconds waiting for no assertion to trip.
      */
     public static void assertBusy(Runnable codeBlock) throws Exception {
-        assertBusy(Executors.callable(codeBlock), 10, TimeUnit.SECONDS);
-    }
-
-    public static void assertBusy(Runnable codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
-        assertBusy(Executors.callable(codeBlock), maxWaitTime, unit);
-    }
-
-    /**
-     * Runs the code block for 10 seconds waiting for no assertion to trip.
-     */
-    public static <V> V assertBusy(Callable<V> codeBlock) throws Exception {
-        return assertBusy(codeBlock, 10, TimeUnit.SECONDS);
+        assertBusy(codeBlock, 10, TimeUnit.SECONDS);
     }
 
     /**
      * Runs the code block for the provided interval, waiting for no assertions to trip.
      */
-    public static <V> V assertBusy(Callable<V> codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
+    public static void assertBusy(Runnable codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
         long iterations = Math.max(Math.round(Math.log10(maxTimeInMillis) / Math.log10(2)), 1);
         long timeInMillis = 1;
@@ -445,7 +456,8 @@ public abstract class ESTestCase extends LuceneTestCase {
         List<AssertionError> failures = new ArrayList<>();
         for (int i = 0; i < iterations; i++) {
             try {
-                return codeBlock.call();
+                codeBlock.run();
+                return;
             } catch (AssertionError e) {
                 failures.add(e);
             }
@@ -456,7 +468,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         timeInMillis = maxTimeInMillis - sum;
         Thread.sleep(Math.max(timeInMillis, 0));
         try {
-            return codeBlock.call();
+            codeBlock.run();
         } catch (AssertionError e) {
             for (AssertionError failure : failures) {
                 e.addSuppressed(failure);
@@ -599,30 +611,51 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Builds a set of unique items. Usually you'll get the requested count but you might get less than that number if the supplier returns
+     * lots of repeats. Make sure that the items properly implement equals and hashcode.
+     */
+    public static <T> Set<T> randomUnique(Supplier<T> supplier, int targetCount) {
+        Set<T> things = new HashSet<>();
+        int maxTries = targetCount * 10;
+        for (int t = 0; t < maxTries; t++) {
+            if (things.size() == targetCount) {
+                return things;
+            }
+            things.add(supplier.get());
+        }
+        // Oh well, we didn't get enough unique things. It'll be ok.
+        return things;
+    }
+
+    /**
      * Randomly shuffles the fields inside objects in the {@link XContentBuilder} passed in.
      * Recursively goes through inner objects and also shuffles them. Exceptions for this
      * recursive shuffling behavior can be made by passing in the names of fields which
      * internally should stay untouched.
      */
-    public static XContentBuilder shuffleXContent(XContentBuilder builder, Set<String> exceptFieldNames) throws IOException {
+    public static XContentBuilder shuffleXContent(XContentBuilder builder, String... exceptFieldNames) throws IOException {
         BytesReference bytes = builder.bytes();
         XContentParser parser = XContentFactory.xContent(bytes).createParser(bytes);
         // use ordered maps for reproducibility
-        Map<String, Object> shuffledMap = shuffleMap(parser.mapOrdered(), exceptFieldNames);
-        XContentBuilder jsonBuilder = XContentFactory.contentBuilder(builder.contentType());
-        return jsonBuilder.map(shuffledMap);
+        Map<String, Object> shuffledMap = shuffleMap(parser.mapOrdered(), new HashSet<>(Arrays.asList(exceptFieldNames)));
+        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(builder.contentType());
+        if (builder.isPrettyPrint()) {
+            xContentBuilder.prettyPrint();
+        }
+        return xContentBuilder.map(shuffledMap);
     }
 
-    private static Map<String, Object> shuffleMap(Map<String, Object> map, Set<String> exceptFieldNames) {
+    private static Map<String, Object> shuffleMap(Map<String, Object> map, Set<String> exceptFields) {
         List<String> keys = new ArrayList<>(map.keySet());
+
         // even though we shuffle later, we need this to make tests reproduce on different jvms
         Collections.sort(keys);
         Map<String, Object> targetMap = new TreeMap<>();
         Collections.shuffle(keys, random());
         for (String key : keys) {
             Object value = map.get(key);
-            if (value instanceof Map && exceptFieldNames.contains(key) == false) {
-                targetMap.put(key, shuffleMap((Map) value, exceptFieldNames));
+            if (value instanceof Map && exceptFields.contains(key) == false) {
+                targetMap.put(key, shuffleMap((Map) value, exceptFields));
             } else {
                 targetMap.put(key, value);
             }
@@ -640,16 +673,16 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Asserts that there are no files in the specified path
+     * Asserts busily that there are no files in the specified path
      */
-    public void assertPathHasBeenCleared(String path) throws Exception {
-        assertPathHasBeenCleared(PathUtils.get(path));
+    public void assertBusyPathHasBeenCleared(Path path) throws Exception {
+        assertBusy(() -> assertPathHasBeenCleared(path));
     }
 
     /**
      * Asserts that there are no files in the specified path
      */
-    public void assertPathHasBeenCleared(Path path) throws Exception {
+    public void assertPathHasBeenCleared(Path path) {
         logger.info("--> checking that [{}] has been cleared", path);
         int count = 0;
         StringBuilder sb = new StringBuilder();
@@ -670,6 +703,8 @@ public abstract class ESTestCase extends LuceneTestCase {
                         sb.append("\n");
                     }
                 }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
         }
         sb.append("]");

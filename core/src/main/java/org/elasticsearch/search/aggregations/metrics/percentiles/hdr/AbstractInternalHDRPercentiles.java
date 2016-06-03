@@ -82,7 +82,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        format = in.readValueFormat();
+        format = in.readNamedWriteable(DocValueFormat.class);
         keys = new double[in.readInt()];
         for (int i = 0; i < keys.length; ++i) {
             keys[i] = in.readDouble();
@@ -102,7 +102,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeValueFormat(format);
+        out.writeNamedWriteable(format);
         out.writeInt(keys.length);
         for (int i = 0 ; i < keys.length; ++i) {
             out.writeDouble(keys[i]);

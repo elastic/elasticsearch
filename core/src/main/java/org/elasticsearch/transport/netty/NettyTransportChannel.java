@@ -37,8 +37,10 @@ import org.elasticsearch.transport.support.TransportStatus;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.ChannelFutureListener;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  *
@@ -52,9 +54,11 @@ public class NettyTransportChannel implements TransportChannel {
     private final Channel channel;
     private final long requestId;
     private final String profileName;
+    private final long reservedBytes;
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     public NettyTransportChannel(NettyTransport transport, TransportServiceAdapter transportServiceAdapter, String action, Channel channel,
-            long requestId, Version version, String profileName) {
+                                 long requestId, Version version, String profileName, long reservedBytes) {
         this.transportServiceAdapter = transportServiceAdapter;
         this.version = version;
         this.transport = transport;
@@ -62,6 +66,7 @@ public class NettyTransportChannel implements TransportChannel {
         this.channel = channel;
         this.requestId = requestId;
         this.profileName = profileName;
+        this.reservedBytes = reservedBytes;
     }
 
     @Override
@@ -81,6 +86,7 @@ public class NettyTransportChannel implements TransportChannel {
 
     @Override
     public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
+        close();
         if (transport.compress) {
             options = TransportResponseOptions.builder(options).withCompress(transport.compress).build();
         }
@@ -88,9 +94,10 @@ public class NettyTransportChannel implements TransportChannel {
         byte status = 0;
         status = TransportStatus.setResponse(status);
 
-        ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(transport.bigArrays);
+        ReleasableBytesStreamOutput bStream = null;
         boolean addedReleaseListener = false;
         try {
+            bStream = new ReleasableBytesStreamOutput(transport.bigArrays);
             bStream.skip(NettyHeader.HEADER_SIZE);
             StreamOutput stream = bStream;
             if (options.compress()) {
@@ -108,9 +115,12 @@ public class NettyTransportChannel implements TransportChannel {
             ReleaseChannelFutureListener listener = new ReleaseChannelFutureListener(bytes);
             future.addListener(listener);
             addedReleaseListener = true;
-            transportServiceAdapter.onResponseSent(requestId, action, response, options);
+            final TransportResponseOptions finalOptions = options;
+            ChannelFutureListener onResponseSentListener =
+                f -> transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions);
+            future.addListener(onResponseSentListener);
         } finally {
-            if (!addedReleaseListener) {
+            if (!addedReleaseListener && bStream != null) {
                 Releasables.close(bStream.bytes());
             }
         }
@@ -118,10 +128,11 @@ public class NettyTransportChannel implements TransportChannel {
 
     @Override
     public void sendResponse(Throwable error) throws IOException {
+        close();
         BytesStreamOutput stream = new BytesStreamOutput();
         stream.skip(NettyHeader.HEADER_SIZE);
-        RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()),
-                action, error);
+        RemoteTransportException tx = new RemoteTransportException(
+            transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, error);
         stream.writeThrowable(tx);
         byte status = 0;
         status = TransportStatus.setResponse(status);
@@ -130,8 +141,18 @@ public class NettyTransportChannel implements TransportChannel {
         BytesReference bytes = stream.bytes();
         ChannelBuffer buffer = bytes.toChannelBuffer();
         NettyHeader.writeHeader(buffer, requestId, status, version);
-        channel.write(buffer);
-        transportServiceAdapter.onResponseSent(requestId, action, error);
+        ChannelFuture future = channel.write(buffer);
+        ChannelFutureListener onResponseSentListener =
+            f -> transportServiceAdapter.onResponseSent(requestId, action, error);
+        future.addListener(onResponseSentListener);
+    }
+
+    private void close() {
+        // attempt to close once atomically
+        if (closed.compareAndSet(false, true) == false) {
+            throw new IllegalStateException("Channel is already closed");
+        }
+        transport.inFlightRequestsBreaker().addWithoutBreaking(-reservedBytes);
     }
 
     @Override

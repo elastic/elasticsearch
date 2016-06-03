@@ -22,7 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class ReindexAction extends Action<ReindexRequest, ReindexResponse, ReindexRequestBuilder> {
+public class ReindexAction extends Action<ReindexRequest, BulkIndexByScrollResponse, ReindexRequestBuilder> {
     public static final ReindexAction INSTANCE = new ReindexAction();
     public static final String NAME = "indices:data/write/reindex";
 
@@ -36,7 +36,7 @@ public class ReindexAction extends Action<ReindexRequest, ReindexResponse, Reind
     }
 
     @Override
-    public ReindexResponse newResponse() {
-        return new ReindexResponse();
+    public BulkIndexByScrollResponse newResponse() {
+        return new BulkIndexByScrollResponse();
     }
 }

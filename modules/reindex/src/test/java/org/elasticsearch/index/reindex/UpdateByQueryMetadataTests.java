@@ -27,13 +27,13 @@ public class UpdateByQueryMetadataTests
         extends AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<UpdateByQueryRequest, BulkIndexByScrollResponse> {
     public void testRoutingIsCopied() throws Exception {
         IndexRequest index = new IndexRequest();
-        action().copyMetadata(index, doc(RoutingFieldMapper.NAME, "foo"));
+        action().copyMetadata(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc(RoutingFieldMapper.NAME, "foo"));
         assertEquals("foo", index.routing());
     }
 
     @Override
     protected TransportUpdateByQueryAction.AsyncIndexBySearchAction action() {
-        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, null, threadPool, request(), listener());
+        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request(), listener(), null, null);
     }
 
     @Override

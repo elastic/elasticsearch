@@ -32,6 +32,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Azure Storage Service interface
@@ -46,7 +47,7 @@ public interface AzureStorageService {
         public static final Setting<String> ACCOUNT_SETTING =
             Setting.simpleString("repositories.azure.account", Property.NodeScope, Property.Filtered);
         public static final Setting<String> CONTAINER_SETTING =
-            Setting.simpleString("repositories.azure.container", Property.NodeScope);
+            new Setting<>("repositories.azure.container", "elasticsearch-snapshots", Function.identity(), Property.NodeScope);
         public static final Setting<String> BASE_PATH_SETTING =
             Setting.simpleString("repositories.azure.base_path", Property.NodeScope);
         public static final Setting<String> LOCATION_MODE_SETTING =

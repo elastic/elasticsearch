@@ -1,0 +1,118 @@
+---
+"Percolate existing documents":
+
+  - do:
+      indices.create:
+        index: percolator_index
+        body:
+          mappings:
+            queries:
+              properties:
+                query:
+                  type: percolator
+
+  - do:
+      index:
+        index: percolator_index
+        type: queries
+        id:   test_percolator
+        body:
+          query:
+            match_all: {}
+          tag: tag1
+
+  - do:
+      index:
+        index:  percolator_index
+        type:   test_type
+        id:     1
+        body:
+          foo: bar
+
+  - do:
+      indices.create:
+        index: my_index
+
+  - do:
+      index:
+        index:  my_index
+        type:   my_type
+        id:     1
+        body:
+          foo: bar
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      percolate:
+        index: percolator_index
+        type:  test_type
+        id: 1
+
+  - match: {'matches': [{_index: percolator_index, _id: test_percolator}]}
+
+  - do:
+      percolate:
+        index: my_index
+        type: my_type
+        id: 1
+        percolate_index: percolator_index
+        percolate_type: test_type
+
+  - match: {'matches': [{_index: percolator_index, _id: test_percolator}]}
+
+
+  - do:
+      index:
+        index:  my_index
+        type:   my_type
+        id:     1
+        body:
+          foo: bar
+
+  - do:
+      percolate:
+        index: my_index
+        type: my_type
+        id: 1
+        version: 2
+        percolate_index: percolator_index
+        percolate_type: test_type
+
+  - match: {'matches': [{_index: percolator_index, _id: test_percolator}]}
+
+  - do:
+      catch:        conflict
+      percolate:
+        index: my_index
+        type: my_type
+        id: 1
+        version: 1
+        percolate_index: percolator_index
+        percolate_type: test_type
+
+  - do:
+      percolate:
+        index: percolator_index
+        type:  test_type
+        id: 1
+        body:
+          filter:
+            term:
+              tag: non_existing_tag
+
+  - match: {'matches': []}
+
+  - do:
+      percolate:
+        index: percolator_index
+        type:  test_type
+        id: 1
+        body:
+          filter:
+            term:
+              tag: tag1
+
+  - match: {'matches': [{_index: percolator_index, _id: test_percolator, _score: 1.0}]}
+

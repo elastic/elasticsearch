@@ -54,18 +54,20 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  *
  */
-public class TransportNodesListShardStoreMetaData extends TransportNodesAction<TransportNodesListShardStoreMetaData.Request, TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData, TransportNodesListShardStoreMetaData.NodeRequest, TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData>
-        implements AsyncShardFetch.List<TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData, TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> {
+public class TransportNodesListShardStoreMetaData extends TransportNodesAction<TransportNodesListShardStoreMetaData.Request,
+                                                                               TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData,
+                                                                               TransportNodesListShardStoreMetaData.NodeRequest,
+                                                                               TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData>
+    implements AsyncShardFetch.Lister<TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData,
+                                      TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> {
 
     public static final String ACTION_NAME = "internal:cluster/nodes/indices/shard/store";
 
@@ -74,17 +76,18 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     private final NodeEnvironment nodeEnv;
 
     @Inject
-    public TransportNodesListShardStoreMetaData(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+    public TransportNodesListShardStoreMetaData(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+                                                ClusterService clusterService, TransportService transportService,
                                                 IndicesService indicesService, NodeEnvironment nodeEnv, ActionFilters actionFilters,
                                                 IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STORE);
+              Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STORE, NodeStoreFilesMetaData.class);
         this.indicesService = indicesService;
         this.nodeEnv = nodeEnv;
     }
 
     @Override
-    public void list(ShardId shardId, IndexMetaData indexMetaData, String[] nodesIds, ActionListener<NodesStoreFilesMetaData> listener) {
+    public void list(ShardId shardId, String[] nodesIds, ActionListener<NodesStoreFilesMetaData> listener) {
         execute(new Request(shardId, false, nodesIds), listener);
     }
 
@@ -106,21 +109,9 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     }
 
     @Override
-    protected NodesStoreFilesMetaData newResponse(Request request, AtomicReferenceArray responses) {
-        final List<NodeStoreFilesMetaData> nodeStoreFilesMetaDatas = new ArrayList<>();
-        final List<FailedNodeException> failures = new ArrayList<>();
-        for (int i = 0; i < responses.length(); i++) {
-            Object resp = responses.get(i);
-            if (resp instanceof NodeStoreFilesMetaData) { // will also filter out null response for unallocated ones
-                nodeStoreFilesMetaDatas.add((NodeStoreFilesMetaData) resp);
-            } else if (resp instanceof FailedNodeException) {
-                failures.add((FailedNodeException) resp);
-            } else {
-                logger.warn("unknown response type [{}], expected NodeStoreFilesMetaData or FailedNodeException", resp);
-            }
-        }
-        return new NodesStoreFilesMetaData(clusterName, nodeStoreFilesMetaDatas.toArray(new NodeStoreFilesMetaData[nodeStoreFilesMetaDatas.size()]),
-                failures.toArray(new FailedNodeException[failures.size()]));
+    protected NodesStoreFilesMetaData newResponse(Request request,
+                                                  List<NodeStoreFilesMetaData> responses, List<FailedNodeException> failures) {
+        return new NodesStoreFilesMetaData(clusterName, responses, failures);
     }
 
     @Override
@@ -293,37 +284,21 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
 
     public static class NodesStoreFilesMetaData extends BaseNodesResponse<NodeStoreFilesMetaData> {
 
-        private FailedNodeException[] failures;
-
         NodesStoreFilesMetaData() {
         }
 
-        public NodesStoreFilesMetaData(ClusterName clusterName, NodeStoreFilesMetaData[] nodes, FailedNodeException[] failures) {
-            super(clusterName, nodes);
-            this.failures = failures;
+        public NodesStoreFilesMetaData(ClusterName clusterName, List<NodeStoreFilesMetaData> nodes, List<FailedNodeException> failures) {
+            super(clusterName, nodes, failures);
         }
 
         @Override
-        public FailedNodeException[] failures() {
-            return failures;
+        protected List<NodeStoreFilesMetaData> readNodesFrom(StreamInput in) throws IOException {
+            return in.readList(NodeStoreFilesMetaData::readListShardStoreNodeOperationResponse);
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            nodes = new NodeStoreFilesMetaData[in.readVInt()];
-            for (int i = 0; i < nodes.length; i++) {
-                nodes[i] = NodeStoreFilesMetaData.readListShardStoreNodeOperationResponse(in);
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeVInt(nodes.length);
-            for (NodeStoreFilesMetaData response : nodes) {
-                response.writeTo(out);
-            }
+        protected void writeNodesTo(StreamOutput out, List<NodeStoreFilesMetaData> nodes) throws IOException {
+            out.writeStreamableList(nodes);
         }
     }
 

@@ -31,7 +31,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [[number-params]]
 ==== Parameters for numeric fields
@@ -78,12 +78,6 @@ The following parameters are accepted by numeric types:
     Accepts a numeric value of the same `type` as the field which is
     substituted for any explicit `null` values.  Defaults to `null`, which
     means the field is treated as missing.
-
-<<precision-step,`precision_step`>>::
-
-    Controls the number of extra terms that are indexed to make
-    <<query-dsl-range-query,`range` queries>> faster. The default depends on the
-    numeric `type`.
 
 <<mapping-store,`store`>>::
 

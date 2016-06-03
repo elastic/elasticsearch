@@ -89,7 +89,7 @@ public class RestUpgradeAction extends BaseRestHandler {
                 buildBroadcastShardsHeader(builder, request, response);
                 builder.startObject("upgraded_indices");
                 for (Map.Entry<String, Tuple<Version, String>> entry : response.versions().entrySet()) {
-                    builder.startObject(entry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startObject(entry.getKey());
                     builder.field("upgrade_version", entry.getValue().v1());
                     builder.field("oldest_lucene_segment_version", entry.getValue().v2());
                     builder.endObject();

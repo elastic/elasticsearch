@@ -13,7 +13,7 @@ disconnect from the cluster.
 There are three approaches to disabling swapping:
 
 [[mlockall]]
-==== Enable `bootstrap.mlockall`
+==== Enable `bootstrap.memory_lock`
 
 The first option is to use
 http://opengroup.org/onlinepubs/007908799/xsh/mlockall.html[mlockall] on Linux/Unix systems, or https://msdn.microsoft.com/en-us/library/windows/desktop/aa366895%28v=vs.85%29.aspx[VirtualLock] on Windows, to
@@ -23,7 +23,7 @@ to the `config/elasticsearch.yml` file:
 
 [source,yaml]
 --------------
-bootstrap.mlockall: true
+bootstrap.memory_lock: true
 --------------
 
 WARNING: `mlockall` might cause the JVM or shell session to exit if it tries
@@ -83,8 +83,7 @@ export ES_JAVA_OPTS="$ES_JAVA_OPTS -Djava.io.tmpdir=/path/to/temp/dir"
 
 The second option is to completely disable swap. Usually Elasticsearch
 is the only service running on a box, and its memory usage is controlled
-by the `ES_HEAP_SIZE` environment variable.  There should be no need
-to have swap enabled.
+by the JVM options.  There should be no need to have swap enabled.
 
 On Linux systems, you can disable swap temporarily
 by running: `sudo swapoff -a`. To disable it permanently, you will need

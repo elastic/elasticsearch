@@ -42,7 +42,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 
@@ -281,8 +280,11 @@ public class MetaDataMappingService extends AbstractComponent {
                         // Also the order of the mappings may be backwards.
                         if (newMapper.parentFieldMapper().active()) {
                             for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
-                                if (newMapper.parentFieldMapper().type().equals(mapping.value.type())) {
-                                    throw new IllegalArgumentException("can't add a _parent field that points to an already existing type");
+                                String parentType = newMapper.parentFieldMapper().type();
+                                if (parentType.equals(mapping.value.type()) &&
+                                        indexService.mapperService().getParentTypes().contains(parentType) == false) {
+                                    throw new IllegalArgumentException("can't add a _parent field that points to an " +
+                                            "already existing type, that isn't already a parent");
                                 }
                             }
                         }

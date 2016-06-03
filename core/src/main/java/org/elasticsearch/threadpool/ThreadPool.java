@@ -23,7 +23,6 @@ import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -188,7 +187,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
 
         final Map<String, ExecutorHolder> executors = new HashMap<>();
         for (@SuppressWarnings("unchecked") final Map.Entry<String, ExecutorBuilder> entry : builders.entrySet()) {
-            final ExecutorBuilder.ExecutorSettings executorSettings = entry.getValue().settings(settings);
+            final ExecutorBuilder.ExecutorSettings executorSettings = entry.getValue().getSettings(settings);
             final ExecutorHolder executorHolder = entry.getValue().build(executorSettings, threadContext);
             if (executors.containsKey(executorHolder.info.getName())) {
                 throw new IllegalStateException("duplicate executors with name [" + executorHolder.info.getName() + "] registered");

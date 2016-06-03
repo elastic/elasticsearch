@@ -22,9 +22,6 @@ package org.elasticsearch.threadpool;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.SettingsModule;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class ThreadPoolModule extends AbstractModule {
 
     private final ThreadPool threadPool;
@@ -35,7 +32,7 @@ public class ThreadPoolModule extends AbstractModule {
 
     public void prepareSettings(SettingsModule settingsModule) {
         for (final ExecutorBuilder<?> builder : threadPool.builders()) {
-            builder.registeredSettings().forEach(settingsModule::registerSetting);
+            builder.getRegisteredSettings().forEach(settingsModule::registerSetting);
         }
     }
 

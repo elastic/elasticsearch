@@ -77,12 +77,12 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
     }
 
     @Override
-    List<Setting<?>> registeredSettings() {
+    List<Setting<?>> getRegisteredSettings() {
         return Arrays.asList(coreSetting, maxSetting, keepAliveSetting);
     }
 
     @Override
-    ScalingExecutorSettings settings(Settings settings) {
+    ScalingExecutorSettings getSettings(Settings settings) {
         final String nodeName = Node.NODE_NAME_SETTING.get(settings);
         final int coreThreads = coreSetting.get(settings);
         final int maxThreads = maxSetting.get(settings);

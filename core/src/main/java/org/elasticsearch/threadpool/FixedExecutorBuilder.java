@@ -86,12 +86,12 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
     }
 
     @Override
-    List<Setting<?>> registeredSettings() {
+    List<Setting<?>> getRegisteredSettings() {
         return Arrays.asList(sizeSetting, queueSizeSetting);
     }
 
     @Override
-    FixedExecutorSettings settings(Settings settings) {
+    FixedExecutorSettings getSettings(Settings settings) {
         final String nodeName = Node.NODE_NAME_SETTING.get(settings);
         final int size = sizeSetting.get(settings);
         final int queueSize = queueSizeSetting.get(settings);

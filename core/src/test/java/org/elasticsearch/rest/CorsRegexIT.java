@@ -63,15 +63,16 @@ public class CorsRegexIT extends ESIntegTestCase {
     public void testThatRegularExpressionWorksOnMatch() throws Exception {
         String corsValue = "http://localhost:9200";
         try (RestClient client = restClient()) {
-            ElasticsearchResponse response = client.performRequest("GET", "/", Collections.emptyMap(), null,
-                    new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue));
-            assertResponseWithOriginheader(response, corsValue);
-
+            try (ElasticsearchResponse response = client.performRequest("GET", "/", Collections.emptyMap(), null,
+                    new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue))) {
+                assertResponseWithOriginheader(response, corsValue);
+            }
             corsValue = "https://localhost:9200";
-            response = client.performRequest("GET", "/", Collections.emptyMap(), null,
-                    new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue));
-            assertResponseWithOriginheader(response, corsValue);
-            assertThat(response.getFirstHeader("Access-Control-Allow-Credentials"), is("true"));
+            try (ElasticsearchResponse response = client.performRequest("GET", "/", Collections.emptyMap(), null,
+                    new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue));) {
+                assertResponseWithOriginheader(response, corsValue);
+                assertThat(response.getFirstHeader("Access-Control-Allow-Credentials"), is("true"));
+            }
         }
     }
 
@@ -90,29 +91,32 @@ public class CorsRegexIT extends ESIntegTestCase {
 
     public void testThatSendingNoOriginHeaderReturnsNoAccessControlHeader() throws Exception {
         try (RestClient client = restClient()) {
-            ElasticsearchResponse response = client.performRequest("GET", "/", Collections.emptyMap(), null,
-                    new BasicHeader("User-Agent", "Mozilla Bar"));
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
-            assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
+            try (ElasticsearchResponse response = client.performRequest("GET", "/", Collections.emptyMap(), null,
+                    new BasicHeader("User-Agent", "Mozilla Bar"))) {
+                assertThat(response.getStatusLine().getStatusCode(), is(200));
+                assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
+            }
         }
     }
 
     public void testThatRegularExpressionIsNotAppliedWithoutCorrectBrowserOnMatch() throws Exception {
         try (RestClient client = restClient()) {
-            ElasticsearchResponse response = client.performRequest("GET", "/", Collections.emptyMap(), null);
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
-            assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
+            try (ElasticsearchResponse response = client.performRequest("GET", "/", Collections.emptyMap(), null)) {
+                assertThat(response.getStatusLine().getStatusCode(), is(200));
+                assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
+            }
         }
     }
 
     public void testThatPreFlightRequestWorksOnMatch() throws Exception {
         String corsValue = "http://localhost:9200";
         try (RestClient client = restClient()) {
-            ElasticsearchResponse response = client.performRequest("OPTIONS", "/", Collections.emptyMap(), null,
+            try (ElasticsearchResponse response = client.performRequest("OPTIONS", "/", Collections.emptyMap(), null,
                     new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue),
-                    new BasicHeader(HttpHeaders.Names.ACCESS_CONTROL_REQUEST_METHOD, "GET"));
-            assertResponseWithOriginheader(response, corsValue);
-            assertNotNull(response.getFirstHeader("Access-Control-Allow-Methods"));
+                    new BasicHeader(HttpHeaders.Names.ACCESS_CONTROL_REQUEST_METHOD, "GET"));) {
+                assertResponseWithOriginheader(response, corsValue);
+                assertNotNull(response.getFirstHeader("Access-Control-Allow-Methods"));
+            }
         }
     }
 

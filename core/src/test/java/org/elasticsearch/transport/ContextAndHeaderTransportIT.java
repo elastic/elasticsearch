@@ -221,15 +221,16 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
         }
 
         try (RestClient client = restClient()) {
-            ElasticsearchResponse response = client.performRequest("GET", "/" + queryIndex + "/_search", Collections.emptyMap(), null,
-                    new BasicHeader(randomHeaderKey, randomHeaderValue), new BasicHeader(relevantHeaderName, randomHeaderValue));
-            assertThat(response, hasStatus(OK));
-            List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);
-            assertThat(searchRequests, hasSize(greaterThan(0)));
-            for (RequestAndHeaders requestAndHeaders : searchRequests) {
-                assertThat(requestAndHeaders.headers.containsKey(relevantHeaderName), is(true));
-                // was not specified, thus is not included
-                assertThat(requestAndHeaders.headers.containsKey(randomHeaderKey), is(false));
+            try (ElasticsearchResponse response = client.performRequest("GET", "/" + queryIndex + "/_search", Collections.emptyMap(), null,
+                    new BasicHeader(randomHeaderKey, randomHeaderValue), new BasicHeader(relevantHeaderName, randomHeaderValue))) {
+                assertThat(response, hasStatus(OK));
+                List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);
+                assertThat(searchRequests, hasSize(greaterThan(0)));
+                for (RequestAndHeaders requestAndHeaders : searchRequests) {
+                    assertThat(requestAndHeaders.headers.containsKey(relevantHeaderName), is(true));
+                    // was not specified, thus is not included
+                    assertThat(requestAndHeaders.headers.containsKey(randomHeaderKey), is(false));
+                }
             }
         }
     }

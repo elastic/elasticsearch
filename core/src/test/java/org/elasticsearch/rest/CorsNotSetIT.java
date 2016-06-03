@@ -48,20 +48,22 @@ public class CorsNotSetIT extends ESIntegTestCase {
     public void testCorsSettingDefaultBehaviourDoesNotReturnAnything() throws Exception {
         String corsValue = "http://localhost:9200";
         try (RestClient restClient = restClient()) {
-            ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null,
-                    new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue));
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
-            assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
-            assertThat(response.getFirstHeader("Access-Control-Allow-Credentials"), nullValue());
+            try (ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null,
+                    new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue))) {
+                assertThat(response.getStatusLine().getStatusCode(), is(200));
+                assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
+                assertThat(response.getFirstHeader("Access-Control-Allow-Credentials"), nullValue());
+            }
         }
     }
 
     public void testThatOmittingCorsHeaderDoesNotReturnAnything() throws Exception {
         try (RestClient restClient = restClient()) {
-            ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null);
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
-            assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
-            assertThat(response.getFirstHeader("Access-Control-Allow-Credentials"), nullValue());
+            try (ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null)) {
+                assertThat(response.getStatusLine().getStatusCode(), is(200));
+                assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
+                assertThat(response.getFirstHeader("Access-Control-Allow-Credentials"), nullValue());
+            }
         }
     }
 }

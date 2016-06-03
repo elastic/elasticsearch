@@ -358,8 +358,8 @@ public final class RestClient implements Closeable {
      * Rest client builder. Helps creating a new {@link RestClient}.
      */
     public static final class Builder {
-        public static final int DEFAULT_CONNECT_TIMEOUT = 500;
-        public static final int DEFAULT_SOCKET_TIMEOUT = 5000;
+        public static final int DEFAULT_CONNECT_TIMEOUT = 1000;
+        public static final int DEFAULT_SOCKET_TIMEOUT = 10000;
         public static final int DEFAULT_MAX_RETRY_TIMEOUT = DEFAULT_SOCKET_TIMEOUT;
         public static final int DEFAULT_CONNECTION_REQUEST_TIMEOUT = 500;
 

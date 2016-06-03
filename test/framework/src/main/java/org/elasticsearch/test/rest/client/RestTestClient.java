@@ -29,8 +29,6 @@ import org.apache.http.conn.socket.PlainConnectionSocketFactory;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.lucene.util.IOUtils;
@@ -71,7 +69,8 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * REST client used to test the elasticsearch REST layer
+ * REST client used to test the elasticsearch REST layer.
+ * Wraps a {@link RestClient} instance used to send the REST requests.
  * Holds the {@link RestSpec} used to translate api calls into REST calls
  */
 public class RestTestClient implements Closeable {
@@ -136,7 +135,7 @@ public class RestTestClient implements Closeable {
 
         if ("raw".equals(apiName)) {
             // Raw requests are bit simpler....
-            HashMap<String, String> queryStringParams = new HashMap<>(params);
+            Map<String, String> queryStringParams = new HashMap<>(params);
             String method = Objects.requireNonNull(queryStringParams.remove("method"), "Method must be set to use raw request");
             String path = "/"+ Objects.requireNonNull(queryStringParams.remove("path"), "Path must be set to use raw request");
             HttpEntity entity = null;
@@ -267,7 +266,7 @@ public class RestTestClient implements Closeable {
         return restApi;
     }
 
-    protected RestClient createRestClient(URL[] urls, Settings settings) throws IOException {
+    private static RestClient createRestClient(URL[] urls, Settings settings) throws IOException {
         SSLConnectionSocketFactory sslsf;
         String keystorePath = settings.get(TRUSTSTORE_PATH);
         if (keystorePath != null) {
@@ -297,16 +296,7 @@ public class RestTestClient implements Closeable {
                 .register("http", PlainConnectionSocketFactory.getSocketFactory())
                 .register("https", sslsf)
                 .build();
-
-        List<Header> headers = new ArrayList<>();
-        try (ThreadContext threadContext = new ThreadContext(settings)) {
-            for (Map.Entry<String, String> entry : threadContext.getHeaders().entrySet()) {
-                headers.add(new BasicHeader(entry.getKey(), entry.getValue()));
-            }
-        }
-
-        CloseableHttpClient httpClient = HttpClientBuilder.create().setDefaultHeaders(headers)
-                .setConnectionManager(new PoolingHttpClientConnectionManager(socketFactoryRegistry)).build();
+        CloseableHttpClient httpClient = RestClient.Builder.createDefaultHttpClient(socketFactoryRegistry);
 
         String protocol = settings.get(PROTOCOL, "http");
         HttpHost[] hosts = new HttpHost[urls.length];
@@ -314,7 +304,17 @@ public class RestTestClient implements Closeable {
             URL url = urls[i];
             hosts[i] = new HttpHost(url.getHost(), url.getPort(), protocol);
         }
-        return RestClient.builder().setHttpClient(httpClient).setHosts(hosts).build();
+
+        RestClient.Builder builder = RestClient.builder().setHttpClient(httpClient).setHosts(hosts);
+        try (ThreadContext threadContext = new ThreadContext(settings)) {
+            Header[] defaultHeaders = new Header[threadContext.getHeaders().size()];
+            int i = 0;
+            for (Map.Entry<String, String> entry : threadContext.getHeaders().entrySet()) {
+                defaultHeaders[i++] = new BasicHeader(entry.getKey(), entry.getValue());
+            }
+            builder.setDefaultHeaders(defaultHeaders);
+        }
+        return builder.build();
     }
 
     /**

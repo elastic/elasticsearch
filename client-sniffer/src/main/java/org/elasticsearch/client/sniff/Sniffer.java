@@ -22,6 +22,7 @@ package org.elasticsearch.client.sniff;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpHost;
+import org.apache.http.config.Registry;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.elasticsearch.client.RestClient;
 
@@ -203,7 +204,7 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
         /**
          * Sets the http client. Mandatory argument. Best practice is to use the same client used
          * within {@link org.elasticsearch.client.RestClient} which can be created manually or
-         * through {@link RestClient.Builder#createDefaultHttpClient()}.
+         * through {@link RestClient.Builder#createDefaultHttpClient(Registry)}.
          * @see CloseableHttpClient
          */
         public Builder setRestClient(RestClient restClient) {

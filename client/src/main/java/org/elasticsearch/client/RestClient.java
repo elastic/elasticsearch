@@ -37,6 +37,8 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpTrace;
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.config.Registry;
+import org.apache.http.conn.socket.ConnectionSocketFactory;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -374,7 +376,7 @@ public final class RestClient implements Closeable {
 
         /**
          * Sets the http client. A new default one will be created if not
-         * specified, by calling {@link #createDefaultHttpClient()}.
+         * specified, by calling {@link #createDefaultHttpClient(Registry)})}.
          *
          * @see CloseableHttpClient
          */
@@ -427,7 +429,7 @@ public final class RestClient implements Closeable {
          */
         public RestClient build() {
             if (httpClient == null) {
-                httpClient = createDefaultHttpClient();
+                httpClient = createDefaultHttpClient(null);
             }
             if (hosts == null || hosts.length == 0) {
                 throw new IllegalArgumentException("no hosts provided");
@@ -436,12 +438,17 @@ public final class RestClient implements Closeable {
         }
 
         /**
-         * Creates an http client with default settings
+         * Creates a {@link CloseableHttpClient} with default settings. Used when the http client instance is not provided.
          *
          * @see CloseableHttpClient
          */
-        public static CloseableHttpClient createDefaultHttpClient() {
-            PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
+        public static CloseableHttpClient createDefaultHttpClient(Registry<ConnectionSocketFactory> socketFactoryRegistry) {
+            PoolingHttpClientConnectionManager connectionManager;
+            if (socketFactoryRegistry == null) {
+                connectionManager = new PoolingHttpClientConnectionManager();
+            } else {
+                connectionManager = new PoolingHttpClientConnectionManager(socketFactoryRegistry);
+            }
             //default settings may be too constraining
             connectionManager.setDefaultMaxPerRoute(10);
             connectionManager.setMaxTotal(30);

@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.URISyntaxException;
 
 /**
  * <p>Resolves certain GCE related 'meta' hostnames into an actual hostname
@@ -93,7 +94,7 @@ public class GceNameResolver extends AbstractComponent implements CustomNameReso
             // We extract the network interface from gce:privateIp:XX
             String network = "0";
             String[] privateIpConfig = value.split(":");
-            if (privateIpConfig != null && privateIpConfig.length == 3) {
+            if (privateIpConfig.length == 3) {
                 network = privateIpConfig[2];
             }
 
@@ -111,7 +112,7 @@ public class GceNameResolver extends AbstractComponent implements CustomNameReso
             }
             // only one address: because we explicitly ask for only one via the GceHostnameType
             return new InetAddress[] { InetAddress.getByName(metadataResult) };
-        } catch (IOException e) {
+        } catch (IOException | URISyntaxException e) {
             throw new IOException("IOException caught when fetching InetAddress from [" + gceMetadataPath + "]", e);
         }
     }

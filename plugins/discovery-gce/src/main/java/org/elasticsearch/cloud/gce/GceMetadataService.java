@@ -23,6 +23,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.function.Function;
 
 /**
@@ -42,5 +43,5 @@ public interface GceMetadataService extends LifecycleComponent<GceMetadataServic
      * @return extracted information (for example a hostname or an IP address)
      * @throws IOException in case metadata URL is not accessible
      */
-    String metadata(String metadataPath) throws IOException;
+    String metadata(String metadataPath) throws IOException, URISyntaxException;
 }

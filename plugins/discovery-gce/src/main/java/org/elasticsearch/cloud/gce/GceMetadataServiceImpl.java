@@ -24,7 +24,6 @@ import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpTransport;
-import com.google.api.client.json.JsonFactory;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.gce.network.GceNameResolver;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -34,12 +33,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.security.AccessController;
 import java.security.GeneralSecurityException;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedExceptionAction;
-import java.util.List;
 import java.util.function.Function;
 
 public class GceMetadataServiceImpl extends AbstractLifecycleComponent<GceMetadataService> implements GceMetadataService {
@@ -54,18 +54,10 @@ public class GceMetadataServiceImpl extends AbstractLifecycleComponent<GceMetada
     /** Global instance of the HTTP transport. */
     private HttpTransport gceHttpTransport;
 
-    // Forcing Google Token API URL as set in GCE SDK to
-    //      http://metadata/computeMetadata/v1/instance/service-accounts/default/token
-    // See https://developers.google.com/compute/docs/metadata#metadataserver
-    private final String gceHost;
-    private final String metaDataUrl;
-
     @Inject
     public GceMetadataServiceImpl(Settings settings, NetworkService networkService) {
         super(settings);
         networkService.addCustomNameResolver(new GceNameResolver(settings, this));
-        this.gceHost = GCE_HOST.get(settings);
-        this.metaDataUrl =  gceHost + "/computeMetadata/v1/instance";
     }
 
     protected synchronized HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {
@@ -76,10 +68,12 @@ public class GceMetadataServiceImpl extends AbstractLifecycleComponent<GceMetada
     }
 
     @Override
-    public String metadata(String metadataPath) throws IOException {
-        String urlMetadataNetwork = this.metaDataUrl + "/" + metadataPath;
+    public String metadata(String metadataPath) throws IOException, URISyntaxException {
+        // Forcing Google Token API URL as set in GCE SDK to
+        //      http://metadata/computeMetadata/v1/instance/service-accounts/default/token
+        // See https://developers.google.com/compute/docs/metadata#metadataserver
+        final URI urlMetadataNetwork = new URI(GCE_HOST.get(settings)).resolve("/computeMetadata/v1/instance/").resolve(metadataPath);
         logger.debug("get metadata from [{}]", urlMetadataNetwork);
-        final URL url = new URL(urlMetadataNetwork);
         HttpHeaders headers;
         try {
             // hack around code messiness in GCE code
@@ -97,7 +91,7 @@ public class GceMetadataServiceImpl extends AbstractLifecycleComponent<GceMetada
             GenericUrl genericUrl = AccessController.doPrivileged(new PrivilegedAction<GenericUrl>() {
                 @Override
                 public GenericUrl run() {
-                    return new GenericUrl(url);
+                    return new GenericUrl(urlMetadataNetwork);
                 }
             });
 

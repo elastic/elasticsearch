@@ -211,7 +211,13 @@ public class TransportClientNodesService extends AbstractComponent {
     }
 
     public <Response> void execute(NodeListenerCallback<Response> callback, ActionListener<Response> listener) {
-        List<DiscoveryNode> nodes = this.nodes;
+        List<DiscoveryNode> nodes;
+        synchronized (mutex) {
+            if (closed) {
+                throw new IllegalStateException("transport client is closed");
+            }
+            nodes = this.nodes;
+        }
         ensureNodesAreAvailable(nodes);
         int index = getNodeNumber();
         RetryListener<Response> retryListener = new RetryListener<>(callback, listener, nodes, index);

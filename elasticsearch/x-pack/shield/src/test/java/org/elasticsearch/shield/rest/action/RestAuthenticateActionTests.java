@@ -51,8 +51,9 @@ public class RestAuthenticateActionTests extends ShieldIntegTestCase {
     }
 
     public void testAuthenticateApi() throws Exception {
-        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/_xpack/security/_authenticate", Collections.emptyMap(),
-                null, new BasicHeader("Authorization", basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
+        try (ElasticsearchResponse response = getRestClient().performRequest(
+                "GET", "/_xpack/security/_authenticate", Collections.emptyMap(), null,
+                new BasicHeader("Authorization", basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
                         new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
             JsonPath jsonPath = new JsonPath(EntityUtils.toString(response.getEntity()));

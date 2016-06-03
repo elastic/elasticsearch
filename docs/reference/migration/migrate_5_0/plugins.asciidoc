@@ -95,9 +95,25 @@ cloud:
 
 Cloud GCE plugin has been renamed to {plugins}/discovery-gce.html[Discovery GCE plugin].
 
+==== Delete-By-Query plugin removed
+
+The Delete-By-Query plugin has been removed in favor of a new <<docs-delete-by-query,Delete By Query API>>
+implementation in core. It now supports throttling, retries and cancellation but no longer supports timeouts.
+Instead use the <<docs-delete-by-query-cancel-task-api,cancel API>> to cancel deletes that run too long.
 
 ==== Mapper Attachments plugin deprecated
 
 Mapper attachments has been deprecated. Users should use now the {plugins}/ingest-attachment.html[`ingest-attachment`]
 plugin.
 
+==== Passing of Java System Properties
+
+Previously, Java system properties could be passed to the plugin
+command by passing `-D` style arguments directly to the plugin script.
+This is no longer permitted and such system properties must be passed
+via ES_JAVA_OPTS.
+
+==== Custom plugins path
+
+The ability to specify a custom plugins path via `path.plugins` has
+been removed.

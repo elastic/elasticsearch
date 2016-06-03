@@ -53,10 +53,11 @@ public class SignificantTermsParser extends AbstractTermsParser {
     }
 
     @Override
-    protected SignificantTermsAggregatorBuilder doCreateFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode collectMode, String executionHint,
-            IncludeExclude incExc, Map<ParseField, Object> otherOptions) {
-        SignificantTermsAggregatorBuilder factory = new SignificantTermsAggregatorBuilder(aggregationName, targetValueType);
+    protected SignificantTermsAggregationBuilder doCreateFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                                 ValueType targetValueType, BucketCountThresholds bucketCountThresholds,
+                                                                 SubAggCollectionMode collectMode, String executionHint,
+                                                                 IncludeExclude incExc, Map<ParseField, Object> otherOptions) {
+        SignificantTermsAggregationBuilder factory = new SignificantTermsAggregationBuilder(aggregationName, targetValueType);
         if (bucketCountThresholds != null) {
             factory.bucketCountThresholds(bucketCountThresholds);
         }
@@ -66,11 +67,12 @@ public class SignificantTermsParser extends AbstractTermsParser {
         if (incExc != null) {
             factory.includeExclude(incExc);
         }
-        QueryBuilder<?> backgroundFilter = (QueryBuilder<?>) otherOptions.get(SignificantTermsAggregatorBuilder.BACKGROUND_FILTER);
+        QueryBuilder backgroundFilter = (QueryBuilder) otherOptions.get(SignificantTermsAggregationBuilder.BACKGROUND_FILTER);
         if (backgroundFilter != null) {
             factory.backgroundFilter(backgroundFilter);
         }
-        SignificanceHeuristic significanceHeuristic = (SignificanceHeuristic) otherOptions.get(SignificantTermsAggregatorBuilder.HEURISTIC);
+        SignificanceHeuristic significanceHeuristic =
+            (SignificanceHeuristic) otherOptions.get(SignificantTermsAggregationBuilder.HEURISTIC);
         if (significanceHeuristic != null) {
             factory.significanceHeuristic(significanceHeuristic);
         }
@@ -85,12 +87,12 @@ public class SignificantTermsParser extends AbstractTermsParser {
                     .lookupReturningNullIfNotFound(currentFieldName, parseFieldMatcher);
             if (significanceHeuristicParser != null) {
                 SignificanceHeuristic significanceHeuristic = significanceHeuristicParser.parse(parser, parseFieldMatcher);
-                otherOptions.put(SignificantTermsAggregatorBuilder.HEURISTIC, significanceHeuristic);
+                otherOptions.put(SignificantTermsAggregationBuilder.HEURISTIC, significanceHeuristic);
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, SignificantTermsAggregatorBuilder.BACKGROUND_FILTER)) {
+            } else if (parseFieldMatcher.match(currentFieldName, SignificantTermsAggregationBuilder.BACKGROUND_FILTER)) {
                 QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
-                QueryBuilder<?> filter = queryParseContext.parseInnerQueryBuilder();
-                otherOptions.put(SignificantTermsAggregatorBuilder.BACKGROUND_FILTER, filter);
+                QueryBuilder filter = queryParseContext.parseInnerQueryBuilder();
+                otherOptions.put(SignificantTermsAggregationBuilder.BACKGROUND_FILTER, filter);
                 return true;
             }
         }
@@ -99,6 +101,6 @@ public class SignificantTermsParser extends AbstractTermsParser {
 
     @Override
     protected BucketCountThresholds getDefaultBucketCountThresholds() {
-        return new TermsAggregator.BucketCountThresholds(SignificantTermsAggregatorBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS);
+        return new TermsAggregator.BucketCountThresholds(SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS);
     }
 }

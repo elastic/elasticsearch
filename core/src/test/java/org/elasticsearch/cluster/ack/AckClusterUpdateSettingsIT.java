@@ -81,7 +81,7 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().get();
         String excludedNodeId = null;
-        for (NodeInfo nodeInfo : nodesInfo) {
+        for (NodeInfo nodeInfo : nodesInfo.getNodes()) {
             if (nodeInfo.getNode().isDataNode()) {
                 excludedNodeId = nodeInfo.getNode().getId();
                 break;
@@ -96,7 +96,7 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
 
         for (Client client : clients()) {
             ClusterState clusterState = getLocalClusterState(client);
-            assertThat(clusterState.getRoutingNodes().metaData().transientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
+            assertThat(clusterState.metaData().transientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
             for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
                 for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                     for (ShardRouting shardRouting : indexShardRoutingTable) {
@@ -124,7 +124,7 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().get();
         String excludedNodeId = null;
-        for (NodeInfo nodeInfo : nodesInfo) {
+        for (NodeInfo nodeInfo : nodesInfo.getNodes()) {
             if (nodeInfo.getNode().isDataNode()) {
                 excludedNodeId = nodeInfo.getNode().getId();
                 break;

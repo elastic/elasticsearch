@@ -21,6 +21,7 @@ package org.elasticsearch.rest.action.admin.indices.template.head;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -57,9 +58,9 @@ public class RestHeadIndexTemplateAction extends BaseRestHandler {
             public RestResponse buildResponse(GetIndexTemplatesResponse getIndexTemplatesResponse) {
                 boolean templateExists = getIndexTemplatesResponse.getIndexTemplates().size() > 0;
                 if (templateExists) {
-                    return new BytesRestResponse(OK);
+                    return new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
                 } else {
-                    return new BytesRestResponse(NOT_FOUND);
+                    return new BytesRestResponse(NOT_FOUND, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
                 }
             }
         });

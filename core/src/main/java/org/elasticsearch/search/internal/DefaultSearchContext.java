@@ -25,12 +25,10 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasables;
@@ -49,7 +47,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.percolator.PercolatorQueryCache;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -71,6 +68,7 @@ import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
@@ -92,7 +90,6 @@ public class DefaultSearchContext extends SearchContext {
     private SearchType searchType;
     private final Engine.Searcher engineSearcher;
     private final ScriptService scriptService;
-    private final PageCacheRecycler pageCacheRecycler;
     private final BigArrays bigArrays;
     private final IndexShard indexShard;
     private final IndexService indexService;
@@ -114,7 +111,7 @@ public class DefaultSearchContext extends SearchContext {
     private FetchSourceContext fetchSourceContext;
     private int from = -1;
     private int size = -1;
-    private Sort sort;
+    private SortAndFormats sort;
     private Float minimumScore;
     private boolean trackScores = false; // when sorting, track scores as well...
     private FieldDoc searchAfter;
@@ -154,7 +151,7 @@ public class DefaultSearchContext extends SearchContext {
     private FetchPhase fetchPhase;
 
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget, Engine.Searcher engineSearcher,
-            IndexService indexService, IndexShard indexShard, ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
+            IndexService indexService, IndexShard indexShard, ScriptService scriptService,
             BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher, TimeValue timeout,
             FetchPhase fetchPhase) {
         super(parseFieldMatcher);
@@ -165,7 +162,6 @@ public class DefaultSearchContext extends SearchContext {
         this.shardTarget = shardTarget;
         this.engineSearcher = engineSearcher;
         this.scriptService = scriptService;
-        this.pageCacheRecycler = pageCacheRecycler;
         // SearchContexts use a BigArrays that can circuit break
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.dfsResult = new DfsSearchResult(id, shardTarget);
@@ -216,7 +212,7 @@ public class DefaultSearchContext extends SearchContext {
                             + "be less than [" + maxWindow + "]. This prevents allocating massive heaps for storing the results to be "
                             + "rescored. This limit can be set by chaning the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey()
                             + "] index level setting.");
-                
+
                 }
             }
         }
@@ -476,11 +472,6 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public PageCacheRecycler pageCacheRecycler() {
-        return pageCacheRecycler;
-    }
-
-    @Override
     public BigArrays bigArrays() {
         return bigArrays;
     }
@@ -493,11 +484,6 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public IndexFieldDataService fieldData() {
         return indexService.fieldData();
-    }
-
-    @Override
-    public PercolatorQueryCache percolatorQueryCache() {
-        return indexService.cache().getPercolatorQueryCache();
     }
 
     @Override
@@ -532,13 +518,13 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext sort(Sort sort) {
+    public SearchContext sort(SortAndFormats sort) {
         this.sort = sort;
         return this;
     }
 
     @Override
-    public Sort sort() {
+    public SortAndFormats sort() {
         return this.sort;
     }
 

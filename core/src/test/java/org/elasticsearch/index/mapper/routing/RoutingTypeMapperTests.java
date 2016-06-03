@@ -36,11 +36,11 @@ public class RoutingTypeMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source(XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .field("field", "value")
             .endObject()
-            .bytes()).type("type").id("1").routing("routing_value"));
+            .bytes()).routing("routing_value"));
 
         assertThat(doc.rootDoc().get("_routing"), equalTo("routing_value"));
         assertThat(doc.rootDoc().get("field"), equalTo("value"));

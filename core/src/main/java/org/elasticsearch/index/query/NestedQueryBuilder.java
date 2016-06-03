@@ -57,7 +57,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     private final String path;
     private final ScoreMode scoreMode;
-    private final QueryBuilder<?> query;
+    private final QueryBuilder query;
     private InnerHitBuilder innerHitBuilder;
     private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
@@ -161,7 +161,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         ScoreMode scoreMode = ScoreMode.Avg;
         String queryName = null;
-        QueryBuilder<?> query = null;
+        QueryBuilder query = null;
         String path = null;
         String currentFieldName = null;
         InnerHitBuilder innerHitBuilder = null;
@@ -259,7 +259,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewrite = query.rewrite(queryRewriteContext);
         if (rewrite != query) {
             return new NestedQueryBuilder(path, rewrite, scoreMode, innerHitBuilder);

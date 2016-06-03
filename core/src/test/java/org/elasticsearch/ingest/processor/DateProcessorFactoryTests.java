@@ -120,7 +120,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         config.put("field", sourceField);
         config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
 
-        DateTimeZone timezone = randomTimezone();
+        DateTimeZone timezone = randomDateTimeZone();
         config.put("timezone", timezone.getID());
         DateProcessor processor = factory.create(config);
         assertThat(processor.getTimezone(), equalTo(timezone));
@@ -140,14 +140,6 @@ public class DateProcessorFactoryTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("The datetime zone id 'invalid_timezone' is not recognised"));
         }
     }
-
-    //we generate a timezone out of the available ones in joda, some available in the jdk are not available in joda by default
-    private static DateTimeZone randomTimezone() {
-        List<String> ids = new ArrayList<>(DateTimeZone.getAvailableIDs());
-        Collections.sort(ids);
-        return DateTimeZone.forID(randomFrom(ids));
-    }
-
 
     public void testParseMatchFormats() throws Exception {
         DateProcessor.Factory factory = new DateProcessor.Factory();

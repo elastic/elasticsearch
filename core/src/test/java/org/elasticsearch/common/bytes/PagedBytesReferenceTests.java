@@ -51,7 +51,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        bigarrays = new BigArrays(null, new NoneCircuitBreakerService());
+        bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), false);
     }
 
     @Override

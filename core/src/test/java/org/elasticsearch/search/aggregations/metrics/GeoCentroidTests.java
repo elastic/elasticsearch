@@ -21,13 +21,13 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregationBuilder;
 
-public class GeoCentroidTests extends BaseAggregationTestCase<GeoCentroidAggregatorBuilder> {
+public class GeoCentroidTests extends BaseAggregationTestCase<GeoCentroidAggregationBuilder> {
 
     @Override
-    protected GeoCentroidAggregatorBuilder createTestAggregatorBuilder() {
-        GeoCentroidAggregatorBuilder factory = new GeoCentroidAggregatorBuilder(randomAsciiOfLengthBetween(1, 20));
+    protected GeoCentroidAggregationBuilder createTestAggregatorBuilder() {
+        GeoCentroidAggregationBuilder factory = new GeoCentroidAggregationBuilder(randomAsciiOfLengthBetween(1, 20));
         String field = randomNumericField();
         int randomFieldBranch = randomInt(3);
         switch (randomFieldBranch) {

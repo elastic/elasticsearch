@@ -796,7 +796,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         AllocationCommand relocate1 = new MoveAllocationCommand("test", 0, "node2", "node3");
         AllocationCommands cmds = new AllocationCommands(relocate1);
 
-        routingTable = strategy.reroute(clusterState, cmds).routingTable();
+        routingTable = strategy.reroute(clusterState, cmds, false, false).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         logShardStates(clusterState);
 
@@ -808,7 +808,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             // node3, which will put it over the low watermark when it
             // completes, with shard relocations taken into account this should
             // throw an exception about not being able to complete
-            strategy.reroute(clusterState, cmds).routingTable();
+            strategy.reroute(clusterState, cmds, false, false).routingTable();
             fail("should not have been able to reroute the shard");
         } catch (IllegalArgumentException e) {
             assertThat("can't allocated because there isn't enough room: " + e.getMessage(),
@@ -862,7 +862,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         // Two shards consuming each 80% of disk space while 70% is allowed, so shard 0 isn't allowed here
         ShardRouting firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, null, true, ShardRoutingState.STARTED);
         ShardRouting secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", null, null, true, ShardRoutingState.STARTED);
-        RoutingNode firstRoutingNode = new RoutingNode("node1", discoveryNode1, Arrays.asList(firstRouting, secondRouting));
+        RoutingNode firstRoutingNode = new RoutingNode("node1", discoveryNode1, firstRouting, secondRouting);
         RoutingTable.Builder builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder(firstRouting.index())
                         .addIndexShard(new IndexShardRoutingTable.Builder(firstRouting.shardId())
@@ -875,15 +875,15 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         )
         );
         ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo,
-                System.nanoTime());
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), clusterState, clusterInfo,
+                System.nanoTime(), false);
         Decision decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
 
         // Two shards consuming each 80% of disk space while 70% is allowed, but one is relocating, so shard 0 can stay
         firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, null, true, ShardRoutingState.STARTED);
         secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", "node2", null, true, ShardRoutingState.RELOCATING);
-        firstRoutingNode = new RoutingNode("node1", discoveryNode1, Arrays.asList(firstRouting, secondRouting));
+        firstRoutingNode = new RoutingNode("node1", discoveryNode1, firstRouting, secondRouting);
         builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder(firstRouting.index())
                         .addIndexShard(new IndexShardRoutingTable.Builder(firstRouting.shardId())
@@ -896,7 +896,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         )
         );
         clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
-        routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo, System.nanoTime());
+        routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), clusterState, clusterInfo, System.nanoTime(),
+            false);
         decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
 
@@ -977,7 +978,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         // Two shards consumes 80% of disk space in data node, but we have only one data node, shards should remain.
         ShardRouting firstRouting = TestShardRouting.newShardRouting("test", 0, "node2", null, null, true, ShardRoutingState.STARTED);
         ShardRouting secondRouting = TestShardRouting.newShardRouting("test", 1, "node2", null, null, true, ShardRoutingState.STARTED);
-        RoutingNode firstRoutingNode = new RoutingNode("node2", discoveryNode2, Arrays.asList(firstRouting, secondRouting));
+        RoutingNode firstRoutingNode = new RoutingNode("node2", discoveryNode2, firstRouting, secondRouting);
 
         RoutingTable.Builder builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder(firstRouting.index())
@@ -991,8 +992,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         )
         );
         ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo,
-                System.nanoTime());
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), clusterState, clusterInfo,
+                System.nanoTime(), false);
         Decision decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
 
         // Two shards should start happily
@@ -1037,7 +1038,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         firstRouting = TestShardRouting.newShardRouting("test", 0, "node2", null, null, true, ShardRoutingState.STARTED);
         secondRouting = TestShardRouting.newShardRouting("test", 1, "node2", "node3", null, true, ShardRoutingState.RELOCATING);
-        firstRoutingNode = new RoutingNode("node2", discoveryNode2, Arrays.asList(firstRouting, secondRouting));
+        firstRoutingNode = new RoutingNode("node2", discoveryNode2, firstRouting, secondRouting);
         builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder(firstRouting.index())
                         .addIndexShard(new IndexShardRoutingTable.Builder(firstRouting.shardId())
@@ -1051,7 +1052,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         );
 
         clusterState = ClusterState.builder(updateClusterState).routingTable(builder.build()).build();
-        routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo, System.nanoTime());
+        routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), clusterState, clusterInfo, System.nanoTime(),
+            false);
         decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
 

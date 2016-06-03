@@ -38,6 +38,8 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.AbstractQueryTestCase;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -53,9 +55,8 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     protected static final String PARENT_TYPE = "parent";
     protected static final String CHILD_TYPE = "child";
 
-    @BeforeClass
-    public static void beforeClass() throws Exception {
-        MapperService mapperService = createShardContext().getMapperService();
+    @Override
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
                 STRING_FIELD_NAME, "type=text",
                 STRING_FIELD_NAME_2, "type=keyword",
@@ -121,8 +122,8 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 InnerHitsContext.BaseInnerHits innerHits = searchContext.innerHits()
                         .getInnerHits().get(queryBuilder.innerHit().getName());
                 assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
-                assertEquals(innerHits.sort().getSort().length, 1);
-                assertEquals(innerHits.sort().getSort()[0].getField(), STRING_FIELD_NAME_2);
+                assertEquals(innerHits.sort().sort.getSort().length, 1);
+                assertEquals(innerHits.sort().sort.getSort()[0].getField(), STRING_FIELD_NAME_2);
             } else {
                 assertThat(searchContext.innerHits().getInnerHits().size(), equalTo(0));
             }

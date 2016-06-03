@@ -20,7 +20,7 @@
 package org.elasticsearch.monitor.os;
 
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.SuppressForbidden;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.monitor.Probes;
 

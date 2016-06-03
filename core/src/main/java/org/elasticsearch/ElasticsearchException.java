@@ -21,9 +21,9 @@ package org.elasticsearch;
 
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,7 +47,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VAL
 /**
  * A base class for all elasticsearch exceptions.
  */
-public class ElasticsearchException extends RuntimeException implements ToXContent {
+public class ElasticsearchException extends RuntimeException implements ToXContent, Writeable {
 
     public static final String REST_EXCEPTION_SKIP_CAUSE = "rest.exception.cause.skip";
     public static final String REST_EXCEPTION_SKIP_STACK_TRACE = "rest.exception.stacktrace.skip";
@@ -200,41 +200,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         return rootCause;
     }
 
-    /**
-     * Check whether this exception contains an exception of the given type:
-     * either it is of the given class itself or it contains a nested cause
-     * of the given type.
-     *
-     * @param exType the exception type to look for
-     * @return whether there is a nested exception of the specified type
-     */
-    public boolean contains(Class<? extends Throwable> exType) {
-        if (exType == null) {
-            return false;
-        }
-        if (exType.isInstance(this)) {
-            return true;
-        }
-        Throwable cause = getCause();
-        if (cause == this) {
-            return false;
-        }
-        if (cause instanceof ElasticsearchException) {
-            return ((ElasticsearchException) cause).contains(exType);
-        } else {
-            while (cause != null) {
-                if (exType.isInstance(cause)) {
-                    return true;
-                }
-                if (cause.getCause() == cause) {
-                    break;
-                }
-                cause = cause.getCause();
-            }
-            return false;
-        }
-    }
-
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(this.getMessage());
         out.writeThrowable(this.getCause());
@@ -530,7 +496,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.shard.IndexShardStartedException::new, 23),
         SEARCH_CONTEXT_MISSING_EXCEPTION(org.elasticsearch.search.SearchContextMissingException.class,
                 org.elasticsearch.search.SearchContextMissingException::new, 24),
-        SCRIPT_EXCEPTION(org.elasticsearch.script.ScriptException.class, org.elasticsearch.script.ScriptException::new, 25),
+        GENERAL_SCRIPT_EXCEPTION(org.elasticsearch.script.GeneralScriptException.class, 
+                org.elasticsearch.script.GeneralScriptException::new, 25),
         BATCH_OPERATION_EXCEPTION(org.elasticsearch.index.shard.TranslogRecoveryPerformer.BatchOperationException.class,
                 org.elasticsearch.index.shard.TranslogRecoveryPerformer.BatchOperationException::new, 26),
         SNAPSHOT_CREATION_EXCEPTION(org.elasticsearch.snapshots.SnapshotCreationException.class,
@@ -679,8 +646,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.shard.IndexShardRecoveryException::new, 106),
         REPOSITORY_MISSING_EXCEPTION(org.elasticsearch.repositories.RepositoryMissingException.class,
                 org.elasticsearch.repositories.RepositoryMissingException::new, 107),
-        PERCOLATOR_EXCEPTION(org.elasticsearch.index.percolator.PercolatorException.class,
-                org.elasticsearch.index.percolator.PercolatorException::new, 108),
         DOCUMENT_SOURCE_MISSING_EXCEPTION(org.elasticsearch.index.engine.DocumentSourceMissingException.class,
                 org.elasticsearch.index.engine.DocumentSourceMissingException::new, 109),
         FLUSH_NOT_ALLOWED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.FlushNotAllowedEngineException.class,
@@ -742,7 +707,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         QUERY_SHARD_EXCEPTION(org.elasticsearch.index.query.QueryShardException.class,
                 org.elasticsearch.index.query.QueryShardException::new, 141),
         NO_LONGER_PRIMARY_SHARD_EXCEPTION(ShardStateAction.NoLongerPrimaryShardException.class,
-                ShardStateAction.NoLongerPrimaryShardException::new, 142);
+                ShardStateAction.NoLongerPrimaryShardException::new, 142),
+        SCRIPT_EXCEPTION(org.elasticsearch.script.ScriptException.class, org.elasticsearch.script.ScriptException::new, 143);
 
 
         final Class<? extends ElasticsearchException> exceptionClass;

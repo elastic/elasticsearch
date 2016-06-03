@@ -383,6 +383,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         return mappings.get(mappingType);
     }
 
+    public static final Setting<String> INDEX_SHRINK_SOURCE_UUID = Setting.simpleString("index.shrink.source.uuid");
+    public static final Setting<String> INDEX_SHRINK_SOURCE_NAME = Setting.simpleString("index.shrink.source.name");
+
+
+    public Index getMergeSourceIndex() {
+        return INDEX_SHRINK_SOURCE_UUID.exists(settings) ? new Index(INDEX_SHRINK_SOURCE_NAME.get(settings),  INDEX_SHRINK_SOURCE_UUID.get(settings)) : null;
+    }
+
     /**
      * Sometimes, the default mapping exists and an actual mapping is not created yet (introduced),
      * in this case, we want to return the default mapping in case it has some default mapping definitions.

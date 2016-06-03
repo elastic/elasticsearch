@@ -85,8 +85,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -120,7 +120,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = new TransportService(transport, threadPool);
+        transportService = new TransportService(transport, threadPool, clusterService.state().getClusterName());
         transportService.start();
         transportService.acceptIncomingRequests();
         action = new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool);
@@ -503,8 +503,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         // check that at unknown node fails
         PlainActionFuture<TransportResponse.Empty> listener = new PlainActionFuture<>();
         proxy.performOn(
-            TestShardRouting.newShardRouting(shardId.getIndex(), shardId.id(), "NOT THERE", false,
-                randomFrom(ShardRoutingState.values())),
+            TestShardRouting.newShardRouting(shardId, "NOT THERE", false, randomFrom(ShardRoutingState.values())),
             new Request(), listener);
         assertTrue(listener.isDone());
         assertListenerThrows("non existent node should throw a NoNodeAvailableException", listener, NoNodeAvailableException.class);
@@ -592,7 +591,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         };
         primaryPhase.messageReceived(new Request(shardId), createTransportChannel(new PlainActionFuture<>()), null);
     }
-
 
     public void testCounterOnPrimary() throws Exception {
         final String index = "test";

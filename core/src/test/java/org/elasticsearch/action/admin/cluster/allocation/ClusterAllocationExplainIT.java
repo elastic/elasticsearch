@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.HashMap;
 import java.util.List;
@@ -37,7 +36,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Tests for the cluster allocation explanation
@@ -54,7 +52,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             @Override
             public void run() {
                 NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().get();
-                assertThat(resp.getNodes().length, equalTo(3));
+                assertThat(resp.getNodes().size(), equalTo(3));
             }
         });
 
@@ -122,6 +120,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertThat(cae.getShard().getIndexName(), equalTo("only-foo"));
         assertFalse(cae.isPrimary());
         assertFalse(cae.isAssigned());
+        assertFalse(cae.isStillFetchingShardData());
         assertThat(UnassignedInfo.Reason.INDEX_CREATED, equalTo(cae.getUnassignedInfo().getReason()));
         assertThat("expecting no remaining delay: " + cae.getRemainingDelayMillis(), cae.getRemainingDelayMillis(), equalTo(0L));
 

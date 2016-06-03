@@ -24,8 +24,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 
@@ -60,7 +60,7 @@ public class AvgBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAgg
 
     @Override
     public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-            List<PipelineAggregatorBuilder<?>> pipelineAggregatorFactories) {
+            List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");
@@ -75,7 +75,7 @@ public class AvgBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAgg
     public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
         @Override
         protected AvgBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
-                String bucketsPath, Map<String, Object> unparsedParams) {
+                String bucketsPath, Map<String, Object> params) {
             return new AvgBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
         }
     };

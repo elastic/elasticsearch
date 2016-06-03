@@ -23,27 +23,25 @@ import com.carrotsearch.hppc.ObjectHashSet;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
-import org.apache.lucene.document.FieldType;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.script.ScriptService;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -92,11 +90,13 @@ public class MapperService extends AbstractIndexComponent {
             Setting.longSetting("index.mapping.depth.limit", 20L, 1, Property.Dynamic, Property.IndexScope);
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
     public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING =
-        Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, Property.IndexScope);
+        Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, Property.Dynamic, Property.IndexScope);
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
     );
+    @Deprecated
+    public static final String PERCOLATOR_LEGACY_TYPE_NAME = ".percolator";
 
     private final AnalysisService analysisService;
 
@@ -175,6 +175,35 @@ public class MapperService extends AbstractIndexComponent {
 
     public DocumentMapperParser documentMapperParser() {
         return this.documentParser;
+    }
+
+    public static Map<String, Object> parseMapping(String mappingSource) throws Exception {
+        try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource)) {
+            return parser.map();
+        }
+    }
+
+    //TODO: make this atomic
+    public void merge(Map<String, Map<String, Object>> mappings, boolean updateAllTypes) throws MapperParsingException {
+        // first, add the default mapping
+        if (mappings.containsKey(DEFAULT_MAPPING)) {
+            try {
+                this.merge(DEFAULT_MAPPING, new CompressedXContent(XContentFactory.jsonBuilder().map(mappings.get(DEFAULT_MAPPING)).string()), MergeReason.MAPPING_UPDATE, updateAllTypes);
+            } catch (Exception e) {
+                throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, DEFAULT_MAPPING, e.getMessage());
+            }
+        }
+        for (Map.Entry<String, Map<String, Object>> entry : mappings.entrySet()) {
+            if (entry.getKey().equals(DEFAULT_MAPPING)) {
+                continue;
+            }
+            try {
+                // apply the default here, its the first time we parse it
+                this.merge(entry.getKey(), new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).string()), MergeReason.MAPPING_UPDATE, updateAllTypes);
+            } catch (Exception e) {
+                throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
+            }
+        }
     }
 
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason, boolean updateAllTypes) {
@@ -269,7 +298,6 @@ public class MapperService extends AbstractIndexComponent {
             checkNestedFieldsLimit(fullPathObjectMappers);
             checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size());
             checkDepthLimit(fullPathObjectMappers.keySet());
-            checkPercolatorFieldLimit(fieldTypes);
         }
 
         Set<String> parentTypes = this.parentTypes;
@@ -321,7 +349,7 @@ public class MapperService extends AbstractIndexComponent {
     private boolean typeNameStartsWithIllegalDot(DocumentMapper mapper) {
         boolean legacyIndex = getIndexSettings().getIndexVersionCreated().before(Version.V_5_0_0_alpha1);
         if (legacyIndex) {
-            return mapper.type().startsWith(".") && !PercolatorFieldMapper.LEGACY_TYPE_NAME.equals(mapper.type());
+            return mapper.type().startsWith(".") && !PERCOLATOR_LEGACY_TYPE_NAME.equals(mapper.type());
         } else {
             return mapper.type().startsWith(".");
         }
@@ -429,25 +457,6 @@ public class MapperService extends AbstractIndexComponent {
         if (depth > maxDepth) {
             throw new IllegalArgumentException("Limit of mapping depth [" + maxDepth + "] in index [" + index().getName()
                     + "] has been exceeded due to object field [" + objectPath + "]");
-        }
-    }
-
-    /**
-     * We only allow upto 1 percolator field per index.
-     *
-     * Reasoning here is that the PercolatorQueryCache only supports a single document having a percolator query.
-     * Also specifying multiple queries per document feels like an anti pattern
-     */
-    private void checkPercolatorFieldLimit(Iterable<MappedFieldType> fieldTypes) {
-        List<String> percolatorFieldTypes = new ArrayList<>();
-        for (MappedFieldType fieldType : fieldTypes) {
-            if (fieldType instanceof PercolatorFieldMapper.PercolatorFieldType) {
-                percolatorFieldTypes.add(fieldType.name());
-            }
-        }
-        if (percolatorFieldTypes.size() > 1) {
-            throw new IllegalArgumentException("Up to one percolator field type is allowed per index, " +
-                    "found the following percolator fields [" + percolatorFieldTypes + "]");
         }
     }
 

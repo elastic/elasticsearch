@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest.core;
 
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
@@ -30,11 +29,11 @@ import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 
-import java.io.IOException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -43,14 +42,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TimeZone;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
  */
 public final class IngestDocument {
 
     public final static String INGEST_KEY = "_ingest";
+    private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
+    private static final String SOURCE_PREFIX = SourceFieldMapper.NAME + ".";
 
     static final String TIMESTAMP = "timestamp";
 
@@ -142,11 +141,7 @@ public final class IngestDocument {
         if (object instanceof byte[]) {
             return (byte[]) object;
         } else if (object instanceof String) {
-            try {
-                return Base64.decode(object.toString().getBytes(UTF_8));
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Could not base64 decode path [ " + path + "]", e);
-            }
+            return Base64.getDecoder().decode(object.toString());
         } else {
             throw new IllegalArgumentException("Content field [" + path + "] of unknown type [" + object.getClass().getName() +
                 "], must be string or byte array");
@@ -462,7 +457,6 @@ public final class IngestDocument {
 
     private static void appendValues(List<Object> list, Object value) {
         if (value instanceof List) {
-            @SuppressWarnings("unchecked")
             List<?> valueList = (List<?>) value;
             valueList.stream().forEach(list::add);
         } else {
@@ -600,6 +594,7 @@ public final class IngestDocument {
     }
 
     private class FieldPath {
+
         private final String[] pathElements;
         private final Object initialContext;
 
@@ -608,21 +603,22 @@ public final class IngestDocument {
                 throw new IllegalArgumentException("path cannot be null nor empty");
             }
             String newPath;
-            if (path.startsWith(INGEST_KEY + ".")) {
+            if (path.startsWith(INGEST_KEY_PREFIX)) {
                 initialContext = ingestMetadata;
-                newPath = path.substring(8, path.length());
+                newPath = path.substring(INGEST_KEY_PREFIX.length(), path.length());
             } else {
                 initialContext = sourceAndMetadata;
-                if (path.startsWith(SourceFieldMapper.NAME + ".")) {
-                    newPath = path.substring(8, path.length());
+                if (path.startsWith(SOURCE_PREFIX)) {
+                    newPath = path.substring(SOURCE_PREFIX.length(), path.length());
                 } else {
                     newPath = path;
                 }
             }
-            this.pathElements = Strings.splitStringToArray(newPath, '.');
-            if (pathElements.length == 0) {
+            this.pathElements = newPath.split("\\.");
+            if (pathElements.length == 1 && pathElements[0].isEmpty()) {
                 throw new IllegalArgumentException("path [" + path + "] is not valid");
             }
         }
+
     }
 }

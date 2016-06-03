@@ -40,7 +40,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -234,13 +233,6 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
-                float base = parse(value);
-                float delta = fuzziness.asFloat();
-                return rangeQuery(field, base - delta, base + delta, true, true);
-            }
-
-            @Override
             public List<Field> createFields(String name, Number value,
                                             boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
@@ -262,7 +254,7 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                                     boolean isSearchable, boolean isAggregatable) throws IOException {
                 long size = XPointValues.size(reader, fieldName);
                 if (size == 0) {
-                    return new FieldStats.Double(reader.maxDoc(), isSearchable, isAggregatable);
+                    return null;
                 }
                 int docCount = XPointValues.getDocCount(reader, fieldName);
                 byte[] min = XPointValues.getMinPackedValue(reader, fieldName);
@@ -325,13 +317,6 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
-                double base = parse(value);
-                double delta = fuzziness.asFloat();
-                return rangeQuery(field, base - delta, base + delta, true, true);
-            }
-
-            @Override
             public List<Field> createFields(String name, Number value,
                                             boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
@@ -353,7 +338,7 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                                     boolean isSearchable, boolean isAggregatable) throws IOException {
                 long size = XPointValues.size(reader, fieldName);
                 if (size == 0) {
-                    return new FieldStats.Double(reader.maxDoc(), isSearchable, isAggregatable);
+                    return null;
                 }
                 int docCount = XPointValues.getDocCount(reader, fieldName);
                 byte[] min = XPointValues.getMinPackedValue(reader, fieldName);
@@ -366,8 +351,15 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         BYTE("byte", NumericType.BYTE) {
             @Override
             Byte parse(Object value) {
-                if (value instanceof Byte) {
-                    return (Byte) value;
+                if (value instanceof Number) {
+                    double doubleValue = ((Number) value).doubleValue();
+                    if (doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE) {
+                        throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
+                    }
+                    if (doubleValue % 1 != 0) {
+                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                    }
+                    return ((Number) value).byteValue();
                 }
                 if (value instanceof BytesRef) {
                     value = ((BytesRef) value).utf8ToString();
@@ -401,11 +393,6 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
-                return INTEGER.fuzzyQuery(field, value, fuzziness);
-            }
-
-            @Override
             public List<Field> createFields(String name, Number value,
                                             boolean indexed, boolean docValued, boolean stored) {
                 return INTEGER.createFields(name, value, indexed, docValued, stored);
@@ -426,6 +413,13 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             @Override
             Short parse(Object value) {
                 if (value instanceof Number) {
+                    double doubleValue = ((Number) value).doubleValue();
+                    if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
+                        throw new IllegalArgumentException("Value [" + value + "] is out of range for a short");
+                    }
+                    if (doubleValue % 1 != 0) {
+                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                    }
                     return ((Number) value).shortValue();
                 }
                 if (value instanceof BytesRef) {
@@ -460,11 +454,6 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
-                return INTEGER.fuzzyQuery(field, value, fuzziness);
-            }
-
-            @Override
             public List<Field> createFields(String name, Number value,
                                             boolean indexed, boolean docValued, boolean stored) {
                 return INTEGER.createFields(name, value, indexed, docValued, stored);
@@ -485,6 +474,13 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             @Override
             Integer parse(Object value) {
                 if (value instanceof Number) {
+                    double doubleValue = ((Number) value).doubleValue();
+                    if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
+                        throw new IllegalArgumentException("Value [" + value + "] is out of range for an integer");
+                    }
+                    if (doubleValue % 1 != 0) {
+                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                    }
                     return ((Number) value).intValue();
                 }
                 if (value instanceof BytesRef) {
@@ -540,13 +536,6 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
-                int base = parse(value);
-                int delta = fuzziness.asInt();
-                return rangeQuery(field, base - delta, base + delta, true, true);
-            }
-
-            @Override
             public List<Field> createFields(String name, Number value,
                                             boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
@@ -567,7 +556,7 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                                   boolean isSearchable, boolean isAggregatable) throws IOException {
                 long size = XPointValues.size(reader, fieldName);
                 if (size == 0) {
-                    return new FieldStats.Long(reader.maxDoc(), isSearchable, isAggregatable);
+                    return null;
                 }
                 int docCount = XPointValues.getDocCount(reader, fieldName);
                 byte[] min = XPointValues.getMinPackedValue(reader, fieldName);
@@ -581,6 +570,13 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             @Override
             Long parse(Object value) {
                 if (value instanceof Number) {
+                    double doubleValue = ((Number) value).doubleValue();
+                    if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
+                        throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
+                    }
+                    if (doubleValue % 1 != 0) {
+                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                    }
                     return ((Number) value).longValue();
                 }
                 if (value instanceof BytesRef) {
@@ -636,13 +632,6 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
-                long base = parse(value);
-                long delta = fuzziness.asLong();
-                return rangeQuery(field, base - delta, base + delta, true, true);
-            }
-
-            @Override
             public List<Field> createFields(String name, Number value,
                                             boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
@@ -663,7 +652,7 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                                   boolean isSearchable, boolean isAggregatable) throws IOException {
                 long size = XPointValues.size(reader, fieldName);
                 if (size == 0) {
-                    return new FieldStats.Long(reader.maxDoc(), isSearchable, isAggregatable);
+                    return null;
                 }
                 int docCount = XPointValues.getDocCount(reader, fieldName);
                 byte[] min = XPointValues.getMinPackedValue(reader, fieldName);
@@ -694,7 +683,6 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         abstract Query termsQuery(String field, List<Object> values);
         abstract Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                                   boolean includeLower, boolean includeUpper);
-        abstract Query fuzzyQuery(String field, Object value, Fuzziness fuzziness);
         abstract Number parse(XContentParser parser, boolean coerce) throws IOException;
         abstract Number parse(Object value);
         public abstract List<Field> createFields(String name, Number value, boolean indexed,
@@ -761,13 +749,6 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                 query = new BoostQuery(query, boost());
             }
             return query;
-        }
-
-        @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength,
-                                int maxExpansions, boolean transpositions) {
-            failIfNotIndexed();
-            return type.fuzzyQuery(name(), value, fuzziness);
         }
 
         @Override
@@ -944,6 +925,11 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         if (includeDefaults || coerce.explicit()) {
             builder.field("coerce", coerce.value());
         }
+
+        if (includeDefaults || fieldType().nullValue() != null) {
+            builder.field("null_value", fieldType().nullValue());
+        }
+
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
         } else if (includeDefaults) {

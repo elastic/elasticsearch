@@ -32,6 +32,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.spatial4j.io.GeohashUtils;
 import org.locationtech.spatial4j.shape.Rectangle;
@@ -494,7 +495,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                         "    \"boost\" : 1.0\n" +
                         "  }\n" +
                         "}";
-        QueryBuilder<?> parsedGeoBboxShortcut = parseQuery(json, ParseFieldMatcher.EMPTY);
+        QueryBuilder parsedGeoBboxShortcut = parseQuery(json, ParseFieldMatcher.EMPTY);
         assertThat(parsedGeoBboxShortcut, equalTo(parsed));
 
         try {
@@ -503,6 +504,42 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Deprecated field [geo_bbox] used, expected [geo_bounding_box] instead"));
         }
+    }
+
+    public void testFromJsonCoerceFails() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_bounding_box\" : {\n" +
+                "    \"pin.location\" : {\n" +
+                "      \"top_left\" : [ -74.1, 40.73 ],\n" +
+                "      \"bottom_right\" : [ -71.12, 40.01 ]\n" +
+                "    },\n" +
+                "    \"coerce\" : true,\n" +
+                "    \"type\" : \"MEMORY\",\n" +
+                        "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
+    }
+
+    public void testFromJsonIgnoreMalformedFails() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_bounding_box\" : {\n" +
+                "    \"pin.location\" : {\n" +
+                "      \"top_left\" : [ -74.1, 40.73 ],\n" +
+                "      \"bottom_right\" : [ -71.12, 40.01 ]\n" +
+                "    },\n" +
+                "    \"ignore_malformed\" : true,\n" +
+                "    \"type\" : \"MEMORY\",\n" +
+                        "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
     }
 
     @Override

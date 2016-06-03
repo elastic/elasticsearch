@@ -69,10 +69,10 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -315,7 +315,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             @Override
             public void run() {
                 NodesStatsResponse statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
-                assertThat(statsResponse.getNodes(), arrayWithSize(2));
+                assertThat(statsResponse.getNodes(), hasSize(2));
                 for (NodeStats nodeStats : statsResponse.getNodes()) {
                     final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
                     if (nodeStats.getNode().getName().equals(nodeA)) {
@@ -344,7 +344,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         validateIndexRecoveryState(recoveryStates.get(0).getIndex());
 
         statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
-        assertThat(statsResponse.getNodes(), arrayWithSize(2));
+        assertThat(statsResponse.getNodes(), hasSize(2));
         for (NodeStats nodeStats : statsResponse.getNodes()) {
             final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
             assertThat(recoveryStats.currentAsSource(), equalTo(0));
@@ -363,7 +363,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         ensureGreen();
 
         statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
-        assertThat(statsResponse.getNodes(), arrayWithSize(2));
+        assertThat(statsResponse.getNodes(), hasSize(2));
         for (NodeStats nodeStats : statsResponse.getNodes()) {
             final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
             assertThat(recoveryStats.currentAsSource(), equalTo(0));
@@ -407,6 +407,28 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         // relocations of replicas are marked as REPLICA and the source node is the node holding the primary (B)
         assertOnGoingRecoveryState(nodeCRecoveryStates.get(0), 0, Type.REPLICA, nodeB, nodeC, false);
         validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
+
+        if (randomBoolean()) {
+            // shutdown node with relocation source of replica shard and check if recovery continues
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
+            ensureStableCluster(2);
+
+            response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
+            recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
+
+            nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
+            assertThat(nodeARecoveryStates.size(), equalTo(0));
+            nodeBRecoveryStates = findRecoveriesForTargetNode(nodeB, recoveryStates);
+            assertThat(nodeBRecoveryStates.size(), equalTo(1));
+            nodeCRecoveryStates = findRecoveriesForTargetNode(nodeC, recoveryStates);
+            assertThat(nodeCRecoveryStates.size(), equalTo(1));
+
+            assertRecoveryState(nodeBRecoveryStates.get(0), 0, Type.PRIMARY_RELOCATION, Stage.DONE, nodeA, nodeB, false);
+            validateIndexRecoveryState(nodeBRecoveryStates.get(0).getIndex());
+
+            assertOnGoingRecoveryState(nodeCRecoveryStates.get(0), 0, Type.REPLICA, nodeB, nodeC, false);
+            validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
+        }
 
         logger.info("--> speeding up recoveries");
         restoreRecoverySpeed();

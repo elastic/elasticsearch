@@ -25,7 +25,7 @@ import java.io.IOException;
  * Defines a query parser that is able to parse {@link QueryBuilder}s from {@link org.elasticsearch.common.xcontent.XContent}.
  */
 @FunctionalInterface
-public interface QueryParser<QB extends QueryBuilder<QB>> {
+public interface QueryParser<QB extends QueryBuilder> {
     /**
      * Creates a new {@link QueryBuilder} from the query held by the {@link QueryParseContext}
      * in {@link org.elasticsearch.common.xcontent.XContent} format

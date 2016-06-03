@@ -30,19 +30,26 @@ The response looks like:
     "primary" : false
   },
   "assigned" : false,                             <1>
+  "shard_state_fetch_pending": false,             <2>
   "unassigned_info" : {
-    "reason" : "INDEX_CREATED",                   <2>
+    "reason" : "INDEX_CREATED",                   <3>
     "at" : "2016-03-22T20:04:23.620Z"
   },
-  "nodes" : {                                     <3>
+  "allocation_delay_ms" : 0,                      <4>
+  "remaining_delay_ms" : 0,                       <5>
+  "nodes" : {
     "V-Spi0AyRZ6ZvKbaI3691w" : {
       "node_name" : "node1",
-      "node_attributes" : {                       <4>
+      "node_attributes" : {                       <6>
         "bar" : "baz"
       },
-      "final_decision" : "NO",                    <5>
-      "weight" : 0.06666675,                      <6>
-      "decisions" : [ {                           <7>
+      "store" : {
+        "shard_copy" : "NONE"                     <7>
+      },
+      "final_decision" : "NO",                    <8>
+      "final_explanation" : "the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",
+      "weight" : 0.06666675,                      <9>
+      "decisions" : [ {                           <10>
         "decider" : "filter",
         "decision" : "NO",
         "explanation" : "node does not match index include filters [foo:\"bar\"]"
@@ -54,7 +61,11 @@ The response looks like:
         "bar" : "baz",
         "foo" : "bar"
       },
+      "store" : {
+        "shard_copy" : "AVAILABLE"
+      },
       "final_decision" : "NO",
+      "final_explanation" : "the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",
       "weight" : -1.3833332,
       "decisions" : [ {
         "decider" : "same_shard",
@@ -65,7 +76,11 @@ The response looks like:
     "PzdyMZGXQdGhqTJHF_hGgA" : {
       "node_name" : "node3",
       "node_attributes" : { },
+      "store" : {
+        "shard_copy" : "NONE"
+      },
       "final_decision" : "NO",
+      "final_explanation" : "the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",
       "weight" : 2.3166666,
       "decisions" : [ {
         "decider" : "filter",
@@ -77,12 +92,15 @@ The response looks like:
 }
 --------------------------------------------------
 <1> Whether the shard is assigned or unassigned
-<2> Reason for the shard originally becoming unassigned
-<3> List of node decisions about the shard
-<4> User-added attributes the node has
-<5> Final decision for whether the shard is allowed to be allocated to this node
-<6> Weight for how much the allocator would like to allocate the shard to this node
-<7> List of decisions factoring into final decision
+<2> Whether information about the shard is still being fetched
+<3> Reason for the shard originally becoming unassigned
+<4> Configured delay before the shard can be allocated
+<5> Remaining delay before the shard can be allocated
+<6> User-added attributes the node has
+<7> The shard copy information for this node and error (if applicable)
+<8> Final decision and explanation of whether the shard can be allocated to this node
+<9> Weight for how much the allocator would like to allocate the shard to this node
+<10> List of node decisions factoring into final decision about the shard
 
 For a shard that is already assigned, the output looks similar to:
 
@@ -97,13 +115,20 @@ For a shard that is already assigned, the output looks similar to:
   },
   "assigned" : true,
   "assigned_node_id" : "Qc6VL8c5RWaw1qXZ0Rg57g",      <1>
+  "shard_state_fetch_pending": false,
+  "allocation_delay_ms" : 0,
+  "remaining_delay_ms" : 0,
   "nodes" : {
     "V-Spi0AyRZ6ZvKbaI3691w" : {
       "node_name" : "Susan Storm",
       "node_attributes" : {
         "bar" : "baz"
       },
+      "store" : {
+        "shard_copy" : "NONE"
+      },
       "final_decision" : "NO",
+      "final_explanation" : "the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",
       "weight" : 1.4499999,
       "decisions" : [ {
         "decider" : "filter",
@@ -117,7 +142,11 @@ For a shard that is already assigned, the output looks similar to:
         "bar" : "baz",
         "foo" : "bar"
       },
-      "final_decision" : "CURRENTLY_ASSIGNED",        <2>
+      "store" : {
+        "shard_copy" : "AVAILABLE"
+      },
+      "final_decision" : "ALREADY_ASSIGNED",        <2>
+      "final_explanation" : "the shard is already assigned to this node",
       "weight" : 0.0,
       "decisions" : [ {
         "decider" : "same_shard",
@@ -128,7 +157,11 @@ For a shard that is already assigned, the output looks similar to:
     "PzdyMZGXQdGhqTJHF_hGgA" : {
       "node_name" : "The Symbiote",
       "node_attributes" : { },
+      "store" : {
+        "shard_copy" : "NONE"
+      },
       "final_decision" : "NO",
+      "final_explanation" : "the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",
       "weight" : 3.6999998,
       "decisions" : [ {
         "decider" : "filter",
@@ -140,7 +173,7 @@ For a shard that is already assigned, the output looks similar to:
 }
 --------------------------------------------------
 <1> Node the shard is currently assigned to
-<2> The decision is "CURRENTLY_ASSIGNED" because the shard is currently assigned to this node
+<2> The decision is "ALREADY_ASSIGNED" because the shard is currently assigned to this node
 
 You can also have Elasticsearch explain the allocation of the first unassigned
 shard it finds by sending an empty body, such as:

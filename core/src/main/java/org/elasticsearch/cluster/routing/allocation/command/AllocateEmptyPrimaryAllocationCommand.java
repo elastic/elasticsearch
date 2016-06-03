@@ -120,15 +120,16 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
                 "allocating an empty primary for [" + index + "][" + shardId + "] can result in data loss. Please confirm by setting the accept_data_loss parameter to true");
         }
 
-        initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting,
-            shr -> {
-                if (shr.unassignedInfo().getReason() != UnassignedInfo.Reason.INDEX_CREATED) {
-                    // we need to move the unassigned info back to treat it as if it was index creation
-                    shr.updateUnassignedInfo(new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED,
-                        "force empty allocation from previous reason " + shardRouting.unassignedInfo().getReason() + ", " + shardRouting.unassignedInfo().getMessage(),
-                        shardRouting.unassignedInfo().getFailure(), System.nanoTime(), System.currentTimeMillis()));
-                }
-            });
+        UnassignedInfo unassignedInfoToUpdate = null;
+        if (shardRouting.unassignedInfo().getReason() != UnassignedInfo.Reason.INDEX_CREATED) {
+            // we need to move the unassigned info back to treat it as if it was index creation
+            unassignedInfoToUpdate = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED,
+                "force empty allocation from previous reason " + shardRouting.unassignedInfo().getReason() + ", " + shardRouting.unassignedInfo().getMessage(),
+                shardRouting.unassignedInfo().getFailure(), 0, System.nanoTime(), System.currentTimeMillis(), false);
+        }
+
+        initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, unassignedInfoToUpdate);
+
         return new RerouteExplanation(this, allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders"));
     }
 }

@@ -43,6 +43,7 @@ public class ExternalMapperPlugin extends Plugin {
         indicesModule.registerMapper(EXTERNAL, new ExternalMapper.TypeParser(EXTERNAL, "foo"));
         indicesModule.registerMapper(EXTERNAL_BIS, new ExternalMapper.TypeParser(EXTERNAL_BIS, "bar"));
         indicesModule.registerMapper(EXTERNAL_UPPER, new ExternalMapper.TypeParser(EXTERNAL_UPPER, "FOO BAR"));
+        indicesModule.registerMapper(FakeStringFieldMapper.CONTENT_TYPE, new FakeStringFieldMapper.TypeParser());
     }
 
 }

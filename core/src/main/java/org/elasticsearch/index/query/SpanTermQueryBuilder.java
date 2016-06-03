@@ -36,7 +36,7 @@ import java.io.IOException;
  * A Span Query that matches documents containing a term.
  * @see SpanTermQuery
  */
-public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuilder> implements SpanQueryBuilder<SpanTermQueryBuilder> {
+public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuilder> implements SpanQueryBuilder {
 
     public static final String NAME = "span_term";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);

@@ -129,7 +129,7 @@ The Azure repository supports following settings:
 
 Some examples, using scripts:
 
-[source,json]
+[source,js]
 ----
 # The simpliest one
 PUT _snapshot/my_backup1
@@ -167,7 +167,7 @@ PUT _snapshot/my_backup4
     }
 }
 ----
-// AUTOSENSE
+// CONSOLE
 
 Example using Java:
 

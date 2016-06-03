@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -39,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -53,13 +51,14 @@ import java.util.Map;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 
 /**
  * Expose IndexBySearchRequest over rest.
  */
-public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexResponse, TransportReindexAction> {
+public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, TransportReindexAction> {
+
     private static final ObjectParser<ReindexRequest, ReindexParseContext> PARSER = new ObjectParser<>("reindex");
+
     static {
         ObjectParser.Parser<SearchRequest, ReindexParseContext> sourceParser = (parser, search, context) -> {
             /*
@@ -114,41 +113,18 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, Client client) throws IOException {
         if (false == request.hasContent()) {
-            badRequest(channel, "body required");
-            return;
+            throw new ElasticsearchException("_reindex requires a request body");
         }
+        handleRequest(request, channel, true, true, false);
+    }
 
-        ReindexRequest internalRequest = new ReindexRequest(new SearchRequest(), new IndexRequest());
-
+    @Override
+    protected ReindexRequest buildRequest(RestRequest request) throws IOException {
+        ReindexRequest internal = new ReindexRequest(new SearchRequest(), new IndexRequest());
         try (XContentParser xcontent = XContentFactory.xContent(request.content()).createParser(request.content())) {
-            PARSER.parse(xcontent, internalRequest, new ReindexParseContext(indicesQueriesRegistry, aggParsers,
-                    suggesters, parseFieldMatcher));
-        } catch (ParsingException e) {
-            logger.warn("Bad request", e);
-            badRequest(channel, e.getDetailedMessage());
-            return;
+            PARSER.parse(xcontent, internal, new ReindexParseContext(indicesQueriesRegistry, aggParsers, suggesters, parseFieldMatcher));
         }
-        parseCommon(internalRequest, request);
-
-        execute(request, internalRequest, channel);
-    }
-
-    private void badRequest(RestChannel channel, String message) {
-        try {
-            XContentBuilder builder = channel.newErrorBuilder();
-            channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", message).endObject()));
-        } catch (IOException e) {
-            logger.warn("Failed to send response", e);
-        }
-    }
-
-    public static void parseCommon(AbstractBulkByScrollRequest<?> internalRequest, RestRequest request) {
-        internalRequest.setRefresh(request.paramAsBoolean("refresh", internalRequest.isRefresh()));
-        internalRequest.setTimeout(request.paramAsTime("timeout", internalRequest.getTimeout()));
-        String consistency = request.param("consistency");
-        if (consistency != null) {
-            internalRequest.setConsistency(WriteConsistencyLevel.fromString(consistency));
-        }
+        return internal;
     }
 
     /**

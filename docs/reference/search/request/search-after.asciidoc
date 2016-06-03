@@ -11,21 +11,22 @@ The idea is to use the results from the previous page to help the retrieval of t
 Suppose that the query to retrieve the first page looks like this:
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/twitter/tweet/_search'
+GET twitter/tweet/_search
 {
-    size: "10"
+    "size": 10,
     "query": {
         "match" : {
             "title" : "elasticsearch"
         }
     },
     "sort": [
-        {"age": "asc"},
+        {"date": "asc"},
         {"_uid": "desc"}
     ]
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 NOTE: A field with one unique value per document should be used as the tiebreaker of the sort specification.
 Otherwise the sort order for documents that have the same sort values would be undefined. The recommended way is to use
@@ -38,22 +39,23 @@ For instance we can use the `sort values` of the last document and pass it to `s
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/twitter/tweet/_search'
+GET twitter/tweet/_search
 {
-    "size": 10
+    "size": 10,
     "query": {
         "match" : {
             "title" : "elasticsearch"
         }
     },
-    "search_after": [18, "tweet#654323"],
+    "search_after": [1463538857, "tweet#654323"],
     "sort": [
-        {"age": "asc"},
+        {"date": "asc"},
         {"_uid": "desc"}
     ]
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 NOTE: The parameter `from` must be set to 0 (or -1) when `search_after` is used.
 

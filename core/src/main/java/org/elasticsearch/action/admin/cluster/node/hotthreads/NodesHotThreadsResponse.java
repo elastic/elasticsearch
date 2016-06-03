@@ -19,12 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  */
@@ -33,26 +35,18 @@ public class NodesHotThreadsResponse extends BaseNodesResponse<NodeHotThreads> {
     NodesHotThreadsResponse() {
     }
 
-    public NodesHotThreadsResponse(ClusterName clusterName, NodeHotThreads[] nodes) {
-        super(clusterName, nodes);
+    public NodesHotThreadsResponse(ClusterName clusterName, List<NodeHotThreads> nodes, List<FailedNodeException> failures) {
+        super(clusterName, nodes, failures);
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        nodes = new NodeHotThreads[in.readVInt()];
-        for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = NodeHotThreads.readNodeHotThreads(in);
-        }
+    protected List<NodeHotThreads> readNodesFrom(StreamInput in) throws IOException {
+        return in.readList(NodeHotThreads::readNodeHotThreads);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(nodes.length);
-        for (NodeHotThreads node : nodes) {
-            node.writeTo(out);
-        }
+    protected void writeNodesTo(StreamOutput out, List<NodeHotThreads> nodes) throws IOException {
+        out.writeStreamableList(nodes);
     }
 
 }

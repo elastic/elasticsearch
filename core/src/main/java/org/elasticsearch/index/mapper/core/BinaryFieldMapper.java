@@ -22,11 +22,10 @@ package org.elasticsearch.index.mapper.core;
 import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -40,8 +39,11 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -121,11 +123,7 @@ public class BinaryFieldMapper extends FieldMapper {
             } else if (value instanceof byte[]) {
                 bytes = new BytesArray((byte[]) value);
             } else {
-                try {
-                    bytes = new BytesArray(Base64.decode(value.toString()));
-                } catch (IOException e) {
-                    throw new ElasticsearchParseException("failed to convert bytes", e);
-                }
+                bytes = new BytesArray(Base64.getDecoder().decode(value.toString()));
             }
             return bytes;
         }
@@ -134,6 +132,11 @@ public class BinaryFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder() {
             failIfNoDocValues();
             return new BytesBinaryDVIndexFieldData.Builder();
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            throw new QueryShardException(context, "Binary fields do not support searching");
         }
     }
 

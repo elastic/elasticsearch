@@ -404,7 +404,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         }
     }
 
-    static void fillDiskUsagePerNode(ESLogger logger, NodeStats[] nodeStatsArray,
+    static void fillDiskUsagePerNode(ESLogger logger, List<NodeStats> nodeStatsArray,
             ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvaiableUsages,
             ImmutableOpenMap.Builder<String, DiskUsage> newMostAvaiableUsages) {
         for (NodeStats nodeStats : nodeStatsArray) {

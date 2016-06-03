@@ -36,7 +36,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -220,19 +219,11 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
         }
 
         @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            failIfNotIndexed();
-            InetAddress base = parse(value);
-            int mask = fuzziness.asInt();
-            return XInetAddressPoint.newPrefixQuery(name(), base, mask);
-        }
-
-        @Override
         public FieldStats.Ip stats(IndexReader reader) throws IOException {
             String field = name();
             long size = XPointValues.size(reader, field);
             if (size == 0) {
-                return new FieldStats.Ip(reader.maxDoc(), isSearchable(), isAggregatable());
+                return null;
             }
             int docCount = XPointValues.getDocCount(reader, field);
             byte[] min = XPointValues.getMinPackedValue(reader, field);
@@ -339,7 +330,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
         if (context.externalValueSet()) {
             addressAsObject = context.externalValue();
         } else {
-            addressAsObject = context.parser().text();
+            addressAsObject = context.parser().textOrNull();
         }
 
         if (addressAsObject == null) {
@@ -394,6 +385,14 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
+
+        if (includeDefaults || fieldType().nullValue() != null) {
+            Object nullValue = fieldType().nullValue();
+            if (nullValue != null) {
+                nullValue = InetAddresses.toAddrString((InetAddress) nullValue);
+            }
+            builder.field("null_value", nullValue);
+        }
 
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field("ignore_malformed", ignoreMalformed.value());

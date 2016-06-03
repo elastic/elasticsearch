@@ -123,6 +123,18 @@ final public class IndexGraveyard implements MetaData.Custom {
         return tombstones;
     }
 
+    /**
+     * Returns true if the graveyard contains a tombstone for the given index.
+     */
+    public boolean containsIndex(final Index index) {
+        for (Tombstone tombstone : tombstones) {
+            if (tombstone.getIndex().equals(index)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startArray(TOMBSTONES_FIELD.getPreferredName());
@@ -207,8 +219,10 @@ final public class IndexGraveyard implements MetaData.Custom {
         /**
          * Add a set of deleted indexes to the list of tombstones in the cluster state.
          */
-        public Builder addTombstones(final Set<Index> indices) {
-            indices.stream().forEach(this::addTombstone);
+        public Builder addTombstones(final Index[] indices) {
+            for (Index index : indices) {
+                addTombstone(index);
+            }
             return this;
         }
 

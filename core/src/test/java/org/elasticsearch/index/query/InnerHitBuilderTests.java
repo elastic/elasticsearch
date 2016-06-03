@@ -22,11 +22,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.hamcrest.Matchers.nullValue;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -91,12 +90,13 @@ public class InnerHitBuilderTests extends ESTestCase {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             InnerHitBuilder innerHit = randomInnerHits(true, false);
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-            if (randomBoolean()) {
-                builder.prettyPrint();
-            }
             innerHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            XContentBuilder shuffled = shuffleXContent(builder);
+            if (randomBoolean()) {
+                shuffled.prettyPrint();
+            }
 
-            XContentParser parser = XContentHelper.createParser(builder.bytes());
+            XContentParser parser = XContentHelper.createParser(shuffled.bytes());
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
             InnerHitBuilder secondInnerHits = InnerHitBuilder.fromXContent(context);
             assertThat(innerHit, not(sameInstance(secondInnerHits)));
@@ -202,7 +202,7 @@ public class InnerHitBuilderTests extends ESTestCase {
                 .innerHit(leafInnerHits);
         FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(nestedQueryBuilder);
         Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
-        ((AbstractQueryBuilder) functionScoreQueryBuilder).extractInnerHitBuilders(innerHitBuilders);
+        ((AbstractQueryBuilder<?>) functionScoreQueryBuilder).extractInnerHitBuilders(innerHitBuilders);
         assertThat(innerHitBuilders.get(leafInnerHits.getName()), notNullValue());
     }
 
@@ -220,7 +220,12 @@ public class InnerHitBuilderTests extends ESTestCase {
         innerHits.setTrackScores(randomBoolean());
         innerHits.setFieldNames(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
         innerHits.setFieldDataFields(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
-        innerHits.setScriptFields(randomListStuff(16, InnerHitBuilderTests::randomScript));
+        // Random script fields deduped on their field name.
+        Map<String, SearchSourceBuilder.ScriptField> scriptFields = new HashMap<>();
+        for (SearchSourceBuilder.ScriptField field: randomListStuff(16, InnerHitBuilderTests::randomScript)) {
+            scriptFields.put(field.fieldName(), field);
+        }
+        innerHits.setScriptFields(new HashSet<>(scriptFields.values()));
         FetchSourceContext randomFetchSourceContext;
         if (randomBoolean()) {
             randomFetchSourceContext = new FetchSourceContext(randomBoolean());
@@ -299,7 +304,7 @@ public class InnerHitBuilderTests extends ESTestCase {
             case 7:
                 if (randomBoolean()) {
                     instance.setScriptFields(randomValueOtherThan(instance.getScriptFields(), () -> {
-                        return randomListStuff(16, InnerHitBuilderTests::randomScript);}));
+                        return new HashSet<>(randomListStuff(16, InnerHitBuilderTests::randomScript));}));
                 } else {
                     SearchSourceBuilder.ScriptField script = randomScript();
                     instance.addScriptField(script.fieldName(), script.script());

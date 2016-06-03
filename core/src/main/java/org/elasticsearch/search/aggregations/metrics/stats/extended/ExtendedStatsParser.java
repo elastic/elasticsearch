@@ -50,9 +50,9 @@ public class ExtendedStatsParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected ExtendedStatsAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        ExtendedStatsAggregatorBuilder factory = new ExtendedStatsAggregatorBuilder(aggregationName);
+    protected ExtendedStatsAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        ExtendedStatsAggregationBuilder factory = new ExtendedStatsAggregationBuilder(aggregationName);
         Double sigma = (Double) otherOptions.get(ExtendedStatsAggregator.SIGMA_FIELD);
         if (sigma != null) {
             factory.sigma(sigma);

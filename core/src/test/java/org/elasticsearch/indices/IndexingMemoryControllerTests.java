@@ -18,11 +18,8 @@
  */
 package org.elasticsearch.indices;
 
-import org.apache.lucene.index.DirectoryReader;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -30,13 +27,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTests;
-import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,7 +41,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -454,18 +448,14 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         shardRef.set(newShard);
         try {
             assertEquals(0, imc.availableShards().size());
-            ShardRouting routing = new ShardRouting(shard.routingEntry());
-            ShardRoutingHelper.reinit(routing);
-            newShard.updateRoutingEntry(routing, false);
+            ShardRouting routing = newShard.routingEntry();
             DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
             newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
 
             assertEquals(1, imc.availableShards().size());
-            assertTrue(newShard.recoverFromStore(localNode));
+            assertTrue(newShard.recoverFromStore());
             assertTrue("we should have flushed in IMC at least once but did: " + flushes.get(), flushes.get() >= 1);
-            routing = new ShardRouting(routing);
-            ShardRoutingHelper.moveToStarted(routing);
-            newShard.updateRoutingEntry(routing, true);
+            newShard.updateRoutingEntry(routing.moveToStarted(), true);
         } finally {
             newShard.close("simon says", false);
         }

@@ -33,13 +33,11 @@ import org.apache.lucene.analysis.util.CharArraySet;
 public final class FingerprintAnalyzer extends Analyzer {
     private final char separator;
     private final int maxOutputSize;
-    private final boolean preserveOriginal;
     private final CharArraySet stopWords;
 
-    public FingerprintAnalyzer(CharArraySet stopWords, char separator, int maxOutputSize, boolean preserveOriginal) {
+    public FingerprintAnalyzer(CharArraySet stopWords, char separator, int maxOutputSize) {
         this.separator = separator;
         this.maxOutputSize = maxOutputSize;
-        this.preserveOriginal = preserveOriginal;
         this.stopWords = stopWords;
     }
 
@@ -48,9 +46,9 @@ public final class FingerprintAnalyzer extends Analyzer {
         final Tokenizer tokenizer = new StandardTokenizer();
         TokenStream stream = tokenizer;
         stream = new LowerCaseFilter(stream);
+        stream = new ASCIIFoldingFilter(stream, false);
         stream = new StopFilter(stream, stopWords);
         stream = new FingerprintFilter(stream, maxOutputSize, separator);
-        stream = new ASCIIFoldingFilter(stream, preserveOriginal);
         return new TokenStreamComponents(tokenizer, stream);
     }
 }

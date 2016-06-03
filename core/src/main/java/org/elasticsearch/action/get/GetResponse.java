@@ -21,6 +21,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -167,5 +168,10 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         getResult.writeTo(out);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true);
     }
 }

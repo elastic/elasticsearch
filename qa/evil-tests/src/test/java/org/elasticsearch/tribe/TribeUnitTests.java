@@ -84,29 +84,10 @@ public class TribeUnitTests extends ESTestCase {
         tribe2 = null;
     }
 
-    public void testThatTribeClientsIgnoreGlobalSysProps() throws Exception {
-        System.setProperty("es.cluster.name", "tribe_node_cluster");
-        System.setProperty("es.tribe.t1.cluster.name", "tribe1");
-        System.setProperty("es.tribe.t2.cluster.name", "tribe2");
-        System.setProperty("es.tribe.t1.node_id.seed", Long.toString(random().nextLong()));
-        System.setProperty("es.tribe.t2.node_id.seed", Long.toString(random().nextLong()));
-
-        try {
-            assertTribeNodeSuccessfullyCreated(Settings.EMPTY);
-        } finally {
-            System.clearProperty("es.cluster.name");
-            System.clearProperty("es.tribe.t1.cluster.name");
-            System.clearProperty("es.tribe.t2.cluster.name");
-            System.clearProperty("es.tribe.t1.node_id.seed");
-            System.clearProperty("es.tribe.t2.node_id.seed");
-        }
-    }
-
     public void testThatTribeClientsIgnoreGlobalConfig() throws Exception {
         Path pathConf = getDataPath("elasticsearch.yml").getParent();
         Settings settings = Settings
             .builder()
-            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
             .put(Environment.PATH_CONF_SETTING.getKey(), pathConf)
             .build();
         assertTribeNodeSuccessfullyCreated(settings);

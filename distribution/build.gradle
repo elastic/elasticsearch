@@ -20,6 +20,7 @@
 
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.EmptyDirTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
@@ -114,6 +115,7 @@ subprojects {
    *****************************************************************************/
   // note: the group must be correct before applying the nexus plugin, or it will capture the wrong value...
   project.group = "org.elasticsearch.distribution.${project.name}"
+  project.archivesBaseName = 'elasticsearch'
   apply plugin: 'com.bmuschko.nexus'
   // we must create our own install task, because it is only added when the java plugin is added
   task install(type: Upload, description: "Installs the 'archives' artifacts into the local Maven repository.", group: 'Upload') {
@@ -148,14 +150,35 @@ subprojects {
       MavenFilteringHack.filter(it, expansions)
     }
 
-    commonFiles = copySpec {
-      // everything except windows files, and config is separate
-      from '../src/main/resources'
-      exclude 'bin/*.bat'
-      exclude 'bin/*.exe'
-      exclude 'config/**'
-      filesMatching('bin/*') { it.setMode(0755) }
+    binFiles = copySpec {
+      // everything except windows files
+      from '../src/main/resources/bin'
+      exclude '*.bat'
+      exclude '*.exe'
+      eachFile { it.setMode(0755) }
       MavenFilteringHack.filter(it, expansions)
+    }
+
+    commonFiles = copySpec {
+      from rootProject.projectDir
+      include 'NOTICE.txt'
+      include 'LICENSE.txt'
+      include 'README.textile'
+    }
+  }
+
+   /*****************************************************************************
+   *                           Publishing setup                                *
+   *****************************************************************************/
+  BuildPlugin.configurePomGeneration(project)
+  apply plugin: 'nebula.info-scm'
+  apply plugin: 'nebula.maven-base-publish'
+  apply plugin: 'nebula.maven-scm'
+  publishing {
+    publications {
+      nebula {
+        artifactId 'elasticsearch'
+      }
     }
   }
 }
@@ -170,14 +193,17 @@ configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.nam
       into('config') {
         with configFiles
       }
-      with copySpec {
-        with commonFiles
-        from('../src/main/resources') {
-          include 'bin/*.bat'
-          filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+      into('bin') {
+        with copySpec {
+          with binFiles
+          from('../src/main/resources/bin') {
+            include '*.bat'
+            filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+          }
+          MavenFilteringHack.filter(it, expansions)
         }
-        MavenFilteringHack.filter(it, expansions)
       }
+      with commonFiles
       from('../src/main/resources') {
         include 'bin/*.exe'
       }
@@ -285,10 +311,6 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
       '''.stripIndent().replace('\n', ' ').trim()
     url 'https://www.elastic.co/'
 
-    /* The version of the package can't contain -SNAPSHOT so we rip it off if
-      we see it. We'll add it back on to the file name though. */
-    version project.version.replace('-SNAPSHOT', '')
-
     // signing setup
     if (project.hasProperty('signing.password') && System.getProperty('build.snapshot', 'true') == 'false') {
       signingKeyId = project.hasProperty('signing.keyId') ? project.property('signing.keyId') : 'D88E42B4'
@@ -304,6 +326,12 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     preUninstall file("${scripts}/prerm")
     postUninstall file("${scripts}/postrm")
 
+    if (project.name == 'rpm') {
+      requires('/bin/bash')
+    } else if (project.name == 'deb') {
+      requires('bash')
+    }
+
     into '/usr/share/elasticsearch'
     fileMode 0644
     dirMode 0755
@@ -311,6 +339,9 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     permissionGroup 'root'
     with libFiles
     with modulesFiles
+    into('bin') {
+      with binFiles
+    }
     with copySpec {
       with commonFiles
       if (project.name == 'deb') {
@@ -322,12 +353,13 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
     configurationFile '/etc/elasticsearch/jvm.options'
     configurationFile '/etc/elasticsearch/logging.yml'
-    into('/etc') {
-      from "${packagingFiles}/etc"
+    into('/etc/elasticsearch') {
       fileMode 0750
       permissionGroup 'elasticsearch'
       includeEmptyDirs true
       createDirectoryEntry true
+      fileType CONFIG | NOREPLACE
+      from "${packagingFiles}/etc/elasticsearch"
     }
 
     into('/usr/lib/tmpfiles.d') {
@@ -335,21 +367,25 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     }
     configurationFile '/usr/lib/systemd/system/elasticsearch.service'
     into('/usr/lib/systemd/system') {
+      fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/elasticsearch.service"
     }
     into('/usr/lib/sysctl.d') {
+      fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/sysctl/elasticsearch.conf"
     }
     configurationFile '/etc/init.d/elasticsearch'
     into('/etc/init.d') {
-      from "${packagingFiles}/init.d/elasticsearch"
       fileMode 0755
+      fileType CONFIG | NOREPLACE
+      from "${packagingFiles}/init.d/elasticsearch"
     }
     configurationFile project.expansions['path.env']
     into(new File(project.expansions['path.env']).getParent()) {
-      from "${project.packagingFiles}/env/elasticsearch"
       fileMode 0644
       dirMode 0755
+      fileType CONFIG | NOREPLACE
+      from "${project.packagingFiles}/env/elasticsearch"
     }
 
     /**
@@ -385,7 +421,9 @@ task updateShas(type: UpdateShasTask) {
   parentTask = dependencyLicenses
 }
 
-task run(type: RunTask) {}
+task run(type: RunTask) {
+  distribution = 'zip'
+}
 
 /**
  * Build some variables that are replaced in the packages. This includes both
@@ -437,8 +475,8 @@ Map<String, String> expansionsForDistribution(distributionType) {
       'def': '',
     ],
 
-    'heap.min': '256m',
-    'heap.max': '1g',
+    'heap.min': "256m",
+    'heap.max': "2g",
 
     'stopping.timeout': [
       'rpm': 86400,

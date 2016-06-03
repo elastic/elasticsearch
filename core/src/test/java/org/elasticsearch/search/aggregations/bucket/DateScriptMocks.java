@@ -122,7 +122,7 @@ public class DateScriptMocks {
 
         @Override
         public double runAsDouble() {
-            return new DateTime(new Double((double) vars.get("_value")).longValue(), DateTimeZone.UTC).plusMonths(1).getMillis();
+            return new DateTime(Double.valueOf((double) vars.get("_value")).longValue(), DateTimeZone.UTC).plusMonths(1).getMillis();
         }
 
         @Override

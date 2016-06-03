@@ -100,8 +100,13 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     @Override
     public final void usePrettyPrint() {
-        generator.setPrettyPrinter(new DefaultPrettyPrinter().withObjectIndenter(INDENTER));
+        generator.setPrettyPrinter(new DefaultPrettyPrinter().withObjectIndenter(INDENTER).withArrayIndenter(INDENTER));
         prettyPrint = true;
+    }
+
+    @Override
+    public boolean isPrettyPrint() {
+        return this.prettyPrint;
     }
 
     @Override
@@ -383,6 +388,10 @@ public class JsonXContentGenerator implements XContentGenerator {
     public void close() throws IOException {
         if (generator.isClosed()) {
             return;
+        }
+        JsonStreamContext context = generator.getOutputContext();
+        if ((context != null) && (context.inRoot() ==  false)) {
+            throw new IOException("unclosed object or array found");
         }
         if (writeLineFeedAtEnd) {
             flush();

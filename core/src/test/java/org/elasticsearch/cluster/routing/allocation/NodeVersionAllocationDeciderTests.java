@@ -337,7 +337,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         AllocationService strategy = new MockAllocationService(Settings.EMPTY,
             allocationDeciders,
             NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
-        RoutingAllocation.Result result = strategy.reroute(state, new AllocationCommands(), true);
+        RoutingAllocation.Result result = strategy.reroute(state, new AllocationCommands(), true, false);
         // the two indices must stay as is, the replicas cannot move to oldNode2 because versions don't match
         state = ClusterState.builder(state).routingResult(result).build();
         assertThat(result.routingTable().index(shard2.getIndex()).shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(0));
@@ -369,7 +369,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         AllocationService strategy = new MockAllocationService(Settings.EMPTY,
             allocationDeciders,
             NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
-        RoutingAllocation.Result result = strategy.reroute(state, new AllocationCommands(), true);
+        RoutingAllocation.Result result = strategy.reroute(state, new AllocationCommands(), true, false);
 
         // Make sure that primary shards are only allocated on the new node
         for (int i = 0; i < numberOfShards; i++) {
@@ -418,7 +418,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                     toId, routingNodes.node(toId).node().getVersion());
                 assertTrue(routingNodes.node(toId).node().getVersion().onOrAfter(routingNodes.node(fromId).node().getVersion()));
             } else {
-                ShardRouting primary = routingNodes.activePrimary(r);
+                ShardRouting primary = routingNodes.activePrimary(r.shardId());
                 assertThat(primary, notNullValue());
                 String fromId = primary.currentNodeId();
                 String toId = r.relocatingNodeId();
@@ -431,7 +431,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         mutableShardRoutings = routingNodes.shardsWithState(ShardRoutingState.INITIALIZING);
         for (ShardRouting r : mutableShardRoutings) {
             if (!r.primary()) {
-                ShardRouting primary = routingNodes.activePrimary(r);
+                ShardRouting primary = routingNodes.activePrimary(r.shardId());
                 assertThat(primary, notNullValue());
                 String fromId = primary.currentNodeId();
                 String toId = r.currentNodeId();

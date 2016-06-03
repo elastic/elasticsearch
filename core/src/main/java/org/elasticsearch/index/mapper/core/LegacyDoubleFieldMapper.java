@@ -36,7 +36,6 @@ import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -171,21 +170,11 @@ public class LegacyDoubleFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            double iValue = parseDoubleValue(value);
-            double iSim = fuzziness.asDouble();
-            return LegacyNumericRangeQuery.newDoubleRange(name(), numericPrecisionStep(),
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
-        }
-
-        @Override
         public FieldStats.Double stats(IndexReader reader) throws IOException {
             int maxDoc = reader.maxDoc();
             Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
             if (terms == null) {
-                return new FieldStats.Double(maxDoc, isSearchable(), isAggregatable());
+                return null;
             }
             double minValue = NumericUtils.sortableLongToDouble(LegacyNumericUtils.getMinLong(terms));
             double maxValue = NumericUtils.sortableLongToDouble(LegacyNumericUtils.getMaxLong(terms));

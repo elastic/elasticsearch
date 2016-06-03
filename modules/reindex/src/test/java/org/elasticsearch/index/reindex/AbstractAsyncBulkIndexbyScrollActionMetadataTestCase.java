@@ -49,13 +49,15 @@ public abstract class AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<
 
     public void testTimestampIsCopied() {
         IndexRequest index = new IndexRequest();
-        action().copyMetadata(index, doc(TimestampFieldMapper.NAME, 10L));
+        action().copyMetadata(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc(TimestampFieldMapper.NAME, 10L));
         assertEquals("10", index.timestamp());
     }
 
     public void testTTL() throws Exception {
         IndexRequest index = new IndexRequest();
-        action().copyMetadata(index, doc(TTLFieldMapper.NAME, 10L));
+        action().copyMetadata(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc(TTLFieldMapper.NAME, 10L));
         assertEquals(timeValueMillis(10), index.ttl());
     }
+
+    protected abstract AbstractAsyncBulkIndexByScrollAction<Request> action();
 }

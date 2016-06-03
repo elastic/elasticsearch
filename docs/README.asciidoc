@@ -1,4 +1,47 @@
-The Elasticsearch docs are in AsciiDoc format and can be built using the Elasticsearch documentation build process
+The Elasticsearch docs are in AsciiDoc format and can be built using the
+Elasticsearch documentation build process.
 
 See: https://github.com/elastic/docs
 
+Snippets marked with `// CONSOLE` are automatically annotated with "VIEW IN
+SENSE" in the documentation and are automatically tested by the command
+`gradle :docs:check`. By default `// CONSOLE` snippet runs as its own isolated
+test. You can manipulate the test execution in the following ways:
+
+* `// TEST`: Explicitly marks a snippet as a test. Snippets marked this way
+are tests even if they don't have `// CONSOLE`.
+  * `// TEST[s/foo/bar/]`: Replace `foo` with `bar` in the test. This should be
+  used sparingly because it makes the test "lie". Sometimes, though, you can use
+  it to make the tests more clear.
+  * `// TEST[catch:foo]`: Used to expect errors in the requests. Replace `foo`
+  with `request` to expect a 400 error, for example. If the snippet contains
+  multiple requests then only the last request will expect the error.
+  * `// TEST[continued]`: Continue the test started in the last snippet. Between
+  tests the nodes are cleaned: indexes are removed, etc. This will prevent that.
+  This is really useful when you have text and snippets that work together to
+  tell the story of some use case because it merges the snippets (and thus the
+  use case) into one big test.
+  * `// TEST[skip:reason]`: Skip this test. Replace `reason` with the actual
+  reason to skip the test. Snippets without `// TEST` or `// CONSOLE` aren't
+  considered tests anyway but this is useful for explicitly documenting the
+  reason why the test shouldn't be run.
+  * `// TEST[setup:name]`: Run some setup code before running the snippet. This
+  is useful for creating and populating indexes used in the snippet. The setup
+  code is defined in `docs/build.gradle`.
+* `// TESTRESPONSE`: Matches this snippet against the body of the response of
+  the last test. If the response is JSON then order is ignored. With
+  `// TEST[continued]` you can make tests that contain multiple command snippets
+  and multiple response snippets.
+  * `// TESTRESPONSE[s/foo/bar/]`: Substitutions. See `// TEST[s/foo/bar]`.
+* `// TESTSETUP`: Marks this snippet as the "setup" for all other snippets in
+  this file. This is a somewhat natural way of structuring documentation. You
+  say "this is the data we use to explain this feature" then you add the
+  snippet that you mark `// TESTSETUP` and then every snippet will turn into
+  a test that runs the setup snippet first. See the "painless" docs for a file
+  that puts this to good use. This is fairly similar to `// TEST[setup:name]`
+  but rather than the setup defined in `docs/build.gradle` the setup is defined
+  right in the documentation file.
+
+Any place you can use json you can use elements like `$body.path.to.thing`
+which is replaced on the fly with the contents of the thing at `path.to.thing`
+in the last response.

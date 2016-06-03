@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.search.suggest.completion2x.AnalyzingCompletionLookupProvider;
 import org.elasticsearch.search.suggest.completion2x.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion2x.CompletionTokenStream;
@@ -231,7 +232,7 @@ public class CompletionFieldMapper2x extends FieldMapper {
         }
     }
 
-    public static final class CompletionFieldType extends MappedFieldType {
+    public static final class CompletionFieldType extends TermBasedFieldType {
         private PostingsFormat postingsFormat;
         private AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider;
         private SortedMap<String, ContextMapping> contextMapping = ContextMapping.EMPTY_MAPPING;

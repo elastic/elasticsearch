@@ -48,6 +48,8 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.AbstractQueryTestCase;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -67,10 +69,9 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
 
     private static String similarity;
 
-    @BeforeClass
-    public static void before() throws Exception {
+    @Override
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         similarity = randomFrom("classic", "BM25");
-        MapperService mapperService = createShardContext().getMapperService();
         mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
                 STRING_FIELD_NAME, "type=text",
                 STRING_FIELD_NAME_2, "type=keyword",
@@ -115,7 +116,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
 
     @Override
     protected void doAssertLuceneQuery(HasChildQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        QueryBuilder<?> innerQueryBuilder = queryBuilder.query();
+        QueryBuilder innerQueryBuilder = queryBuilder.query();
         if (innerQueryBuilder instanceof EmptyQueryBuilder) {
             assertNull(query);
         } else {
@@ -140,8 +141,8 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 InnerHitsContext.BaseInnerHits innerHits =
                         searchContext.innerHits().getInnerHits().get(queryBuilder.innerHit().getName());
                 assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
-                assertEquals(innerHits.sort().getSort().length, 1);
-                assertEquals(innerHits.sort().getSort()[0].getField(), STRING_FIELD_NAME_2);
+                assertEquals(innerHits.sort().sort.getSort().length, 1);
+                assertEquals(innerHits.sort().sort.getSort()[0].getField(), STRING_FIELD_NAME_2);
             } else {
                 assertThat(searchContext.innerHits().getInnerHits().size(), equalTo(0));
             }
@@ -149,7 +150,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     public void testIllegalValues() {
-        QueryBuilder<?> query = RandomQueryBuilder.createQuery(random());
+        QueryBuilder query = RandomQueryBuilder.createQuery(random());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> QueryBuilders.hasChildQuery(null, query, ScoreMode.None));
         assertEquals("[has_child] requires 'type' field", e.getMessage());

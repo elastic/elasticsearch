@@ -95,15 +95,6 @@ public final class Uid {
         return new Uid(uid.substring(0, delimiterIndex), uid.substring(delimiterIndex + 1));
     }
 
-    public static BytesRef[] createUids(List<? extends DocumentRequest> requests) {
-        BytesRef[] uids = new BytesRef[requests.size()];
-        int idx = 0;
-        for (DocumentRequest item : requests) {
-            uids[idx++] = createUidAsBytes(item.type(), item.id());
-        }
-        return uids;
-    }
-
     public static BytesRef createUidAsBytes(String type, String id) {
         return createUidAsBytes(new BytesRef(type), new BytesRef(id));
     }
@@ -121,13 +112,6 @@ public final class Uid {
         ref.offset = 0;
         ref.length = ref.bytes.length;
         return ref;
-    }
-
-    public static BytesRef createUidAsBytes(BytesRef type, BytesRef id, BytesRefBuilder spare) {
-        spare.copyBytes(type);
-        spare.append(DELIMITER_BYTES);
-        spare.append(id);
-        return spare.get();
     }
 
     public static BytesRef[] createUidsForTypesAndId(Collection<String> types, Object id) {
@@ -149,11 +133,7 @@ public final class Uid {
     }
 
     public static String createUid(String type, String id) {
-        return createUid(new StringBuilder(), type, id);
-    }
-
-    public static String createUid(StringBuilder sb, String type, String id) {
-        return sb.append(type).append(DELIMITER).append(id).toString();
+        return type + DELIMITER + id;
     }
 
     public static boolean hasDelimiter(BytesRef uid) {

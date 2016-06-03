@@ -359,27 +359,11 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            long iValue = parseValue(value);
-            long iSim;
-            try {
-                iSim = fuzziness.asTimeValue().millis();
-            } catch (Exception e) {
-                // not a time format
-                iSim =  fuzziness.asLong();
-            }
-            return LegacyNumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
-        }
-
-        @Override
         public FieldStats.Date stats(IndexReader reader) throws IOException {
             int maxDoc = reader.maxDoc();
             Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
             if (terms == null) {
-                return new FieldStats.Date(maxDoc, isSearchable(), isAggregatable(), dateTimeFormatter());
+                return null;
             }
             long minValue = LegacyNumericUtils.getMinLong(terms);
             long maxValue = LegacyNumericUtils.getMaxLong(terms);

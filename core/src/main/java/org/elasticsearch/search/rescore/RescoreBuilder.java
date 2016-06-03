@@ -125,7 +125,7 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> extends ToXC
 
     public abstract QueryRescoreContext build(QueryShardContext context) throws IOException;
 
-    public static QueryRescorerBuilder queryRescorer(QueryBuilder<?> queryBuilder) {
+    public static QueryRescorerBuilder queryRescorer(QueryBuilder queryBuilder) {
         return new QueryRescorerBuilder(queryBuilder);
     }
 

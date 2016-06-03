@@ -19,7 +19,6 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.ingest.ProcessorsRegistry;
@@ -28,6 +27,7 @@ import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.ingest.processor.AppendProcessor;
 import org.elasticsearch.ingest.processor.ConvertProcessor;
 import org.elasticsearch.ingest.processor.DateProcessor;
+import org.elasticsearch.ingest.processor.DateIndexNameProcessor;
 import org.elasticsearch.ingest.processor.FailProcessor;
 import org.elasticsearch.ingest.processor.ForEachProcessor;
 import org.elasticsearch.ingest.processor.GsubProcessor;
@@ -36,6 +36,7 @@ import org.elasticsearch.ingest.processor.LowercaseProcessor;
 import org.elasticsearch.ingest.processor.RemoveProcessor;
 import org.elasticsearch.ingest.processor.RenameProcessor;
 import org.elasticsearch.ingest.processor.SetProcessor;
+import org.elasticsearch.ingest.processor.SortProcessor;
 import org.elasticsearch.ingest.processor.SplitProcessor;
 import org.elasticsearch.ingest.processor.TrimProcessor;
 import org.elasticsearch.ingest.processor.UppercaseProcessor;
@@ -54,7 +55,6 @@ public class NodeModule extends AbstractModule {
     private final ProcessorsRegistry.Builder processorsRegistryBuilder;
 
     // pkg private so tests can mock
-    Class<? extends PageCacheRecycler> pageCacheRecyclerImpl = PageCacheRecycler.class;
     Class<? extends BigArrays> bigArraysImpl = BigArrays.class;
 
     public NodeModule(Node node, MonitorService monitorService) {
@@ -76,15 +76,12 @@ public class NodeModule extends AbstractModule {
         registerProcessor(GsubProcessor.TYPE, (templateService, registry) -> new GsubProcessor.Factory());
         registerProcessor(FailProcessor.TYPE, (templateService, registry) -> new FailProcessor.Factory(templateService));
         registerProcessor(ForEachProcessor.TYPE, (templateService, registry) -> new ForEachProcessor.Factory(registry));
+        registerProcessor(DateIndexNameProcessor.TYPE, (templateService, registry) -> new DateIndexNameProcessor.Factory());
+        registerProcessor(SortProcessor.TYPE, (templateService, registry) -> new SortProcessor.Factory());
     }
 
     @Override
     protected void configure() {
-        if (pageCacheRecyclerImpl == PageCacheRecycler.class) {
-            bind(PageCacheRecycler.class).asEagerSingleton();
-        } else {
-            bind(PageCacheRecycler.class).to(pageCacheRecyclerImpl).asEagerSingleton();
-        }
         if (bigArraysImpl == BigArrays.class) {
             bind(BigArrays.class).asEagerSingleton();
         } else {

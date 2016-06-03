@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.ttl;
 
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -45,14 +44,14 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class TTLMappingTests extends ESSingleNodeTestCase {
     public void testSimpleDisabled() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()
                 .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1").ttl(Long.MAX_VALUE));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source).ttl(Long.MAX_VALUE));
 
         assertThat(doc.rootDoc().getField("_ttl"), equalTo(null));
     }
@@ -67,7 +66,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
                 .field("field", "value")
                 .endObject()
                 .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1").ttl(Long.MAX_VALUE));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source).ttl(Long.MAX_VALUE));
 
         assertThat(doc.rootDoc().getField("_ttl").fieldType().stored(), equalTo(true));
         assertNotSame(IndexOptions.NONE, doc.rootDoc().getField("_ttl").fieldType().indexOptions());
@@ -75,7 +74,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaultValues() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         assertThat(docMapper.TTLFieldMapper().enabled(), equalTo(TTLFieldMapper.Defaults.ENABLED_STATE.enabled));
         assertThat(docMapper.TTLFieldMapper().fieldType().stored(), equalTo(TTLFieldMapper.Defaults.TTL_FIELD_TYPE.stored()));

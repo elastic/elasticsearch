@@ -75,5 +75,8 @@ public class AzureDiscoveryPlugin extends Plugin {
         settingsModule.registerSetting(AzureComputeService.Management.SUBSCRIPTION_ID_SETTING);
         settingsModule.registerSetting(AzureComputeService.Management.SERVICE_NAME_SETTING);
         settingsModule.registerSetting(AzureComputeService.Discovery.HOST_TYPE_SETTING);
+        settingsModule.registerSetting(AzureComputeService.Discovery.DEPLOYMENT_NAME_SETTING);
+        settingsModule.registerSetting(AzureComputeService.Discovery.DEPLOYMENT_SLOT_SETTING);
+        settingsModule.registerSetting(AzureComputeService.Discovery.ENDPOINT_NAME_SETTING);
     }
 }

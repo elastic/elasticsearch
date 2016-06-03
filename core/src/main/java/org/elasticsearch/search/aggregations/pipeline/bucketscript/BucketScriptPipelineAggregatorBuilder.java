@@ -29,9 +29,9 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,7 +46,7 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
-public class BucketScriptPipelineAggregatorBuilder extends PipelineAggregatorBuilder<BucketScriptPipelineAggregatorBuilder> {
+public class BucketScriptPipelineAggregatorBuilder extends AbstractPipelineAggregatorBuilder<BucketScriptPipelineAggregatorBuilder> {
     public static final String NAME = BucketScriptPipelineAggregator.TYPE.name();
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 

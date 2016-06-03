@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
@@ -54,7 +54,7 @@ public interface Repository extends LifecycleComponent<Repository> {
      * @param snapshotId snapshot ID
      * @return information about snapshot
      */
-    Snapshot readSnapshot(SnapshotId snapshotId);
+    SnapshotInfo readSnapshot(SnapshotId snapshotId);
 
     /**
      * Returns global metadata associate with the snapshot.
@@ -65,7 +65,7 @@ public interface Repository extends LifecycleComponent<Repository> {
      * @param indices    list of indices
      * @return information about snapshot
      */
-    MetaData readSnapshotMetaData(SnapshotId snapshotId, Snapshot snapshot, List<String> indices) throws IOException;
+    MetaData readSnapshotMetaData(SnapshotId snapshotId, SnapshotInfo snapshot, List<String> indices) throws IOException;
 
     /**
      * Returns the list of snapshots currently stored in the repository
@@ -94,7 +94,7 @@ public interface Repository extends LifecycleComponent<Repository> {
      * @param shardFailures list of shard failures
      * @return snapshot description
      */
-    Snapshot finalizeSnapshot(SnapshotId snapshotId, List<String> indices, long startTime, String failure, int totalShards, List<SnapshotShardFailure> shardFailures);
+    SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<String> indices, long startTime, String failure, int totalShards, List<SnapshotShardFailure> shardFailures);
 
     /**
      * Deletes snapshot

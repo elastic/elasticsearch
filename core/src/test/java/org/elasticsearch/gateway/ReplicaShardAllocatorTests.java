@@ -233,16 +233,14 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             // we sometime return empty list of files, make sure we test this as well
             testAllocator.addData(node2, false, null);
         }
-        AllocationService.updateLeftDelayOfUnassignedShards(allocation, Settings.EMPTY);
         boolean changed = testAllocator.allocateUnassigned(allocation);
-        assertThat(changed, equalTo(true));
+        assertThat(changed, equalTo(false));
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
 
         allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(),
                 Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1)).build(), UnassignedInfo.Reason.NODE_LEFT);
         testAllocator.addData(node2, false, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"));
-        AllocationService.updateLeftDelayOfUnassignedShards(allocation, Settings.EMPTY);
         changed = testAllocator.allocateUnassigned(allocation);
         assertThat(changed, equalTo(true));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
@@ -284,17 +282,23 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     }
 
     private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders, Settings settings, UnassignedInfo.Reason reason) {
-        ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.getId(), true, ShardRoutingState.STARTED);
+        ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId, node1.getId(), true, ShardRoutingState.STARTED);
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(Version.CURRENT).put(settings))
                     .numberOfShards(1).numberOfReplicas(1)
                     .putActiveAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId())))
             .build();
+        // mark shard as delayed if reason is NODE_LEFT
+        boolean delayed = reason == UnassignedInfo.Reason.NODE_LEFT &&
+            UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings).nanos() > 0;
+        int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
         RoutingTable routingTable = RoutingTable.builder()
                 .add(IndexRoutingTable.builder(shardId.getIndex())
                                 .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
                                         .addShard(primaryShard)
-                                        .addShard(ShardRouting.newUnassigned(shardId.getIndex(), shardId.getId(), null, false, new UnassignedInfo(reason, null)))
+                                        .addShard(ShardRouting.newUnassigned(shardId, null, false,
+                                            new UnassignedInfo(reason, null, null, failedAllocations, System.nanoTime(),
+                                                System.currentTimeMillis(), delayed)))
                                         .build())
                 )
                 .build();
@@ -302,11 +306,11 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 .metaData(metaData)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
-        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state.nodes(), ClusterInfo.EMPTY, System.nanoTime());
+        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, ClusterInfo.EMPTY, System.nanoTime(), false);
     }
 
     private RoutingAllocation onePrimaryOnNode1And1ReplicaRecovering(AllocationDeciders deciders) {
-        ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node1.getId(), true, ShardRoutingState.STARTED);
+        ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId, node1.getId(), true, ShardRoutingState.STARTED);
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(Version.CURRENT))
                     .numberOfShards(1).numberOfReplicas(1)
@@ -316,7 +320,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 .add(IndexRoutingTable.builder(shardId.getIndex())
                                 .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
                                         .addShard(primaryShard)
-                                        .addShard(TestShardRouting.newShardRouting(shardId.getIndex(), shardId.getId(), node2.getId(), null, null, false, ShardRoutingState.INITIALIZING, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null)))
+                                        .addShard(TestShardRouting.newShardRouting(shardId, node2.getId(), null, null, false, ShardRoutingState.INITIALIZING, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null)))
                                         .build())
                 )
                 .build();
@@ -324,7 +328,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 .metaData(metaData)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
-        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state.nodes(), ClusterInfo.EMPTY, System.nanoTime());
+        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, ClusterInfo.EMPTY, System.nanoTime(), false);
     }
 
     class TestAllocator extends ReplicaShardAllocator {

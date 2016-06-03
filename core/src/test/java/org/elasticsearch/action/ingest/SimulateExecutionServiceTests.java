@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestProcessor;
@@ -127,7 +128,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         TestProcessor processor2 = new TestProcessor("processor_1", "mock", ingestDocument -> {});
         TestProcessor processor3 = new TestProcessor("processor_2", "mock", ingestDocument -> {});
         Pipeline pipeline = new Pipeline("_id", "_description",
-                new CompoundProcessor(new CompoundProcessor(Collections.singletonList(processor1),
+                new CompoundProcessor(new CompoundProcessor(false, Collections.singletonList(processor1),
                                 Collections.singletonList(processor2)), processor3));
         SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
         assertThat(processor1.getInvokedCounter(), equalTo(1));
@@ -167,7 +168,8 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         SimulateDocumentBaseResult simulateDocumentBaseResult = (SimulateDocumentBaseResult) actualItemResponse;
         assertThat(simulateDocumentBaseResult.getIngestDocument(), nullValue());
         assertThat(simulateDocumentBaseResult.getFailure(), instanceOf(RuntimeException.class));
-        RuntimeException runtimeException = (RuntimeException) simulateDocumentBaseResult.getFailure();
-        assertThat(runtimeException.getMessage(), equalTo("processor failed"));
+        Exception exception = simulateDocumentBaseResult.getFailure();
+        assertThat(exception, instanceOf(ElasticsearchException.class));
+        assertThat(exception.getMessage(), equalTo("java.lang.IllegalArgumentException: java.lang.RuntimeException: processor failed"));
     }
 }

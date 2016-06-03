@@ -27,9 +27,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ import java.util.Objects;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 
-public class SerialDiffPipelineAggregatorBuilder extends PipelineAggregatorBuilder<SerialDiffPipelineAggregatorBuilder> {
+public class SerialDiffPipelineAggregatorBuilder extends AbstractPipelineAggregatorBuilder<SerialDiffPipelineAggregatorBuilder> {
     public static final String NAME = SerialDiffPipelineAggregator.TYPE.name();
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 

@@ -50,7 +50,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -255,12 +255,12 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             // Make sure that the request was successful
             assertNull(throwableReference.get());
             assertNotNull(responseReference.get());
-            assertEquals(nodesCount, responseReference.get().getNodes().length);
+            assertEquals(nodesCount, responseReference.get().getNodes().size());
             assertEquals(0, responseReference.get().failureCount());
         } else {
             // We canceled the request, in this case it should have fail, but we should get partial response
             assertNull(throwableReference.get());
-            assertEquals(nodesCount, responseReference.get().failureCount() + responseReference.get().getNodes().length);
+            assertEquals(nodesCount, responseReference.get().failureCount() + responseReference.get().getNodes().size());
             // and we should have at least as many failures as the number of blocked operations
             // (we might have cancelled some non-blocked operations before they even started and that's ok)
             assertThat(responseReference.get().failureCount(), greaterThanOrEqualTo(blockedNodesCount));

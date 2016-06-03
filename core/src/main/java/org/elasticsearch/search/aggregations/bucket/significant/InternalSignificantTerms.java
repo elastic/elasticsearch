@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -33,6 +34,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  *
@@ -56,15 +58,19 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         long bucketOrd;
         protected InternalAggregations aggregations;
         double score;
+        transient final DocValueFormat format;
 
-        protected Bucket(long subsetSize, long supersetSize) {
+        protected Bucket(long subsetSize, long supersetSize, DocValueFormat format) {
             // for serialization
             super(subsetSize, supersetSize);
+            this.format = format;
         }
 
-        protected Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations) {
+        protected Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize,
+                InternalAggregations aggregations, DocValueFormat format) {
             super(subsetDf, subsetSize, supersetDf, supersetSize);
             this.aggregations = aggregations;
+            this.format = format;
         }
 
         @Override
@@ -122,9 +128,11 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         }
     }
 
-    protected InternalSignificantTerms(long subsetSize, long supersetSize, String name, int requiredSize, long minDocCount,
-            SignificanceHeuristic significanceHeuristic, List<? extends Bucket> buckets, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
+    protected DocValueFormat format;
+
+    protected InternalSignificantTerms(long subsetSize, long supersetSize, String name, DocValueFormat format, int requiredSize,
+            long minDocCount, SignificanceHeuristic significanceHeuristic, List<? extends Bucket> buckets,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
@@ -132,6 +140,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         this.subsetSize = subsetSize;
         this.supersetSize = supersetSize;
         this.significanceHeuristic = significanceHeuristic;
+        this.format = Objects.requireNonNull(format);
     }
 
     @Override

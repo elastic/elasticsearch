@@ -19,6 +19,7 @@
 package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
@@ -63,14 +64,16 @@ public class NettyScheduledPingTests extends ESTestCase {
         NamedWriteableRegistry registryA = new NamedWriteableRegistry();
         final NettyTransport nettyA = new NettyTransport(settings, threadPool, new NetworkService(settings),
             BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, registryA, circuitBreakerService);
-        MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool);
+        ClusterName test = new ClusterName("test");
+        MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool, test);
         serviceA.start();
         serviceA.acceptIncomingRequests();
 
         NamedWriteableRegistry registryB = new NamedWriteableRegistry();
         final NettyTransport nettyB = new NettyTransport(settings, threadPool, new NetworkService(settings),
             BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, registryB, circuitBreakerService);
-        MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool);
+        MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool, test);
+
         serviceB.start();
         serviceB.acceptIncomingRequests();
 

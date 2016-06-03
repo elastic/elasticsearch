@@ -430,7 +430,7 @@ public class SettingTests extends ESTestCase {
             integerSetting.get(Settings.builder().put("foo.bar", 11).build());
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals("Failed to parse value [11] for setting [foo.bar] must be =< 10", ex.getMessage());
+            assertEquals("Failed to parse value [11] for setting [foo.bar] must be <= 10", ex.getMessage());
         }
 
         try {
@@ -475,7 +475,7 @@ public class SettingTests extends ESTestCase {
             Setting.simpleString("foo.bar", (Property[]) null);
             fail();
         } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), containsString("properties can not be null for setting"));
+            assertThat(ex.getMessage(), containsString("properties cannot be null for setting"));
         }
     }
 }

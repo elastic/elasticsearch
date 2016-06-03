@@ -50,7 +50,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.Version.CURRENT;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 
 /**
@@ -87,7 +87,7 @@ public class IndicesStoreTests extends ESTestCase {
     public void before() {
         localNode = new DiscoveryNode("abc", new LocalTransportAddress("abc"), emptyMap(), emptySet(), Version.CURRENT);
         clusterService = createClusterService(threadPool);
-        indicesStore = new IndicesStore(Settings.EMPTY, null, clusterService, new TransportService(null, null), null);
+        indicesStore = new IndicesStore(Settings.EMPTY, null, clusterService, new TransportService(null, null, clusterService.state().getClusterName()), null);
     }
 
     @After

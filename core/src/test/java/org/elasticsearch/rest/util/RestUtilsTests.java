@@ -36,6 +36,10 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class RestUtilsTests extends ESTestCase {
 
+    static char randomDelimiter() {
+        return randomBoolean() ? '&' : ';';
+    }
+
     public void testDecodeQueryString() {
         Map<String, String> params = new HashMap<>();
 
@@ -45,7 +49,7 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.get("test"), equalTo("value"));
 
         params.clear();
-        uri = "something?test=value&test1=value1";
+        uri = String.format(Locale.ROOT, "something?test=value%ctest1=value1", randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("test"), equalTo("value"));
@@ -70,12 +74,12 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.size(), equalTo(0));
 
         params.clear();
-        uri = "something?&";
+        uri = String.format(Locale.ROOT, "something?%c", randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(0));
 
         params.clear();
-        uri = "something?p=v&&p1=v1";
+        uri = String.format(Locale.ROOT, "something?p=v%c%cp1=v1", randomDelimiter(), randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("p"), equalTo("v"));
@@ -87,7 +91,7 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.size(), equalTo(0));
 
         params.clear();
-        uri = "something?&=";
+        uri = String.format(Locale.ROOT, "something?%c=", randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(0));
 
@@ -98,14 +102,14 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.get("a"), equalTo(""));
 
         params.clear();
-        uri = "something?p=v&a";
+        uri = String.format(Locale.ROOT, "something?p=v%ca", randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("a"), equalTo(""));
         assertThat(params.get("p"), equalTo("v"));
 
         params.clear();
-        uri = "something?p=v&a&p1=v1";
+        uri = String.format(Locale.ROOT, "something?p=v%ca%cp1=v1", randomDelimiter(), randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(3));
         assertThat(params.get("a"), equalTo(""));
@@ -113,7 +117,7 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.get("p1"), equalTo("v1"));
 
         params.clear();
-        uri = "something?p=v&a&b&p1=v1";
+        uri = String.format(Locale.ROOT, "something?p=v%ca%cb%cp1=v1", randomDelimiter(), randomDelimiter(), randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(4));
         assertThat(params.get("a"), equalTo(""));
@@ -139,9 +143,15 @@ public class RestUtilsTests extends ESTestCase {
         Map<String, String> params = new HashMap<>();
 
         // This is a valid URL
-        String uri = "example.com/:@-._~!$&'()*+,=;:@-._~!$&'()*+,=:@-._~!$&'()*+,==?/?:@-._~!$'()*+,;=/?:@-._~!$'()*+,;==#/?:@-._~!$&'()*+,;=";
+        String uri = String.format(
+                Locale.ROOT,
+                "example.com/:@-._~!$%c'()*+,=;:@-._~!$%c'()*+,=:@-._~!$%c'()*+,==?/?:@-._~!$'()*+,=/?:@-._~!$'()*+,==#/?:@-._~!$%c'()*+,;=",
+                randomDelimiter(),
+                randomDelimiter(),
+                randomDelimiter(),
+                randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
-        assertThat(params.get("/?:@-._~!$'()* ,;"), equalTo("/?:@-._~!$'()* ,;=="));
+        assertThat(params.get("/?:@-._~!$'()* ,"), equalTo("/?:@-._~!$'()* ,=="));
         assertThat(params.size(), equalTo(1));
     }
 

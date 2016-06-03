@@ -74,7 +74,7 @@ public class RestExplainAction extends BaseRestHandler {
             BytesReference restContent = RestActions.getRestContent(request);
             explainRequest.query(RestActions.getQueryContent(restContent, indicesQueriesRegistry, parseFieldMatcher));
         } else if (queryString != null) {
-            QueryBuilder<?> query = RestActions.urlParamsToQueryBuilder(request);
+            QueryBuilder query = RestActions.urlParamsToQueryBuilder(request);
             explainRequest.query(query);
         }
 

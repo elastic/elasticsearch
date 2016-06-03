@@ -156,10 +156,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         if (!enabledState.enabled) {
             return;
         }
-        if (context.source() == null) {
-            return;
-        }
-        final int value = context.source().length();
+        final int value = context.sourceToParse().source().length();
         if (Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha2)) {
             fields.add(new LegacyIntegerFieldMapper.CustomIntegerNumericField(value, fieldType()));
         } else {

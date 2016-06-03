@@ -80,7 +80,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     protected String fragmenter;
 
-    protected QueryBuilder<?> highlightQuery;
+    protected QueryBuilder highlightQuery;
 
     protected Order order;
 
@@ -275,7 +275,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
      * Sets a query to be used for highlighting instead of the search query.
      */
     @SuppressWarnings("unchecked")
-    public HB highlightQuery(QueryBuilder<?> highlightQuery) {
+    public HB highlightQuery(QueryBuilder highlightQuery) {
         this.highlightQuery = highlightQuery;
         return (HB) this;
     }
@@ -283,7 +283,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     /**
      * @return the value set by {@link #highlightQuery(QueryBuilder)}
      */
-    public QueryBuilder<?> highlightQuery() {
+    public QueryBuilder highlightQuery() {
         return this.highlightQuery;
     }
 

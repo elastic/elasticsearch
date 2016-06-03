@@ -1413,7 +1413,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                     markAsRecovering("from local shards", recoveryState); // mark the shard as recovering on the cluster state thread
                     threadPool.generic().execute(() -> {
                         try {
-                            Set<ShardId> shards = indexMetaData.selectShrinkShards(shardId().id(), sourceIndexService.getMetaData(),
+                            final Set<ShardId> shards = IndexMetaData.selectShrinkShards(shardId().id(), sourceIndexService.getMetaData(),
                                 indexMetaData.getNumberOfShards());
                             if (recoverFromLocalShards(mappingUpdateConsumer, startedShards.stream()
                                 .filter((s) -> shards.contains(s.shardId())).collect(Collectors.toList()))) {

@@ -52,7 +52,6 @@ public class QueryFunction extends ScoreFunction {
     @Override
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
         final Scorer scorer = weight.scorer(ctx);
-        // TODO: not sure if this is the most efficient way to do it
         Bits bits = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), scorer);
         return new LeafScoreFunction() {
 

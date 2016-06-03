@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
@@ -31,8 +32,8 @@ public final class SExpression extends AStatement {
 
     AExpression expression;
 
-    public SExpression(int line, int offset, String location, AExpression expression) {
-        super(line, offset, location);
+    public SExpression(Location location, AExpression expression) {
+        super(location);
 
         this.expression = expression;
     }
@@ -43,7 +44,7 @@ public final class SExpression extends AStatement {
         expression.analyze(variables);
 
         if (!lastSource && !expression.statement) {
-            throw new IllegalArgumentException(error("Not a statement."));
+            throw createError(new IllegalArgumentException("Not a statement."));
         }
 
         final boolean rtn = lastSource && expression.actual.sort != Sort.VOID;
@@ -60,7 +61,7 @@ public final class SExpression extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writer.writeStatementOffset(offset);
+        writer.writeStatementOffset(location);
         expression.write(writer);
 
         if (methodEscape) {

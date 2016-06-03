@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -107,8 +108,8 @@ public abstract class AStatement extends ANode {
      */
     Label brake = null;
 
-    AStatement(int line, int offset, String location) {
-        super(line, offset, location);
+    AStatement(Location location) {
+        super(location);
     }
 
     /**

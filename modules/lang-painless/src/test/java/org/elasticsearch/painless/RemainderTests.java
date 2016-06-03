@@ -124,18 +124,12 @@ public class RemainderTests extends ScriptTestCase {
     }
 
     public void testDivideByZeroConst() throws Exception {
-        try {
+        expectScriptThrows(ArithmeticException.class, () -> {
             exec("return 1%0;");
-            fail("should have hit exception");
-        } catch (ArithmeticException expected) {
-            // divide by zero
-        }
+        });
 
-        try {
+        expectScriptThrows(ArithmeticException.class, () -> {
             exec("return 1L%0L;");
-            fail("should have hit exception");
-        } catch (ArithmeticException expected) {
-            // divide by zero
-        }
+        });
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.Variables.Variable;
@@ -33,8 +34,8 @@ public final class LVariable extends ALink {
 
     int slot;
 
-    public LVariable(int line, int offset, String location, String name) {
-        super(line, offset, location, 0);
+    public LVariable(Location location, String name) {
+        super(location, 0);
 
         this.name = name;
     }
@@ -42,13 +43,13 @@ public final class LVariable extends ALink {
     @Override
     ALink analyze(Variables variables) {
         if (before != null) {
-            throw new IllegalArgumentException(error("Illegal variable [" + name + "] access with target already defined."));
+            throw createError(new IllegalArgumentException("Illegal variable [" + name + "] access with target already defined."));
         }
 
         Variable variable = variables.getVariable(location, name);
 
         if (store && variable.readonly) {
-            throw new IllegalArgumentException(error("Variable [" + variable.name + "] is read-only."));
+            throw createError(new IllegalArgumentException("Variable [" + variable.name + "] is read-only."));
         }
 
         slot = variable.slot;

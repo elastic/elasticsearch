@@ -21,7 +21,7 @@ package org.elasticsearch.painless;
 
 public class FunctionRefTests extends ScriptTestCase {
     public void testUnsupported() {
-        expectThrows(UnsupportedOperationException.class, () -> {
+        expectScriptThrows(UnsupportedOperationException.class, () -> {
            exec("DoubleStream.Builder builder = DoubleStream.builder();" +
                "builder.add(2.0); builder.add(1.0); builder.add(3.0);" +
                "builder.build().reduce(Double::unsupported);");

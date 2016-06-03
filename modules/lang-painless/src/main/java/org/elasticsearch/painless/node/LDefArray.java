@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Type;
@@ -34,8 +35,8 @@ final class LDefArray extends ALink implements IDefLink {
 
     AExpression index;
 
-    LDefArray(int line, int offset, String location, AExpression index) {
-        super(line, offset, location, 2);
+    LDefArray(Location location, AExpression index) {
+        super(location, 2);
 
         this.index = index;
     }
@@ -58,14 +59,14 @@ final class LDefArray extends ALink implements IDefLink {
 
     @Override
     void load(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+        writer.writeDebugInfo(location);
         String desc = Type.getMethodDescriptor(after.type, Definition.DEF_TYPE.type, index.actual.type);
         writer.invokeDynamic("arrayLoad", desc, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.ARRAY_LOAD);
     }
 
     @Override
     void store(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+        writer.writeDebugInfo(location);
         String desc = Type.getMethodDescriptor(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, index.actual.type, after.type);
         writer.invokeDynamic("arrayStore", desc, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.ARRAY_STORE);
     }

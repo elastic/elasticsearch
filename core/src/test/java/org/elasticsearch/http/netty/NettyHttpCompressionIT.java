@@ -61,7 +61,7 @@ public class NettyHttpCompressionIT extends ESIntegTestCase {
         ensureGreen();
         // we need to intercept early, otherwise internal logic in HttpClient will just remove the header and we cannot verify it
         ContentEncodingHeaderExtractor headerExtractor = new ContentEncodingHeaderExtractor();
-        try (RestClient client = restClient(HttpClients.custom().addInterceptorFirst(headerExtractor).build())) {
+        try (RestClient client = createRestClient(HttpClients.custom().addInterceptorFirst(headerExtractor).build())) {
             try (ElasticsearchResponse response = client.performRequest("GET", "/", Collections.emptyMap(), null,
                     new BasicHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING))) {
                 assertEquals(200, response.getStatusLine().getStatusCode());
@@ -75,7 +75,7 @@ public class NettyHttpCompressionIT extends ESIntegTestCase {
         ensureGreen();
         ContentEncodingHeaderExtractor headerExtractor = new ContentEncodingHeaderExtractor();
         CloseableHttpClient httpClient = HttpClients.custom().disableContentCompression().addInterceptorFirst(headerExtractor).build();
-        try (RestClient client = restClient(httpClient)) {
+        try (RestClient client = createRestClient(httpClient)) {
             try (ElasticsearchResponse response = client.performRequest("GET", "/", Collections.emptyMap(), null)) {
                 assertEquals(200, response.getStatusLine().getStatusCode());
                 assertFalse(headerExtractor.hasContentEncodingHeader());
@@ -88,7 +88,7 @@ public class NettyHttpCompressionIT extends ESIntegTestCase {
         ContentEncodingHeaderExtractor headerExtractor = new ContentEncodingHeaderExtractor();
         // this disable content compression in both directions (request and response)
         CloseableHttpClient httpClient = HttpClients.custom().disableContentCompression().addInterceptorFirst(headerExtractor).build();
-        try (RestClient client = restClient(httpClient)) {
+        try (RestClient client = createRestClient(httpClient)) {
             try (ElasticsearchResponse response = client.performRequest("POST", "/company/employees/1",
                     Collections.emptyMap(), SAMPLE_DOCUMENT)) {
                 assertEquals(201, response.getStatusLine().getStatusCode());
@@ -101,7 +101,7 @@ public class NettyHttpCompressionIT extends ESIntegTestCase {
         ensureGreen();
         ContentEncodingHeaderExtractor headerExtractor = new ContentEncodingHeaderExtractor();
         // we don't call #disableContentCompression() hence the client will send the content compressed
-        try (RestClient client = restClient(HttpClients.custom().addInterceptorFirst(headerExtractor).build())) {
+        try (RestClient client = createRestClient(HttpClients.custom().addInterceptorFirst(headerExtractor).build())) {
             try (ElasticsearchResponse response = client.performRequest("POST", "/company/employees/2",
                     Collections.emptyMap(), SAMPLE_DOCUMENT)) {
                 assertEquals(201, response.getStatusLine().getStatusCode());

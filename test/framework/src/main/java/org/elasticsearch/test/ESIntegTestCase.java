@@ -314,6 +314,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * By default if no {@link ClusterScope} is configured this will hold a reference to the suite cluster.
      */
     private static TestCluster currentCluster;
+    private static RestClient restClient = null;
 
     private static final double TRANSPORT_CLIENT_RATIO = transportClientRatio();
 
@@ -509,6 +510,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (!clusters.isEmpty()) {
             IOUtils.close(clusters.values());
             clusters.clear();
+        }
+        if (restClient != null) {
+            restClient.close();
+            restClient = null;
         }
     }
 
@@ -2033,15 +2038,24 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return builder.build();
     }
 
-    protected static RestClient restClient() {
-        return restClient(null);
+    /**
+     * Returns an instance of {@link RestClient} pointing to the current test cluster.
+     * Creates a new client if the method is invoked for the first time in the context of the current test scope.
+     * The returned client gets automatically closed when needed, it shouldn't be closed as part of tests otherwise
+     * it cannot be reused by other tests anymore.
+     */
+    protected synchronized static RestClient getRestClient() {
+        if (restClient == null) {
+            restClient = createRestClient(null);
+        }
+        return restClient;
     }
 
-    protected static RestClient restClient(CloseableHttpClient httpClient) {
-        return restClient(httpClient, "http");
+    protected static RestClient createRestClient(CloseableHttpClient httpClient) {
+        return createRestClient(httpClient, "http");
     }
 
-    protected static RestClient restClient(CloseableHttpClient httpClient, String protocol) {
+    protected static RestClient createRestClient(CloseableHttpClient httpClient, String protocol) {
         final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
         final List<NodeInfo> nodes = nodeInfos.getNodes();
         assertFalse(nodeInfos.hasFailures());
@@ -2054,7 +2068,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 hosts.add(new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), protocol));
             }
         }
-
         RestClient.Builder builder = RestClient.builder().setHosts(hosts.toArray(new HttpHost[hosts.size()]));
         if (httpClient != null) {
             builder.setHttpClient(httpClient);

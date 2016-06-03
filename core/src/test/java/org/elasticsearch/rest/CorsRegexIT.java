@@ -21,7 +21,6 @@ package org.elasticsearch.rest;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.ElasticsearchResponse;
 import org.elasticsearch.client.ElasticsearchResponseException;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
@@ -62,23 +61,21 @@ public class CorsRegexIT extends ESIntegTestCase {
 
     public void testThatRegularExpressionWorksOnMatch() throws Exception {
         String corsValue = "http://localhost:9200";
-        try (RestClient client = restClient()) {
-            try (ElasticsearchResponse response = client.performRequest("GET", "/", Collections.emptyMap(), null,
-                    new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue))) {
-                assertResponseWithOriginheader(response, corsValue);
-            }
-            corsValue = "https://localhost:9200";
-            try (ElasticsearchResponse response = client.performRequest("GET", "/", Collections.emptyMap(), null,
-                    new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue));) {
-                assertResponseWithOriginheader(response, corsValue);
-                assertThat(response.getFirstHeader("Access-Control-Allow-Credentials"), is("true"));
-            }
+        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
+                new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue))) {
+            assertResponseWithOriginheader(response, corsValue);
+        }
+        corsValue = "https://localhost:9200";
+        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
+                new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue));) {
+            assertResponseWithOriginheader(response, corsValue);
+            assertThat(response.getFirstHeader("Access-Control-Allow-Credentials"), is("true"));
         }
     }
 
     public void testThatRegularExpressionReturnsForbiddenOnNonMatch() throws Exception {
-        try (RestClient client = restClient()) {
-            client.performRequest("GET", "/", Collections.emptyMap(), null, new BasicHeader("User-Agent", "Mozilla Bar"),
+        try {
+            getRestClient().performRequest("GET", "/", Collections.emptyMap(), null, new BasicHeader("User-Agent", "Mozilla Bar"),
                     new BasicHeader("Origin", "http://evil-host:9200"));
             fail("request should have failed");
         } catch(ElasticsearchResponseException e) {
@@ -90,39 +87,33 @@ public class CorsRegexIT extends ESIntegTestCase {
     }
 
     public void testThatSendingNoOriginHeaderReturnsNoAccessControlHeader() throws Exception {
-        try (RestClient client = restClient()) {
-            try (ElasticsearchResponse response = client.performRequest("GET", "/", Collections.emptyMap(), null,
-                    new BasicHeader("User-Agent", "Mozilla Bar"))) {
-                assertThat(response.getStatusLine().getStatusCode(), is(200));
-                assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
-            }
+        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
+                new BasicHeader("User-Agent", "Mozilla Bar"))) {
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+            assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
         }
     }
 
     public void testThatRegularExpressionIsNotAppliedWithoutCorrectBrowserOnMatch() throws Exception {
-        try (RestClient client = restClient()) {
-            try (ElasticsearchResponse response = client.performRequest("GET", "/", Collections.emptyMap(), null)) {
-                assertThat(response.getStatusLine().getStatusCode(), is(200));
-                assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
-            }
+        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null)) {
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+            assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
         }
     }
 
     public void testThatPreFlightRequestWorksOnMatch() throws Exception {
         String corsValue = "http://localhost:9200";
-        try (RestClient client = restClient()) {
-            try (ElasticsearchResponse response = client.performRequest("OPTIONS", "/", Collections.emptyMap(), null,
-                    new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue),
-                    new BasicHeader(HttpHeaders.Names.ACCESS_CONTROL_REQUEST_METHOD, "GET"));) {
-                assertResponseWithOriginheader(response, corsValue);
-                assertNotNull(response.getFirstHeader("Access-Control-Allow-Methods"));
-            }
+        try (ElasticsearchResponse response = getRestClient().performRequest("OPTIONS", "/", Collections.emptyMap(), null,
+                new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue),
+                new BasicHeader(HttpHeaders.Names.ACCESS_CONTROL_REQUEST_METHOD, "GET"));) {
+            assertResponseWithOriginheader(response, corsValue);
+            assertNotNull(response.getFirstHeader("Access-Control-Allow-Methods"));
         }
     }
 
     public void testThatPreFlightRequestReturnsNullOnNonMatch() throws Exception {
-        try (RestClient client = restClient()) {
-            client.performRequest("OPTIONS", "/", Collections.emptyMap(), null, new BasicHeader("User-Agent", "Mozilla Bar"),
+        try {
+            getRestClient().performRequest("OPTIONS", "/", Collections.emptyMap(), null, new BasicHeader("User-Agent", "Mozilla Bar"),
                     new BasicHeader("Origin", "http://evil-host:9200"),
                     new BasicHeader(HttpHeaders.Names.ACCESS_CONTROL_REQUEST_METHOD, "GET"));
             fail("request should have failed");

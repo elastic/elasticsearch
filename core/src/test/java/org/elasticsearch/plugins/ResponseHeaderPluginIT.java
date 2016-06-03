@@ -21,7 +21,6 @@ package org.elasticsearch.plugins;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.ElasticsearchResponse;
 import org.elasticsearch.client.ElasticsearchResponseException;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.responseheader.TestResponseHeaderPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -56,21 +55,19 @@ public class ResponseHeaderPluginIT extends ESIntegTestCase {
 
     public void testThatSettingHeadersWorks() throws Exception {
         ensureGreen();
-        try (RestClient client = restClient()) {
-            try {
-                client.performRequest("GET", "/_protected", Collections.emptyMap(), null);
-                fail("request should have failed");
-            } catch(ElasticsearchResponseException e) {
-                ElasticsearchResponse response = e.getElasticsearchResponse();
-                assertThat(response, hasStatus(UNAUTHORIZED));
-                assertThat(response.getFirstHeader("Secret"), equalTo("required"));
-            }
+        try {
+            getRestClient().performRequest("GET", "/_protected", Collections.emptyMap(), null);
+            fail("request should have failed");
+        } catch(ElasticsearchResponseException e) {
+            ElasticsearchResponse response = e.getElasticsearchResponse();
+            assertThat(response, hasStatus(UNAUTHORIZED));
+            assertThat(response.getFirstHeader("Secret"), equalTo("required"));
+        }
 
-            try (ElasticsearchResponse authResponse = client.performRequest("GET", "/_protected", Collections.emptyMap(), null,
-                    new BasicHeader("Secret", "password"))) {
-                assertThat(authResponse, hasStatus(OK));
-                assertThat(authResponse.getFirstHeader("Secret"), equalTo("granted"));
-            }
+        try (ElasticsearchResponse authResponse = getRestClient().performRequest("GET", "/_protected", Collections.emptyMap(), null,
+                new BasicHeader("Secret", "password"))) {
+            assertThat(authResponse, hasStatus(OK));
+            assertThat(authResponse.getFirstHeader("Secret"), equalTo("granted"));
         }
     }
 }

@@ -33,7 +33,6 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
@@ -220,17 +219,15 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
             restController.registerRelevantHeaders(relevantHeaderName);
         }
 
-        try (RestClient client = restClient()) {
-            try (ElasticsearchResponse response = client.performRequest("GET", "/" + queryIndex + "/_search", Collections.emptyMap(), null,
-                    new BasicHeader(randomHeaderKey, randomHeaderValue), new BasicHeader(relevantHeaderName, randomHeaderValue))) {
-                assertThat(response, hasStatus(OK));
-                List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);
-                assertThat(searchRequests, hasSize(greaterThan(0)));
-                for (RequestAndHeaders requestAndHeaders : searchRequests) {
-                    assertThat(requestAndHeaders.headers.containsKey(relevantHeaderName), is(true));
-                    // was not specified, thus is not included
-                    assertThat(requestAndHeaders.headers.containsKey(randomHeaderKey), is(false));
-                }
+        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/" + queryIndex + "/_search", Collections.emptyMap(), null,
+                new BasicHeader(randomHeaderKey, randomHeaderValue), new BasicHeader(relevantHeaderName, randomHeaderValue))) {
+            assertThat(response, hasStatus(OK));
+            List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);
+            assertThat(searchRequests, hasSize(greaterThan(0)));
+            for (RequestAndHeaders requestAndHeaders : searchRequests) {
+                assertThat(requestAndHeaders.headers.containsKey(relevantHeaderName), is(true));
+                // was not specified, thus is not included
+                assertThat(requestAndHeaders.headers.containsKey(randomHeaderKey), is(false));
             }
         }
     }

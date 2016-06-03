@@ -21,7 +21,6 @@ package org.elasticsearch.options.detailederrors;
 
 import org.elasticsearch.client.ElasticsearchResponse;
 import org.elasticsearch.client.ElasticsearchResponseException;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -49,8 +48,8 @@ public class DetailedErrorsDisabledIT extends ESIntegTestCase {
     }
 
     public void testThatErrorTraceParamReturns400() throws Exception {
-        try (RestClient restClient = restClient()) {
-            restClient.performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true"), null);
+        try {
+            getRestClient().performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true"), null);
             fail("request should have failed");
         } catch(ElasticsearchResponseException e) {
             ElasticsearchResponse response = e.getElasticsearchResponse();

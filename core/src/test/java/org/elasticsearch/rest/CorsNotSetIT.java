@@ -21,7 +21,6 @@ package org.elasticsearch.rest;
 
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -47,23 +46,19 @@ public class CorsNotSetIT extends ESIntegTestCase {
 
     public void testCorsSettingDefaultBehaviourDoesNotReturnAnything() throws Exception {
         String corsValue = "http://localhost:9200";
-        try (RestClient restClient = restClient()) {
-            try (ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null,
-                    new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue))) {
-                assertThat(response.getStatusLine().getStatusCode(), is(200));
-                assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
-                assertThat(response.getFirstHeader("Access-Control-Allow-Credentials"), nullValue());
-            }
+        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
+                new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue))) {
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+            assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
+            assertThat(response.getFirstHeader("Access-Control-Allow-Credentials"), nullValue());
         }
     }
 
     public void testThatOmittingCorsHeaderDoesNotReturnAnything() throws Exception {
-        try (RestClient restClient = restClient()) {
-            try (ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null)) {
-                assertThat(response.getStatusLine().getStatusCode(), is(200));
-                assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
-                assertThat(response.getFirstHeader("Access-Control-Allow-Credentials"), nullValue());
-            }
+        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null)) {
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+            assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
+            assertThat(response.getFirstHeader("Access-Control-Allow-Credentials"), nullValue());
         }
     }
 }

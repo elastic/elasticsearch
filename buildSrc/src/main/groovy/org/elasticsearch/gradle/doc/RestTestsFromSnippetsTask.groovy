@@ -82,14 +82,6 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
          */
         PrintWriter current
 
-        private static final Snippet waitForYellow = new Snippet();
-
-        public TestBuilder() {
-            waitForYellow.contents= "GET _cluster/health?wait_for_status=yellow\n" +
-                    "{\n" +
-                    "}\n"
-        }
-
         /**
          * Called each time a snippet is encountered. Tracks the snippets and
          * calls buildTest to actually build the test.
@@ -178,7 +170,13 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             current.println('---')
             current.println("setup:")
             body(setup)
-            body(waitForYellow)
+            // always wait for yellow before anything is executed
+            current.println(
+                    "  - do:\n" +
+                    "      raw:\n" +
+                    "        method: GET\n" +
+                    "        path: \"_cluster/health\"\n" +
+                    "        wait_for_status: \"yellow\"")
         }
 
         private void body(Snippet snippet) {

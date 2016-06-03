@@ -35,14 +35,13 @@ import org.elasticsearch.common.settings.Settings;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.security.AccessController;
 import java.security.GeneralSecurityException;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedExceptionAction;
 import java.util.function.Function;
 
-public class GceMetadataServiceImpl extends AbstractLifecycleComponent<GceMetadataService> implements GceMetadataService {
+public class GceMetadataServiceImpl extends AbstractLifecycleComponent<GceMetadataServiceImpl> {
 
     // Forcing Google Token API URL as set in GCE SDK to
     //      http://metadata/computeMetadata/v1/instance/service-accounts/default/token
@@ -67,7 +66,6 @@ public class GceMetadataServiceImpl extends AbstractLifecycleComponent<GceMetada
         return gceHttpTransport;
     }
 
-    @Override
     public String metadata(String metadataPath) throws IOException, URISyntaxException {
         // Forcing Google Token API URL as set in GCE SDK to
         //      http://metadata/computeMetadata/v1/instance/service-accounts/default/token

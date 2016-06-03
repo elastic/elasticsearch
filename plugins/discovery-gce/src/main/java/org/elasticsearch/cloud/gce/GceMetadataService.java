@@ -20,8 +20,10 @@
 package org.elasticsearch.cloud.gce;
 
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.settings.Setting;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 /**
  * Access Google Compute Engine metadata

@@ -55,8 +55,6 @@ public class GceInstancesServiceImpl extends AbstractLifecycleComponent<GceInsta
     // all settings just used for testing - not registered by default
     public static final Setting<Boolean> GCE_VALIDATE_CERTIFICATES =
         Setting.boolSetting("cloud.gce.validate_certificates", true, Property.NodeScope);
-    public static final Setting<String> GCE_HOST =
-        new Setting<>("cloud.gce.host", "http://metadata.google.internal", Function.identity(), Property.NodeScope);
     public static final Setting<String> GCE_ROOT_URL =
         new Setting<>("cloud.gce.root_url", "https://www.googleapis.com", Function.identity(), Property.NodeScope);
 
@@ -126,7 +124,7 @@ public class GceInstancesServiceImpl extends AbstractLifecycleComponent<GceInsta
         super(settings);
         this.project = PROJECT_SETTING.get(settings);
         this.zones = ZONE_SETTING.get(settings);
-        this.gceHost = GCE_HOST.get(settings);
+        this.gceHost = GceMetadataServiceImpl.GCE_HOST.get(settings);
         this.metaDataUrl =  gceHost + "/computeMetadata/v1/instance";
         this.gceRootUrl = GCE_ROOT_URL.get(settings);
         this.tokenServerEncodedUrl = metaDataUrl + "/service-accounts/default/token";

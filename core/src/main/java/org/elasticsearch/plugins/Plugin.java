@@ -84,6 +84,13 @@ public abstract class Plugin {
     @Deprecated
     public final void onModule(IndexModule indexModule) {}
 
+    /**
+     * Provides the list of this plugin's custom thread pools, empty if
+     * none.
+     *
+     * @param settings the current settings
+     * @return executors builders for this plugin's custom thread pools
+     */
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         return Collections.emptyList();
     }

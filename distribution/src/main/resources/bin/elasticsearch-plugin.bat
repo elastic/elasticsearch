@@ -9,7 +9,6 @@ IF DEFINED JAVA_HOME (
 )
 IF EXIST "%JAVA%" GOTO cont
 
-:err
 ECHO Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME 1>&2
 EXIT /B 1
 

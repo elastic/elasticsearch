@@ -39,10 +39,11 @@ public class IndexAuditIT extends ESIntegTestCase {
 
     public void testShieldIndexAuditTrailWorking() throws Exception {
         try (RestClient restClient = restClient()) {
-            ElasticsearchResponse response = restClient.performRequest("GET", "/_cluster/health", Collections.emptyMap(), null,
+            try (ElasticsearchResponse response = restClient.performRequest("GET", "/_cluster/health", Collections.emptyMap(), null,
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                            UsernamePasswordToken.basicAuthHeaderValue(USER, new SecuredString(PASS.toCharArray()))));
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
+                            UsernamePasswordToken.basicAuthHeaderValue(USER, new SecuredString(PASS.toCharArray()))))) {
+                assertThat(response.getStatusLine().getStatusCode(), is(200));
+            }
         }
 
         final AtomicReference<ClusterState> lastClusterState = new AtomicReference<>();

@@ -44,11 +44,12 @@ public class ShieldPluginTests extends ShieldIntegTestCase {
             }
 
             logger.info("executing authorized request to /_xpack infos");
-            ElasticsearchResponse response = restClient.performRequest("GET", "/_xpack", Collections.emptyMap(), null,
+            try (ElasticsearchResponse response = restClient.performRequest("GET", "/_xpack", Collections.emptyMap(), null,
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
-                                    new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))));
-            assertThat(response.getStatusLine().getStatusCode(), is(OK.getStatus()));
+                                    new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
+                assertThat(response.getStatusLine().getStatusCode(), is(OK.getStatus()));
+            }
         }
     }
 }

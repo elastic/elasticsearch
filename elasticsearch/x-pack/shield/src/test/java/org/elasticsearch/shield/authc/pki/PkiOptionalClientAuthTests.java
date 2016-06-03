@@ -89,11 +89,12 @@ public class PkiOptionalClientAuthTests extends ShieldIntegTestCase {
                 assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(401));
             }
 
-            ElasticsearchResponse response = restClient.performRequest("GET", "_nodes", Collections.emptyMap(), null,
+            try (ElasticsearchResponse response = restClient.performRequest("GET", "_nodes", Collections.emptyMap(), null,
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
-                                    new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))));
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
+                                    new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
+                assertThat(response.getStatusLine().getStatusCode(), is(200));
+            }
         }
     }
 

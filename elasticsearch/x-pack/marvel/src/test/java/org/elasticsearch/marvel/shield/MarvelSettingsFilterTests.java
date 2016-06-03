@@ -54,20 +54,22 @@ public class MarvelSettingsFilterTests extends MarvelIntegTestCase {
             } else {
                 headers = new Header[0];
             }
-            ElasticsearchResponse response = restClient.performRequest("GET", "/_nodes/settings", Collections.emptyMap(), null, headers);
-            Map<String, Object> responseMap = JsonXContent.jsonXContent.createParser(response.getEntity().getContent()).map();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes");
-            for (Object node : nodes.values()) {
+            try (ElasticsearchResponse response = restClient.performRequest("GET", "/_nodes/settings",
+                    Collections.emptyMap(), null, headers)) {
+                Map<String, Object> responseMap = JsonXContent.jsonXContent.createParser(response.getEntity().getContent()).map();
                 @SuppressWarnings("unchecked")
-                Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) node).get("settings");
-                assertThat(extractValue("xpack.monitoring.agent.exporters._http.type", settings), Matchers.<Object>equalTo("http"));
-                assertThat(extractValue("xpack.monitoring.agent.exporters._http.enabled", settings), Matchers.<Object>equalTo("false"));
-                assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.auth.username");
-                assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.auth.password");
-                assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.ssl.truststore.path");
-                assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.ssl.truststore.password");
-                assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.ssl.hostname_verification");
+                Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes");
+                for (Object node : nodes.values()) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) node).get("settings");
+                    assertThat(extractValue("xpack.monitoring.agent.exporters._http.type", settings), Matchers.<Object>equalTo("http"));
+                    assertThat(extractValue("xpack.monitoring.agent.exporters._http.enabled", settings), Matchers.<Object>equalTo("false"));
+                    assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.auth.username");
+                    assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.auth.password");
+                    assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.ssl.truststore.path");
+                    assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.ssl.truststore.password");
+                    assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.ssl.hostname_verification");
+                }
             }
         }
     }

@@ -59,10 +59,11 @@ public class CustomRealmIT extends ESIntegTestCase {
 
     public void testHttpAuthentication() throws Exception {
         try (RestClient restClient = restClient()) {
-            ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null,
+            try (ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null,
                     new BasicHeader(CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER),
-                    new BasicHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW));
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
+                    new BasicHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW))) {
+                assertThat(response.getStatusLine().getStatusCode(), is(200));
+            }
         }
     }
 

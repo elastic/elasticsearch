@@ -63,15 +63,17 @@ public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCa
             } else {
                 headers = new Header[0];
             }
-            ElasticsearchResponse response = restClient.performRequest("GET", "/_nodes/settings", Collections.emptyMap(), null, headers);
-            Map<String, Object> responseMap = JsonXContent.jsonXContent.createParser(response.getEntity().getContent()).map();
-            Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes");
-            for (Object node : nodes.values()) {
-                Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) node).get("settings");
-                assertThat(XContentMapValues.extractValue("xpack.notification.email.account._email.smtp.user", settings),
-                        is((Object) "_user"));
-                assertThat(XContentMapValues.extractValue("xpack.notification.email.account._email.smtp.password", settings),
-                        nullValue());
+            try (ElasticsearchResponse response = restClient.performRequest("GET", "/_nodes/settings",
+                    Collections.emptyMap(), null, headers)) {
+                Map<String, Object> responseMap = JsonXContent.jsonXContent.createParser(response.getEntity().getContent()).map();
+                Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes");
+                for (Object node : nodes.values()) {
+                    Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) node).get("settings");
+                    assertThat(XContentMapValues.extractValue("xpack.notification.email.account._email.smtp.user", settings),
+                            is((Object) "_user"));
+                    assertThat(XContentMapValues.extractValue("xpack.notification.email.account._email.smtp.password", settings),
+                            nullValue());
+                }
             }
         }
     }

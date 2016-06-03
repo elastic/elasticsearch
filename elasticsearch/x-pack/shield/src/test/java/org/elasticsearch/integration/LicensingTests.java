@@ -198,9 +198,10 @@ public class LicensingTests extends ShieldIntegTestCase {
 
     public void testRestAuthenticationByLicenseType() throws Exception {
         try (RestClient restClient = restClient()) {
-            ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null);
-            // the default of the licensing tests is basic
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
+            try (ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null)) {
+                // the default of the licensing tests is basic
+                assertThat(response.getStatusLine().getStatusCode(), is(200));
+            }
 
             // generate a new license with a mode that enables auth
             OperationMode mode = randomFrom(OperationMode.GOLD, OperationMode.TRIAL, OperationMode.PLATINUM, OperationMode.STANDARD);

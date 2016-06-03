@@ -83,10 +83,11 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
         CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(socketFactory).build();
 
         try (RestClient restClient = restClient(client, "https")) {
-            ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null,
-                    new BasicHeader("Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword())));
-            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-            assertThat(EntityUtils.toString(response.getEntity()), containsString("You Know, for Search"));
+            try (ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null,
+                    new BasicHeader("Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword())))) {
+                assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+                assertThat(EntityUtils.toString(response.getEntity()), containsString("You Know, for Search"));
+            }
         }
     }
 

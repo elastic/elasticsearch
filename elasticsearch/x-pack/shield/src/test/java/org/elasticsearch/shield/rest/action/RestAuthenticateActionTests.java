@@ -53,39 +53,41 @@ public class RestAuthenticateActionTests extends ShieldIntegTestCase {
 
     public void testAuthenticateApi() throws Exception {
         try (RestClient restClient = restClient()) {
-            ElasticsearchResponse response = restClient.performRequest("GET", "/_xpack/security/_authenticate", Collections.emptyMap(),
+            try (ElasticsearchResponse response = restClient.performRequest("GET", "/_xpack/security/_authenticate", Collections.emptyMap(),
                     null, new BasicHeader("Authorization", basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
-                            new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))));
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
-            JsonPath jsonPath = new JsonPath(EntityUtils.toString(response.getEntity()));
-            assertThat(jsonPath.evaluate("username").toString(), equalTo(ShieldSettingsSource.DEFAULT_USER_NAME));
-            @SuppressWarnings("unchecked")
-            List<String> roles = (List<String>) jsonPath.evaluate("roles");
-            assertThat(roles.size(), is(1));
-            assertThat(roles, contains(ShieldSettingsSource.DEFAULT_ROLE));
+                            new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
+                assertThat(response.getStatusLine().getStatusCode(), is(200));
+                JsonPath jsonPath = new JsonPath(EntityUtils.toString(response.getEntity()));
+                assertThat(jsonPath.evaluate("username").toString(), equalTo(ShieldSettingsSource.DEFAULT_USER_NAME));
+                @SuppressWarnings("unchecked")
+                List<String> roles = (List<String>) jsonPath.evaluate("roles");
+                assertThat(roles.size(), is(1));
+                assertThat(roles, contains(ShieldSettingsSource.DEFAULT_ROLE));
+            }
         }
     }
 
     public void testAuthenticateApiWithoutAuthentication() throws Exception {
         try (RestClient restClient = restClient()) {
-            ElasticsearchResponse response = restClient.performRequest("GET", "/_xpack/security/_authenticate",
-                    Collections.emptyMap(), null);
-            if (anonymousEnabled) {
-                assertThat(response.getStatusLine().getStatusCode(), is(200));
-                JsonPath jsonPath = new JsonPath(EntityUtils.toString(response.getEntity()));
-                assertThat(jsonPath.evaluate("username").toString(), equalTo("anon"));
-                @SuppressWarnings("unchecked")
-                List<String> roles = (List<String>) jsonPath.evaluate("roles");
-                assertThat(roles.size(), is(2));
-                assertThat(roles, contains(ShieldSettingsSource.DEFAULT_ROLE, "foo"));
-            } else {
-                fail("request should have failed");
-            }
-        } catch(ElasticsearchResponseException e) {
-            if (anonymousEnabled) {
-                fail("request should have succeeded");
-            } else {
-                assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(401));
+            try (ElasticsearchResponse response = restClient.performRequest("GET", "/_xpack/security/_authenticate",
+                    Collections.emptyMap(), null)) {
+                if (anonymousEnabled) {
+                    assertThat(response.getStatusLine().getStatusCode(), is(200));
+                    JsonPath jsonPath = new JsonPath(EntityUtils.toString(response.getEntity()));
+                    assertThat(jsonPath.evaluate("username").toString(), equalTo("anon"));
+                    @SuppressWarnings("unchecked")
+                    List<String> roles = (List<String>) jsonPath.evaluate("roles");
+                    assertThat(roles.size(), is(2));
+                    assertThat(roles, contains(ShieldSettingsSource.DEFAULT_ROLE, "foo"));
+                } else {
+                    fail("request should have failed");
+                }
+            } catch(ElasticsearchResponseException e) {
+                if (anonymousEnabled) {
+                    fail("request should have succeeded");
+                } else {
+                    assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(401));
+                }
             }
         }
     }

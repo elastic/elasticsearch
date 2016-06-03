@@ -167,12 +167,13 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
 
         static void executeHttpRequest(String path, Map<String, String> params) throws Exception {
             try (RestClient restClient = restClient()) {
-                ElasticsearchResponse response = restClient.performRequest("POST", path, params, null,
+                try (ElasticsearchResponse response = restClient.performRequest("POST", path, params, null,
                         new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                                 UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
-                                        new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))));
-                assertNotNull(response.getEntity());
-                assertTrue(EntityUtils.toString(response.getEntity()).contains("cluster_name"));
+                                        new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
+                    assertNotNull(response.getEntity());
+                    assertTrue(EntityUtils.toString(response.getEntity()).contains("cluster_name"));
+                }
             }
         }
     }

@@ -142,12 +142,13 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
             }
 
             // but when running as a different user it should work
-            ElasticsearchResponse response = restClient.performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+            try (ElasticsearchResponse response = restClient.performRequest("GET", "/_nodes", Collections.emptyMap(), null,
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
                                     SecuredStringTests.build(ShieldSettingsSource.DEFAULT_PASSWORD))),
-                    new BasicHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, ShieldSettingsSource.DEFAULT_USER_NAME));
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
+                    new BasicHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, ShieldSettingsSource.DEFAULT_USER_NAME))) {
+                assertThat(response.getStatusLine().getStatusCode(), is(200));
+            }
         }
     }
 

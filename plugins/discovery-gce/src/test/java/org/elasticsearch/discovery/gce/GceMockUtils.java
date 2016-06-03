@@ -78,7 +78,7 @@ public class GceMockUtils {
         // We extract from the url the mock file path we want to use
         String mockFileName = Strings.replace(url, urlRoot, "");
 
-        URL resource = GceInstancesServiceMock.class.getResource(mockFileName);
+        URL resource = GceMockUtils.class.getResource(mockFileName);
         if (resource == null) {
             throw new IOException("can't read [" + url + "] in src/test/resources/org/elasticsearch/discovery/gce");
         }

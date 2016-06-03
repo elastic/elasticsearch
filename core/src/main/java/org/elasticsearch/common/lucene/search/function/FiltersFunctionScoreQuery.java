@@ -146,7 +146,7 @@ public class FiltersFunctionScoreQuery extends Query {
             filterWeights[i] = searcher.createNormalizedWeight(filterFunctions[i].filter, false);
             //TODO: Not sure if we should add such a method because it does nothing for any score function except for query_function but
             // I don't have a good idea where else to put it
-            filterFunctions[i].function.initWeight(searcher, needsScores);
+            filterFunctions[i].function.initWeight(searcher);
         }
         Weight subQueryWeight = subQuery.createWeight(searcher, subQueryNeedsScores);
         return new CustomBoostFactorWeight(this, subQueryWeight, filterWeights, subQueryNeedsScores);

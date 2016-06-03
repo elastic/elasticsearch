@@ -38,7 +38,6 @@ import java.util.Objects;
 public class QueryFunction extends ScoreFunction {
     Query query;
     Weight weight;
-    boolean needScores;
 
     public QueryFunction(Query query) {
         super(CombineFunction.MULTIPLY);
@@ -46,10 +45,9 @@ public class QueryFunction extends ScoreFunction {
     }
 
     @Override
-    public void initWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+    public void initWeight(IndexSearcher searcher) throws IOException {
         // TODO: which weight should be created here? normalized or not?
-        weight = query.createWeight(searcher, needsScores);
-        this.needScores = needsScores;
+        weight = query.createWeight(searcher, true);
     }
 
     @Override
@@ -83,19 +81,18 @@ public class QueryFunction extends ScoreFunction {
 
     @Override
     public boolean needsScores() {
-        return needScores;
+        return true;
     }
 
     @Override
     protected boolean doEquals(ScoreFunction o) {
         QueryFunction that = (QueryFunction) o;
-        if (needScores != that.needScores) return false;
         if (query != null ? !query.equals(that.query) : that.query != null) return false;
         return weight != null ? weight.equals(that.weight) : that.weight == null;
     }
 
     @Override
     public int doHashCode() {
-        return Objects.hash(weight, needScores, query);
+        return Objects.hash(weight, query);
     }
 }

@@ -49,7 +49,7 @@ public abstract class ScoreFunction {
      */
     public abstract boolean needsScores();
 
-    public void initWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+    public void initWeight(IndexSearcher searcher) throws IOException {
        // do nothing iof you do not need it
     }
 

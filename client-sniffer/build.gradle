@@ -60,9 +60,6 @@ forbiddenApisTest.enabled=false
   //signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
 //}
 
-//TODO add licenses for dependencies and take care of distribution
-//dependency license are currently checked in distribution
-dependencyLicenses.enabled=false
 //JarHell is part of es core, which we don't want to pull in
 jarHell.enabled=false
 //NamingConventionCheck is part of test-framework, which we don't want to pull in as it depends on es core

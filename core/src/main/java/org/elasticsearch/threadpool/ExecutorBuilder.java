@@ -30,7 +30,7 @@ import java.util.List;
  *
  * @param <U> the underlying type of the executor settings
  */
-abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings> {
+public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings> {
 
     private final String name;
 

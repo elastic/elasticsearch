@@ -26,7 +26,6 @@ public class TestThreadPool extends ThreadPool {
 
     public TestThreadPool(String name) {
         super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).build());
-        start();
     }
 
 }

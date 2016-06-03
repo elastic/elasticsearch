@@ -48,7 +48,6 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("node.name", "testCorrectThreadPoolTypePermittedInSettings")
                 .put("thread_pool." + threadPoolName + ".type", correctThreadPoolType.getType())
                 .build());
-            threadPool.start();
             ThreadPool.Info info = info(threadPool, threadPoolName);
             if (ThreadPool.Names.SAME.equals(threadPoolName)) {
                 assertNull(info); // we don't report on the "same" thread pool
@@ -77,7 +76,6 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                             .put("node.name", "testIndexingThreadPoolsMaxSize")
                             .put("thread_pool." + name + ".size", tooBig)
                             .build());
-                        tp.start();
                     } finally {
                         terminateThreadPoolIfNeeded(tp);
                     }
@@ -108,7 +106,6 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("thread_pool." + threadPoolName + ".size", expectedSize)
                 .build();
             threadPool = new ThreadPool(nodeSettings);
-            threadPool.start();
             assertThat(threadPool.executor(threadPoolName), instanceOf(EsThreadPoolExecutor.class));
 
             assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
@@ -133,7 +130,6 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("node.name", "testScalingExecutorType")
                 .build();
             threadPool = new ThreadPool(nodeSettings);
-            threadPool.start();
             final int expectedMinimum = "generic".equals(threadPoolName) ? 4 : 1;
             assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedMinimum));
             assertThat(info(threadPool, threadPoolName).getMax(), equalTo(10));
@@ -155,7 +151,6 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("node.name", "testShutdownNowInterrupts")
                 .build();
             threadPool = new ThreadPool(nodeSettings);
-            threadPool.start();
             assertEquals(info(threadPool, threadPoolName).getQueueSize().getSingles(), 1000L);
 
             final CountDownLatch shutDownLatch = new CountDownLatch(1);
@@ -195,10 +190,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
 
             final FixedExecutorBuilder fixed = new FixedExecutorBuilder(Settings.EMPTY, "my_pool2", 1, 1);
 
-            threadPool = new ThreadPool(Settings.builder().put("node.name", "testCustomThreadPool").build());
-            threadPool.add(scaling);
-            threadPool.add(fixed);
-            threadPool.start();
+            threadPool = new ThreadPool(Settings.builder().put("node.name", "testCustomThreadPool").build(), scaling, fixed);
 
             ThreadPoolInfo groups = threadPool.info();
             boolean foundPool1 = false;

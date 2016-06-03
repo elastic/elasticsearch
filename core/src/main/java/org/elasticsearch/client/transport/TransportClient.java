@@ -149,8 +149,6 @@ public class TransportClient extends AbstractClient {
 
                 pluginsService.processModules(modules);
 
-                threadPool.start();
-
                 Injector injector = modules.createInjector();
                 final TransportService transportService = injector.getInstance(TransportService.class);
                 transportService.start();

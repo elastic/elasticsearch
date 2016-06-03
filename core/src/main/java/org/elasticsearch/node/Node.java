@@ -98,6 +98,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskResultsService;
+import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportService;
@@ -210,12 +211,12 @@ public class Node implements Closeable {
             throw new IllegalStateException("Failed to created node environment", ex);
         }
         final NetworkService networkService = new NetworkService(settings);
-        final ThreadPool threadPool = new ThreadPool(settings);
+        final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
+        final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder[0]));
 
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         boolean success = false;
         try {
-            final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new Version.Module(version));
             modules.add(new CircuitBreakerModule(settings));
@@ -223,6 +224,7 @@ public class Node implements Closeable {
             for (Module pluginModule : pluginsService.nodeModules()) {
                 modules.add(pluginModule);
             }
+            final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             modules.add(new PluginsModule(pluginsService));
             SettingsModule settingsModule = new SettingsModule(this.settings);
             modules.add(settingsModule);
@@ -252,7 +254,6 @@ public class Node implements Closeable {
             scriptModule.prepareSettings(settingsModule);
 
             threadPoolModule.prepareSettings(settingsModule);
-            threadPool.start();
 
             injector = modules.createInjector();
 

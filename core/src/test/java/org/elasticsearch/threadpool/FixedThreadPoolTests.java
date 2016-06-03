@@ -46,7 +46,6 @@ public class FixedThreadPoolTests extends ESThreadPoolTestCase {
                 .build();
         try {
             threadPool = new ThreadPool(nodeSettings);
-            threadPool.start();
 
             // these tasks will consume the thread pool causing further
             // submissions to queue

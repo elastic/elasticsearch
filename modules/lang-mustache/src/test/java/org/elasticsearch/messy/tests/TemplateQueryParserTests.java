@@ -109,7 +109,6 @@ public class TemplateQueryParserTests extends ESTestCase {
         scriptModule.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.NAME, true));
         settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
         final ThreadPool threadPool = new ThreadPool(settings);
-        threadPool.start();
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 settingsModule,

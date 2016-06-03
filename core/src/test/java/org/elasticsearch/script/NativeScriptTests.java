@@ -56,7 +56,6 @@ public class NativeScriptTests extends ESTestCase {
         scriptModule.prepareSettings(settingsModule);
         scriptModule.registerScript("my", MyNativeScriptFactory.class);
         final ThreadPool threadPool = new ThreadPool(settings);
-        threadPool.start();
         Injector injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 new ThreadPoolModule(threadPool),

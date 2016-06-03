@@ -82,7 +82,6 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         threadPool = new ThreadPool(settings);
-        threadPool.start();
         client = buildClient(settings, ACTIONS);
     }
 

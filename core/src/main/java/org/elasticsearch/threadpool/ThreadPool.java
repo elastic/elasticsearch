@@ -22,6 +22,7 @@ package org.elasticsearch.threadpool;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -56,10 +58,7 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.unmodifiableMap;
 
-/**
- *
- */
-public class ThreadPool extends AbstractLifecycleComponent<ThreadPool> {
+public class ThreadPool extends AbstractComponent implements Closeable {
 
     public static class Names {
         public static final String SAME = "same";
@@ -151,14 +150,16 @@ public class ThreadPool extends AbstractLifecycleComponent<ThreadPool> {
         return Collections.unmodifiableCollection(builders.values());
     }
 
-    public ThreadPool(Settings settings) {
+    public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
         super(settings);
 
+        assert Node.NODE_NAME_SETTING.exists(settings);
+
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
-        int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
-        int halfProcMaxAt5 = halfNumberOfProcessorsMaxFive(availableProcessors);
-        int halfProcMaxAt10 = halfNumberOfProcessorsMaxTen(availableProcessors);
-        int genericThreadPoolMax = boundedBy(4 * availableProcessors, 128, 512);
+        final int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
+        final int halfProcMaxAt5 = halfNumberOfProcessorsMaxFive(availableProcessors);
+        final int halfProcMaxAt10 = halfNumberOfProcessorsMaxTen(availableProcessors);
+        final int genericThreadPoolMax = boundedBy(4 * availableProcessors, 128, 512);
         builders.put(Names.GENERIC, new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30)));
         builders.put(Names.INDEX, new FixedExecutorBuilder(settings, Names.INDEX, availableProcessors, 200));
         builders.put(Names.BULK, new FixedExecutorBuilder(settings, Names.BULK, availableProcessors, 50));
@@ -175,27 +176,16 @@ public class ThreadPool extends AbstractLifecycleComponent<ThreadPool> {
         builders.put(Names.FETCH_SHARD_STARTED, new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * availableProcessors, TimeValue.timeValueMinutes(5)));
         builders.put(Names.FORCE_MERGE, new FixedExecutorBuilder(settings, Names.FORCE_MERGE, 1, -1));
         builders.put(Names.FETCH_SHARD_STORE, new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * availableProcessors, TimeValue.timeValueMinutes(5)));
-        this.builders = builders;
+        for (final ExecutorBuilder<?> builder : customBuilders) {
+            if (builders.containsKey(builder.name())) {
+                throw new IllegalArgumentException("builder with name [" + builder.name() + "] already exists");
+            }
+            builders.put(builder.name(), builder);
+        }
+        this.builders = Collections.unmodifiableMap(builders);
 
-        assert Node.NODE_NAME_SETTING.exists(settings);
         threadContext = new ThreadContext(settings);
 
-        this.scheduler = new ScheduledThreadPoolExecutor(1, EsExecutors.daemonThreadFactory(settings, "scheduler"), new EsAbortPolicy());
-        this.scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
-        this.scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-        this.scheduler.setRemoveOnCancelPolicy(true);
-
-        TimeValue estimatedTimeInterval = settings.getAsTime("thread_pool.estimated_time_interval", TimeValue.timeValueMillis(200));
-        this.estimatedTimeThread = new EstimatedTimeThread(EsExecutors.threadName(settings, "[timer]"), estimatedTimeInterval.millis());
-        this.estimatedTimeThread.start();
-    }
-
-    void add(ExecutorBuilder builder) {
-        builders.put(builder.name(), builder);
-    }
-
-    @Override
-    protected void doStart() {
         final Map<String, ExecutorHolder> executors = new HashMap<>();
         for (@SuppressWarnings("unchecked") final Map.Entry<String, ExecutorBuilder> entry : builders.entrySet()) {
             final ExecutorBuilder.ExecutorSettings executorSettings = entry.getValue().settings(settings);
@@ -209,20 +199,15 @@ public class ThreadPool extends AbstractLifecycleComponent<ThreadPool> {
 
         executors.put(Names.SAME, new ExecutorHolder(DIRECT_EXECUTOR, new Info(Names.SAME, ThreadPoolType.DIRECT)));
         this.executors = unmodifiableMap(executors);
-    }
 
-    @Override
-    protected void doStop() {
+        this.scheduler = new ScheduledThreadPoolExecutor(1, EsExecutors.daemonThreadFactory(settings, "scheduler"), new EsAbortPolicy());
+        this.scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+        this.scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+        this.scheduler.setRemoveOnCancelPolicy(true);
 
-    }
-
-    @Override
-    protected void doClose() {
-        try {
-            threadContext.close();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        TimeValue estimatedTimeInterval = settings.getAsTime("thread_pool.estimated_time_interval", TimeValue.timeValueMillis(200));
+        this.estimatedTimeThread = new EstimatedTimeThread(EsExecutors.threadName(settings, "[timer]"), estimatedTimeInterval.millis());
+        this.estimatedTimeThread.start();
     }
 
     public long estimatedTimeInMillis() {
@@ -697,6 +682,11 @@ public class ThreadPool extends AbstractLifecycleComponent<ThreadPool> {
             }
         }
         return false;
+    }
+
+    @Override
+    public void close() throws IOException {
+        threadContext.close();
     }
 
     public ThreadContext getThreadContext() {

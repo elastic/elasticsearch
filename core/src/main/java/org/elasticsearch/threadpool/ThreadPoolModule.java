@@ -27,7 +27,6 @@ import java.util.List;
 
 public class ThreadPoolModule extends AbstractModule {
 
-    private final List<ExecutorBuilder> builders = new ArrayList<>();
     private final ThreadPool threadPool;
 
     public ThreadPoolModule(final ThreadPool threadPool) {
@@ -38,14 +37,6 @@ public class ThreadPoolModule extends AbstractModule {
         for (final ExecutorBuilder<?> builder : threadPool.builders()) {
             builder.registeredSettings().forEach(settingsModule::registerSetting);
         }
-        for (final ExecutorBuilder<?> builder : builders) {
-            builder.registeredSettings().forEach(settingsModule::registerSetting);
-            threadPool.add(builder);
-        }
-    }
-
-    public void registerExecutor(final ExecutorBuilder<?> builder) {
-        builders.add(builder);
     }
 
     @Override

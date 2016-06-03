@@ -54,7 +54,6 @@ public class SimulateExecutionServiceTests extends ESTestCase {
                         .put("node.name", getClass().getName())
                         .build()
         );
-        threadPool.start();
         executionService = new SimulateExecutionService(threadPool);
         ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
     }

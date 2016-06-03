@@ -219,7 +219,8 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
             restController.registerRelevantHeaders(relevantHeaderName);
         }
 
-        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/" + queryIndex + "/_search", Collections.emptyMap(), null,
+        try (ElasticsearchResponse response = getRestClient().performRequest(
+                "GET", "/" + queryIndex + "/_search", Collections.emptyMap(), null,
                 new BasicHeader(randomHeaderKey, randomHeaderValue), new BasicHeader(relevantHeaderName, randomHeaderValue))) {
             assertThat(response, hasStatus(OK));
             List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);

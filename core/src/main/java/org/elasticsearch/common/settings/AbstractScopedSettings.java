@@ -187,7 +187,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         addSettingsUpdater(setting.newUpdater(consumer, logger, validator));
     }
 
-    public synchronized void addSettingsUpdater(SettingUpdater<?> updater) {
+    synchronized void addSettingsUpdater(SettingUpdater<?> updater) {
         this.settingUpdaters.add(updater);
     }
 

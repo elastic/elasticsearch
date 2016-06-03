@@ -40,7 +40,7 @@ IF NOT EXIST "%JAVA%" (
 IF DEFINED JAVA_HOME GOTO :cont
 
 IF NOT "%JAVA:~-13%" == "\bin\java.exe" (
-  FOR /f "tokens=2 delims=[]" %%I IN ('dir %ProgramData%\Oracle\java\javapath\java.exe') DO @set JAVA=%%I
+  FOR /f "tokens=2 delims=[]" %%I IN ('dir %JAVA%') DO @set JAVA=%%I
 )
 IF "%JAVA:~-13%" == "\bin\java.exe" (
   SET JAVA_HOME=%JAVA:~0,-13%

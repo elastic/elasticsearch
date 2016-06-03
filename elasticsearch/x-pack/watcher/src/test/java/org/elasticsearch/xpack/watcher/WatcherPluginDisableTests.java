@@ -9,7 +9,6 @@ import org.apache.http.HttpStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.ElasticsearchResponseException;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
@@ -68,8 +67,8 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
 
     public void testRestEndpoints() throws Exception {
         HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
-        try (RestClient restClient = restClient()) {
-            restClient.performRequest("GET", "/_xpack/watcher", Collections.emptyMap(), null);
+        try {
+            getRestClient().performRequest("GET", "/_xpack/watcher", Collections.emptyMap(), null);
             fail("request should have failed");
         } catch(ElasticsearchResponseException e) {
             assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(HttpStatus.SC_BAD_REQUEST));

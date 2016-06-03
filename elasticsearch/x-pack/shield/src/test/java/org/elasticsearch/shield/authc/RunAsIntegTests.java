@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.ElasticsearchResponse;
 import org.elasticsearch.client.ElasticsearchResponseException;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -45,7 +44,7 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
             "  cluster: [ 'cluster:monitor/nodes/liveness' ]\n" +
             "run_as_role:\n" +
             "  run_as: [ '" + ShieldSettingsSource.DEFAULT_USER_NAME + "', 'idontexist' ]\n";
-
+    
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -118,37 +117,35 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
 
     public void testUserImpersonationUsingHttp() throws Exception {
         // use the transport client user and try to run as
-        try (RestClient restClient = restClient()) {
-            try {
-                restClient.performRequest("GET", "/_nodes", Collections.emptyMap(), null,
-                        new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                                UsernamePasswordToken.basicAuthHeaderValue(TRANSPORT_CLIENT_USER,
-                                SecuredStringTests.build(ShieldSettingsSource.DEFAULT_PASSWORD))),
-                        new BasicHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, ShieldSettingsSource.DEFAULT_USER_NAME));
-                fail("request should have failed");
-            } catch(ElasticsearchResponseException e) {
-                assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(403));
-            }
+        try {
+            getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                            UsernamePasswordToken.basicAuthHeaderValue(TRANSPORT_CLIENT_USER,
+                                    SecuredStringTests.build(ShieldSettingsSource.DEFAULT_PASSWORD))),
+                    new BasicHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, ShieldSettingsSource.DEFAULT_USER_NAME));
+            fail("request should have failed");
+        } catch(ElasticsearchResponseException e) {
+            assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(403));
+        }
 
-            try {
-                //the run as user shouldn't have access to the nodes api
-                restClient.performRequest("GET", "/_nodes", Collections.emptyMap(), null,
-                        new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                                UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                                        SecuredStringTests.build(ShieldSettingsSource.DEFAULT_PASSWORD))));
-                fail("request should have failed");
-            } catch(ElasticsearchResponseException e) {
-                assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(403));
-            }
-
-            // but when running as a different user it should work
-            try (ElasticsearchResponse response = restClient.performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+        try {
+            //the run as user shouldn't have access to the nodes api
+            getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                                    SecuredStringTests.build(ShieldSettingsSource.DEFAULT_PASSWORD))),
-                    new BasicHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, ShieldSettingsSource.DEFAULT_USER_NAME))) {
-                assertThat(response.getStatusLine().getStatusCode(), is(200));
-            }
+                                    SecuredStringTests.build(ShieldSettingsSource.DEFAULT_PASSWORD))));
+            fail("request should have failed");
+        } catch(ElasticsearchResponseException e) {
+            assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(403));
+        }
+
+        // but when running as a different user it should work
+        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+                new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                        UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
+                                SecuredStringTests.build(ShieldSettingsSource.DEFAULT_PASSWORD))),
+                new BasicHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, ShieldSettingsSource.DEFAULT_USER_NAME))) {
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
     }
 
@@ -175,8 +172,8 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
     }
 
     public void testEmptyHeaderUsingHttp() throws Exception {
-        try (RestClient restClient = restClient()) {
-            restClient.performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+        try {
+            getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
                             SecuredStringTests.build(ShieldSettingsSource.DEFAULT_PASSWORD))),
@@ -210,9 +207,8 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
     }
 
     public void testNonExistentRunAsUserUsingHttp() throws Exception {
-
-        try (RestClient restClient = restClient()) {
-            restClient.performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+        try {
+            getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
                             SecuredStringTests.build(ShieldSettingsSource.DEFAULT_PASSWORD))),

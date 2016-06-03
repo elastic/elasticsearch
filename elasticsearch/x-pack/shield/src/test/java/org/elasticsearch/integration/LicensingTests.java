@@ -16,7 +16,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchResponse;
 import org.elasticsearch.client.ElasticsearchResponseException;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -197,21 +196,19 @@ public class LicensingTests extends ShieldIntegTestCase {
     }
 
     public void testRestAuthenticationByLicenseType() throws Exception {
-        try (RestClient restClient = restClient()) {
-            try (ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null)) {
-                // the default of the licensing tests is basic
-                assertThat(response.getStatusLine().getStatusCode(), is(200));
-            }
+        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null)) {
+            // the default of the licensing tests is basic
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+        }
 
-            // generate a new license with a mode that enables auth
-            OperationMode mode = randomFrom(OperationMode.GOLD, OperationMode.TRIAL, OperationMode.PLATINUM, OperationMode.STANDARD);
-            enableLicensing(mode);
-            try {
-                restClient.performRequest("GET", "/", Collections.emptyMap(), null);
-                fail("request should have failed");
-            } catch(ElasticsearchResponseException e) {
-                assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(401));
-            }
+        // generate a new license with a mode that enables auth
+        OperationMode mode = randomFrom(OperationMode.GOLD, OperationMode.TRIAL, OperationMode.PLATINUM, OperationMode.STANDARD);
+        enableLicensing(mode);
+        try {
+            getRestClient().performRequest("GET", "/", Collections.emptyMap(), null);
+            fail("request should have failed");
+        } catch(ElasticsearchResponseException e) {
+            assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(401));
         }
     }
 

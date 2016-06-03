@@ -7,7 +7,6 @@ package org.elasticsearch.integration;
 
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.ElasticsearchResponseException;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -21,7 +20,6 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.apache.lucene.util.LuceneTestCase.BadApple;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 //test is just too slow, please fix it to not be sleep-based
@@ -306,8 +304,8 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
     }
 
     public void testThatUnknownUserIsRejectedProperly() throws Exception {
-        try (RestClient restClient = restClient()){
-            restClient.performRequest("GET", "/", Collections.emptyMap(), null,
+        try {
+            getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue("idonotexist", new SecuredString("passwd".toCharArray()))));
             fail("request should have failed");

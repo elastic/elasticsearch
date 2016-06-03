@@ -9,7 +9,6 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -166,14 +165,12 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
         }
 
         static void executeHttpRequest(String path, Map<String, String> params) throws Exception {
-            try (RestClient restClient = restClient()) {
-                try (ElasticsearchResponse response = restClient.performRequest("POST", path, params, null,
-                        new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                                UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
-                                        new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
-                    assertNotNull(response.getEntity());
-                    assertTrue(EntityUtils.toString(response.getEntity()).contains("cluster_name"));
-                }
+            try (ElasticsearchResponse response = getRestClient().performRequest("POST", path, params, null,
+                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                            UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
+                                    new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
+                assertNotNull(response.getEntity());
+                assertTrue(EntityUtils.toString(response.getEntity()).contains("cluster_name"));
             }
         }
     }

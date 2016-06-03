@@ -10,7 +10,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -137,13 +136,11 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
             } else {
                 path = "/_xpack/security/role/" + Strings.arrayToCommaDelimitedString(rolesToClear) + "/_clear_cache";
             }
-            try (RestClient restClient = restClient()) {
-                try (ElasticsearchResponse response = restClient.performRequest("POST", path, Collections.emptyMap(), null,
-                        new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                                UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
-                                        new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
-                    assertThat(response.getStatusLine().getStatusCode(), is(RestStatus.OK.getStatus()));
-                }
+            try (ElasticsearchResponse response = getRestClient().performRequest("POST", path, Collections.emptyMap(), null,
+                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                            UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
+                                    new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
+                assertThat(response.getStatusLine().getStatusCode(), is(RestStatus.OK.getStatus()));
             }
         } else {
             securityClient.prepareClearRolesCache().names(rolesToClear).get();

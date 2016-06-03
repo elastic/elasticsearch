@@ -62,7 +62,7 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
                 SSLContexts.createDefault(),
                 SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
 
-        try (RestClient restClient = restClient(HttpClients.custom().setSSLSocketFactory(socketFactory).build(), "https")) {
+        try (RestClient restClient = createRestClient(HttpClients.custom().setSSLSocketFactory(socketFactory).build(), "https")) {
             restClient.performRequest("GET", "/", Collections.emptyMap(), null);
             fail("Expected SSLHandshakeException");
         } catch (SSLHandshakeException e) {
@@ -82,7 +82,7 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
 
         CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(socketFactory).build();
 
-        try (RestClient restClient = restClient(client, "https")) {
+        try (RestClient restClient = createRestClient(client, "https")) {
             try (ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null,
                     new BasicHeader("Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword())))) {
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(200));

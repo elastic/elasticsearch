@@ -8,7 +8,6 @@ package org.elasticsearch.shield.authc.pki;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -44,13 +43,11 @@ public class PkiWithoutSSLTests extends ShieldIntegTestCase {
     }
 
     public void testThatHttpWorks() throws Exception {
-        try (RestClient restClient = restClient()) {
-            try (ElasticsearchResponse response = restClient.performRequest("GET", "/_nodes", Collections.emptyMap(), null,
-                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                            UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
-                                    new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
-                assertThat(response.getStatusLine().getStatusCode(), is(200));
-            }
+        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+                new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                        UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
+                                new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
     }
 }

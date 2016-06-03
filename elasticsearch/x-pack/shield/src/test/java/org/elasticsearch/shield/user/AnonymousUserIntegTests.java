@@ -7,7 +7,6 @@ package org.elasticsearch.shield.user;
 
 import org.elasticsearch.client.ElasticsearchResponse;
 import org.elasticsearch.client.ElasticsearchResponseException;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
@@ -43,8 +42,8 @@ public class AnonymousUserIntegTests extends ShieldIntegTestCase {
     }
 
     public void testAnonymousViaHttp() throws Exception {
-        try (RestClient restClient = restClient()) {
-            restClient.performRequest("GET", "/_nodes", Collections.emptyMap(), null);
+        try {
+            getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null);
             fail("request should have failed");
         } catch(ElasticsearchResponseException e) {
             int statusCode = e.getElasticsearchResponse().getStatusLine().getStatusCode();

@@ -36,15 +36,13 @@ public abstract class AbstractPrivilegeTestCase extends ShieldIntegTestCase {
 
     protected void assertAccessIsAllowed(String user, String method, String uri, String body,
                                          Map<String, String> params) throws IOException {
-        try (RestClient restClient = restClient()) {
-            try (ElasticsearchResponse response = restClient.performRequest(method, uri, params, entityOrNull(body),
-                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                            UsernamePasswordToken.basicAuthHeaderValue(user, new SecuredString("passwd".toCharArray()))))) {
-                StatusLine statusLine = response.getStatusLine();
-                String message = String.format(Locale.ROOT, "%s %s: Expected no error got %s %s with body %s", method, uri,
-                        statusLine.getStatusCode(), statusLine.getReasonPhrase(), EntityUtils.toString(response.getEntity()));
-                assertThat(message, statusLine.getStatusCode(), is(not(greaterThanOrEqualTo(400))));
-            }
+        try (ElasticsearchResponse response = getRestClient().performRequest(method, uri, params, entityOrNull(body),
+                new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                        UsernamePasswordToken.basicAuthHeaderValue(user, new SecuredString("passwd".toCharArray()))))) {
+            StatusLine statusLine = response.getStatusLine();
+            String message = String.format(Locale.ROOT, "%s %s: Expected no error got %s %s with body %s", method, uri,
+                    statusLine.getStatusCode(), statusLine.getReasonPhrase(), EntityUtils.toString(response.getEntity()));
+            assertThat(message, statusLine.getStatusCode(), is(not(greaterThanOrEqualTo(400))));
         }
     }
 
@@ -66,8 +64,8 @@ public abstract class AbstractPrivilegeTestCase extends ShieldIntegTestCase {
 
     protected void assertAccessIsDenied(String user, String method, String uri, String body,
                                         Map<String, String> params) throws IOException {
-        try (RestClient restClient = restClient()) {
-            restClient.performRequest(method, uri, params, entityOrNull(body),
+        try {
+            getRestClient().performRequest(method, uri, params, entityOrNull(body),
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(user, new SecuredString("passwd".toCharArray()))));
             fail("request should have failed");

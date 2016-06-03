@@ -10,7 +10,6 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -53,27 +52,25 @@ public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCa
     }
 
     public void testGetSettingsSmtpPassword() throws Exception {
-        try (RestClient restClient = restClient()) {
-            Header[] headers;
-            if (shieldEnabled()) {
-                headers = new Header[] {
-                        new BasicHeader(BASIC_AUTH_HEADER,
-                                basicAuthHeaderValue(MarvelIntegTestCase.ShieldSettings.TEST_USERNAME,
-                                        new SecuredString(MarvelIntegTestCase.ShieldSettings.TEST_PASSWORD.toCharArray())))};
-            } else {
-                headers = new Header[0];
-            }
-            try (ElasticsearchResponse response = restClient.performRequest("GET", "/_nodes/settings",
-                    Collections.emptyMap(), null, headers)) {
-                Map<String, Object> responseMap = JsonXContent.jsonXContent.createParser(response.getEntity().getContent()).map();
-                Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes");
-                for (Object node : nodes.values()) {
-                    Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) node).get("settings");
-                    assertThat(XContentMapValues.extractValue("xpack.notification.email.account._email.smtp.user", settings),
-                            is((Object) "_user"));
-                    assertThat(XContentMapValues.extractValue("xpack.notification.email.account._email.smtp.password", settings),
-                            nullValue());
-                }
+        Header[] headers;
+        if (shieldEnabled()) {
+            headers = new Header[] {
+                    new BasicHeader(BASIC_AUTH_HEADER,
+                            basicAuthHeaderValue(MarvelIntegTestCase.ShieldSettings.TEST_USERNAME,
+                                    new SecuredString(MarvelIntegTestCase.ShieldSettings.TEST_PASSWORD.toCharArray())))};
+        } else {
+            headers = new Header[0];
+        }
+        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/_nodes/settings",
+                Collections.emptyMap(), null, headers)) {
+            Map<String, Object> responseMap = JsonXContent.jsonXContent.createParser(response.getEntity().getContent()).map();
+            Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes");
+            for (Object node : nodes.values()) {
+                Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) node).get("settings");
+                assertThat(XContentMapValues.extractValue("xpack.notification.email.account._email.smtp.user", settings),
+                        is((Object) "_user"));
+                assertThat(XContentMapValues.extractValue("xpack.notification.email.account._email.smtp.password", settings),
+                        nullValue());
             }
         }
     }

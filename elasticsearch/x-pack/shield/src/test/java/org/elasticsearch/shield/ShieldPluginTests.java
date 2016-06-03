@@ -8,7 +8,6 @@ package org.elasticsearch.shield;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.ElasticsearchResponse;
 import org.elasticsearch.client.ElasticsearchResponseException;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
@@ -34,22 +33,20 @@ public class ShieldPluginTests extends ShieldIntegTestCase {
     }
 
     public void testThatPluginIsLoaded() throws IOException {
-        try (RestClient restClient = restClient()) {
-            try {
-                logger.info("executing unauthorized request to /_xpack info");
-                restClient.performRequest("GET", "/_xpack", Collections.emptyMap(), null);
-                fail("request should have failed");
-            } catch(ElasticsearchResponseException e) {
-                assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(UNAUTHORIZED.getStatus()));
-            }
+        try {
+            logger.info("executing unauthorized request to /_xpack info");
+            getRestClient().performRequest("GET", "/_xpack", Collections.emptyMap(), null);
+            fail("request should have failed");
+        } catch(ElasticsearchResponseException e) {
+            assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(UNAUTHORIZED.getStatus()));
+        }
 
-            logger.info("executing authorized request to /_xpack infos");
-            try (ElasticsearchResponse response = restClient.performRequest("GET", "/_xpack", Collections.emptyMap(), null,
-                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                            basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
-                                    new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
-                assertThat(response.getStatusLine().getStatusCode(), is(OK.getStatus()));
-            }
+        logger.info("executing authorized request to /_xpack infos");
+        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/_xpack", Collections.emptyMap(), null,
+                new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                        basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
+                                new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
+            assertThat(response.getStatusLine().getStatusCode(), is(OK.getStatus()));
         }
     }
 }

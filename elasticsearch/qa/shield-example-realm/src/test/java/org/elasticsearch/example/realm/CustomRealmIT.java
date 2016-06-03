@@ -11,7 +11,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.ElasticsearchResponse;
 import org.elasticsearch.client.ElasticsearchResponseException;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +31,7 @@ import static org.hamcrest.Matchers.is;
  * Integration test to test authentication with the custom realm
  */
 public class CustomRealmIT extends ESIntegTestCase {
+
     @Override
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
@@ -46,8 +46,8 @@ public class CustomRealmIT extends ESIntegTestCase {
     }
 
     public void testHttpConnectionWithNoAuthentication() throws Exception {
-        try (RestClient restClient = restClient()) {
-            restClient.performRequest("GET", "/", Collections.emptyMap(), null);
+        try {
+            getRestClient().performRequest("GET", "/", Collections.emptyMap(), null);
             fail("request should have failed");
         } catch(ElasticsearchResponseException e) {
             ElasticsearchResponse response = e.getElasticsearchResponse();
@@ -58,12 +58,10 @@ public class CustomRealmIT extends ESIntegTestCase {
     }
 
     public void testHttpAuthentication() throws Exception {
-        try (RestClient restClient = restClient()) {
-            try (ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null,
-                    new BasicHeader(CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER),
-                    new BasicHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW))) {
-                assertThat(response.getStatusLine().getStatusCode(), is(200));
-            }
+        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
+                new BasicHeader(CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER),
+                new BasicHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW))) {
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
     }
 

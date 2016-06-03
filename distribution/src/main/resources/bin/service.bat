@@ -28,35 +28,38 @@ if %bad_env_var% == 1 (
 )
 rem end TODO: remove for Elasticsearch 6.x
 
-if NOT DEFINED JAVA_HOME IF EXIST %ProgramData%\Oracle\java\javapath\java.exe (
-    for /f "tokens=2 delims=[]" %%a in ('dir %ProgramData%\Oracle\java\javapath\java.exe') do @set JAVA_EXE=%%a
+IF DEFINED JAVA_HOME (
+  SET JAVA=%JAVA_HOME%\bin\java.exe
+) ELSE (
+  FOR %%I IN (java.exe) DO set JAVA=%%~$PATH:I
 )
-if DEFINED JAVA_EXE set JAVA_HOME=%JAVA_EXE:\bin\java.exe=%
-if DEFINED JAVA_EXE (
-    ECHO Using JAVA_HOME=%JAVA_HOME% retrieved from %ProgramData%\Oracle\java\javapath\java.exe
+IF NOT EXIST "%JAVA%" (
+  ECHO Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME 1>&2
+  EXIT /B 1
 )
-set JAVA_EXE=
-if NOT DEFINED JAVA_HOME goto err
+IF DEFINED JAVA_HOME GOTO :cont
 
+IF NOT "%JAVA:~-13%" == "\bin\java.exe" (
+  FOR /f "tokens=2 delims=[]" %%I IN ('dir %ProgramData%\Oracle\java\javapath\java.exe') DO @set JAVA=%%I
+)
+IF "%JAVA:~-13%" == "\bin\java.exe" (
+  SET JAVA_HOME=%JAVA:~0,-13%
+)
+
+:cont
 if not "%CONF_FILE%" == "" goto conffileset
 
 set SCRIPT_DIR=%~dp0
 for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 
-rem Detect JVM version to figure out appropriate executable to use
-if not exist "%JAVA_HOME%\bin\java.exe" (
-echo JAVA_HOME points to an invalid Java installation (no java.exe found in "%JAVA_HOME%"^). Exiting...
-goto:eof
-)
-
-"%JAVA_HOME%\bin\java" -Xmx50M -version > nul 2>&1
+"%JAVA%" -Xmx50M -version > nul 2>&1
 
 if errorlevel 1 (
 	echo Warning: Could not start JVM to detect version, defaulting to x86:
 	goto x86
 )
 
-"%JAVA_HOME%\bin\java" -Xmx50M -version 2>&1 | "%windir%\System32\find" "64-Bit" >nul:
+"%JAVA%" -Xmx50M -version 2>&1 | "%windir%\System32\find" "64-Bit" >nul:
 
 if errorlevel 1 goto x86
 set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe

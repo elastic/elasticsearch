@@ -30,10 +30,8 @@ import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -298,7 +296,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         this.routingNumShards = routingNumShards;
         this.routingFactor = routingNumShards / numberOfShards;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
-
     }
 
     public Index getIndex() {
@@ -493,7 +490,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         if (!customs.equals(that.customs)) {
             return false;
         }
-
+        if (routingNumShards != that.routingNumShards) {
+            return false;
+        }
+        if (routingFactor != that.routingFactor) {
+            return false;
+        }
         if (Arrays.equals(primaryTerms, that.primaryTerms) == false) {
             return false;
         }
@@ -512,6 +514,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         result = 31 * result + settings.hashCode();
         result = 31 * result + mappings.hashCode();
         result = 31 * result + customs.hashCode();
+        result = 31 * result + Long.hashCode(routingFactor);
+        result = 31 * result + Long.hashCode(routingNumShards);
         result = 31 * result + Arrays.hashCode(primaryTerms);
         result = 31 * result + activeAllocationIds.hashCode();
         return result;
@@ -738,11 +742,22 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return this;
         }
 
+        /**
+         * Sets the number of shards that should be used for routing. This should only be used if the number of shards in
+         * an index has changed ie if the index is shrunk.
+         */
         public Builder setRoutingNumShards(int routingNumShards) {
             this.routingNumShards = routingNumShards;
             return this;
         }
 
+        /**
+         * Returns number of shards that should be used for routing. By default this method will return the number of shards
+         * for this index.
+         *
+         * @see #setRoutingNumShards(int)
+         * @see #numberOfShards()
+         */
         public int getRoutingNumShards() {
             return routingNumShards == null ? numberOfShards() : routingNumShards;
         }
@@ -1225,7 +1240,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         return routingFactor;
     }
 
-
     /**
      * Returns the source shard ids to shrink into the given shard id.
      * @param shardId the id of the target shard to shrink to
@@ -1234,6 +1248,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
      * @return a set of shard IDs to shrink into the given shard ID.
      */
     public static Set<ShardId> selectShrinkShards(int shardId, IndexMetaData sourceIndexMetadata, int numTargetShards) {
+        if (shardId >= numTargetShards) {
+            throw new IllegalArgumentException("the number of target shards (" + numTargetShards + ") must be greater than the shard id: "
+                + shardId);
+        }
         int routingFactor = getRoutingFactor(sourceIndexMetadata, numTargetShards);
         Set<ShardId> shards = new HashSet<>(routingFactor);
         for (int i = shardId * routingFactor; i < routingFactor*shardId + routingFactor; i++) {
@@ -1261,7 +1279,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         }
         int factor = sourceNumberOfShards / targetNumberOfShards;
         if (factor * targetNumberOfShards != sourceNumberOfShards || factor <= 1) {
-            throw new IllegalStateException("the number of source shards [" + sourceNumberOfShards + "] must be a must be a multiple of ["
+            throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a must be a multiple of ["
                 + targetNumberOfShards + "]");
         }
         return factor;

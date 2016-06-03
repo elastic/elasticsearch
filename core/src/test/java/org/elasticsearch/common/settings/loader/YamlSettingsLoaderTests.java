@@ -19,17 +19,16 @@
 
 package org.elasticsearch.common.settings.loader;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Collections;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.containsString;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class YamlSettingsLoaderTests extends ESTestCase {
@@ -75,8 +74,10 @@ public class YamlSettingsLoaderTests extends ESTestCase {
         });
         assertEquals(e.getCause().getClass(), ElasticsearchParseException.class);
         String msg = e.getCause().getMessage();
-        assertTrue(msg, msg.contains("duplicate settings key [foo] found"));
-        assertTrue(msg, msg.contains("previous value [bar], current value [baz]"));
+        assertTrue(
+            msg,
+            msg.contains("duplicate settings key [foo] found at line number [2], column number [6], " +
+                "previous value [bar], current value [baz]"));
     }
 
     public void testMissingValue() throws Exception {
@@ -85,6 +86,8 @@ public class YamlSettingsLoaderTests extends ESTestCase {
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
             Settings.builder().loadFromPath(tmp);
         });
-        assertTrue(e.getMessage(), e.getMessage().contains("null-valued setting found for key [foo] found at line"));
+        assertTrue(
+            e.getMessage(),
+            e.getMessage().contains("null-valued setting found for key [foo] found at line number [1], column number [5]"));
     }
 }

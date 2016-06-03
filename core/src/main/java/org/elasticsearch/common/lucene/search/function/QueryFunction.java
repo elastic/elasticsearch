@@ -46,8 +46,7 @@ public class QueryFunction extends ScoreFunction {
 
     @Override
     public void initWeight(IndexSearcher searcher) throws IOException {
-        // TODO: which weight should be created here? normalized or not?
-        weight = query.createWeight(searcher, true);
+        weight = searcher.createNormalizedWeight(query, true);
     }
 
     @Override

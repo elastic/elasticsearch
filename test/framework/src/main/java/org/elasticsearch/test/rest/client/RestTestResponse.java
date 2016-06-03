@@ -125,7 +125,7 @@ public class RestTestResponse {
     }
 
     private boolean isJson() {
-        String contentType = response.getFirstHeader("Content-Type");
+        String contentType = response.getHeader("Content-Type");
         return contentType != null && contentType.contains("application/json");
     }
 

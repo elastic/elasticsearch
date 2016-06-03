@@ -53,7 +53,7 @@ public class DetailedErrorsDisabledIT extends ESIntegTestCase {
             fail("request should have failed");
         } catch(ElasticsearchResponseException e) {
             ElasticsearchResponse response = e.getElasticsearchResponse();
-            assertThat(response.getFirstHeader("Content-Type"), is("application/json"));
+            assertThat(response.getHeader("Content-Type"), is("application/json"));
             assertThat(e.getResponseBody(), is("{\"error\":\"error traces in responses are disabled.\"}"));
             assertThat(response.getStatusLine().getStatusCode(), is(400));
         }

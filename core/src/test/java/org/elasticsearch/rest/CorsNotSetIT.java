@@ -49,16 +49,16 @@ public class CorsNotSetIT extends ESIntegTestCase {
         try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
                 new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue))) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
-            assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
-            assertThat(response.getFirstHeader("Access-Control-Allow-Credentials"), nullValue());
+            assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
+            assertThat(response.getHeader("Access-Control-Allow-Credentials"), nullValue());
         }
     }
 
     public void testThatOmittingCorsHeaderDoesNotReturnAnything() throws Exception {
         try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null)) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
-            assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
-            assertThat(response.getFirstHeader("Access-Control-Allow-Credentials"), nullValue());
+            assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
+            assertThat(response.getHeader("Access-Control-Allow-Credentials"), nullValue());
         }
     }
 }

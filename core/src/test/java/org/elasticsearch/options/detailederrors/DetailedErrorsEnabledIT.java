@@ -51,7 +51,7 @@ public class DetailedErrorsEnabledIT extends ESIntegTestCase {
             fail("request should have failed");
         } catch(ElasticsearchResponseException e) {
             ElasticsearchResponse response = e.getElasticsearchResponse();
-            assertThat(response.getFirstHeader("Content-Type"), containsString("application/json"));
+            assertThat(response.getHeader("Content-Type"), containsString("application/json"));
             assertThat(e.getResponseBody(), containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; " +
                     "nested: ActionRequestValidationException[Validation Failed: 1:"));
         }
@@ -61,7 +61,7 @@ public class DetailedErrorsEnabledIT extends ESIntegTestCase {
             fail("request should have failed");
         } catch(ElasticsearchResponseException e) {
             ElasticsearchResponse response = e.getElasticsearchResponse();
-            assertThat(response.getFirstHeader("Content-Type"), containsString("application/json"));
+            assertThat(response.getHeader("Content-Type"), containsString("application/json"));
             assertThat(e.getResponseBody(), not(containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; "
                     + "nested: ActionRequestValidationException[Validation Failed: 1:")));
         }

@@ -69,7 +69,7 @@ public class CorsRegexIT extends ESIntegTestCase {
         try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
                 new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue));) {
             assertResponseWithOriginheader(response, corsValue);
-            assertThat(response.getFirstHeader("Access-Control-Allow-Credentials"), is("true"));
+            assertThat(response.getHeader("Access-Control-Allow-Credentials"), is("true"));
         }
     }
 
@@ -82,7 +82,7 @@ public class CorsRegexIT extends ESIntegTestCase {
             ElasticsearchResponse response = e.getElasticsearchResponse();
             // a rejected origin gets a FORBIDDEN - 403
             assertThat(response.getStatusLine().getStatusCode(), is(403));
-            assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
+            assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
         }
     }
 
@@ -90,14 +90,14 @@ public class CorsRegexIT extends ESIntegTestCase {
         try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
                 new BasicHeader("User-Agent", "Mozilla Bar"))) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
-            assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
+            assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
         }
     }
 
     public void testThatRegularExpressionIsNotAppliedWithoutCorrectBrowserOnMatch() throws Exception {
         try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null)) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
-            assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
+            assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
         }
     }
 
@@ -107,7 +107,7 @@ public class CorsRegexIT extends ESIntegTestCase {
                 new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue),
                 new BasicHeader(HttpHeaders.Names.ACCESS_CONTROL_REQUEST_METHOD, "GET"));) {
             assertResponseWithOriginheader(response, corsValue);
-            assertNotNull(response.getFirstHeader("Access-Control-Allow-Methods"));
+            assertNotNull(response.getHeader("Access-Control-Allow-Methods"));
         }
     }
 
@@ -121,13 +121,13 @@ public class CorsRegexIT extends ESIntegTestCase {
             ElasticsearchResponse response = e.getElasticsearchResponse();
             // a rejected origin gets a FORBIDDEN - 403
             assertThat(response.getStatusLine().getStatusCode(), is(403));
-            assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), nullValue());
-            assertThat(response.getFirstHeader("Access-Control-Allow-Methods"), nullValue());
+            assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
+            assertThat(response.getHeader("Access-Control-Allow-Methods"), nullValue());
         }
     }
 
     protected static void assertResponseWithOriginheader(ElasticsearchResponse response, String expectedCorsHeader) {
         assertThat(response.getStatusLine().getStatusCode(), is(200));
-        assertThat(response.getFirstHeader("Access-Control-Allow-Origin"), is(expectedCorsHeader));
+        assertThat(response.getHeader("Access-Control-Allow-Origin"), is(expectedCorsHeader));
     }
 }

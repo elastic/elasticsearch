@@ -61,13 +61,13 @@ public class ResponseHeaderPluginIT extends ESIntegTestCase {
         } catch(ElasticsearchResponseException e) {
             ElasticsearchResponse response = e.getElasticsearchResponse();
             assertThat(response, hasStatus(UNAUTHORIZED));
-            assertThat(response.getFirstHeader("Secret"), equalTo("required"));
+            assertThat(response.getHeader("Secret"), equalTo("required"));
         }
 
         try (ElasticsearchResponse authResponse = getRestClient().performRequest("GET", "/_protected", Collections.emptyMap(), null,
                 new BasicHeader("Secret", "password"))) {
             assertThat(authResponse, hasStatus(OK));
-            assertThat(authResponse.getFirstHeader("Secret"), equalTo("granted"));
+            assertThat(authResponse.getHeader("Secret"), equalTo("granted"));
         }
     }
 }

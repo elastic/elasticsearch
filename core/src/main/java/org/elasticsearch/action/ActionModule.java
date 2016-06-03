@@ -107,6 +107,8 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.TransportRecoveryAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -289,6 +291,7 @@ public class ActionModule extends AbstractModule {
         registerAction(IndicesShardStoresAction.INSTANCE, TransportIndicesShardStoresAction.class);
         registerAction(CreateIndexAction.INSTANCE, TransportCreateIndexAction.class);
         registerAction(ShrinkAction.INSTANCE, TransportShrinkAction.class);
+        registerAction(RolloverAction.INSTANCE, TransportRolloverAction.class);
         registerAction(DeleteIndexAction.INSTANCE, TransportDeleteIndexAction.class);
         registerAction(GetIndexAction.INSTANCE, TransportGetIndexAction.class);
         registerAction(OpenIndexAction.INSTANCE, TransportOpenIndexAction.class);

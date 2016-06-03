@@ -16,34 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.indices.alias;
 
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
-import org.elasticsearch.cluster.metadata.AliasAction;
+package org.elasticsearch.action.admin.indices.rollover;
+
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
- * Cluster state update request that allows to add or remove aliases
  */
-public class IndicesAliasesClusterStateUpdateRequest extends ClusterStateUpdateRequest<IndicesAliasesClusterStateUpdateRequest> {
+public class RolloverAction extends Action<RolloverRequest, RolloverResponse, RolloverRequestBuilder> {
 
-    AliasAction[] actions;
+    public static final RolloverAction INSTANCE = new RolloverAction();
+    public static final String NAME = "indices:admin/rollover";
 
-    public IndicesAliasesClusterStateUpdateRequest() {
-
+    private RolloverAction() {
+        super(NAME);
     }
 
-    /**
-     * Returns the alias actions to be performed
-     */
-    public AliasAction[] actions() {
-        return actions;
+    @Override
+    public RolloverResponse newResponse() {
+        return new RolloverResponse();
     }
 
-    /**
-     * Sets the alias actions to be executed
-     */
-    public IndicesAliasesClusterStateUpdateRequest actions(AliasAction[] actions) {
-        this.actions = actions;
-        return this;
+    @Override
+    public RolloverRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new RolloverRequestBuilder(client, this);
     }
 }

@@ -1,0 +1,69 @@
+---
+"Rollover index via API":
+  # create index with alias
+  - do:
+      indices.create:
+        index: logs
+        body:
+          settings:
+            number_of_replicas: "0"
+          aliases:
+            logs_index: {}
+            logs_search: {}
+
+  # index document
+  - do:
+      index:
+        index: logs
+        type:  test
+        id:    "1"
+        body:  { "foo": "hello world" }
+
+  - do:
+      get:
+        index: logs_search
+        type:  test
+        id:    "1"
+
+  - match: { _index:   logs }
+  - match: { _type:    test   }
+  - match: { _id:      "1"     }
+  - match: { _source:  { foo: "hello world" } }
+
+  # perform alias rollover
+  - do:
+    indices.rollover:
+      alias: "logs_search"
+      body:
+        condition.max_docs: 1
+
+  - match: { old_index: logs }
+  - match: { new_index: logs-1 }
+
+  # ensure new index is created
+  - do:
+      indices.exists:
+        index: logs-1
+
+  - is_true: ''
+
+  # index into new index
+  - do:
+      index:
+        index: logs-1
+        type:  test
+        id:    "2"
+        body:  { "foo": "hello world" }
+
+  # check alias points to the new index
+  - do:
+      get:
+        index: logs_search
+        type:  test
+        id:    "2"
+
+  - match: { _index:   logs-1 }
+  - match: { _type:    test   }
+  - match: { _id:      "2"     }
+  - match: { _source:  { foo: "hello world" } }
+

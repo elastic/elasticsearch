@@ -1,17 +1,14 @@
 @echo off
 
-if NOT DEFINED JAVA_HOME IF EXIST %ProgramData%\Oracle\java\javapath\java.exe (
-    for /f "tokens=2 delims=[]" %%a in ('dir %ProgramData%\Oracle\java\javapath\java.exe') do @set JAVA_EXE=%%a
+IF DEFINED JAVA_HOME (
+  set JAVA=%JAVA_HOME%\bin\java.exe
+) ELSE (
+  FOR %%I IN (java.exe) DO set JAVA=%%~$PATH:I
 )
-if DEFINED JAVA_EXE set JAVA_HOME=%JAVA_EXE:\bin\java.exe=%
-if DEFINED JAVA_EXE (
-    ECHO Using JAVA_HOME=%JAVA_HOME% retrieved from %ProgramData%\Oracle\java\javapath\java.exe
-)
-set JAVA_EXE=
-if DEFINED JAVA_HOME goto cont
+IF EXIST "%JAVA%" GOTO cont
 
 :err
-ECHO JAVA_HOME environment variable must be set! 1>&2
+ECHO Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME 1>&2
 EXIT /B 1
 
 :cont

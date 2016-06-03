@@ -26,7 +26,6 @@ import com.google.api.client.json.Json;
 import com.google.api.client.testing.http.MockHttpTransport;
 import com.google.api.client.testing.http.MockLowLevelHttpRequest;
 import com.google.api.client.testing.http.MockLowLevelHttpResponse;
-import org.elasticsearch.cloud.gce.GceMetadataServiceImpl;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.ESLogger;
@@ -79,7 +78,7 @@ public class GceMockUtils {
         // We extract from the url the mock file path we want to use
         String mockFileName = Strings.replace(url, urlRoot, "");
 
-        URL resource = GceComputeServiceMock.class.getResource(mockFileName);
+        URL resource = GceInstancesServiceMock.class.getResource(mockFileName);
         if (resource == null) {
             throw new IOException("can't read [" + url + "] in src/test/resources/org/elasticsearch/discovery/gce");
         }

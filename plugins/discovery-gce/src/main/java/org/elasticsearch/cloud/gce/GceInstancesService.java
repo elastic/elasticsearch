@@ -25,13 +25,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-public interface GceComputeService extends LifecycleComponent<GceComputeService> {
+public interface GceInstancesService extends LifecycleComponent<GceInstancesService> {
 
     /**
      * GCE API Version: Elasticsearch/GceCloud/1.0

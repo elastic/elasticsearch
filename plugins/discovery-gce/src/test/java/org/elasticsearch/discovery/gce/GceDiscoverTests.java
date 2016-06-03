@@ -23,7 +23,7 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
-import org.elasticsearch.cloud.gce.GceComputeServiceImpl;
+import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
@@ -75,9 +75,9 @@ public class GceDiscoverTests extends ESIntegTestCase {
         }
 
         public void onModule(SettingsModule module) {
-            module.registerSetting(GceComputeServiceImpl.GCE_HOST);
-            module.registerSetting(GceComputeServiceImpl.GCE_ROOT_URL);
-            module.registerSetting(GceComputeServiceImpl.GCE_VALIDATE_CERTIFICATES);
+            module.registerSetting(GceInstancesServiceImpl.GCE_HOST);
+            module.registerSetting(GceInstancesServiceImpl.GCE_ROOT_URL);
+            module.registerSetting(GceInstancesServiceImpl.GCE_VALIDATE_CERTIFICATES);
         }
     }
 

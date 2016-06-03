@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cloud.gce.network;
 
-import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.cloud.gce.GceMetadataService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;

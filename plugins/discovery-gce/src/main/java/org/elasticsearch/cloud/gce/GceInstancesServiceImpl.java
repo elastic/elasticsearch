@@ -21,9 +21,6 @@ package org.elasticsearch.cloud.gce;
 
 import com.google.api.client.googleapis.compute.ComputeCredential;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
-import com.google.api.client.http.GenericUrl;
-import com.google.api.client.http.HttpHeaders;
-import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
@@ -33,10 +30,8 @@ import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cloud.gce.network.GceNameResolver;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -44,10 +39,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.gce.RetryHttpInitializerWrapper;
 
 import java.io.IOException;
-import java.net.URL;
 import java.security.AccessController;
 import java.security.GeneralSecurityException;
-import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
@@ -56,8 +49,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceComputeService>
-    implements GceComputeService {
+public class GceInstancesServiceImpl extends AbstractLifecycleComponent<GceInstancesService>
+    implements GceInstancesService {
 
     // all settings just used for testing - not registered by default
     public static final Setting<Boolean> GCE_VALIDATE_CERTIFICATES =
@@ -129,7 +122,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
     private final boolean validateCerts;
 
     @Inject
-    public GceComputeServiceImpl(Settings settings) {
+    public GceInstancesServiceImpl(Settings settings) {
         super(settings);
         this.project = PROJECT_SETTING.get(settings);
         this.zones = ZONE_SETTING.get(settings);

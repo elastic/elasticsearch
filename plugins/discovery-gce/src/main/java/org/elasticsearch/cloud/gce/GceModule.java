@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 
 public class GceModule extends AbstractModule {
     // pkg private so tests can override with mock
-    static Class<? extends GceComputeService> computeServiceImpl = GceComputeServiceImpl.class;
+    static Class<? extends GceInstancesService> computeServiceImpl = GceInstancesServiceImpl.class;
     static Class<? extends GceMetadataService> metadataServiceImpl = GceMetadataServiceImpl.class;
 
     protected final Settings settings;
@@ -36,7 +36,7 @@ public class GceModule extends AbstractModule {
         this.settings = settings;
     }
 
-    public static Class<? extends GceComputeService> getComputeServiceImpl() {
+    public static Class<? extends GceInstancesService> getComputeServiceImpl() {
         return computeServiceImpl;
     }
 
@@ -47,7 +47,7 @@ public class GceModule extends AbstractModule {
     @Override
     protected void configure() {
         logger.debug("configure GceModule (bind compute and metadata services)");
-        bind(GceComputeService.class).to(computeServiceImpl).asEagerSingleton();
+        bind(GceInstancesService.class).to(computeServiceImpl).asEagerSingleton();
         bind(GceMetadataService.class).to(metadataServiceImpl).asEagerSingleton();
     }
 }

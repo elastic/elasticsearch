@@ -22,7 +22,7 @@ package org.elasticsearch.plugin.discovery.gce;
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.util.ClassInfo;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cloud.gce.GceComputeService;
+import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.cloud.gce.GceModule;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
@@ -108,11 +108,11 @@ public class GceDiscoveryPlugin extends Plugin {
     public void onModule(SettingsModule settingsModule) {
         logger.debug("registering GCE Settings");
         // Register GCE settings
-        settingsModule.registerSetting(GceComputeService.PROJECT_SETTING);
-        settingsModule.registerSetting(GceComputeService.ZONE_SETTING);
+        settingsModule.registerSetting(GceInstancesService.PROJECT_SETTING);
+        settingsModule.registerSetting(GceInstancesService.ZONE_SETTING);
         settingsModule.registerSetting(GceUnicastHostsProvider.TAGS_SETTING);
-        settingsModule.registerSetting(GceComputeService.REFRESH_SETTING);
-        settingsModule.registerSetting(GceComputeService.RETRY_SETTING);
-        settingsModule.registerSetting(GceComputeService.MAX_WAIT_SETTING);
+        settingsModule.registerSetting(GceInstancesService.REFRESH_SETTING);
+        settingsModule.registerSetting(GceInstancesService.RETRY_SETTING);
+        settingsModule.registerSetting(GceInstancesService.MAX_WAIT_SETTING);
     }
 }

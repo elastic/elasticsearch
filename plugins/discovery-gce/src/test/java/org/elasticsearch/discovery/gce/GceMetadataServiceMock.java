@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.gce;
 
 import com.google.api.client.http.HttpTransport;
-import org.elasticsearch.cloud.gce.GceComputeServiceImpl;
 import org.elasticsearch.cloud.gce.GceMetadataServiceImpl;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;

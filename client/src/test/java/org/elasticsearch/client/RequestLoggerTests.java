@@ -24,9 +24,12 @@ import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.HttpHost;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.client.methods.HttpHead;
+import org.apache.http.client.methods.HttpOptions;
+import org.apache.http.client.methods.HttpPatch;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.client.methods.HttpTrace;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
@@ -46,7 +49,7 @@ public class RequestLoggerTests extends LuceneTestCase {
         URI uri = new URI("/index/type/_api");
 
         HttpRequestBase request;
-        int requestType = RandomInts.randomIntBetween(random(), 0, 4);
+        int requestType = RandomInts.randomIntBetween(random(), 0, 7);
         switch(requestType) {
             case 0:
                 request = new HttpGetWithEntity(uri);
@@ -62,6 +65,15 @@ public class RequestLoggerTests extends LuceneTestCase {
                 break;
             case 4:
                 request = new HttpHead(uri);
+                break;
+            case 5:
+                request = new HttpTrace(uri);
+                break;
+            case 6:
+                request = new HttpOptions(uri);
+                break;
+            case 7:
+                request = new HttpPatch(uri);
                 break;
             default:
                 throw new UnsupportedOperationException();

@@ -86,11 +86,26 @@ public class QueryFunction extends ScoreFunction {
     protected boolean doEquals(ScoreFunction o) {
         QueryFunction that = (QueryFunction) o;
         if (query != null ? !query.equals(that.query) : that.query != null) return false;
-        return weight != null ? weight.equals(that.weight) : that.weight == null;
+        if (weight != null) {
+            if (that.weight != null) {
+                if (weight.getQuery() != null ? !weight.getQuery().equals(that.weight.getQuery()) : that.weight.getQuery() != null)
+                    return false;
+                else
+                    return true;
+            } else {
+                return false;
+            }
+        } else {
+            return that.weight == null;
+        }
     }
 
     @Override
     public int doHashCode() {
-        return Objects.hash(weight, query);
+        if (weight != null) {
+            return Objects.hash(weight.getQuery(), query);
+        } else {
+            return Objects.hash(query);
+        }
     }
 }

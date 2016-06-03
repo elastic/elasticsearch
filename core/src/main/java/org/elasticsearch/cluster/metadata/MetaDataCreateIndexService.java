@@ -499,12 +499,15 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             throw new IllegalArgumentException("can't shrink an index with only one shard");
         }
 
+
         if ((targetIndexMappingsTypes.size() > 1 ||
             (targetIndexMappingsTypes.isEmpty() || targetIndexMappingsTypes.contains(MapperService.DEFAULT_MAPPING)) == false)) {
             throw new IllegalArgumentException("mappings are not allowed when shrinking indices" +
                 ", all mappings are copied from the source index");
         }
         if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
+            // this method applies all necessary checks ie. if the target shards are less than the source shards
+            // of if the source shards are divisible by the number of target shards
             IndexMetaData.getRoutingFactor(sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
         }
 

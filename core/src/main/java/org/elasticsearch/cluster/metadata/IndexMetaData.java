@@ -1251,9 +1251,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
      * @param sourceIndexMetadata the metadata of the source index
      * @param targetNumberOfShards the total number of shards in the target index
      * @return the routing factor for and shrunk index with the given number of target shards.
+     * @throw IllegalArgumentException if the number of source shards is greater than the number of target shards or if the source shards
+     * are not divisible by the number of target shards.
      */
     public static int getRoutingFactor(IndexMetaData sourceIndexMetadata, int targetNumberOfShards) {
         int sourceNumberOfShards = sourceIndexMetadata.getNumberOfShards();
+        if (sourceNumberOfShards < targetNumberOfShards) {
+            throw new IllegalArgumentException("the number of target shards must be less that the number of source shards");
+        }
         int factor = sourceNumberOfShards / targetNumberOfShards;
         if (factor * targetNumberOfShards != sourceNumberOfShards || factor <= 1) {
             throw new IllegalStateException("the number of source shards [" + sourceNumberOfShards + "] must be a must be a multiple of ["

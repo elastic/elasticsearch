@@ -88,10 +88,17 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             ).getMessage());
 
         assertEquals("can't shrink an index with only one shard",
-            expectThrows(IllegalArgumentException.class, () ->                     MetaDataCreateIndexService.validateShrinkIndex(createClusterState("source", 1, 0,
-                        Settings.builder().put("index.blocks.write", true).build()), "source", Collections.emptySet(),
+            expectThrows(IllegalArgumentException.class, () -> MetaDataCreateIndexService.validateShrinkIndex(createClusterState("source",
+                1, 0, Settings.builder().put("index.blocks.write", true).build()), "source", Collections.emptySet(),
                         "target", Settings.EMPTY)
             ).getMessage());
+
+        assertEquals("the number of target shards must be less that the number of source shards",
+            expectThrows(IllegalArgumentException.class, () -> MetaDataCreateIndexService.validateShrinkIndex(createClusterState("source",
+                5, 0, Settings.builder().put("index.blocks.write", true).build()), "source", Collections.emptySet(),
+                "target", Settings.builder().put("index.number_of_shards", 10).build())
+            ).getMessage());
+
 
         assertEquals("index source must be read-only to shrink index. use \"index.blocks.write=true\"",
             expectThrows(IllegalStateException.class, () ->

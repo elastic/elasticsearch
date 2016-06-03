@@ -225,7 +225,9 @@ public class OperationRouting extends AbstractComponent {
         } else {
             hash = Murmur3HashFunction.hash(routing);
         }
-        return Math.floorDiv(Math.floorMod(hash, indexMetaData.getRoutingNumShards()), indexMetaData.getRoutingFactor());
+        // we don't use IMD#getNumberOfShards since the index might have been shrunk such that we need to use the size
+        // of original index to hash documents
+        return Math.floorMod(hash, indexMetaData.getRoutingNumShards()) / indexMetaData.getRoutingFactor();
     }
 
     private void ensureNodeIdExists(DiscoveryNodes nodes, String nodeId) {

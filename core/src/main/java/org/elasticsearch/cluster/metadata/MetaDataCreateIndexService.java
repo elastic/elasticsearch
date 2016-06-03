@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -65,7 +64,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
@@ -305,14 +303,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 prepareShrinkIndexSettings(currentState, mappings.keySet(), indexSettingsBuilder, shrinkFromIndex,
                                     request.index());
                                 IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(shrinkFromIndex);
-                                int shrinkFactor = IndexMetaData.getShrinkFactor(sourceMetaData, routingNumShards);
-                                routingFactor = sourceMetaData.getRoutingFactor() * shrinkFactor;
                                 routingNumShards = sourceMetaData.getRoutingNumShards();
                             }
 
                             Settings actualIndexSettings = indexSettingsBuilder.build();
                             IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index())
-                                .setRoutingFactor(routingFactor)
                                 .setRoutingNumShards(routingNumShards);
                             // Set up everything, now locally create the index to see that things are ok, and apply
                             final IndexMetaData tmpImd = tmpImdBuilder.settings(actualIndexSettings).build();
@@ -347,8 +342,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 mappingsMetaData.put(mapper.type(), mappingMd);
                             }
 
-                            final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(request.index()).settings(actualIndexSettings)
-                                .setRoutingFactor(routingFactor)
+                            final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(request.index())
+                                .settings(actualIndexSettings)
                                 .setRoutingNumShards(routingNumShards);
                             for (MappingMetaData mappingMd : mappingsMetaData.values()) {
                                 indexMetaDataBuilder.putMapping(mappingMd);
@@ -510,7 +505,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 ", all mappings are copied from the source index");
         }
         if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
-            IndexMetaData.getShrinkFactor(sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
+            IndexMetaData.getRoutingFactor(sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
         }
 
         // now check that index is all on one node

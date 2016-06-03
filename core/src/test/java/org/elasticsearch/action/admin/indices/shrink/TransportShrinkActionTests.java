@@ -127,7 +127,7 @@ public class TransportShrinkActionTests extends ESTestCase {
             routingTable.index(indexName).shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         int numSourceShards = clusterState.metaData().index(indexName).getNumberOfShards();
-        DocsStats stats = new DocsStats(randomIntBetween(0, (IndexWriter.MAX_DOCS-1) / numSourceShards), randomIntBetween(1, 1000));
+        DocsStats stats = new DocsStats(randomIntBetween(0, (IndexWriter.MAX_DOCS) / numSourceShards), randomIntBetween(1, 1000));
         ShrinkRequest target = new ShrinkRequest("target", indexName);
         CreateIndexClusterStateUpdateRequest request = TransportShrinkAction.prepareCreateIndexRequest(
             target, clusterState, (i) -> stats,

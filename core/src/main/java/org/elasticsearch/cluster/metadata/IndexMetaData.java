@@ -63,13 +63,11 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -229,6 +227,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     public static final String KEY_ACTIVE_ALLOCATIONS = "active_allocations";
     static final String KEY_VERSION = "version";
+    static final String KEY_ROUTING_NUM_SHARDS = "routing_num_shards";
     static final String KEY_SETTINGS = "settings";
     static final String KEY_STATE = "state";
     static final String KEY_MAPPINGS = "mappings";
@@ -236,11 +235,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
-
-
-    public static final Setting<Integer> INDEX_ROUTING_NUM_SHARDS = Setting.intSetting("index.routing.num_shards", INDEX_NUMBER_OF_SHARDS_SETTING, 1);
-    public static final Setting<Integer> INDEX_ROUTING_FACTOR = Setting.intSetting("index.routing.factor", 1, 1);
-
     private final int routingNumShards;
     private final int routingFactor;
 
@@ -279,7 +273,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                           ImmutableOpenMap<String, Custom> customs, ImmutableOpenIntMap<Set<String>> activeAllocationIds,
                           DiscoveryNodeFilters requireFilters, DiscoveryNodeFilters initialRecoveryFilters, DiscoveryNodeFilters includeFilters, DiscoveryNodeFilters excludeFilters,
                           Version indexCreatedVersion, Version indexUpgradedVersion, org.apache.lucene.util.Version minimumCompatibleLuceneVersion,
-                          int routingNumShards, int routingFactor) {
+                          int routingNumShards) {
 
         this.index = index;
         this.version = version;
@@ -302,7 +296,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         this.indexUpgradedVersion = indexUpgradedVersion;
         this.minimumCompatibleLuceneVersion = minimumCompatibleLuceneVersion;
         this.routingNumShards = routingNumShards;
-        this.routingFactor = routingFactor;
+        this.routingFactor = routingNumShards / numberOfShards;
+        assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
+
     }
 
     public Index getIndex() {
@@ -546,7 +542,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     private static class IndexMetaDataDiff implements Diff<IndexMetaData> {
 
         private final String index;
-        private final int routingFactor;
         private final int routingNumShards;
         private final long version;
         private final long[] primaryTerms;
@@ -560,7 +555,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         public IndexMetaDataDiff(IndexMetaData before, IndexMetaData after) {
             index = after.index.getName();
             version = after.version;
-            routingFactor = after.routingFactor;
             routingNumShards = after.routingNumShards;
             state = after.state;
             settings = after.settings;
@@ -574,7 +568,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
         public IndexMetaDataDiff(StreamInput in) throws IOException {
             index = in.readString();
-            routingFactor = in.readInt();
             routingNumShards = in.readInt();
             version = in.readLong();
             state = State.fromId(in.readByte());
@@ -601,7 +594,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            out.writeInt(routingFactor);
             out.writeInt(routingNumShards);
             out.writeLong(version);
             out.writeByte(state.id);
@@ -617,7 +609,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         public IndexMetaData apply(IndexMetaData part) {
             Builder builder = builder(index);
             builder.version(version);
-            builder.setRoutingFactor(routingFactor);
             builder.setRoutingNumShards(routingNumShards);
             builder.state(state);
             builder.settings(settings);
@@ -634,7 +625,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public IndexMetaData readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.version(in.readLong());
-        builder.setRoutingFactor(in.readInt());
         builder.setRoutingNumShards(in.readInt());
         builder.state(State.fromId(in.readByte()));
         builder.settings(readSettingsFromStream(in));
@@ -668,7 +658,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index.getName()); // uuid will come as part of settings
         out.writeLong(version);
-        out.writeInt(routingFactor);
         out.writeInt(routingNumShards);
         out.writeByte(state.id());
         writeSettingsToStream(settings, out);
@@ -713,7 +702,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         private final ImmutableOpenMap.Builder<String, Custom> customs;
         private final ImmutableOpenIntMap.Builder<Set<String>> activeAllocationIds;
         private Integer routingNumShards;
-        private int routingFactor = 1;
 
         public Builder(String index) {
             this.index = index;
@@ -732,7 +720,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             this.mappings = ImmutableOpenMap.builder(indexMetaData.mappings);
             this.aliases = ImmutableOpenMap.builder(indexMetaData.aliases);
             this.customs = ImmutableOpenMap.builder(indexMetaData.customs);
-            this.routingFactor = indexMetaData.routingFactor;
             this.routingNumShards = indexMetaData.routingNumShards;
             this.activeAllocationIds = ImmutableOpenIntMap.builder(indexMetaData.activeAllocationIds);
         }
@@ -756,17 +743,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return this;
         }
 
-        public Builder setRoutingFactor(int routingFactor) {
-            this.routingFactor = routingFactor;
-            return this;
-        }
-
         public int getRoutingNumShards() {
             return routingNumShards == null ? numberOfShards() : routingNumShards;
-        }
-
-        public int getRoutingFactor() {
-            return routingFactor;
         }
 
         public int numberOfShards() {
@@ -983,15 +961,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
             return new IndexMetaData(new Index(index, uuid), version, primaryTerms, state, numberOfShards, numberOfReplicas, tmpSettings, mappings.build(),
                 tmpAliases.build(), customs.build(), filledActiveAllocationIds.build(), requireFilters, initialRecoveryFilters, includeFilters, excludeFilters,
-                indexCreatedVersion, indexUpgradedVersion, minimumCompatibleLuceneVersion, getRoutingNumShards(), routingFactor);
+                indexCreatedVersion, indexUpgradedVersion, minimumCompatibleLuceneVersion, getRoutingNumShards());
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject(indexMetaData.getIndex().getName());
 
             builder.field(KEY_VERSION, indexMetaData.getVersion());
-            builder.field("routing_factor", indexMetaData.getRoutingFactor());
-            builder.field("routing_num_shards", indexMetaData.getRoutingNumShards());
+            builder.field(KEY_ROUTING_NUM_SHARDS, indexMetaData.getRoutingNumShards());
             builder.field(KEY_STATE, indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
 
             boolean binary = params.paramAsBoolean("binary", false);
@@ -1152,9 +1129,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                         builder.state(State.fromString(parser.text()));
                     } else if (KEY_VERSION.equals(currentFieldName)) {
                         builder.version(parser.longValue());
-                    } else if ("routing_factor".equals(currentFieldName)) {
-                        builder.setRoutingFactor(parser.intValue());
-                    } else if ("routing_num_shards".equals(currentFieldName)) {
+                    } else if (KEY_ROUTING_NUM_SHARDS.equals(currentFieldName)) {
                         builder.setRoutingNumShards(parser.intValue());
                     } else {
                         throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
@@ -1231,25 +1206,53 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         }
     };
 
+    /**
+     * Returns the number of shards that should be used for routing. This basically defines the hash space we use in
+     * {@link org.elasticsearch.cluster.routing.OperationRouting#generateShardId(IndexMetaData, String, String)} to route documents
+     * to shards based on their ID or their specific routing value. The default value is {@link #getNumberOfShards()}. This value only
+     * changes if and index is shrunk.
+     */
     public int getRoutingNumShards() {
         return routingNumShards;
     }
 
+    /**
+     * Returns the routing factor for this index. The default is <tt>1</tt>.
+     *
+     * @see #getRoutingFactor(IndexMetaData, int) for details
+     */
     public int getRoutingFactor() {
         return routingFactor;
     }
 
 
+    /**
+     * Returns the source shard ids to shrink into the given shard id.
+     * @param shardId the id of the target shard to shrink to
+     * @param sourceIndexMetadata the source index metadata
+     * @param numTargetShards the total number of shards in the target index
+     * @return a set of shard IDs to shrink into the given shard ID.
+     */
     public static Set<ShardId> selectShrinkShards(int shardId, IndexMetaData sourceIndexMetadata, int numTargetShards) {
-        int shrinkFactor = getShrinkFactor(sourceIndexMetadata, numTargetShards);
-        Set<ShardId> shards = new HashSet<>(shrinkFactor);
-        for (int i = shardId * shrinkFactor; i < shrinkFactor*shardId + shrinkFactor; i++) {
+        int routingFactor = getRoutingFactor(sourceIndexMetadata, numTargetShards);
+        Set<ShardId> shards = new HashSet<>(routingFactor);
+        for (int i = shardId * routingFactor; i < routingFactor*shardId + routingFactor; i++) {
             shards.add(new ShardId(sourceIndexMetadata.getIndex(), i));
         }
         return shards;
     }
 
-    public static int getShrinkFactor(IndexMetaData sourceIndexMetadata, int targetNumberOfShards) {
+    /**
+     * Returns the routing factor for and shrunk index with the given number of target shards.
+     * This factor is used in the hash function in
+     * {@link org.elasticsearch.cluster.routing.OperationRouting#generateShardId(IndexMetaData, String, String)} to guarantee consistent
+     * hashing / routing of documents even if the number of shards changed (ie. a shrunk index).
+     *
+     * @param sourceIndexMetadata the metadata of the source index
+     * @param targetNumberOfShards the total number of shards in the target index
+     * @return the routing factor for and shrunk index with the given number of target shards.
+     */
+    public static int getRoutingFactor(IndexMetaData sourceIndexMetadata, int targetNumberOfShards) {
         int sourceNumberOfShards = sourceIndexMetadata.getNumberOfShards();
         int factor = sourceNumberOfShards / targetNumberOfShards;
         if (factor * targetNumberOfShards != sourceNumberOfShards || factor <= 1) {

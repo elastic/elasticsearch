@@ -290,9 +290,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testCreateShrinkIndexToN() {
-        int[][] possibleShardSplits = new int[][] {
-            {8,4,2}, {9, 3, 1}, {4, 2, 1}, {15,5,1}
-        };
+        int[][] possibleShardSplits = new int[][] {{8,4,2}, {9, 3, 1}, {4, 2, 1}, {15,5,1}};
         int[] shardSplits = randomFrom(possibleShardSplits);
         assertEquals(shardSplits[0], (shardSplits[0] / shardSplits[1]) * shardSplits[1]);
         assertEquals(shardSplits[1], (shardSplits[1] / shardSplits[2]) * shardSplits[2]);
@@ -355,8 +353,6 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
         assertHitCount(client().prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
         assertHitCount(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
-
-
     }
 
     public void testCreateShrinkIndex() {

@@ -44,13 +44,13 @@ public class OperationRoutingTests extends ESTestCase{
             final int shard = OperationRouting.generateShardId(metaData, term, null);
             IndexMetaData shrunk = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[1])
                 .numberOfReplicas(1)
-                .setRoutingFactor(shardSplits[0] / shardSplits[1]).setRoutingNumShards(shardSplits[0]).build();
+                .setRoutingNumShards(shardSplits[0]).build();
             int shrunkShard = OperationRouting.generateShardId(shrunk, term, null);
             Set<ShardId> shardIds = IndexMetaData.selectShrinkShards(shrunkShard, metaData, shrunk.getNumberOfShards());
             assertEquals(1, shardIds.stream().filter((sid) -> sid.id() == shard).count());
 
             shrunk = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[2]).numberOfReplicas(1)
-                .setRoutingFactor((shardSplits[0] / shardSplits[1]) * (shardSplits[1] / shardSplits[2])).setRoutingNumShards(shardSplits[0]).build();
+                .setRoutingNumShards(shardSplits[0]).build();
             shrunkShard = OperationRouting.generateShardId(shrunk, term, null);
             shardIds = IndexMetaData.selectShrinkShards(shrunkShard, metaData, shrunk.getNumberOfShards());
             assertEquals(Arrays.toString(shardSplits), 1, shardIds.stream().filter((sid) -> sid.id() == shard).count());

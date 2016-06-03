@@ -140,7 +140,7 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
                 if (docsStats != null) {
                     count += docsStats.getCount();
                 }
-                if (count >= IndexWriter.MAX_DOCS) {
+                if (count > IndexWriter.MAX_DOCS) {
                     throw new IllegalStateException("Can't merge index with more than [" + IndexWriter.MAX_DOCS
                         + "] docs - too many documents in shards " + shardIds);
                 }

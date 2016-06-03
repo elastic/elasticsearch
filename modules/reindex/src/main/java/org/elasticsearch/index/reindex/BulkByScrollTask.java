@@ -49,7 +49,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
  * Task storing information about a currently running BulkByScroll request.
  */
 public class BulkByScrollTask extends CancellableTask {
-    private static final ESLogger logger = ESLoggerFactory.getLogger(BulkByScrollTask.class.getName());
+    private static final ESLogger logger = ESLoggerFactory.getLogger(BulkByScrollTask.class.getPackage().getName());
 
     /**
      * The total number of documents this request will process. 0 means we don't yet know or, possibly, there are actually 0 documents
@@ -403,9 +403,11 @@ public class BulkByScrollTask extends CancellableTask {
      * Schedule prepareBulkRequestRunnable to run after some delay. This is where throttling plugs into reindexing so the request can be
      * rescheduled over and over again.
      */
-    void delayPrepareBulkRequest(ThreadPool threadPool, TimeValue delay, AbstractRunnable prepareBulkRequestRunnable) {
+    void delayPrepareBulkRequest(ThreadPool threadPool, TimeValue lastBatchStartTime, int lastBatchSize,
+            AbstractRunnable prepareBulkRequestRunnable) {
         // Synchronize so we are less likely to schedule the same request twice.
         synchronized (delayedPrepareBulkRequestReference) {
+            TimeValue delay = throttleWaitTime(lastBatchStartTime, lastBatchSize);
             AbstractRunnable oneTime = new AbstractRunnable() {
                 private final AtomicBoolean hasRun = new AtomicBoolean(false);
 
@@ -424,6 +426,26 @@ public class BulkByScrollTask extends CancellableTask {
             };
             delayedPrepareBulkRequestReference.set(new DelayedPrepareBulkRequest(threadPool, getRequestsPerSecond(), delay, oneTime));
         }
+    }
+
+    TimeValue throttleWaitTime(TimeValue lastBatchStartTime, int lastBatchSize) {
+        long earliestNextBatchStartTime = lastBatchStartTime.nanos() + (long) perfectlyThrottledBatchTime(lastBatchSize);
+        return timeValueNanos(max(0, earliestNextBatchStartTime - System.nanoTime()));
+    }
+
+    /**
+     * How many nanoseconds should a batch of lastBatchSize have taken if it were perfectly throttled? Package private for testing.
+     */
+    float perfectlyThrottledBatchTime(int lastBatchSize) {
+        if (requestsPerSecond == Float.POSITIVE_INFINITY) {
+            return 0;
+        }
+        //       requests
+        // ------------------- == seconds
+        // request per seconds
+        float targetBatchTimeInSeconds = lastBatchSize / requestsPerSecond;
+        // nanoseconds per seconds * seconds == nanoseconds
+        return TimeUnit.SECONDS.toNanos(1) * targetBatchTimeInSeconds;
     }
 
     private void setRequestsPerSecond(float requestsPerSecond) {

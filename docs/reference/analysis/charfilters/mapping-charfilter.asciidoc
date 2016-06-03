@@ -25,8 +25,8 @@ Here is a sample configuration:
                 "my_mapping" : {
                     "type" : "mapping",
                     "mappings" : [
-                      "ph => f",
-                      "qu => k"
+                      "ph" => "f",
+                      "qu" => "k"
                     ]
                 }
             },

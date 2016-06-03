@@ -52,7 +52,7 @@ public class CustomRealmIT extends ESIntegTestCase {
         } catch(ElasticsearchResponseException e) {
             ElasticsearchResponse response = e.getElasticsearchResponse();
             assertThat(response.getStatusLine().getStatusCode(), is(401));
-            String value = response.getFirstHeader("WWW-Authenticate");
+            String value = response.getHeader("WWW-Authenticate");
             assertThat(value, is("custom-challenge"));
         }
     }

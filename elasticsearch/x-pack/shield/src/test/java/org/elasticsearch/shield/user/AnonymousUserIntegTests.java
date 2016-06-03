@@ -50,12 +50,12 @@ public class AnonymousUserIntegTests extends ShieldIntegTestCase {
             ElasticsearchResponse response = e.getElasticsearchResponse();
             if (authorizationExceptionsEnabled) {
                 assertThat(statusCode, is(403));
-                assertThat(response.getFirstHeader("WWW-Authenticate"), nullValue());
+                assertThat(response.getHeader("WWW-Authenticate"), nullValue());
                 assertThat(e.getResponseBody(), containsString("security_exception"));
             } else {
                 assertThat(statusCode, is(401));
-                assertThat(response.getFirstHeader("WWW-Authenticate"), notNullValue());
-                assertThat(response.getFirstHeader("WWW-Authenticate"), containsString("Basic"));
+                assertThat(response.getHeader("WWW-Authenticate"), notNullValue());
+                assertThat(response.getHeader("WWW-Authenticate"), containsString("Basic"));
                 assertThat(e.getResponseBody(), containsString("security_exception"));
             }
         }

@@ -25,13 +25,10 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashSet;
 import java.util.Set;
-
-import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
 
 /**
  * Checks that all tests in a directory are named according to our naming conventions. This is important because tests that do not follow
@@ -46,11 +43,13 @@ import org.elasticsearch.common.io.PathUtils;
  * {@code --self-test} that is only run in the test:framework project.
  */
 public class NamingConventionsCheck {
-    public static void main(String[] args) throws IOException, ClassNotFoundException {
-        NamingConventionsCheck check = new NamingConventionsCheck();
+    public static void main(String[] args) throws IOException {
+        int i = 0;
+        NamingConventionsCheck check = new NamingConventionsCheck(
+                loadClassWithoutInitializing(args[i++]),
+                loadClassWithoutInitializing(args[i++]));
         boolean skipIntegTestsInDisguise = false;
         boolean selfTest = false;
-        int i = 0;
         while (true) {
             switch (args[i]) {
             case "--skip-integ-tests-in-disguise":
@@ -69,7 +68,7 @@ public class NamingConventionsCheck {
             }
             break;
         }
-        check.check(PathUtils.get(args[i]));
+        check.check(Paths.get(args[i]));
 
         if (selfTest) {
             assertViolation("WrongName", check.missingSuffix);
@@ -82,14 +81,12 @@ public class NamingConventionsCheck {
         }
 
         // Now we should have no violations
-        assertNoViolations("Not all subclasses of " + ESTestCase.class.getSimpleName()
+        assertNoViolations("Not all subclasses of " + check.testClass.getSimpleName()
                 + " match the naming convention. Concrete classes must end with [Tests]", check.missingSuffix);
         assertNoViolations("Classes ending with [Tests] are abstract or interfaces", check.notRunnable);
         assertNoViolations("Found inner classes that are tests, which are excluded from the test runner", check.innerClasses);
-        String classesToSubclass = String.join(",", ESTestCase.class.getSimpleName(), ESTestCase.class.getSimpleName(),
-                ESTokenStreamTestCase.class.getSimpleName(), LuceneTestCase.class.getSimpleName());
-        assertNoViolations("Pure Unit-Test found must subclass one of [" + classesToSubclass + "]", check.pureUnitTest);
-        assertNoViolations("Classes ending with [Tests] must subclass [" + classesToSubclass + "]", check.notImplementing);
+        assertNoViolations("Pure Unit-Test found must subclass [" + check.testClass.getSimpleName() + "]", check.pureUnitTest);
+        assertNoViolations("Classes ending with [Tests] must subclass [" + check.testClass.getSimpleName() + "]", check.notImplementing);
         if (!skipIntegTestsInDisguise) {
             assertNoViolations("Subclasses of ESIntegTestCase should end with IT as they are integration tests",
                     check.integTestsInDisguise);
@@ -102,6 +99,14 @@ public class NamingConventionsCheck {
     private final Set<Class<?>> integTestsInDisguise = new HashSet<>();
     private final Set<Class<?>> notRunnable = new HashSet<>();
     private final Set<Class<?>> innerClasses = new HashSet<>();
+
+    private final Class<?> testClass;
+    private final Class<?> integTestClass;
+
+    public NamingConventionsCheck(Class<?> testClass, Class<?> integTestClass) {
+        this.testClass = testClass;
+        this.integTestClass = integTestClass;
+    }
 
     public void check(Path rootPath) throws IOException {
         Files.walkFileTree(rootPath, new FileVisitor<Path>() {
@@ -136,9 +141,9 @@ public class NamingConventionsCheck {
                 String filename = file.getFileName().toString();
                 if (filename.endsWith(".class")) {
                     String className = filename.substring(0, filename.length() - ".class".length());
-                    Class<?> clazz = loadClass(className);
+                    Class<?> clazz = loadClassWithoutInitializing(packageName + className);
                     if (clazz.getName().endsWith("Tests")) {
-                        if (ESIntegTestCase.class.isAssignableFrom(clazz)) {
+                        if (integTestClass.isAssignableFrom(clazz)) {
                             integTestsInDisguise.add(clazz);
                         }
                         if (Modifier.isAbstract(clazz.getModifiers()) || Modifier.isInterface(clazz.getModifiers())) {
@@ -164,15 +169,7 @@ public class NamingConventionsCheck {
             }
 
             private boolean isTestCase(Class<?> clazz) {
-                return LuceneTestCase.class.isAssignableFrom(clazz);
-            }
-
-            private Class<?> loadClass(String className) {
-                try {
-                    return Thread.currentThread().getContextClassLoader().loadClass(packageName + className);
-                } catch (ClassNotFoundException e) {
-                    throw new RuntimeException(e);
-                }
+                return testClass.isAssignableFrom(clazz);
             }
 
             @Override
@@ -186,7 +183,6 @@ public class NamingConventionsCheck {
      * Fail the process if there are any violations in the set. Named to look like a junit assertion even though it isn't because it is
      * similar enough.
      */
-    @SuppressForbidden(reason = "System.err/System.exit")
     private static void assertNoViolations(String message, Set<Class<?>> set) {
         if (false == set.isEmpty()) {
             System.err.println(message + ":");
@@ -201,10 +197,9 @@ public class NamingConventionsCheck {
      * Fail the process if we didn't detect a particular violation. Named to look like a junit assertion even though it isn't because it is
      * similar enough.
      */
-    @SuppressForbidden(reason = "System.err/System.exit")
-    private static void assertViolation(String className, Set<Class<?>> set) throws ClassNotFoundException {
-        className = "org.elasticsearch.test.test.NamingConventionsCheckBadClasses$" + className;
-        if (false == set.remove(Class.forName(className))) {
+    private static void assertViolation(String className, Set<Class<?>> set) {
+        className = "org.elasticsearch.test.NamingConventionsCheckBadClasses$" + className;
+        if (false == set.remove(loadClassWithoutInitializing(className))) {
             System.err.println("Error in NamingConventionsCheck! Expected [" + className + "] to be a violation but wasn't.");
             System.exit(1);
         }
@@ -213,9 +208,20 @@ public class NamingConventionsCheck {
     /**
      * Fail the process with the provided message.
      */
-    @SuppressForbidden(reason = "System.err/System.exit")
     private static void fail(String reason) {
         System.err.println(reason);
         System.exit(1);
+    }
+
+    static Class<?> loadClassWithoutInitializing(String name) {
+        try {
+            return Class.forName(name,
+                    // Don't initialize the class to save time. Not needed for this test and this doesn't share a VM with any other tests.
+                    false,
+                    // Use our classloader rather than the bootstrap class loader.
+                    NamingConventionsCheck.class.getClassLoader());
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

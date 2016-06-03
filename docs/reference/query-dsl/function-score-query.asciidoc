@@ -418,7 +418,7 @@ Example:
 [[function-query]]
 ==== Query function
 
-If the score for a function again should be computed by a different query, use the `query_function`:
+If the score for a function again should be computed by a different query, use the `query_score`:
 
 [source,js]
 --------------------------------------------------
@@ -426,6 +426,10 @@ If the score for a function again should be computed by a different query, use t
     ARBITRARY QUERY
 }
 --------------------------------------------------
+
+IMPORTANT: If the given query does not match the document then the score
+of this function will be 0. This will result in a score of 0 for the whole
+document if you use `"score_mode": "multiply"`.
 
 ==== Detailed example
 

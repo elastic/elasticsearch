@@ -30,9 +30,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasStatus;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -60,13 +57,13 @@ public class ResponseHeaderPluginIT extends ESIntegTestCase {
             fail("request should have failed");
         } catch(ElasticsearchResponseException e) {
             ElasticsearchResponse response = e.getElasticsearchResponse();
-            assertThat(response, hasStatus(UNAUTHORIZED));
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(401));
             assertThat(response.getHeader("Secret"), equalTo("required"));
         }
 
         try (ElasticsearchResponse authResponse = getRestClient().performRequest("GET", "/_protected", Collections.emptyMap(), null,
                 new BasicHeader("Secret", "password"))) {
-            assertThat(authResponse, hasStatus(OK));
+            assertThat(authResponse.getStatusLine().getStatusCode(), equalTo(200));
             assertThat(authResponse.getHeader("Secret"), equalTo("granted"));
         }
     }

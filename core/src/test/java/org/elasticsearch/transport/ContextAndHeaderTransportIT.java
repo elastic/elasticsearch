@@ -63,12 +63,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasStatus;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -222,7 +221,7 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
         try (ElasticsearchResponse response = getRestClient().performRequest(
                 "GET", "/" + queryIndex + "/_search", Collections.emptyMap(), null,
                 new BasicHeader(randomHeaderKey, randomHeaderValue), new BasicHeader(relevantHeaderName, randomHeaderValue))) {
-            assertThat(response, hasStatus(OK));
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
             List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);
             assertThat(searchRequests, hasSize(greaterThan(0)));
             for (RequestAndHeaders requestAndHeaders : searchRequests) {

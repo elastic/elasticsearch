@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.test.hamcrest;
 
-import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
@@ -115,30 +113,6 @@ public class ElasticsearchMatchers {
         @Override
         public void describeTo(final Description description) {
             description.appendText("searchHit score should be ").appendValue(score);
-        }
-    }
-
-    public static class ElasticsearchResponseHasStatusMatcher extends TypeSafeMatcher<ElasticsearchResponse> {
-
-        private RestStatus restStatus;
-
-        public ElasticsearchResponseHasStatusMatcher(RestStatus restStatus) {
-            this.restStatus = restStatus;
-        }
-
-        @Override
-        protected boolean matchesSafely(ElasticsearchResponse response) {
-            return response.getStatusLine().getStatusCode() == restStatus.getStatus();
-        }
-
-        @Override
-        public void describeMismatchSafely(final ElasticsearchResponse response, final Description mismatchDescription) {
-            mismatchDescription.appendText(" was ").appendValue(response.getStatusLine().getStatusCode());
-        }
-
-        @Override
-        public void describeTo(final Description description) {
-            description.appendText("Elasticsearch response status code should be ").appendValue(restStatus.getStatus());
         }
     }
 }

@@ -27,7 +27,6 @@ import org.elasticsearch.client.RestClient;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executors;
@@ -204,7 +203,7 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
         /**
          * Sets the http client. Mandatory argument. Best practice is to use the same client used
          * within {@link org.elasticsearch.client.RestClient} which can be created manually or
-         * through {@link RestClient.Builder#createDefaultHttpClient(Collection)}.
+         * through {@link RestClient.Builder#createDefaultHttpClient()}.
          * @see CloseableHttpClient
          */
         public Builder setRestClient(RestClient restClient) {

@@ -340,11 +340,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         return restClientSettings(); // default to the same client settings
     }
 
-    /** Returns the addresses the client uses to connect to the test cluster. */
-    protected URL[] getClusterUrls() {
-        return clusterUrls;
-    }
-
     @Before
     public void reset() throws IOException {
         // admin context must be available for @After always, regardless of whether the test was blacklisted

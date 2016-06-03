@@ -4,7 +4,7 @@
 The shrink index API allows you to shrink an existing index into a new index
 with fewer primary shards. The number of primary shards in the target index
 must be a factor of the shards in the source index. For example an index with
-`8` primary shards can be shrunk into `4`, `2` or `1` primary shard or an index
+`8` primary shards can be shrunk into `4`, `2` or `1` primary shards or an index
 with `15` primary shards can be shrunk into `5`, `3` or `1`. If the number
 of shards in the index is a prime number it can only be shrunk into a single
 primary shard. Before shrinking, a (primary or replica) copy of every shard
@@ -13,7 +13,7 @@ in the index must be present on the same node.
 Shrinking works as follows:
 
 * First, it creates a new target index with the same definition as the source
-  index, but with a viewer number of primary shards.
+  index, but with a smaller number of primary shards.
 
 * Then it hard-links segments from the source index into the target index. (If
   the file system doesn't support hard-linking, then all segments are copied
@@ -69,7 +69,7 @@ the cluster state -- it doesn't wait for the shrink operation to start.
 [IMPORTANT]
 =====================================
 
-Indices can only be shrunk into a a viewer number of shard if they satisfy the following requirements:
+Indices can only be shrunk if they satisfy the following requirements:
 
 * the target index must not exist
 

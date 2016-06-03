@@ -412,13 +412,13 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getIndexing().getTotal().getIndexFailedCount());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getMerge().getCurrent());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getMerge().getCurrentSize());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getMerge().getCurrent());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getMerge().getCurrentNumDocs());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getMerge().getCurrentNumDocs());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getMerge().getCurrentSize());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getMerge().getCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getMerge().getCurrentSize());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getMerge().getTotal());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getMerge().getTotal());

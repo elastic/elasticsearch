@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Collections;
@@ -34,8 +35,8 @@ public final class STry extends AStatement {
     final SBlock block;
     final List<SCatch> catches;
 
-    public STry(int line, int offset, String location, SBlock block, List<SCatch> traps) {
-        super(line, offset, location);
+    public STry(Location location, SBlock block, List<SCatch> traps) {
+        super(location);
 
         this.block = block;
         this.catches = Collections.unmodifiableList(traps);
@@ -44,7 +45,7 @@ public final class STry extends AStatement {
     @Override
     void analyze(Variables variables) {
         if (block == null) {
-            throw new IllegalArgumentException(error("Extraneous try statement."));
+            throw createError(new IllegalArgumentException("Extraneous try statement."));
         }
 
         block.lastSource = lastSource;
@@ -86,7 +87,7 @@ public final class STry extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writer.writeStatementOffset(offset);
+        writer.writeStatementOffset(location);
         Label begin = new Label();
         Label end = new Label();
         Label exception = new Label();

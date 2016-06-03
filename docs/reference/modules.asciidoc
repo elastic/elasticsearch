@@ -18,6 +18,10 @@ These settings can be dynamically updated on a live cluster with the
 
 The modules in this section are:
 
+<<modules-aggregations-matrix,Matrix Aggregations>>::
+
+    A family of aggregations that operate on multiple document fields and produce a matrix as output.
+
 <<modules-cluster,Cluster-level routing and shard allocation>>::
 
     Settings to control where, when, and how shards are allocated to nodes.
@@ -79,6 +83,8 @@ The modules in this section are:
     client across them.
 --
 
+
+include::modules/aggregations-matrix.asciidoc[]
 
 include::modules/cluster.asciidoc[]
 

@@ -533,11 +533,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         final Predicate<String> analysisSimilarityPredicate = (s) -> s.startsWith("index.similarity.")
             || s.startsWith("index.analysis.");
         indexSettingsBuilder
-            // we can only shrink to 1 index so far!
+            // we can only shrink to 1 shard so far!
             .put("index.number_of_shards", 1)
-            // we use "i.r.a.include" rather than "i.r.a.require" since it's allows one of the nodes holding an
-            // instanceof all shards.
-            .put("index.routing.allocation.include._id",
+            // we use "i.r.a.initial_recovery" rather than "i.r.a.require|include" since we want the replica to allocate right away
+            // once we are allocated.
+            .put("index.routing.allocation.initial_recovery._id",
                 Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
             // we only try once and then give up with a shrink index
             .put("index.allocation.max_retries", 1)

@@ -14,6 +14,7 @@ List projects = [
   'test:fixtures:example-fixture',
   'test:fixtures:hdfs-fixture',
   'test:logger-usage',
+  'modules:aggs-matrix-stats',
   'modules:ingest-grok',
   'modules:lang-expression',
   'modules:lang-groovy',

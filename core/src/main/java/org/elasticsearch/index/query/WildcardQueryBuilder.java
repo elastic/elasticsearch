@@ -36,6 +36,7 @@ import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Implements the wildcard search query. Supported wildcards are <tt>*</tt>, which
@@ -135,7 +136,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         builder.endObject();
     }
 
-    public static WildcardQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<WildcardQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
@@ -180,10 +181,10 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         if (value == null) {
             throw new ParsingException(parser.getTokenLocation(), "No value specified for wildcard query");
         }
-        return new WildcardQueryBuilder(fieldName, value)
+        return Optional.of(new WildcardQueryBuilder(fieldName, value)
                 .rewrite(rewrite)
                 .boost(boost)
-                .queryName(queryName);
+                .queryName(queryName));
     }
 
     @Override

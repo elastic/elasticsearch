@@ -81,7 +81,6 @@ import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.repositories.uri.URLRepository;
@@ -406,7 +405,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     PageCacheRecycler.TYPE_SETTING,
                     PluginsService.MANDATORY_SETTING,
                     BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING,
-                    BootstrapSettings.MLOCKALL_SETTING,
+                    BootstrapSettings.MEMORY_LOCK_SETTING,
                     BootstrapSettings.SECCOMP_SETTING,
                     BootstrapSettings.CTRLHANDLER_SETTING,
                     BootstrapSettings.IGNORE_SYSTEM_BOOTSTRAP_CHECKS,

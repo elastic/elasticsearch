@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
@@ -33,8 +34,8 @@ public final class SIfElse extends AStatement {
     final SBlock ifblock;
     final SBlock elseblock;
 
-    public SIfElse(int line, int offset, String location, AExpression condition, SBlock ifblock, SBlock elseblock) {
-        super(line, offset, location);
+    public SIfElse(Location location, AExpression condition, SBlock ifblock, SBlock elseblock) {
+        super(location);
 
         this.condition = condition;
         this.ifblock = ifblock;
@@ -48,11 +49,11 @@ public final class SIfElse extends AStatement {
         condition = condition.cast(variables);
 
         if (condition.constant != null) {
-            throw new IllegalArgumentException(error("Extraneous if statement."));
+            throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
         if (ifblock == null) {
-            throw new IllegalArgumentException(error("Extraneous if statement."));
+            throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
         ifblock.lastSource = lastSource;
@@ -68,7 +69,7 @@ public final class SIfElse extends AStatement {
         statementCount = ifblock.statementCount;
 
         if (elseblock == null) {
-            throw new IllegalArgumentException(error("Extraneous else statement."));
+            throw createError(new IllegalArgumentException("Extraneous else statement."));
         }
 
         elseblock.lastSource = lastSource;
@@ -89,7 +90,7 @@ public final class SIfElse extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writer.writeStatementOffset(offset);
+        writer.writeStatementOffset(location);
         Label end = new Label();
         Label fals = elseblock != null ? new Label() : end;
 

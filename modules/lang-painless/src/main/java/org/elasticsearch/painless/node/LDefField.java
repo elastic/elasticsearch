@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Type;
@@ -34,8 +35,8 @@ final class LDefField extends ALink implements IDefLink {
 
     final String value;
 
-    LDefField(int line, int offset, String location, String value) {
-        super(line, offset, location, 1);
+    LDefField(Location location, String value) {
+        super(location, 1);
 
         this.value = value;
     }
@@ -55,14 +56,14 @@ final class LDefField extends ALink implements IDefLink {
 
     @Override
     void load(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+        writer.writeDebugInfo(location);
         String desc = Type.getMethodDescriptor(after.type, Definition.DEF_TYPE.type);
         writer.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.LOAD);
     }
 
     @Override
     void store(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+        writer.writeDebugInfo(location);
         String desc = Type.getMethodDescriptor(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, after.type);
         writer.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.STORE);
     }

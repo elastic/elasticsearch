@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.Variables.Variable;
@@ -42,8 +43,8 @@ public final class SCatch extends AStatement {
     Label end;
     Label exception;
 
-    public SCatch(int line, int offset, String location, String type, String name, SBlock block) {
-        super(line, offset, location);
+    public SCatch(Location location, String type, String name, SBlock block) {
+        super(location);
 
         this.type = type;
         this.name = name;
@@ -57,11 +58,11 @@ public final class SCatch extends AStatement {
         try {
             type = Definition.getType(this.type);
         } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
+            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
         if (!Exception.class.isAssignableFrom(type.clazz)) {
-            throw new ClassCastException(error("Not an exception type [" + this.type + "]."));
+            throw createError(new ClassCastException("Not an exception type [" + this.type + "]."));
         }
 
         variable = variables.addVariable(location, type, name, true, false);
@@ -84,7 +85,7 @@ public final class SCatch extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writer.writeStatementOffset(offset);
+        writer.writeStatementOffset(location);
         Label jump = new Label();
 
         writer.mark(jump);

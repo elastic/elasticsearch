@@ -159,7 +159,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertEquals("similarity settings must be copied", "BM25", builder.build().get("index.similarity.default.type"));
         assertEquals("analysis settings must be copied",
             "keyword", builder.build().get("index.analysis.analyzer.my_analyzer.tokenizer"));
-        assertEquals("node1", builder.build().get("index.routing.allocation.include._id"));
+        assertEquals("node1", builder.build().get("index.routing.allocation.initial_recovery._id"));
         assertEquals("1", builder.build().get("index.allocation.max_retries"));
     }
 

@@ -8,7 +8,7 @@ configured before going into production.
 * <<path-settings,`path.data` and `path.logs`>>
 * <<cluster.name,`cluster.name`>>
 * <<node.name,`node.name`>>
-* <<bootstrap.mlockall,`bootstrap.mlockall`>>
+* <<bootstrap.memory_lock,`bootstrap.memory_lock`>>
 * <<network.host,`network.host`>>
 * <<unicast.hosts,`discovery.zen.ping.unicast.hosts`>>
 * <<minimum_master_nodes,`discovery.zen.minimum_master_nodes`>>
@@ -90,12 +90,12 @@ node.name: ${HOSTNAME}
 --------------------------------------------------
 
 [float]
-[[bootstrap.mlockall]]
-=== `bootstrap.mlockall`
+[[bootstrap.memory_lock]]
+=== `bootstrap.memory_lock`
 
 It is vitally important to the health of your node that none of the JVM is
 ever swapped out to disk.  One way of achieving that is set the
-`bootstrap.mlockall` setting to `true`.
+`bootstrap.memory_lock` setting to `true`.
 
 For this setting to have effect, other system settings need to be configured
 first. See <<mlockall>> for more details about how to set up memory locking

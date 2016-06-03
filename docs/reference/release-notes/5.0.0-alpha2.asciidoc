@@ -3,6 +3,8 @@
 
 Also see <<breaking-changes-5.0>>.
 
+IMPORTANT: This is an alpha release and is intended for _testing purposes only_. Indices created in this version will *not be compatible with Elasticsearch 5.0.0 GA*. Upgrading 5.0.0-alpha2 to any other version is not supported.
+
 [[breaking-5.0.0-alpha2]]
 [float]
 === Breaking changes

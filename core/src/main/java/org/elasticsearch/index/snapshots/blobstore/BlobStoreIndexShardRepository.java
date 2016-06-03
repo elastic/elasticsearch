@@ -32,7 +32,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -204,7 +204,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         try {
             snapshotContext.restore();
         } catch (Throwable e) {
-            throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId.getSnapshot() + "]", e);
+            throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e);
         }
     }
 
@@ -318,7 +318,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             int fileListGeneration = tuple.v2();
 
             try {
-                indexShardSnapshotFormat(version).delete(blobContainer, snapshotId.getSnapshot());
+                indexShardSnapshotFormat(version).delete(blobContainer, snapshotId.getName());
             } catch (IOException e) {
                 logger.debug("[{}] [{}] failed to delete shard snapshot file", shardId, snapshotId);
             }
@@ -326,7 +326,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             // Build a list of snapshots that should be preserved
             List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
             for (SnapshotFiles point : snapshots) {
-                if (!point.snapshot().equals(snapshotId.getSnapshot())) {
+                if (!point.snapshot().equals(snapshotId.getName())) {
                     newSnapshotsList.add(point);
                 }
             }
@@ -339,7 +339,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         public BlobStoreIndexShardSnapshot loadSnapshot() {
             try {
-                return indexShardSnapshotFormat(version).read(blobContainer, snapshotId.getSnapshot());
+                return indexShardSnapshotFormat(version).read(blobContainer, snapshotId.getName());
             } catch (IOException ex) {
                 throw new IndexShardRestoreFailedException(shardId, "failed to read shard snapshot file", ex);
             }
@@ -605,14 +605,14 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 // now create and write the commit point
                 snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FINALIZE);
 
-                BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getSnapshot(),
+                BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(),
                         snapshotIndexCommit.getGeneration(), indexCommitPointFiles, snapshotStatus.startTime(),
                         // snapshotStatus.startTime() is assigned on the same machine, so it's safe to use with VLong
                         System.currentTimeMillis() - snapshotStatus.startTime(), indexNumberOfFiles, indexTotalFilesSize);
                 //TODO: The time stored in snapshot doesn't include cleanup time.
                 logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
                 try {
-                    indexShardSnapshotFormat.write(snapshot, blobContainer, snapshotId.getSnapshot());
+                    indexShardSnapshotFormat.write(snapshot, blobContainer, snapshotId.getName());
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }

@@ -272,3 +272,8 @@ set `script.line: true` or `script.stored: true`.
 The setting `index.query.bool.max_clause_count` has been removed. In order to
 set the maximum number of boolean clauses `indices.query.bool.max_clause_count`
 should be used instead.
+
+==== Memory lock settings
+
+The setting `bootstrap.mlockall` has been renamed to
+`bootstrap.memory_lock`.

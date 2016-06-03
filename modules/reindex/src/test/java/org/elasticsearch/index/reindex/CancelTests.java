@@ -80,10 +80,7 @@ public class CancelTests extends ReindexTestCase {
     /**
      * Executes the cancellation test
      */
-    private void testCancel(String action,
-                            AbstractBulkByScrollRequestBuilder<?, ? extends BulkIndexByScrollResponse, ?> builder,
-                            CancelAssertion assertion) throws Exception {
-
+    private void testCancel(String action, AbstractBulkByScrollRequestBuilder<?, ?> builder, CancelAssertion assertion) throws Exception {
         createIndex(INDEX);
 
         // Total number of documents created for this test (~10 per primary shard)

@@ -587,7 +587,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         logger.info("--> deleting index " + IDX);
         assertAcked(client().admin().indices().prepareDelete(IDX));
 
-        assertBusy(() -> assertPathHasBeenCleared(dataPath), 1, TimeUnit.MINUTES);
+        // assertBusy(() -> assertPathHasBeenCleared(dataPath), 1, TimeUnit.MINUTES);
         //norelease
         //TODO: uncomment the test below when https://github.com/elastic/elasticsearch/issues/17695 is resolved.
         //assertIndicesDirsDeleted(nodes);
@@ -648,7 +648,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareDelete(IDX));
 
-        assertBusy(() -> assertPathHasBeenCleared(dataPath), 1, TimeUnit.MINUTES);
+        // assertBusy(() -> assertPathHasBeenCleared(dataPath), 1, TimeUnit.MINUTES);
         //norelease
         //TODO: uncomment the test below when https://github.com/elastic/elasticsearch/issues/17695 is resolved.
         //assertIndicesDirsDeleted(nodes);

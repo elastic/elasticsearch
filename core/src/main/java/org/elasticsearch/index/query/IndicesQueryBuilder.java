@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A query that will execute the wrapped query only for the specified indices,
@@ -141,7 +142,7 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
         builder.endObject();
     }
 
-    public static IndicesQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
+    public static Optional<IndicesQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         QueryBuilder innerQuery = null;
@@ -158,9 +159,10 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
-                    innerQuery = parseContext.parseInnerQueryBuilder();
+                    // the 2.0 behaviour when encountering "query" : {} is to return no docs for matching indices
+                    innerQuery = parseContext.parseInnerQueryBuilder().orElse(new MatchNoneQueryBuilder());
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, NO_MATCH_QUERY)) {
-                    noMatchQuery = parseContext.parseInnerQueryBuilder();
+                    noMatchQuery = parseContext.parseInnerQueryBuilder().orElse(defaultNoMatchQuery());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[indices] query does not support [" + currentFieldName + "]");
                 }
@@ -203,10 +205,10 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
         if (indices.isEmpty()) {
             throw new ParsingException(parser.getTokenLocation(), "[indices] requires 'indices' or 'index' element");
         }
-        return new IndicesQueryBuilder(innerQuery, indices.toArray(new String[indices.size()]))
+        return Optional.of(new IndicesQueryBuilder(innerQuery, indices.toArray(new String[indices.size()]))
                 .noMatchQuery(noMatchQuery)
                 .boost(boost)
-                .queryName(queryName);
+                .queryName(queryName));
     }
 
     static QueryBuilder parseNoMatchQuery(String type) {

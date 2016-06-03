@@ -29,6 +29,7 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -38,7 +39,10 @@ import java.security.AccessController;
 import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -147,13 +151,17 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
             }
         });
 
-        // Drop all permissions to actually compile the code itself.
-        return AccessController.doPrivileged(new PrivilegedAction<Executable>() {
-            @Override
-            public Executable run() {
-                return Compiler.compile(loader, scriptName == null ? INLINE_NAME : scriptName, scriptSource, compilerSettings);
-            }
-        }, COMPILATION_CONTEXT);
+        try {
+            // Drop all permissions to actually compile the code itself.
+            return AccessController.doPrivileged(new PrivilegedAction<Executable>() {
+                @Override
+                public Executable run() {
+                    return Compiler.compile(loader, scriptName == null ? INLINE_NAME : scriptName, scriptSource, compilerSettings);
+                }
+            }, COMPILATION_CONTEXT);
+        } catch (Exception e) {
+            throw convertToScriptException(scriptName == null ? scriptSource : scriptName, scriptSource, e);
+        }
     }
 
     /**
@@ -212,5 +220,52 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
     @Override
     public void close() {
         // Nothing to do.
+    }
+    
+    private ScriptException convertToScriptException(String scriptName, String scriptSource, Throwable t) {
+        // create a script stack: this is just the script portion
+        List<String> scriptStack = new ArrayList<>();
+        for (StackTraceElement element : t.getStackTrace()) {
+            if (WriterConstants.CLASS_NAME.equals(element.getClassName())) {
+                // found the script portion
+                int offset = element.getLineNumber();
+                if (offset == -1) {
+                    scriptStack.add("<<< unknown portion of script >>>");
+                } else {
+                    offset--; // offset is 1 based, line numbers must be!
+                    int startOffset = getPreviousStatement(scriptSource, offset);
+                    int endOffset = getNextStatement(scriptSource, offset);
+                    StringBuilder snippet = new StringBuilder();
+                    if (startOffset > 0) {
+                        snippet.append("... ");
+                    }
+                    snippet.append(scriptSource.substring(startOffset, endOffset));
+                    if (endOffset < scriptSource.length()) {
+                        snippet.append(" ...");
+                    }
+                    scriptStack.add(snippet.toString());
+                    StringBuilder pointer = new StringBuilder();
+                    if (startOffset > 0) {
+                        pointer.append("    ");
+                    }
+                    for (int i = startOffset; i < offset; i++) {
+                        pointer.append(' ');
+                    }
+                    pointer.append("^---- HERE");
+                    scriptStack.add(pointer.toString());
+                }
+                break;
+            }
+        }
+        throw new ScriptException("compile error", t, scriptStack, scriptSource, PainlessScriptEngineService.NAME);
+    }
+    
+    // very simple heuristic: +/- 25 chars. can be improved later.
+    private int getPreviousStatement(String scriptSource, int offset) {
+        return Math.max(0, offset - 25);
+    }
+    
+    private int getNextStatement(String scriptSource, int offset) {
+        return Math.min(scriptSource.length(), offset + 25);
     }
 }

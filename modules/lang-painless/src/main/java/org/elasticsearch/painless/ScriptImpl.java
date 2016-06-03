@@ -173,7 +173,8 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     /** returns true for methods that are part of the runtime */
     private static boolean shouldFilter(StackTraceElement element) {
         return element.getClassName().startsWith("org.elasticsearch.painless.") ||
-               element.getClassName().startsWith("java.lang.invoke.");
+               element.getClassName().startsWith("java.lang.invoke.") ||
+               element.getClassName().startsWith("sun.invoke.");
     }
 
     /**

@@ -20,18 +20,15 @@
 package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import org.apache.http.Header;
 import org.apache.http.HttpHost;
-import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicHeader;
 import org.apache.lucene.util.LuceneTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 
-public class RestClientTests extends LuceneTestCase {
+public class RestClientBuilderTests extends LuceneTestCase {
 
     public void testBuild() throws IOException {
         try {
@@ -69,12 +66,18 @@ public class RestClientTests extends LuceneTestCase {
             assertEquals(e.getMessage(), "host cannot be null");
         }
 
-        try (CloseableHttpClient httpClient = HttpClientBuilder.create().build()) {
-            RestClient.builder().setHttpClient(httpClient)
-                    .setDefaultHeaders(Collections.singleton(new BasicHeader("header", "value"))).build();
+        try {
+            RestClient.builder().setDefaultHeaders(null);
             fail("should have failed");
-        } catch(IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "defaultHeaders need to be set to the HttpClient directly when manually provided");
+        } catch(NullPointerException e) {
+            assertEquals(e.getMessage(), "default headers must not be null");
+        }
+
+        try {
+            RestClient.builder().setDefaultHeaders(new Header[]{null});
+            fail("should have failed");
+        } catch(NullPointerException e) {
+            assertEquals(e.getMessage(), "default header must not be null");
         }
 
         RestClient.Builder builder = RestClient.builder();
@@ -84,54 +87,22 @@ public class RestClientTests extends LuceneTestCase {
             hosts[i] = new HttpHost("localhost", 9200 + i);
         }
         builder.setHosts(hosts);
-
         if (random().nextBoolean()) {
             builder.setHttpClient(HttpClientBuilder.create().build());
-        } else {
-            if (random().nextBoolean()) {
-                int numHeaders = RandomInts.randomIntBetween(random(), 1, 5);
-                Collection<BasicHeader> headers = new ArrayList<>(numHeaders);
-                for (int i = 0; i < numHeaders; i++) {
-                    headers.add(new BasicHeader("header" + i, "value"));
-                }
-                builder.setDefaultHeaders(headers);
-            }
         }
-
+        if (random().nextBoolean()) {
+            int numHeaders = RandomInts.randomIntBetween(random(), 1, 5);
+            Header[] headers = new Header[numHeaders];
+            for (int i = 0; i < numHeaders; i++) {
+                headers[i] = new BasicHeader("header" + i, "value");
+            }
+            builder.setDefaultHeaders(headers);
+        }
         if (random().nextBoolean()) {
             builder.setMaxRetryTimeout(RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
         }
         try (RestClient restClient = builder.build()) {
             assertNotNull(restClient);
-        }
-    }
-
-    public void testSetNodes() throws IOException {
-        try (RestClient restClient = RestClient.builder().setHosts(new HttpHost("localhost", 9200)).build()) {
-            try {
-                restClient.setHosts((HttpHost[]) null);
-                fail("setHosts should have failed");
-            } catch (IllegalArgumentException e) {
-                assertEquals("hosts must not be null nor empty", e.getMessage());
-            }
-            try {
-                restClient.setHosts();
-                fail("setHosts should have failed");
-            } catch (IllegalArgumentException e) {
-                assertEquals("hosts must not be null nor empty", e.getMessage());
-            }
-            try {
-                restClient.setHosts((HttpHost) null);
-                fail("setHosts should have failed");
-            } catch (NullPointerException e) {
-                assertEquals("host cannot be null", e.getMessage());
-            }
-            try {
-                restClient.setHosts(new HttpHost("localhost", 9200), null, new HttpHost("localhost", 9201));
-                fail("setHosts should have failed");
-            } catch (NullPointerException e) {
-                assertEquals("host cannot be null", e.getMessage());
-            }
         }
     }
 }

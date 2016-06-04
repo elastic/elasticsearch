@@ -344,6 +344,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         cluster().beforeTest(random(), getPerTestTransportClientRatio());
         cluster().wipe(excludeTemplates());
         randomIndexTemplate();
+        customBeforeClass();
+    }
+
+    protected void customBeforeClass() throws Exception {
+        // override to implement sub-class specific logic
     }
 
     private void printTestMessage(String message) {
@@ -515,6 +520,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected final void afterInternal(boolean afterClass) throws Exception {
         boolean success = false;
         try {
+            customAfterClass();
             final Scope currentClusterScope = getCurrentClusterScope();
             clearDisruptionScheme();
             try {
@@ -563,6 +569,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 // afterTestRule.forceFailure();
             }
         }
+    }
+
+    protected void customAfterClass() throws Exception {
+        // override in the sub-class for custom afterClass logic
     }
 
     /**

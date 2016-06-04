@@ -882,6 +882,7 @@ public final class InternalTestCluster extends TestCluster {
                 }
             }
             startNewNode(newSettings);
+            callback.doAfterRestart(name, client(random));
         }
 
         private void startNewNode(final Settings newSettings) {
@@ -1869,6 +1870,12 @@ public final class InternalTestCluster extends TestCluster {
          */
         public boolean doRestart(String nodeName) {
             return true;
+        }
+
+        /**
+         * Executed once the given node name has been restarted.
+         */
+        public void doAfterRestart(String nodeName, Client client) throws Exception {
         }
     }
 

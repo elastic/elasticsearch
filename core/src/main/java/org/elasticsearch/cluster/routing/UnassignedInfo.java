@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -289,6 +290,35 @@ public final class UnassignedInfo implements ToXContent, Writeable {
         return nextDelayNanos == Long.MAX_VALUE ? -1L : nextDelayNanos;
     }
 
+    /**
+     * Returns the appropriate {@link ClusterHealthStatus} for an unassigned primary shard
+     * based on its unassigned information and allocation id history.
+     */
+    public static ClusterHealthStatus unassignedPrimaryShardHealth(final UnassignedInfo unassignedInfo,
+                                                                   final boolean noActiveAllocationIds) {
+        assert unassignedInfo != null;
+        final UnassignedInfo.Reason reason = unassignedInfo.getReason();
+        /**
+         * Normally, an inactive primary shard in an index should cause the cluster health to be RED.  However,
+         * there are exceptions where a health status of RED is inappropriate, namely in these scenarios:
+         *   1. Index Creation.  When an index is first created, the primary shards are in the initializing state, so
+         *      there is a small window where the cluster health is RED due to the primaries not being activated yet.
+         *      However, this leads to a false sense that the cluster is in an unhealthy state, when in reality, its
+         *      simply a case of needing to wait for the primaries to initialize.
+         *   2. When a cluster is in the recovery state, and the shard never had any allocation ids assigned to it,
+         *      which indicates the index was created and before allocation of the primary occurred for this shard,
+         *      a cluster restart happened.
+         *
+         * Here, we check for these scenarios and set the cluster health to YELLOW if any are applicable.
+         */
+        if (reason == UnassignedInfo.Reason.INDEX_CREATED
+                || (reason == UnassignedInfo.Reason.CLUSTER_RECOVERED && noActiveAllocationIds)) {
+            return ClusterHealthStatus.YELLOW;
+        } else {
+            return ClusterHealthStatus.RED;
+        }
+    }
+
     public String shortSummary() {
         StringBuilder sb = new StringBuilder();
         sb.append("[reason=").append(reason).append("]");
@@ -366,4 +396,5 @@ public final class UnassignedInfo implements ToXContent, Writeable {
         result = 31 * result + (failure != null ? failure.hashCode() : 0);
         return result;
     }
+
 }

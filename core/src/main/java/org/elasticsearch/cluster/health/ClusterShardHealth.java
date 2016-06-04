@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -37,22 +38,18 @@ public final class ClusterShardHealth implements Writeable {
     private final int unassignedShards;
     private final boolean primaryActive;
 
-    public ClusterShardHealth(final int shardId, final IndexShardRoutingTable shardRoutingTable) {
+    public ClusterShardHealth(final int shardId, final IndexShardRoutingTable shardRoutingTable, final boolean noActiveAllocationIds) {
         this.shardId = shardId;
         int computeActiveShards = 0;
         int computeRelocatingShards = 0;
         int computeInitializingShards = 0;
         int computeUnassignedShards = 0;
-        boolean computePrimaryActive = false;
         for (ShardRouting shardRouting : shardRoutingTable) {
             if (shardRouting.active()) {
                 computeActiveShards++;
                 if (shardRouting.relocating()) {
                     // the shard is relocating, the one it is relocating to will be in initializing state, so we don't count it
                     computeRelocatingShards++;
-                }
-                if (shardRouting.primary()) {
-                    computePrimaryActive = true;
                 }
             } else if (shardRouting.initializing()) {
                 computeInitializingShards++;
@@ -61,21 +58,22 @@ public final class ClusterShardHealth implements Writeable {
             }
         }
         ClusterHealthStatus computeStatus;
-        if (computePrimaryActive) {
+        final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
+        if (primaryRouting.active()) {
             if (computeActiveShards == shardRoutingTable.size()) {
                 computeStatus = ClusterHealthStatus.GREEN;
             } else {
                 computeStatus = ClusterHealthStatus.YELLOW;
             }
         } else {
-            computeStatus = ClusterHealthStatus.RED;
+            computeStatus = UnassignedInfo.unassignedPrimaryShardHealth(primaryRouting.unassignedInfo(), noActiveAllocationIds);
         }
         this.status = computeStatus;
         this.activeShards = computeActiveShards;
         this.relocatingShards = computeRelocatingShards;
         this.initializingShards = computeInitializingShards;
         this.unassignedShards = computeUnassignedShards;
-        this.primaryActive = computePrimaryActive;
+        this.primaryActive = primaryRouting.active();
     }
 
     public ClusterShardHealth(final StreamInput in) throws IOException {
@@ -126,4 +124,5 @@ public final class ClusterShardHealth implements Writeable {
         out.writeVInt(unassignedShards);
         out.writeBoolean(primaryActive);
     }
+
 }

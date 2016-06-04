@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.Set;
+
 public class RoutingTableGenerator {
     private static int node_id = 1;
 
@@ -56,14 +58,15 @@ public class RoutingTableGenerator {
 
     }
 
-    public IndexShardRoutingTable genShardRoutingTable(String index, int shardId, int replicas, ShardCounter counter) {
+    public IndexShardRoutingTable genShardRoutingTable(IndexMetaData indexMetaData, int shardId, ShardCounter counter) {
+        final String index = indexMetaData.getIndex().getName();
         IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(new ShardId(index, "_na_", shardId));
         ShardRouting shardRouting = genShardRouting(index, shardId, true);
-        counter.update(shardRouting);
+        counter.update(shardRouting, indexMetaData.activeAllocationIds(shardId));
         builder.addShard(shardRouting);
-        for (; replicas > 0; replicas--) {
+        for (int replicas = indexMetaData.getNumberOfReplicas(); replicas > 0; replicas--) {
             shardRouting = genShardRouting(index, shardId, false);
-            counter.update(shardRouting);
+            counter.update(shardRouting, indexMetaData.activeAllocationIds(shardId));
             builder.addShard(shardRouting);
         }
 
@@ -73,8 +76,7 @@ public class RoutingTableGenerator {
     public IndexRoutingTable genIndexRoutingTable(IndexMetaData indexMetaData, ShardCounter counter) {
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(indexMetaData.getIndex());
         for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
-            builder.addIndexShard(genShardRoutingTable(indexMetaData.getIndex().getName(), shard,
-                                  indexMetaData.getNumberOfReplicas(), counter));
+            builder.addIndexShard(genShardRoutingTable(indexMetaData, shard, counter));
         }
         return builder.build();
     }
@@ -86,10 +88,15 @@ public class RoutingTableGenerator {
         public int unassigned;
         public int primaryActive;
         public int primaryInactive;
+        private boolean inactivePrimaryCausesRed = false;
 
         public ClusterHealthStatus status() {
             if (primaryInactive > 0) {
-                return ClusterHealthStatus.RED;
+                if (inactivePrimaryCausesRed) {
+                    return ClusterHealthStatus.RED;
+                } else {
+                    return ClusterHealthStatus.YELLOW;
+                }
             }
             if (unassigned > 0 || initializing > 0) {
                 return ClusterHealthStatus.YELLOW;
@@ -97,7 +104,7 @@ public class RoutingTableGenerator {
             return ClusterHealthStatus.GREEN;
         }
 
-        public void update(ShardRouting shardRouting) {
+        public void update(ShardRouting shardRouting, Set<String> allocationIds) {
             if (shardRouting.active()) {
                 active++;
                 if (shardRouting.primary()) {
@@ -111,6 +118,9 @@ public class RoutingTableGenerator {
 
             if (shardRouting.primary()) {
                 primaryInactive++;
+                inactivePrimaryCausesRed =
+                    UnassignedInfo.unassignedPrimaryShardHealth(shardRouting.unassignedInfo(), allocationIds.isEmpty())
+                        == ClusterHealthStatus.RED;
             }
             if (shardRouting.initializing()) {
                 initializing++;

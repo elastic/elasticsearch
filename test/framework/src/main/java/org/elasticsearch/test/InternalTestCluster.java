@@ -517,15 +517,25 @@ public final class InternalTestCluster extends TestCluster {
      * stop any of the running nodes.
      */
     public void ensureAtLeastNumDataNodes(int n) {
+        ensureAtLeastNumDataNodes(n, Settings.EMPTY);
+    }
+
+    /**
+     * Ensures that at least <code>n</code> data nodes are present in the cluster.
+     * if more nodes than <code>n</code> are present this method will not
+     * stop any of the running nodes.  Each newly started node will use the given
+     * input settings.
+     */
+    public void ensureAtLeastNumDataNodes(final int n, final Settings settings) {
         final List<Async<String>> asyncs = new ArrayList<>();
         synchronized (this) {
             int size = numDataNodes();
             for (int i = size; i < n; i++) {
                 logger.info("increasing cluster size from {} to {}", size, n);
                 if (numSharedDedicatedMasterNodes > 0) {
-                    asyncs.add(startDataOnlyNodeAsync());
+                    asyncs.add(startDataOnlyNodeAsync(settings));
                 } else {
-                    asyncs.add(startNodeAsync());
+                    asyncs.add(startNodeAsync(settings));
                 }
             }
         }

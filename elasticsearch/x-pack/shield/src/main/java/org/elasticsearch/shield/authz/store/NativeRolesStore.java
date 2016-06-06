@@ -300,7 +300,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
         try {
             client.prepareIndex(ShieldTemplateService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, role.getName())
                     .setSource(role.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
-                    .setRefresh(request.refresh())
+                    .setRefreshPolicy(request.getRefreshPolicy())
                     .execute(new ActionListener<IndexResponse>() {
                         @Override
                         public void onResponse(IndexResponse indexResponse) {

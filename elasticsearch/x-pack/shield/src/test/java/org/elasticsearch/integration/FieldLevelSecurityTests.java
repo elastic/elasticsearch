@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.Collections;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -136,7 +137,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                         .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         // user1 has access to field1, so the query should match with the document:
@@ -488,7 +489,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                         .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         // user1 is granted access to field1 only:
@@ -622,7 +623,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                         .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         int max = scaledRandomIntBetween(4, 32);
@@ -660,7 +661,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                         .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         int max = scaledRandomIntBetween(4, 32);
@@ -702,7 +703,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                                 "field3", "type=text,store=true")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         // user1 is granted access to field1 only:
@@ -799,7 +800,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                         .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         // user1 is granted access to field1 only:
@@ -873,7 +874,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         );
 
         client().prepareIndex("test", "type1", "1").setSource("field1", 1d, "field2", 2d)
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         // user1 is granted to use field1, so it is included in the sort_values
@@ -911,7 +912,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                         .addMapping("type1", "field1", "type=text,fielddata=true", "field2", "type=text,fielddata=true")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         // user1 is authorized to use field1, so buckets are include for a term agg on field1
@@ -951,7 +952,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                                 "field3", "type=text,term_vector=with_positions_offsets_payloads")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         boolean realtime = randomBoolean();
@@ -1035,7 +1036,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                                 "field3", "type=text,term_vector=with_positions_offsets_payloads")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         boolean realtime = randomBoolean();
@@ -1155,7 +1156,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         );
         client().prepareIndex("test", "type", "1")
                 .setSource("field1", "value1", "field2", "value1")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         // With field level security enabled the update is not allowed:
@@ -1200,7 +1201,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                         .addMapping("type1", "field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         // user6 has access to all fields, so the query should match with the document:

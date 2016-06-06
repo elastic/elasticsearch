@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -63,7 +64,7 @@ public class ShieldClearScrollTests extends ShieldIntegTestCase {
 
     @Before
     public void indexRandomDocuments() {
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefresh(true);
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(IMMEDIATE);
         for (int i = 0; i < randomIntBetween(10, 50); i++) {
             bulkRequestBuilder.add(client().prepareIndex("index", "type", String.valueOf(i)).setSource("{ \"foo\" : \"bar\" }"));
         }

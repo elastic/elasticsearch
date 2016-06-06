@@ -19,15 +19,10 @@
 
 package org.elasticsearch.action.support.replication;
 
-import java.util.HashSet;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
-import org.elasticsearch.action.support.replication.TransportWriteAction.RespondingWriteResult;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
@@ -39,6 +34,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+
+import java.util.HashSet;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -56,61 +55,65 @@ public class TransportWriteActionTests extends ESTestCase {
     }
 
     public void testPrimaryNoRefreshCall() throws Exception {
-        noRefreshCall(TestAction::shardOperationOnPrimary, r -> assertFalse(r.forcedRefresh));
+        noRefreshCall(TestAction::shardOperationOnPrimary, TestAction.WritePrimaryResult::respond);
     }
 
     public void testReplicaNoRefreshCall() throws Exception {
-        noRefreshCall(TestAction::shardOperationOnReplica, r -> {});
+        noRefreshCall(TestAction::shardOperationOnReplica, TestAction.WriteReplicaResult::respond);
     }
 
-    private <R> void noRefreshCall(ThrowingBiFunction<TestAction, TestRequest, RespondingWriteResult<R>> action, Consumer<R> resultChecker)
+    private <Result, Response> void noRefreshCall(ThrowingBiFunction<TestAction, TestRequest, Result> action,
+                                        BiConsumer<Result, CapturingActionListener<Response>> responder)
             throws Exception {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.NONE); // The default, but we'll set it anyway just to be explicit
-        RespondingWriteResult<R> result = action.apply(new TestAction(), request);
-        CapturingActionListener<R> listener = new CapturingActionListener<>();
-        result.respond(listener);
+        Result result = action.apply(new TestAction(), request);
+        CapturingActionListener<Response> listener = new CapturingActionListener<>();
+        responder.accept(result, listener);
         assertNotNull(listener.response);
         verify(indexShard, never()).refresh(any());
         verify(indexShard, never()).addRefreshListener(any(), any());
     }
 
     public void testPrimaryImmediateRefresh() throws Exception {
-        immediateRefresh(TestAction::shardOperationOnPrimary, r -> assertTrue(r.forcedRefresh));
+        immediateRefresh(TestAction::shardOperationOnPrimary, TestAction.WritePrimaryResult::respond, r -> assertTrue(r.forcedRefresh));
     }
 
     public void testReplicaImmediateRefresh() throws Exception {
-        immediateRefresh(TestAction::shardOperationOnReplica, r -> {});
+        immediateRefresh(TestAction::shardOperationOnReplica, TestAction.WriteReplicaResult::respond, r -> {});
     }
 
-    private <R> void immediateRefresh(ThrowingBiFunction<TestAction, TestRequest, RespondingWriteResult<R>> action,
-            Consumer<R> resultChecker) throws Exception {
+    private <Result, Response> void immediateRefresh(ThrowingBiFunction<TestAction, TestRequest, Result> action,
+                                                     BiConsumer<Result, CapturingActionListener<Response>> responder,
+                                                     Consumer<Response> responseChecker) throws Exception {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        RespondingWriteResult<R> result = action.apply(new TestAction(), request);
-        CapturingActionListener<R> listener = new CapturingActionListener<>();
-        result.respond(listener);
+        Result result = action.apply(new TestAction(), request);
+        CapturingActionListener<Response> listener = new CapturingActionListener<>();
+        responder.accept(result, listener);
         assertNotNull(listener.response);
-        resultChecker.accept(listener.response);
+        responseChecker.accept(listener.response);
         verify(indexShard).refresh("refresh_flag_index");
         verify(indexShard, never()).addRefreshListener(any(), any());
     }
 
     public void testPrimaryWaitForRefresh() throws Exception {
-        waitForRefresh(TestAction::shardOperationOnPrimary, (r, forcedRefresh) -> assertEquals(forcedRefresh, r.forcedRefresh));
+        waitForRefresh(TestAction::shardOperationOnPrimary, TestAction.WritePrimaryResult::respond,
+            (r, forcedRefresh) -> assertEquals(forcedRefresh, r.forcedRefresh));
     }
 
     public void testReplicaWaitForRefresh() throws Exception {
-        waitForRefresh(TestAction::shardOperationOnReplica, (r, forcedRefresh) -> {});
+        waitForRefresh(TestAction::shardOperationOnReplica, TestAction.WriteReplicaResult::respond, (r, forcedRefresh) -> {});
     }
 
-    private <R> void waitForRefresh(ThrowingBiFunction<TestAction, TestRequest, RespondingWriteResult<R>> action,
-            BiConsumer<R, Boolean> resultChecker) throws Exception {
+    private <Result, Response> void waitForRefresh(ThrowingBiFunction<TestAction, TestRequest, Result> action,
+                                                   BiConsumer<Result, CapturingActionListener<Response>> responder,
+                                         BiConsumer<Response, Boolean> resultChecker) throws Exception {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-        RespondingWriteResult<R> result = action.apply(new TestAction(), request);
-        CapturingActionListener<R> listener = new CapturingActionListener<>();
-        result.respond(listener);
+        Result result = action.apply(new TestAction(), request);
+        CapturingActionListener<Response> listener = new CapturingActionListener<>();
+        responder.accept(result, listener);
         assertNull(listener.response); // Haven't reallresponded yet
 
         @SuppressWarnings({ "unchecked", "rawtypes" })

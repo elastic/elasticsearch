@@ -21,12 +21,13 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteResponse;
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -38,6 +39,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -115,21 +117,19 @@ public abstract class TransportWriteAction<
     /**
      * Result of taking the action on the primary.
      */
-    private class WritePrimaryResult extends PrimaryResult implements RespondingWriteResult<Response> {
-        private final ReplicatedWriteRequest<?> request;
-        volatile boolean finishedWrite;
-        volatile ActionListener<Response> listener = null;
+    class WritePrimaryResult extends PrimaryResult {
+        boolean finishedAsyncActions;
+        ActionListener<Response> listener = null;
 
         public WritePrimaryResult(Request request, Response finalResponse,
                                   @Nullable Translog.Location location,
                                   IndexShard indexShard) {
             super(request, finalResponse);
-            this.request = request;
             /*
              * We call this before replication because this might wait for a refresh and that can take a while. This way we wait for the
              * refresh in parallel on the primary and on the replica.
              */
-            finishWrite(indexShard, request, location);
+            postWriteActions(indexShard, request, location, this::onFinishedAsyncActions, logger);
         }
 
         @Override
@@ -142,24 +142,14 @@ public abstract class TransportWriteAction<
          * Respond if the refresh has occurred and the listener is ready. Always called while synchronized on {@code this}.
          */
         protected void respondIfPossible() {
-            if (finishedWrite && listener != null) {
+            if (finishedAsyncActions && listener != null) {
                 super.respond(listener);
             }
         }
 
-        @Override
-        public void forcedRefresh() {
-            finalResponse.setForcedRefresh(true);
-        }
-
-        @Override
-        public void waitForRefreshForcedRefresh() {
-            logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
-        }
-
-        @Override
-        public synchronized void finished() {
-            finishedWrite = true;
+        public synchronized void onFinishedAsyncActions(boolean forcedRefresh) {
+            finalResponse.setForcedRefresh(forcedRefresh);
+            finishedAsyncActions = true;
             respondIfPossible();
         }
     }
@@ -167,101 +157,66 @@ public abstract class TransportWriteAction<
     /**
      * Result of taking the action on the replica.
      */
-    private class WriteReplicaResult extends ReplicaResult implements RespondingWriteResult<TransportResponse.Empty> {
-        private final IndexShard indexShard;
-        private final ReplicatedWriteRequest<?> request;
-        private final Translog.Location location;
+    class WriteReplicaResult extends ReplicaResult  {
+        boolean finishedAsyncActions;
         private ActionListener<TransportResponse.Empty> listener;
 
         public WriteReplicaResult(IndexShard indexShard, ReplicatedWriteRequest<?> request, Translog.Location location) {
-            this.indexShard = indexShard;
-            this.request = request;
-            this.location = location;
+            postWriteActions(indexShard, request, location, this::onFinishedAsyncActions, logger);
         }
 
         @Override
         public void respond(ActionListener<TransportResponse.Empty> listener) {
             this.listener = listener;
-            finishWrite(indexShard, request, location);
+            respondIfPossible();
         }
 
-        @Override
-        public void forcedRefresh() {
-            // It'd be nice to mark this in the response but logging when wait for refresh forced it is OK.
+        /**
+         * Respond if the refresh has occurred and the listener is ready. Always called while synchronized on {@code this}.
+         */
+        protected void respondIfPossible() {
+            if (finishedAsyncActions && listener != null) {
+                super.respond(listener);
+            }
         }
 
-        @Override
-        public void waitForRefreshForcedRefresh() {
-            logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
-        }
-
-        @Override
-        public void finished() {
-            listener.onResponse(TransportResponse.Empty.INSTANCE);
+        public synchronized void onFinishedAsyncActions(boolean forcedRefresh) {
+            finishedAsyncActions = true;
+            respondIfPossible();
         }
     }
 
-    /**
-     * Duplicate code shared between WritePrimaryResult and WriteReplicaResult. Implemented as an interface because it lets us instantiate a
-     * few fewer classes during this process. Package private for testing.
-     */
-    interface RespondingWriteResult<R> {
-        void respond(ActionListener<R> listener);
-
-        /**
-         * Finish up the write by syncing the translog, flushing, and refreshing or waiting for a refresh. Called on both the primary and
-         * the replica.
-         */
-        default void finishWrite(IndexShard indexShard, ReplicatedWriteRequest<?> request, Translog.Location location) {
-            boolean refreshPending = false;
-            switch (request.getRefreshPolicy()) {
+    static void postWriteActions(final IndexShard indexShard,
+                                 final WriteRequest<?> request,
+                                 @Nullable final Translog.Location location,
+                                 final Consumer<Boolean> onDone,
+                                 final ESLogger logger) {
+        boolean pendingOps = false;
+        boolean immediateRefresh = false;
+        switch (request.getRefreshPolicy()) {
             case IMMEDIATE:
                 indexShard.refresh("refresh_flag_index");
-                forcedRefresh();
+                immediateRefresh = true;
                 break;
             case WAIT_UNTIL:
                 if (location != null) {
-                    refreshPending = true;
+                    pendingOps = true;
                     indexShard.addRefreshListener(location, forcedRefresh -> {
-                        if (forcedRefresh) {
-                            forcedRefresh();
-                            waitForRefreshForcedRefresh();
-                        }
-                        finish(indexShard, location);
+                        logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
+                        onDone.accept(forcedRefresh);
                     });
                 }
                 break;
             case NONE:
                 break;
-            }
-            if (false == refreshPending) {
-                finish(indexShard, location);
-            }
         }
-
-        default void finish(IndexShard indexShard, Translog.Location location) {
-            boolean fsyncTranslog = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null;
-            if (fsyncTranslog) {
-                indexShard.sync(location);
-            }
-            indexShard.maybeFlush();
-            finished();
+        boolean fsyncTranslog = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null;
+        if (fsyncTranslog) {
+            indexShard.sync(location);
         }
-
-        /**
-         * Called either when the request forces a refresh via {@link RefreshPolicy#IMMEDIATE} or when we run out of listeners slots while
-         * attempting to honor {@link RefreshPolicy#WAIT_UNTIL}.
-         */
-        void forcedRefresh();
-
-        /**
-         * Called when we run out of listeners slots while attempting to honor {@link RefreshPolicy#WAIT_UNTIL}.
-         */
-        void waitForRefreshForcedRefresh();
-
-        /**
-         * Called when we are finished waiting for a refresh. This is never called if we don't wait for a refresh.
-         */
-        void finished();
+        indexShard.maybeFlush();
+        if (pendingOps == false) {
+            onDone.accept(immediateRefresh);
+        }
     }
 }

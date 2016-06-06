@@ -50,7 +50,7 @@ public class HostsSniffer {
     private final String scheme;
     private final JsonFactory jsonFactory;
 
-    public HostsSniffer(RestClient restClient, int sniffRequestTimeout, String scheme) {
+    public HostsSniffer(RestClient restClient, long sniffRequestTimeout, String scheme) {
         this.restClient = restClient;
         this.sniffRequestParams = Collections.<String, String>singletonMap("timeout", sniffRequestTimeout + "ms");
         this.scheme = scheme;

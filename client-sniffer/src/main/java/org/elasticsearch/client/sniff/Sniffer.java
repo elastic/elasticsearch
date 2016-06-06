@@ -50,8 +50,8 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
     private final boolean sniffOnFailure;
     private final Task task;
 
-    private Sniffer(RestClient restClient, int sniffRequestTimeout, String scheme, int sniffInterval,
-                   boolean sniffOnFailure, int sniffAfterFailureDelay) {
+    private Sniffer(RestClient restClient, long sniffRequestTimeout, String scheme, long sniffInterval,
+                   boolean sniffOnFailure, long sniffAfterFailureDelay) {
         HostsSniffer hostsSniffer = new HostsSniffer(restClient, sniffRequestTimeout, scheme);
         this.task = new Task(hostsSniffer, restClient, sniffInterval, sniffAfterFailureDelay);
         this.sniffOnFailure = sniffOnFailure;
@@ -75,14 +75,14 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
         private final HostsSniffer hostsSniffer;
         private final RestClient restClient;
 
-        private final int sniffInterval;
-        private final int sniffAfterFailureDelay;
+        private final long sniffInterval;
+        private final long sniffAfterFailureDelay;
         private final ScheduledExecutorService scheduledExecutorService;
         private final AtomicBoolean running = new AtomicBoolean(false);
-        private volatile int nextSniffDelay;
+        private volatile long nextSniffDelay;
         private volatile ScheduledFuture<?> scheduledFuture;
 
-        private Task(HostsSniffer hostsSniffer, RestClient restClient, int sniffInterval, int sniffAfterFailureDelay) {
+        private Task(HostsSniffer hostsSniffer, RestClient restClient, long sniffInterval, long sniffAfterFailureDelay) {
             this.hostsSniffer = hostsSniffer;
             this.restClient = restClient;
             this.sniffInterval = sniffInterval;
@@ -153,14 +153,14 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
      * Sniffer builder. Helps creating a new {@link Sniffer}.
      */
     public static final class Builder {
-        public static final int DEFAULT_SNIFF_INTERVAL = 60000 * 5; //5 minutes
-        public static final int DEFAULT_SNIFF_AFTER_FAILURE_DELAY = 60000; //1 minute
-        public static final int DEFAULT_SNIFF_REQUEST_TIMEOUT = 1000; //1 second
+        public static final long DEFAULT_SNIFF_INTERVAL = TimeUnit.MINUTES.toMillis(5);
+        public static final long DEFAULT_SNIFF_AFTER_FAILURE_DELAY = TimeUnit.MINUTES.toMillis(1);
+        public static final long DEFAULT_SNIFF_REQUEST_TIMEOUT = TimeUnit.SECONDS.toMillis(1);
 
-        private int sniffRequestTimeout = DEFAULT_SNIFF_REQUEST_TIMEOUT;
-        private int sniffInterval = DEFAULT_SNIFF_INTERVAL;
+        private long sniffRequestTimeout = DEFAULT_SNIFF_REQUEST_TIMEOUT;
+        private long sniffInterval = DEFAULT_SNIFF_INTERVAL;
         private boolean sniffOnFailure = true;
-        private int sniffAfterFailureDelay = DEFAULT_SNIFF_AFTER_FAILURE_DELAY;
+        private long sniffAfterFailureDelay = DEFAULT_SNIFF_AFTER_FAILURE_DELAY;
         private String scheme = "http";
         private RestClient restClient;
 

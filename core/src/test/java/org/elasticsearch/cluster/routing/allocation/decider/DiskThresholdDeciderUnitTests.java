@@ -299,7 +299,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         shardSizes.put("[test][0][p]", 10L);
         shardSizes.put("[test][1][p]", 100L);
         shardSizes.put("[test][2][p]", 500L);
-        shardSizes.put("[test][3][p]", 500l);
+        shardSizes.put("[test][3][p]", 500L);
 
         ClusterInfo info = new DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), shardSizes.build());
         MetaData.Builder metaBuilder = MetaData.builder();

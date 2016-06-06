@@ -385,8 +385,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
                 try {
                     indicesService.createIndex(nodeServicesProvider, indexMetaData, buildInIndexListener,
-                        globalCheckpointSyncAction::updateCheckpointForShard
-                        );
+                        globalCheckpointSyncAction::updateCheckpointForShard);
                 } catch (Throwable e) {
                     sendFailShard(shard, "failed to create index", e);
                 }

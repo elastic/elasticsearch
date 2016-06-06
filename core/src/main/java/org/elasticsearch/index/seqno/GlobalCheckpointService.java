@@ -29,7 +29,7 @@ import java.util.Set;
 
 /**
  * A shard component that is responsible of tracking the global checkpoint. The global checkpoint
- * is the highest seq_no for which all lower (or equal) seq no have been process on all shards that
+ * is the highest seq_no for which all lower (or equal) seq_no have been processed on all shards that
  * are currently active. Since shards count as "active" when the master starts them, and before this primary shard
  * has been notified of this fact, we also include shards in that are in the
  * {@link org.elasticsearch.index.shard.IndexShardState#POST_RECOVERY} state when checking for global checkpoint advancement.
@@ -65,7 +65,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
      * while recovering the shard.
      * Keyed by allocation ids
      */
-    final private ObjectLongMap<String> trackingLocalCheckpoint;  // keyed by allocation ids
+    final private ObjectLongMap<String> trackingLocalCheckpoint;
 
     private long globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
 
@@ -112,7 +112,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
             }
         } else {
             logger.trace("skipping update local checkpoint [{}], current check point is higher " +
-                "(current [{}], incoming [{}], type [{}])",
+                    "(current [{}], incoming [{}], type [{}])",
                 allocationId, current, localCheckpoint, allocationId);
         }
         return true;
@@ -126,7 +126,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
      */
     synchronized public boolean updateCheckpointOnPrimary() {
         long minCheckpoint = Long.MAX_VALUE;
-        if (activeLocalCheckpoints.isEmpty() &&  inSyncLocalCheckpoints.isEmpty()) {
+        if (activeLocalCheckpoints.isEmpty() && inSyncLocalCheckpoints.isEmpty()) {
             return false;
         }
         for (ObjectLongCursor<String> cp : activeLocalCheckpoints) {
@@ -188,8 +188,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
         activeLocalCheckpoints.removeAll(key -> activeAllocationIds.contains(key) == false);
         for (String activeId : activeAllocationIds) {
             if (activeLocalCheckpoints.containsKey(activeId) == false) {
-                long knownCheckpoint = trackingLocalCheckpoint.getOrDefault(activeId,
-                    SequenceNumbersService.UNASSIGNED_SEQ_NO);
+                long knownCheckpoint = trackingLocalCheckpoint.getOrDefault(activeId, SequenceNumbersService.UNASSIGNED_SEQ_NO);
                 knownCheckpoint = inSyncLocalCheckpoints.getOrDefault(activeId, knownCheckpoint);
                 activeLocalCheckpoints.put(activeId, knownCheckpoint);
                 logger.trace("marking [{}] as active. known checkpoint [{}]", activeId, knownCheckpoint);
@@ -206,7 +205,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
                 continue;
             }
             trackingLocalCheckpoint.put(initID, SequenceNumbersService.UNASSIGNED_SEQ_NO);
-            logger.trace("added [{}] the tracking map due to a CS update", initID);
+            logger.trace("added [{}] to the tracking map due to a CS update", initID);
 
         }
     }
@@ -220,7 +219,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
      */
     synchronized public void markAllocationIdAsInSync(String allocationId, long localCheckpoint) {
         if (trackingLocalCheckpoint.containsKey(allocationId) == false) {
-            // master have change it's mind and removed this allocation, ignore.
+            // master have change its mind and removed this allocation, ignore.
             return;
         }
         long current = trackingLocalCheckpoint.remove(allocationId);

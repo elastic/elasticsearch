@@ -120,7 +120,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     private volatile AsyncTranslogFSync fsyncTask;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
-    private volatile AsyncGlobalCheckpointTask globalCheckpointTask;
+    private final AsyncGlobalCheckpointTask globalCheckpointTask;
 
     public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
                         SimilarityService similarityService,
@@ -726,26 +726,24 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     }
 
     private void maybeUpdateGlobalCheckpoints() {
-        if (indexSettings.getGlobalCheckpointInterval().millis() > 0) {
-            for (IndexShard shard : this.shards.values()) {
-                if (shard.routingEntry().primary()) {
-                    switch (shard.state()) {
-                        case CREATED:
-                        case RECOVERING:
-                        case CLOSED:
-                        case RELOCATED:
-                            continue;
-                        case POST_RECOVERY:
-                        case STARTED:
-                            try {
-                                shard.updateGlobalCheckpointOnPrimary();
-                            } catch (EngineClosedException | AlreadyClosedException ex) {
-                                // fine - continue;
-                            }
-                            continue;
-                        default:
-                            throw new IllegalStateException("unknown state: " + shard.state());
-                    }
+        for (IndexShard shard : this.shards.values()) {
+            if (shard.routingEntry().primary()) {
+                switch (shard.state()) {
+                    case CREATED:
+                    case RECOVERING:
+                    case CLOSED:
+                    case RELOCATED:
+                        continue;
+                    case POST_RECOVERY:
+                    case STARTED:
+                        try {
+                            shard.updateGlobalCheckpointOnPrimary();
+                        } catch (EngineClosedException | AlreadyClosedException ex) {
+                            // fine - continue, the shard was concurrently closed on us.
+                        }
+                        continue;
+                    default:
+                        throw new IllegalStateException("unknown state: " + shard.state());
                 }
             }
         }

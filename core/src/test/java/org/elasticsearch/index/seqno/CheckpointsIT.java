@@ -54,8 +54,7 @@ public class CheckpointsIT extends ESIntegTestCase {
             IndicesStatsResponse stats = client().admin().indices().prepareStats("test").clear().get();
             for (ShardStats shardStats : stats.getShards()) {
                 if (shardStats.getSeqNoStats() == null) {
-                    assertFalse("didn't get seq no stats for a primary " + shardStats.getShardRouting(),
-                        shardStats.getShardRouting().primary());
+                    assertFalse("no seq_no stats for primary " + shardStats.getShardRouting(), shardStats.getShardRouting().primary());
                     continue;
                 }
                 logger.debug("seq_no stats for {}: {}", shardStats.getShardRouting(),

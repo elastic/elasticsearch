@@ -521,8 +521,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         if (randomBoolean()) {
             final TransportReplicationAction.ReplicaResponse response =
                 new TransportReplicationAction.ReplicaResponse(randomAsciiOfLength(10), randomLong());
-            transport.handleResponse(captures[0].requestId,
-                response);
+            transport.handleResponse(captures[0].requestId, response);
             assertTrue(listener.isDone());
             assertThat(listener.get(), equalTo(response));
         } else if (randomBoolean()) {

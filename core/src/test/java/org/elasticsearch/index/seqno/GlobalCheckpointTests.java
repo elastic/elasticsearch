@@ -45,7 +45,7 @@ public class GlobalCheckpointTests extends ESTestCase {
     }
 
     public void testEmptyShards() {
-        assertFalse("no started shards means we should update the checkpoint", checkpointService.updateCheckpointOnPrimary());
+        assertFalse("checkpoint shouldn't be updated when the are no active shards", checkpointService.updateCheckpointOnPrimary());
         assertThat(checkpointService.getCheckpoint(), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
     }
 
@@ -58,14 +58,20 @@ public class GlobalCheckpointTests extends ESTestCase {
         for (int i = randomIntBetween(3, 10); i > 0; i--) {
             String id = "id_" + i + "_" + randomAsciiOfLength(5);
             long localCheckpoint = randomInt(200);
-            if (randomBoolean()) {
+            switch (randomInt(2)) {
+                case 0:
                 active.add(id);
                 maxLocalCheckpoint = Math.min(maxLocalCheckpoint, localCheckpoint);
-            } else if (randomBoolean()) {
-                insync.add(id);
-                maxLocalCheckpoint = Math.min(maxLocalCheckpoint, localCheckpoint);
-            } else {
-                tracking.add(id);
+                    break;
+                case 1:
+                    insync.add(id);
+                    maxLocalCheckpoint = Math.min(maxLocalCheckpoint, localCheckpoint);
+                    break;
+                case 2:
+                    tracking.add(id);
+                    break;
+                default:
+                    throw new IllegalStateException("you messed up your numbers, didn't you?");
             }
             allocations.put(id, localCheckpoint);
         }

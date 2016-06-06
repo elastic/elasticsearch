@@ -190,10 +190,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertTrue(path.exists());
 
         assertEquals(indicesService.numPendingDeletes(test.index()), numPending);
+        assertTrue(indicesService.hasUncompletedPendingDeletes());
 
         // shard lock released... we can now delete
         indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
         assertEquals(indicesService.numPendingDeletes(test.index()), 0);
+        assertFalse(indicesService.hasUncompletedPendingDeletes());
         assertFalse(path.exists());
 
         if (randomBoolean()) {
@@ -201,9 +203,11 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             indicesService.addPendingDelete(new ShardId(test.index(), 1), test.getIndexSettings());
             indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), test.getIndexSettings());
             assertEquals(indicesService.numPendingDeletes(test.index()), 2);
+            assertTrue(indicesService.hasUncompletedPendingDeletes());
             // shard lock released... we can now delete
             indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
             assertEquals(indicesService.numPendingDeletes(test.index()), 0);
+            assertFalse(indicesService.hasUncompletedPendingDeletes());
         }
         assertAcked(client().admin().indices().prepareOpen("test"));
 

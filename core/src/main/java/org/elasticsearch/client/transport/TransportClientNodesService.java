@@ -211,7 +211,15 @@ public class TransportClientNodesService extends AbstractComponent {
     }
 
     public <Response> void execute(NodeListenerCallback<Response> callback, ActionListener<Response> listener) {
-        List<DiscoveryNode> nodes = this.nodes;
+        // we first read nodes before checking the closed state; this
+        // is because otherwise we could be subject to a race where we
+        // read the state as not being closed, and then the client is
+        // closed and the nodes list is cleared, and then a
+        // NoNodeAvailableException is thrown
+        // it is important that the order of first setting the state of
+        // closed and then clearing the list of nodes is maintained in
+        // the close method
+        final List<DiscoveryNode> nodes = this.nodes;
         if (closed) {
             throw new IllegalStateException("transport client is closed");
         }

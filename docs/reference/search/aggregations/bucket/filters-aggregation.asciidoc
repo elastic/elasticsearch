@@ -116,7 +116,7 @@ request.  The response for this example would be:
         {
           "doc_count" : 439,
           "monthly" : {
-            "buckets : [
+            "buckets" : [
               ... // the histogram monthly breakdown
             ]
           }

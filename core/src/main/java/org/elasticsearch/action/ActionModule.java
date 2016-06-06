@@ -143,7 +143,7 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.fieldstats.FieldStatsAction;
-import org.elasticsearch.action.fieldstats.TransportFieldStatsTransportAction;
+import org.elasticsearch.action.fieldstats.TransportFieldStatsAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -344,7 +344,7 @@ public class ActionModule extends AbstractModule {
         registerAction(GetStoredScriptAction.INSTANCE, TransportGetStoredScriptAction.class);
         registerAction(DeleteStoredScriptAction.INSTANCE, TransportDeleteStoredScriptAction.class);
 
-        registerAction(FieldStatsAction.INSTANCE, TransportFieldStatsTransportAction.class);
+        registerAction(FieldStatsAction.INSTANCE, TransportFieldStatsAction.class);
 
         registerAction(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
         registerAction(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);

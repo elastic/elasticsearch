@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -45,27 +44,23 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
-
-import java.util.Map;
-import java.util.HashMap;
-import java.util.List;
 import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.Set;
-import java.util.HashSet;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-public class TransportFieldStatsTransportAction extends
+public class TransportFieldStatsAction extends
     TransportBroadcastAction<FieldStatsRequest, FieldStatsResponse, FieldStatsShardRequest, FieldStatsShardResponse> {
 
     private final IndicesService indicesService;
 
     @Inject
-    public TransportFieldStatsTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportFieldStatsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                               TransportService transportService, ActionFilters actionFilters,
                                               IndexNameExpressionResolver indexNameExpressionResolver,
                                               IndicesService indicesService) {
@@ -195,26 +190,18 @@ public class TransportFieldStatsTransportAction extends
         MapperService mapperService = indexServices.mapperService();
         IndexShard shard = indexServices.getShard(shardId.id());
         try (Engine.Searcher searcher = shard.acquireSearcher("fieldstats")) {
+            // Resolve patterns and deduplicate
+            Set<String> fieldNames = new HashSet<>();
             for (String field : request.getFields()) {
-                Collection<String> matchFields;
-                if (Regex.isSimpleMatchPattern(field)) {
-                    matchFields = mapperService.simpleMatchToIndexNames(field);
-                } else {
-                    matchFields = Collections.singleton(field);
-                }
-                for (String matchField : matchFields) {
-                    MappedFieldType fieldType = mapperService.fullName(matchField);
-                    if (fieldType == null) {
-                        // ignore.
-                        continue;
-                    }
-                    FieldStats<?> stats = fieldType.stats(searcher.reader());
-                    if (stats != null) {
-                        fieldStats.put(matchField, stats);
-                    }
+                fieldNames.addAll(mapperService.simpleMatchToIndexNames(field));
+            }
+            for (String field : fieldNames) {
+                FieldStats<?> stats = indicesService.getFieldStats(shard, searcher, field);
+                if (stats != null) {
+                    fieldStats.put(field, stats);
                 }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw ExceptionsHelper.convertToElastic(e);
         }
         return new FieldStatsShardResponse(shardId, fieldStats);

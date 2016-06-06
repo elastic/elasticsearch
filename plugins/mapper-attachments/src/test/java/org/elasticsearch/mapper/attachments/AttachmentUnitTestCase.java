@@ -21,6 +21,7 @@ package org.elasticsearch.mapper.attachments;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.IndicesModule;
@@ -32,7 +33,7 @@ public abstract class AttachmentUnitTestCase extends ESTestCase {
     protected Settings testSettings;
 
     protected static IndicesModule getIndicesModuleWithRegisteredAttachmentMapper() {
-        IndicesModule indicesModule = new IndicesModule();
+        IndicesModule indicesModule = new IndicesModule(new NamedWriteableRegistry());
         indicesModule.registerMapper(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
         return indicesModule;
     }

@@ -151,7 +151,7 @@ public class AggregatorParsingTests extends ESTestCase {
         };
         scriptModule.prepareSettings(settingsModule);
         injector = new ModulesBuilder().add(new EnvironmentModule(new Environment(settings)), settingsModule,
-                new ThreadPoolModule(threadPool), scriptModule, new IndicesModule() {
+                new ThreadPoolModule(threadPool), scriptModule, new IndicesModule(namedWriteableRegistry) {
 
                     @Override
                     protected void configure() {

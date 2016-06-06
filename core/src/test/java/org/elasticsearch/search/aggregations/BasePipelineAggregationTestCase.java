@@ -168,7 +168,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
                 settingsModule,
                 new ThreadPoolModule(threadPool),
                 scriptModule,
-                new IndicesModule() {
+                new IndicesModule(namedWriteableRegistry) {
 
                     @Override
                     protected void configure() {

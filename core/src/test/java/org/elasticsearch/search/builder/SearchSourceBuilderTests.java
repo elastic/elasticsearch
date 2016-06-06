@@ -173,7 +173,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)), settingsModule,
                 new ThreadPoolModule(threadPool),
-                scriptModule, new IndicesModule() {
+                scriptModule, new IndicesModule(namedWriteableRegistry) {
                     @Override
                     protected void configure() {
                         bindMapperExtension();

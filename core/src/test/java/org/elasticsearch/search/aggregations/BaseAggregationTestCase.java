@@ -169,7 +169,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
                 settingsModule,
                 new ThreadPoolModule(threadPool),
                 scriptModule,
-                new IndicesModule() {
+                new IndicesModule(namedWriteableRegistry) {
 
                     @Override
                     protected void configure() {

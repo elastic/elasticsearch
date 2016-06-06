@@ -27,59 +27,49 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
+import java.util.Set;
 
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class TransportRolloverActionTests extends ESTestCase {
 
     public void testSatisfyConditions() throws Exception {
-        List<Condition> conditions = Collections.emptyList();
-        assertTrue(TransportRolloverAction.satisfiesConditions(conditions, randomLong(), randomLong(),
+        Set<Condition> conditions = Collections.emptySet();
+        assertTrue(TransportRolloverAction.satisfiesConditions(conditions, randomLong(),
             randomLong()));
 
-        conditions = Collections.singletonList(
-            new Condition(Condition.ConditionType.MAX_AGE, 10L));
-        assertTrue(TransportRolloverAction.satisfiesConditions(conditions, randomLong(), randomLong(),
-            System.currentTimeMillis() - randomIntBetween(10, 100)));
-        assertFalse(TransportRolloverAction.satisfiesConditions(conditions, randomLong(), randomLong(),
-            System.currentTimeMillis() - randomIntBetween(1, 9)));
+        conditions = Collections.singleton(new Condition.MaxAge(TimeValue.timeValueMillis(10)));
+        assertTrue(TransportRolloverAction.satisfiesConditions(conditions, randomLong(),
+            TimeValue.timeValueMillis(randomIntBetween(10, 100)).getMillis()));
+        assertFalse(TransportRolloverAction.satisfiesConditions(conditions, randomLong(),
+            TimeValue.timeValueMillis(randomIntBetween(0, 9)).getMillis()));
 
-        conditions = Collections.singletonList(
-            new Condition(Condition.ConditionType.MAX_SIZE, 10L));
-        assertTrue(TransportRolloverAction.satisfiesConditions(conditions, randomLong(), randomIntBetween(10, 100),
+        conditions = Collections.singleton(new Condition.MaxDocs(10L));
+        assertTrue(TransportRolloverAction.satisfiesConditions(conditions, randomIntBetween(10, 100),
             randomLong()));
-        assertFalse(TransportRolloverAction.satisfiesConditions(conditions, randomLong(), randomIntBetween(1, 9),
+        assertFalse(TransportRolloverAction.satisfiesConditions(conditions, randomIntBetween(1, 9),
             randomLong()));
 
-        conditions = Collections.singletonList(
-            new Condition(Condition.ConditionType.MAX_DOCS, 10L));
-        assertTrue(TransportRolloverAction.satisfiesConditions(conditions, randomIntBetween(10, 100), randomLong(),
-            randomLong()));
-        assertFalse(TransportRolloverAction.satisfiesConditions(conditions, randomIntBetween(1, 9), randomLong(),
-            randomLong()));
-
-        conditions = Arrays.asList(new Condition(Condition.ConditionType.MAX_AGE, 100L),
-            new Condition(Condition.ConditionType.MAX_DOCS, 1000L));
+        conditions = Sets.newHashSet(new Condition.MaxAge(TimeValue.timeValueMillis(100)), new Condition.MaxDocs(1000L));
         assertTrue(TransportRolloverAction.satisfiesConditions(conditions, randomIntBetween(1000, 1500),
-            randomLong(), System.currentTimeMillis() - randomIntBetween(100, 500)));
+            TimeValue.timeValueMillis(randomIntBetween(100, 1000)).getMillis()));
         assertFalse(TransportRolloverAction.satisfiesConditions(conditions, randomIntBetween(1, 999),
-            randomLong(), System.currentTimeMillis() - randomIntBetween(100, 500)));
+            TimeValue.timeValueMillis(randomIntBetween(100, 1000)).getMillis()));
         assertFalse(TransportRolloverAction.satisfiesConditions(conditions, randomIntBetween(1000, 1500),
-            randomLong(), System.currentTimeMillis() - randomIntBetween(1, 99)));
+            TimeValue.timeValueMillis(randomIntBetween(0, 99)).getMillis()));
     }
 
     public void testCreateUpdateAliasRequest() throws Exception {
         String sourceAlias = randomAsciiOfLength(10);
         String sourceIndex = randomAsciiOfLength(10);
         String targetIndex = randomAsciiOfLength(10);
-        final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias, null);
+        final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias);
         final IndicesAliasesClusterStateUpdateRequest updateRequest =
             TransportRolloverAction.prepareIndicesAliasesRequest(sourceIndex, targetIndex, rolloverRequest);
 
@@ -92,35 +82,6 @@ public class TransportRolloverActionTests extends ESTestCase {
                 foundAdd = true;
                 assertThat(action.index(), equalTo(targetIndex));
                 assertThat(action.alias(), equalTo(sourceAlias));
-            } else if (action.actionType() == AliasAction.Type.REMOVE) {
-                foundRemove = true;
-                assertThat(action.index(), equalTo(sourceIndex));
-                assertThat(action.alias(), equalTo(sourceAlias));
-            }
-        }
-        assertTrue(foundAdd);
-        assertTrue(foundRemove);
-    }
-
-    public void testCreateUpdateAliasRequestWithOptionalTargetAlias() throws Exception {
-        String sourceAlias = randomAsciiOfLength(10);
-        String optionalTargetAlias = randomAsciiOfLength(10);
-        String sourceIndex = randomAsciiOfLength(10);
-        String targetIndex = randomAsciiOfLength(10);
-        final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias, optionalTargetAlias);
-        final IndicesAliasesClusterStateUpdateRequest updateRequest =
-            TransportRolloverAction.prepareIndicesAliasesRequest(sourceIndex, targetIndex, rolloverRequest);
-
-        final AliasAction[] actions = updateRequest.actions();
-        assertThat(actions.length, equalTo(3));
-        boolean foundAdd = false;
-        boolean foundRemove = false;
-        for (AliasAction action : actions) {
-            if (action.actionType() == AliasAction.Type.ADD) {
-                foundAdd = true;
-                assertThat(action.index(), equalTo(targetIndex));
-                assertThat(action.alias(), anyOf(equalTo(sourceAlias),
-                    equalTo(optionalTargetAlias)));
             } else if (action.actionType() == AliasAction.Type.REMOVE) {
                 foundRemove = true;
                 assertThat(action.index(), equalTo(sourceIndex));
@@ -154,31 +115,27 @@ public class TransportRolloverActionTests extends ESTestCase {
             ).build();
 
         try {
-            TransportRolloverAction.validate(metaData, new RolloverRequest(aliasWithMultipleIndices,
-                randomBoolean() ? null : randomAsciiOfLength(10)));
+            TransportRolloverAction.validate(metaData, new RolloverRequest(aliasWithMultipleIndices));
             fail("expected to throw exception");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("source alias maps to multiple indices"));
         }
 
         try {
-            TransportRolloverAction.validate(metaData, new RolloverRequest(randomFrom(index1, index2),
-                randomBoolean() ? null : randomAsciiOfLength(10)));
+            TransportRolloverAction.validate(metaData, new RolloverRequest(randomFrom(index1, index2)));
             fail("expected to throw exception");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("source alias is a concrete index"));
         }
 
         try {
-            TransportRolloverAction.validate(metaData, new RolloverRequest(randomAsciiOfLength(5),
-                randomBoolean() ? null : randomAsciiOfLength(10)));
+            TransportRolloverAction.validate(metaData, new RolloverRequest(randomAsciiOfLength(5)));
             fail("expected to throw exception");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("source alias does not exist"));
         }
 
-        TransportRolloverAction.validate(metaData, new RolloverRequest(alias,
-            randomBoolean() ? null : randomAsciiOfLength(10)));
+        TransportRolloverAction.validate(metaData, new RolloverRequest(alias));
     }
 
     public void testGenerateRolloverIndexName() throws Exception {

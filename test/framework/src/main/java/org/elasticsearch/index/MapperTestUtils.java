@@ -21,6 +21,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -39,7 +40,7 @@ import java.util.Collections;
 public class MapperTestUtils {
 
     public static MapperService newMapperService(Path tempDir, Settings indexSettings) throws IOException {
-        IndicesModule indicesModule = new IndicesModule();
+        IndicesModule indicesModule = new IndicesModule(new NamedWriteableRegistry());
         return newMapperService(tempDir, indexSettings, indicesModule);
     }
 

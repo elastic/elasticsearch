@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -61,7 +62,7 @@ public class RolloverIT extends ESIntegTestCase {
         index("test_index", "type1", "1", "field", "value");
         flush("test_index");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
-            .addMaxIndexAgeCondition("7d").get();
+            .addMaxIndexAgeCondition(TimeValue.timeValueHours(4)).get();
         assertThat(response.getOldIndex(), equalTo("test_index"));
         assertThat(response.getNewIndex(), equalTo("test_index"));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -69,22 +70,6 @@ public class RolloverIT extends ESIntegTestCase {
         assertTrue(oldIndex.getAliases().containsKey("test_alias"));
         final IndexMetaData newIndex = state.metaData().index("test_index-1");
         assertNull(newIndex);
-    }
-
-    public void testRolloverWithOptionalTargetAlias() throws Exception {
-        assertAcked(prepareCreate("test_index").addAlias(new Alias("test_alias")).get());
-        index("test_index", "type1", "1", "field", "value");
-        flush("test_index");
-        final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
-            .setOptionalTargetAlias("test_alias_2").get();
-        assertThat(response.getOldIndex(), equalTo("test_index"));
-        assertThat(response.getNewIndex(), equalTo("test_index-1"));
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final IndexMetaData oldIndex = state.metaData().index("test_index");
-        assertFalse(oldIndex.getAliases().containsKey("test_alias"));
-        final IndexMetaData newIndex = state.metaData().index("test_index-1");
-        assertTrue(newIndex.getAliases().containsKey("test_alias"));
-        assertTrue(newIndex.getAliases().containsKey("test_alias_2"));
     }
 
     public void testRolloverOnExistingIndex() throws Exception {

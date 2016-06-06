@@ -235,7 +235,7 @@ public class Node implements Closeable {
             modules.add(new ThreadPoolModule(threadPool));
             modules.add(new DiscoveryModule(this.settings));
             modules.add(new ClusterModule(this.settings));
-            modules.add(new IndicesModule());
+            modules.add(new IndicesModule(namedWriteableRegistry));
             modules.add(new SearchModule(settings, namedWriteableRegistry));
             modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false));
             modules.add(new GatewayModule(settings));

@@ -934,7 +934,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     new EnvironmentModule(new Environment(settings)),
                     settingsModule,
                     new ThreadPoolModule(threadPool),
-                    new IndicesModule() {
+                    new IndicesModule(namedWriteableRegistry) {
                         @Override
                         public void configure() {
                             // skip services

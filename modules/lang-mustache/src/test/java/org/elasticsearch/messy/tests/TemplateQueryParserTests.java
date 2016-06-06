@@ -134,7 +134,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
         ScriptService scriptService = injector.getInstance(ScriptService.class);
         SimilarityService similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
-        MapperRegistry mapperRegistry = new IndicesModule().getMapperRegistry();
+        MapperRegistry mapperRegistry = new IndicesModule(new NamedWriteableRegistry()).getMapperRegistry();
         MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry, () ->
             contextFactory.get());
         IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {});

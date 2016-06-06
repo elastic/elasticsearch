@@ -19,10 +19,12 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -74,10 +76,18 @@ public class IndicesModule extends AbstractModule {
     // Use a LinkedHashMap for metadataMappers because iteration order matters
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers
         = new LinkedHashMap<>();
+    private final NamedWriteableRegistry namedWritableRegistry;
 
-    public IndicesModule() {
+    public IndicesModule(NamedWriteableRegistry namedWriteableRegistry) {
+        this.namedWritableRegistry = namedWriteableRegistry;
         registerBuiltInMappers();
         registerBuiltInMetadataMappers();
+        registerBuildInWritables();
+    }
+
+    private void registerBuildInWritables() {
+        namedWritableRegistry.register(Condition.class, Condition.MaxAge.NAME, Condition.MaxAge::new);
+        namedWritableRegistry.register(Condition.class, Condition.MaxDocs.NAME, Condition.MaxDocs::new);
     }
 
     private void registerBuiltInMappers() {

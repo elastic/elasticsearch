@@ -39,7 +39,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -117,56 +116,108 @@ public abstract class TransportWriteAction<
     /**
      * Result of taking the action on the primary.
      */
-    class WritePrimaryResult extends PrimaryResult {
-        boolean finishedAsyncActions;
-        ActionListener<Response> listener = null;
+    class WritePrimaryResult extends PrimaryResult implements RespondingWriteResult.RespondAfterAsyncAction<Response> {
+        private final RespondingWriteResult<Response> result;
 
         public WritePrimaryResult(Request request, Response finalResponse,
-                                  @Nullable Translog.Location location,
-                                  IndexShard indexShard) {
+                @Nullable Translog.Location location,
+                IndexShard indexShard) {
             super(request, finalResponse);
             /*
-             * We call this before replication because this might wait for a refresh and that can take a while. This way we wait for the
-             * refresh in parallel on the primary and on the replica.
+             * This *starts* async actions before replication. We do that because this might wait for a refresh and that can take a while.
+             * This way we wait for the refresh in parallel on the primary and on the replica.
              */
-            postWriteActions(indexShard, request, location, this::onFinishedAsyncActions, logger);
+            result = new RespondingWriteResult<>(this, indexShard, request, location, logger);
         }
 
         @Override
-        public synchronized void respond(ActionListener<Response> listener) {
-            this.listener = listener;
-            respondIfPossible();
+        public void respond(ActionListener<Response> listener) {
+            result.setListenerAndRespondIfPossible(listener);
         }
 
-        /**
-         * Respond if the refresh has occurred and the listener is ready. Always called while synchronized on {@code this}.
-         */
-        protected void respondIfPossible() {
-            if (finishedAsyncActions && listener != null) {
-                super.respond(listener);
+        @Override
+        public void respondAfterAsyncAction(ActionListener<Response> listener) {
+            if (result.forcedRefresh) {
+                finalResponse.setForcedRefresh(result.forcedRefresh);
             }
-        }
-
-        public synchronized void onFinishedAsyncActions(boolean forcedRefresh) {
-            finalResponse.setForcedRefresh(forcedRefresh);
-            finishedAsyncActions = true;
-            respondIfPossible();
+            super.respond(listener);
         }
     }
 
     /**
      * Result of taking the action on the replica.
      */
-    class WriteReplicaResult extends ReplicaResult  {
-        boolean finishedAsyncActions;
-        private ActionListener<TransportResponse.Empty> listener;
+    class WriteReplicaResult extends ReplicaResult implements RespondingWriteResult.RespondAfterAsyncAction<TransportResponse.Empty> {
+        private final RespondingWriteResult<TransportResponse.Empty> result;
 
         public WriteReplicaResult(IndexShard indexShard, ReplicatedWriteRequest<?> request, Translog.Location location) {
-            postWriteActions(indexShard, request, location, this::onFinishedAsyncActions, logger);
+            result = new RespondingWriteResult<>(this, indexShard, request, location, logger);
         }
 
         @Override
         public void respond(ActionListener<TransportResponse.Empty> listener) {
+            result.setListenerAndRespondIfPossible(listener);
+        }
+
+        @Override
+        public void respondAfterAsyncAction(ActionListener<TransportResponse.Empty> listener) {
+            super.respond(listener);
+        }
+    }
+
+    private static class RespondingWriteResult<T> {
+        private interface RespondAfterAsyncAction<T> {
+            void respondAfterAsyncAction(ActionListener<T> listener);
+        }
+        private final RespondAfterAsyncAction<T> respond;
+        boolean forcedRefresh;
+
+        /**
+         * Are we waiting for async actions? We only respond when true and listener is set. Set to true either in the constructor or while
+         * synchronized on {@code this}.
+         */
+        private boolean finishedAsyncActions;
+        /**
+         * The listener to respond with. We respond when both finishedAsyncActions is true and the listener has been set. This is only
+         * modified while synchronized on {@code this}.
+         */
+        private ActionListener<T> listener;
+
+        public RespondingWriteResult(RespondAfterAsyncAction<T> respond, final IndexShard indexShard,
+                final WriteRequest<?> request,
+                @Nullable final Translog.Location location,
+                final ESLogger logger) {
+            this.respond = respond;
+            boolean pendingOps = false;
+            switch (request.getRefreshPolicy()) {
+            case IMMEDIATE:
+                indexShard.refresh("refresh_flag_index");
+                forcedRefresh = true;
+                break;
+            case WAIT_UNTIL:
+                if (location != null) {
+                   pendingOps = true;
+                   indexShard.addRefreshListener(location, forcedRefresh -> {
+                       logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
+                       RespondingWriteResult.this.forcedRefresh = forcedRefresh;
+                       onFinishedAsyncActions();
+                   });
+                }
+                break;
+            case NONE:
+                break;
+            }
+            boolean fsyncTranslog = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null;
+            if (fsyncTranslog) {
+                indexShard.sync(location);
+            }
+            indexShard.maybeFlush();
+            if (pendingOps == false) {
+                onFinishedAsyncActions();
+            }
+        }
+
+        public synchronized void setListenerAndRespondIfPossible(ActionListener<T> listener) {
             this.listener = listener;
             respondIfPossible();
         }
@@ -174,49 +225,15 @@ public abstract class TransportWriteAction<
         /**
          * Respond if the refresh has occurred and the listener is ready. Always called while synchronized on {@code this}.
          */
-        protected void respondIfPossible() {
+        private void respondIfPossible() {
             if (finishedAsyncActions && listener != null) {
-                super.respond(listener);
+                respond.respondAfterAsyncAction(listener);
             }
         }
 
-        public synchronized void onFinishedAsyncActions(boolean forcedRefresh) {
+        private synchronized void onFinishedAsyncActions() {
             finishedAsyncActions = true;
             respondIfPossible();
-        }
-    }
-
-    static void postWriteActions(final IndexShard indexShard,
-                                 final WriteRequest<?> request,
-                                 @Nullable final Translog.Location location,
-                                 final Consumer<Boolean> onDone,
-                                 final ESLogger logger) {
-        boolean pendingOps = false;
-        boolean immediateRefresh = false;
-        switch (request.getRefreshPolicy()) {
-            case IMMEDIATE:
-                indexShard.refresh("refresh_flag_index");
-                immediateRefresh = true;
-                break;
-            case WAIT_UNTIL:
-                if (location != null) {
-                    pendingOps = true;
-                    indexShard.addRefreshListener(location, forcedRefresh -> {
-                        logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
-                        onDone.accept(forcedRefresh);
-                    });
-                }
-                break;
-            case NONE:
-                break;
-        }
-        boolean fsyncTranslog = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null;
-        if (fsyncTranslog) {
-            indexShard.sync(location);
-        }
-        indexShard.maybeFlush();
-        if (pendingOps == false) {
-            onDone.accept(immediateRefresh);
         }
     }
 }

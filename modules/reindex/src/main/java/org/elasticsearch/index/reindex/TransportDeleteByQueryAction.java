@@ -91,6 +91,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
             delete.type(doc.type());
             delete.id(doc.id());
             delete.version(doc.version());
+            delete.versionType(mainRequest.getVersionType());
             return wrap(delete);
         }
 

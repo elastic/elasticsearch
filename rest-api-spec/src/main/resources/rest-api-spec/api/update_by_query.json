@@ -168,10 +168,6 @@
           "type" : "boolean",
           "description" : "Specify whether to return document version as part of a hit"
         },
-        "version_type": {
-          "type" : "boolean",
-          "description" : "Should the document increment the version number (internal) on hit or not (reindex)"
-        },
         "request_cache": {
           "type" : "boolean",
           "description" : "Specify if request cache should be used for this request or not, defaults to index level setting"

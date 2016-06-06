@@ -69,6 +69,30 @@ these documents. In case a search or bulk request got rejected, `_delete_by_quer
 If you'd like to count version conflicts rather than cause them to abort then
 set `conflicts=proceed` on the url or `"conflicts": "proceed"` in the request body.
 
+By default `_delete_by_query` uses `internal` versioning and expects version
+numbers to be greater or equal to 1. If the version of documents are externally managed
+ and are equal to zero, executing `_delete_by_query` will report version conflicts.
+In this specific case, you can change the version type from the default `internal`
+ to the `force` value. The documents will then be deleted regardless of the version
+ of the stored documents. Note that forcing the version should be used with care.
+
+[source,js]
+--------------------------------------------------
+POST twitter/_delete_by_query
+{
+  "query": {
+    "term": {
+      "user": "kimchy"
+    }
+  },
+  "version_type": "force" <1>
+}
+--------------------------------------------------
+// TEST[setup:twitter]
+
+<1> Indicates to use a forced version type. Possible values are either `internal`
+or `force`.
+
 Back to the API format, you can limit `_delete_by_query` to a single type. This
 will only delete `tweet` documents from the `twitter` index:
 

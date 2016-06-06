@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.index.VersionType;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -45,6 +46,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQueryRequest> implements IndicesRequest {
 
+    /**
+     * Versioning type to set on index requests made by this action.
+     */
+    private VersionType versionType = VersionType.INTERNAL;
+
     public DeleteByQueryRequest() {
     }
 
@@ -52,6 +58,14 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         super(search);
         // Delete-By-Query does not require the source
         search.source().fetchSource(false);
+    }
+
+    public VersionType getVersionType() {
+        return versionType;
+    }
+
+    public void setVersionType(VersionType versionType) {
+        this.versionType = versionType;
     }
 
     @Override
@@ -67,6 +81,11 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         }
         if (getSearchRequest() == null || getSearchRequest().source() == null) {
             e = addValidationError("source is missing", e);
+        }
+        if (versionType == null) {
+            e = addValidationError("version type is missing", e);
+        } else if (versionType != VersionType.INTERNAL && versionType != VersionType.FORCE) {
+            e = addValidationError("version type [" + versionType.toString() + "] is not supported", e);
         }
         return e;
     }

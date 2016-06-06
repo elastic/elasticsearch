@@ -21,3 +21,205 @@
         type:  test
         id:    1
   - match: {_version: 2}
+
+---
+"update_by_query with various versioning types and version zero":
+  - do:
+      index:
+        index:        index1
+        type:         type1
+        id:           1
+        version:      0 # Starting version is zero
+        version_type: external
+        body:    {"update": 0}
+  - do:
+      indices.refresh: {}
+
+  # Update by query with default version_type ("internal") must fail
+  # because zero is not allowed as an internal version number
+  - do:
+      catch: /illegal version value \[0\] for version type \[INTERNAL\]./
+      update_by_query:
+        index: index1
+        refresh: true
+  - do:
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {_version: 0}
+
+  # Update by query with explicit version_type "internal" must fail (see previous for explanation)
+  - do:
+      catch: /illegal version value \[0\] for version type \[INTERNAL\]./
+      update_by_query:
+        index: index1
+        refresh: true
+        body:    {"version_type": internal}
+  - do:
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {_version: 0}
+
+  # Update by query with version_type "external" is not supported
+  - do:
+      catch: /version type \[EXTERNAL\] is not supported./
+      update_by_query:
+        index: index1
+        refresh: true
+        body:    {"version_type": external}
+  - do:
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {_version: 0}
+
+  # Update by query with version_type "external_gt" is not supported
+  - do:
+      catch: /version type \[EXTERNAL\] is not supported./
+      update_by_query:
+        index: index1
+        refresh: true
+        body:    {"version_type": external_gt}
+  - do:
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {_version: 0}
+
+  # Update by query with version_type of "external_gte" is not supported
+  - do:
+      catch: /version type \[EXTERNAL_GTE\] is not supported./
+      update_by_query:
+        index: index1
+        refresh: true
+        body:    {"version_type": external_gte}
+  - do:
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {_version: 0}
+
+  # Update by query with version_type of "force" must succeed
+  - do:
+      update_by_query:
+        index: index1
+        refresh: true
+        body:    {"version_type": force}
+  - match: {updated: 1}
+  - match: {version_conflicts: 0}
+
+  - do:
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {_version: 0} # Updated with same version number
+
+
+---
+"update_by_query with various versioning types and value greater than zero":
+  - do:
+      index:
+        index:        index1
+        type:         type1
+        id:           1
+        version:      123
+        version_type: external
+        body:    {"update": 0}
+  - do:
+      indices.refresh: {}
+
+  # Update by query with default version_type ("internal") must succeed
+  - do:
+      update_by_query:
+        index: index1
+        refresh: true
+  - match: {updated: 1}
+  - match: {version_conflicts: 0}
+
+  - do:
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {_version: 124}
+
+  # Update by query with explicit version_type "internal" must succeed
+  - do:
+      update_by_query:
+        index: index1
+        refresh: true
+        body:    {"version_type": internal}
+  - match: {updated: 1}
+  - match: {version_conflicts: 0}
+
+  - do:
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {_version: 125}
+
+  # Update by query with version_type "external" is not supported
+  - do:
+      catch: /version type \[EXTERNAL\] is not supported./
+      update_by_query:
+        index: index1
+        refresh: true
+        body:    {"version_type": external}
+  - do:
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {_version: 125}
+
+  # Update by query with version_type "external_gt" is not supported
+  - do:
+      catch: /version type \[EXTERNAL\] is not supported./
+      update_by_query:
+        index: index1
+        refresh: true
+        body:    {"version_type": external_gt}
+  - do:
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {_version: 125}
+
+  # Update by query with version_type of "external_gte" is not supported
+  - do:
+      catch: /version type \[EXTERNAL_GTE\] is not supported./
+      update_by_query:
+        index: index1
+        refresh: true
+        body:    {"version_type": external_gte}
+  - do:
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {_version: 125}
+
+  # Update by query with version_type of "force" must succeed
+  - do:
+      update_by_query:
+        index: index1
+        refresh: true
+        body:    {"version_type": force}
+  - match: {updated: 1}
+  - match: {version_conflicts: 0}
+
+  - do:
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {_version: 125} # Updated with same version number

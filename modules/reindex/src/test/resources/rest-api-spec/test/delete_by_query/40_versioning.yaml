@@ -1,0 +1,245 @@
+---
+"delete_by_query with various versioning types and version zero":
+  - do:
+      index:
+        index:        index1
+        type:         type1
+        id:           1
+        version:      0 # Starting version is zero
+        version_type: external
+        body:    {"update": 0}
+  - do:
+      indices.refresh: {}
+
+  # Delete by query with default version_type ("internal") must fail
+  # because zero is not allowed as an internal version number
+  - do:
+      catch: /illegal version value \[0\] for version type \[INTERNAL\]./
+      delete_by_query:
+        index: index1
+        refresh: true
+        body:
+          query:
+            match_all: {}
+  - do:
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {_version: 0}
+
+  # Delete by query with explicit version_type "internal" must fail (see previous for explanation)
+  - do:
+      catch: /illegal version value \[0\] for version type \[INTERNAL\]./
+      delete_by_query:
+        index: index1
+        refresh: true
+        body:
+          version_type: internal
+          query:
+            match_all: {}
+  - do:
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {_version: 0}
+
+  # Delete by query with version_type "external" is not supported
+  - do:
+      catch: /version type \[EXTERNAL\] is not supported./
+      delete_by_query:
+        index: index1
+        refresh: true
+        body:
+          version_type: external
+          query:
+            match_all: {}
+  - do:
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {_version: 0}
+
+  # Delete by query with version_type "external_gt" is not supported
+  - do:
+      catch: /version type \[EXTERNAL\] is not supported./
+      delete_by_query:
+        index: index1
+        refresh: true
+        body:
+          version_type: external_gt
+          query:
+            match_all: {}
+  - do:
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {_version: 0}
+
+  # Delete by query with version_type of "external_gte" is not supported
+  - do:
+      catch: /version type \[EXTERNAL_GTE\] is not supported./
+      delete_by_query:
+        index: index1
+        refresh: true
+        body:
+          version_type: external_gte
+          query:
+            match_all: {}
+  - do:
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {_version: 0}
+
+  # Delete by query with version_type of "force" must succeed
+  - do:
+      delete_by_query:
+        index: index1
+        refresh: true
+        body:
+          version_type: force
+          query:
+            match_all: {}
+  - match: {deleted: 1}
+  - match: {version_conflicts: 0}
+
+  - do:
+      catch: missing
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {found: false}
+
+
+---
+"delete_by_query with various versioning types and value greater than zero":
+  - do:
+      index:
+        index:        index1
+        type:         type1
+        id:           1
+        version:      123
+        version_type: external
+        body:    {"update": 0}
+  - do:
+      indices.refresh: {}
+
+  # Delete by query with default version_type ("internal") must succeed
+  - do:
+      delete_by_query:
+        index: index1
+        refresh: true
+        body:
+          query:
+            match_all: {}
+  - match: {deleted: 1}
+  - match: {version_conflicts: 0}
+
+  - do:
+      catch: missing
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {found: false}
+
+  # Delete by query with explicit version_type "internal" must succeed
+  - do:
+      index:
+        index:        index1
+        type:         type1
+        id:           2
+        version:      123
+        version_type: external
+        body:    {"update": 0}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      delete_by_query:
+        index: index1
+        refresh: true
+        body:
+          version_type: internal
+          query:
+            match_all: {}
+  - match: {deleted: 1}
+  - match: {version_conflicts: 0}
+
+  - do:
+      catch: missing
+      get:
+        index: index1
+        type:  type1
+        id:    2
+  - match: {found: false}
+
+  # Delete by query with version_type "external" is not supported
+  - do:
+      catch: /version type \[EXTERNAL\] is not supported./
+      delete_by_query:
+        index: index1
+        refresh: true
+        body:
+          version_type: external
+          query:
+            match_all: {}
+
+  # Delete by query with version_type "external_gt" is not supported
+  - do:
+      catch: /version type \[EXTERNAL\] is not supported./
+      delete_by_query:
+        index: index1
+        refresh: true
+        body:
+          version_type: external_gt
+          query:
+            match_all: {}
+
+  # Delete by query with version_type of "external_gte" is not supported
+  - do:
+      catch: /version type \[EXTERNAL_GTE\] is not supported./
+      delete_by_query:
+        index: index1
+        refresh: true
+        body:
+          version_type: external_gte
+          query:
+            match_all: {}
+
+  # Delete by query with version_type of "force" must succeed
+  - do:
+      index:
+        index:        index1
+        type:         type1
+        id:           3
+        version:      123
+        version_type: external
+        body:    {"update": 0}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      delete_by_query:
+        index: index1
+        refresh: true
+        body:
+          version_type: force
+          query:
+            match_all: {}
+  - match: {deleted: 1}
+  - match: {version_conflicts: 0}
+
+  - do:
+      catch: missing
+      get:
+        index: index1
+        type:  type1
+        id:    3
+  - match: {found: false}

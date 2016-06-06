@@ -19,15 +19,18 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.index.VersionType;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Request to update some documents. That means you can't change their type, id, index, or anything like that. This implements
@@ -36,6 +39,12 @@ import static java.util.Collections.unmodifiableList;
  * destination index and things.
  */
 public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<UpdateByQueryRequest> implements CompositeIndicesRequest {
+
+    /**
+     * Versioning type to set on index requests made by this action.
+     */
+    private VersionType versionType = VersionType.INTERNAL;
+
     /**
      * Ingest pipeline to set on index requests made by this action.
      */
@@ -62,9 +71,28 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
         return pipeline;
     }
 
+    public VersionType getVersionType() {
+        return versionType;
+    }
+
+    public void setVersionType(VersionType versionType) {
+        this.versionType = versionType;
+    }
+
     @Override
     protected UpdateByQueryRequest self() {
         return this;
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        ActionRequestValidationException e = super.validate();
+        if (versionType == null) {
+            e = addValidationError("version type is missing", e);
+        } else if (versionType != VersionType.INTERNAL && versionType != VersionType.FORCE) {
+            e = addValidationError("version type [" + versionType.toString() + "] is not supported", e);
+        }
+        return e;
     }
 
     @Override

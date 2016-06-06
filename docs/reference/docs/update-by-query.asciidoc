@@ -46,6 +46,30 @@ conflict if the document changes between the time when the snapshot was taken
 and when the index request is processed. When the versions match the document
 is updated and the version number is incremented.
 
+By default `_update_by_query` uses `internal` versioning and expects version
+numbers to be greater or equal to 1. If the version of documents are externally managed
+ and are equal to zero, executing `_update_by_query` will report version conflicts.
+In this specific case, you can change the version type from the default `internal`
+ to the `force` value. The documents will then be updated regardless of the version
+ of the stored documents. Note that forcing the version should be used with care.
+
+[source,js]
+--------------------------------------------------
+POST twitter/_update_by_query
+{
+  "query": {
+    "term": {
+      "user": "kimchy"
+    }
+  },
+  "version_type": "force" <1>
+}
+--------------------------------------------------
+// TEST[setup:twitter]
+
+<1> Indicates to use a forced version type. Possible values are either `internal`
+or `force`.
+
 All update and query failures cause the `_update_by_query` to abort and are
 returned in the `failures` of the response. The updates that have been
 performed still stick. In other words, the process is not rolled back, only

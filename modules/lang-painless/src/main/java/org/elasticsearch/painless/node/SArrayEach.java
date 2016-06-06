@@ -46,8 +46,7 @@ class SArrayEach extends AStatement {
     Type indexed = null;
     Cast cast = null;
 
-    SArrayEach(final Location location, final int maxLoopCounter,
-               final String type, final String name, final AExpression expression, final SBlock block) {
+    public SArrayEach(Location location, int maxLoopCounter, String type, String name, AExpression expression, SBlock block) {
         super(location);
 
         this.maxLoopCounter = maxLoopCounter;
@@ -59,6 +58,9 @@ class SArrayEach extends AStatement {
 
     @Override
     AStatement analyze(Variables variables) {
+        // Note that we do not need to analyze the expression as this must already be done
+        // in the parent to determine that the for each target type is an array.
+
         final Type type;
 
         try {

@@ -51,8 +51,7 @@ public class SEach extends AStatement {
     Method next = null;
     Cast cast = null;
 
-    public SEach(final Location location, final int maxLoopCounter,
-                 final String type, final String name, final AExpression expression, final SBlock block) {
+    public SEach(Location location, int maxLoopCounter, String type, String name, AExpression expression, SBlock block) {
         super(location);
 
         this.maxLoopCounter = maxLoopCounter;
@@ -73,7 +72,7 @@ public class SEach extends AStatement {
         if (sort == Sort.ARRAY) {
             return new SArrayEach(location, maxLoopCounter, type, name, expression, (SBlock)block).copy(this).analyze(variables);
         } else if (sort == Sort.DEF) {
-            throw location.createError(new UnsupportedOperationException("Cannot execute for each against def type."));
+            return new SDefEach(location, maxLoopCounter, type, name, expression, (SBlock)block).copy(this).analyze(variables);
         } else if (Iterable.class.isAssignableFrom(expression.actual.clazz)) {
             final Type type;
 

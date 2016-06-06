@@ -102,9 +102,12 @@ final class RequestLogger {
             HttpEntityEnclosingRequest enclosingRequest = (HttpEntityEnclosingRequest) request;
             if (enclosingRequest.getEntity() != null) {
                 requestLine += " -d '";
-                HttpEntity entity = new BufferedHttpEntity(enclosingRequest.getEntity());
-                enclosingRequest.setEntity(entity);
-                requestLine += EntityUtils.toString(entity) + "'";
+                HttpEntity entity = enclosingRequest.getEntity();
+                if (entity.isRepeatable() == false) {
+                    entity = new BufferedHttpEntity(enclosingRequest.getEntity());
+                    enclosingRequest.setEntity(entity);
+                }
+                requestLine += EntityUtils.toString(entity, StandardCharsets.UTF_8) + "'";
             }
         }
         return requestLine;
@@ -121,7 +124,9 @@ final class RequestLogger {
         responseLine += "\n#";
         HttpEntity entity = httpResponse.getEntity();
         if (entity != null) {
-            entity = new BufferedHttpEntity(entity);
+            if (entity.isRepeatable() == false) {
+                entity = new BufferedHttpEntity(entity);
+            }
             httpResponse.setEntity(entity);
             ContentType contentType = ContentType.get(entity);
             Charset charset = StandardCharsets.UTF_8;

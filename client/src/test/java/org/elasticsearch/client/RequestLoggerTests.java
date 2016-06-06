@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.HttpHost;
 import org.apache.http.ProtocolVersion;
@@ -30,11 +31,14 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpTrace;
+import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
+import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.LuceneTestCase;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -80,16 +84,27 @@ public class RequestLoggerTests extends LuceneTestCase {
         }
 
         String expected = "curl -iX " + request.getMethod() + " '" + host + uri + "'";
-
-        if (request instanceof HttpEntityEnclosingRequest && random().nextBoolean()) {
-            HttpEntityEnclosingRequest enclosingRequest = (HttpEntityEnclosingRequest) request;
-            String requestBody = "{ \"field\": \"value\" }";
-            enclosingRequest.setEntity(new StringEntity(requestBody, StandardCharsets.UTF_8));
+        boolean hasBody = request instanceof HttpEntityEnclosingRequest && random().nextBoolean();
+        String requestBody = "{ \"field\": \"value\" }";
+        if (hasBody) {
             expected += " -d '" + requestBody + "'";
+            HttpEntityEnclosingRequest enclosingRequest = (HttpEntityEnclosingRequest) request;
+            HttpEntity entity;
+            if (random().nextBoolean()) {
+                entity = new StringEntity(requestBody, StandardCharsets.UTF_8);
+            } else {
+                entity = new InputStreamEntity(new ByteArrayInputStream(requestBody.getBytes(StandardCharsets.UTF_8)));
+            }
+            enclosingRequest.setEntity(entity);
         }
 
         String traceRequest = RequestLogger.buildTraceRequest(request, host);
         assertThat(traceRequest, equalTo(expected));
+        if (hasBody) {
+            //check that the body is still readable as most entities are not repeatable
+            String body = EntityUtils.toString(((HttpEntityEnclosingRequest) request).getEntity(), StandardCharsets.UTF_8);
+            assertThat(body, equalTo(requestBody));
+        }
     }
 
     public void testTraceResponse() throws IOException {
@@ -105,15 +120,26 @@ public class RequestLoggerTests extends LuceneTestCase {
             expected += "\n# header" + i + ": value";
         }
         expected += "\n#";
-        if (random().nextBoolean()) {
-            String responseBody = "{\n  \"field\": \"value\"\n}";
-            httpResponse.setEntity(new StringEntity(responseBody, StandardCharsets.UTF_8));
+        boolean hasBody = random().nextBoolean();
+        String responseBody = "{\n  \"field\": \"value\"\n}";
+        if (hasBody) {
             expected += "\n# {";
             expected += "\n#   \"field\": \"value\"";
             expected += "\n# }";
+            HttpEntity entity;
+            if (random().nextBoolean()) {
+                entity = new StringEntity(responseBody, StandardCharsets.UTF_8);
+            } else {
+                entity = new InputStreamEntity(new ByteArrayInputStream(responseBody.getBytes(StandardCharsets.UTF_8)));
+            }
+            httpResponse.setEntity(entity);
         }
-
         String traceResponse = RequestLogger.buildTraceResponse(httpResponse);
         assertThat(traceResponse, equalTo(expected));
+        if (hasBody) {
+            //check that the body is still readable as most entities are not repeatable
+            String body = EntityUtils.toString(httpResponse.getEntity(), StandardCharsets.UTF_8);
+            assertThat(body, equalTo(responseBody));
+        }
     }
 }

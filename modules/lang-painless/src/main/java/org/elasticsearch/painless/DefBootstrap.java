@@ -1,5 +1,7 @@
 package org.elasticsearch.painless;
 
+import org.elasticsearch.common.SuppressForbidden;
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -115,6 +117,7 @@ public final class DefBootstrap {
          * Called when a new type is encountered (or, when we have encountered more than {@code MAX_DEPTH}
          * types at this call site and given up on caching).
          */
+        @SuppressForbidden(reason = "slow path")
         Object fallback(Object[] args) throws Throwable {
             final MethodType type = type();
             final Object receiver = args[0];

@@ -90,7 +90,8 @@
  * <p>
  * Generally, statement nodes have member data that evaluate legal control-flow during the analysis phase.
  * The typical order for statement nodes is for each node to call analyze on it's children during the analysis phase
- * and write on it's children during the writing phase.  No modifications are made to the structure of statement nodes.
+ * and write on it's children during the writing phase.  Upon analysis completion, a statement will return either
+ * itself or another statement node depending on if a shortcut or def type was found.
  * <p>
  * Generally, expression nodes have member data that evaluate static types.  The typical order for an expression node
  * during the analysis phase looks like the following:

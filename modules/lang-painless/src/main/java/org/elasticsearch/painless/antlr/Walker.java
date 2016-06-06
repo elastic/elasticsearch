@@ -53,6 +53,7 @@ import org.elasticsearch.painless.antlr.PainlessParser.DeclvarContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DelimiterContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DoContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DynamicContext;
+import org.elasticsearch.painless.antlr.PainlessParser.EachContext;
 import org.elasticsearch.painless.antlr.PainlessParser.EmptyContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ExprContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ExpressionContext;
@@ -118,6 +119,7 @@ import org.elasticsearch.painless.node.SContinue;
 import org.elasticsearch.painless.node.SDeclBlock;
 import org.elasticsearch.painless.node.SDeclaration;
 import org.elasticsearch.painless.node.SDo;
+import org.elasticsearch.painless.node.SEach;
 import org.elasticsearch.painless.node.SExpression;
 import org.elasticsearch.painless.node.SFor;
 import org.elasticsearch.painless.node.SIf;
@@ -269,6 +271,16 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         } else {
             throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
         }
+    }
+
+    @Override
+    public Object visitEach(EachContext ctx) {
+        String type = ctx.decltype().getText();
+        String name = ctx.ID().getText();
+        AExpression expression = (AExpression)visit(ctx.expression());
+        SBlock block = (SBlock)visit(ctx.trailer());
+
+        return new SEach(location(ctx), type, name, expression, block);
     }
 
     @Override

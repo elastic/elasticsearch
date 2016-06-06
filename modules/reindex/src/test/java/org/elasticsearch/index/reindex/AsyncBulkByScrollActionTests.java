@@ -589,7 +589,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
     public void testCancelBeforeOnBulkResponse() throws Exception {
         // We bail so early we don't need to pass in a half way valid response.
-        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) -> action.onBulkResponse(null));
+        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) ->
+                action.onBulkResponse(new BulkResponse(new BulkItemResponse[0], 0)));
     }
 
     public void testCancelBeforeStartNextScroll() throws Exception {

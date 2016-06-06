@@ -38,10 +38,23 @@ import java.util.Objects;
  */
 public final class Definition {
     
-    private static final String DEFINITION_FILE = "definition.txt";
+    private static final List<String> DEFINITION_FILES = Collections.unmodifiableList(
+        Arrays.asList("org.elasticsearch.txt", 
+                      "java.lang.txt",
+                      "java.math.txt",
+                      "java.text.txt",
+                      "java.time.txt",
+                      "java.time.chrono.txt",
+                      "java.time.format.txt",
+                      "java.time.temporal.txt",
+                      "java.time.zone.txt",
+                      "java.util.txt",
+                      "java.util.function.txt",
+                      "java.util.stream.txt",
+                      "joda.time.txt"));
 
     private static final Definition INSTANCE = new Definition();
-    
+
     /** Some native types as constants: */
     public static final Type VOID_TYPE = getType("void");
     public static final Type BOOLEAN_TYPE = getType("boolean");
@@ -151,6 +164,11 @@ public final class Definition {
 
             return result;
         }
+
+        @Override
+        public String toString() {
+            return name;
+        }
     }
 
     public static final class Constructor {
@@ -158,15 +176,13 @@ public final class Definition {
         public final Struct owner;
         public final List<Type> arguments;
         public final org.objectweb.asm.commons.Method method;
-        public final java.lang.reflect.Constructor<?> reflect;
 
-        private Constructor(final String name, final Struct owner, final List<Type> arguments,
-                            final org.objectweb.asm.commons.Method method, final java.lang.reflect.Constructor<?> reflect) {
+        private Constructor(String name, Struct owner, List<Type> arguments,
+                            org.objectweb.asm.commons.Method method) {
             this.name = name;
             this.owner = owner;
             this.arguments = Collections.unmodifiableList(arguments);
             this.method = method;
-            this.reflect = reflect;
         }
     }
 
@@ -176,18 +192,17 @@ public final class Definition {
         public final Type rtn;
         public final List<Type> arguments;
         public final org.objectweb.asm.commons.Method method;
-        public final java.lang.reflect.Method reflect;
+        public final int modifiers;
         public final MethodHandle handle;
 
-        private Method(final String name, final Struct owner, final Type rtn, final List<Type> arguments,
-                       final org.objectweb.asm.commons.Method method, final java.lang.reflect.Method reflect,
-                       final MethodHandle handle) {
+        private Method(String name, Struct owner, Type rtn, List<Type> arguments,
+                       org.objectweb.asm.commons.Method method, int modifiers, MethodHandle handle) {
             this.name = name;
             this.owner = owner;
             this.rtn = rtn;
             this.arguments = Collections.unmodifiableList(arguments);
             this.method = method;
-            this.reflect = reflect;
+            this.modifiers = modifiers;
             this.handle = handle;
         }
     }
@@ -196,16 +211,17 @@ public final class Definition {
         public final String name;
         public final Struct owner;
         public final Type type;
-        public final java.lang.reflect.Field reflect;
-        public final MethodHandle getter;
-        public final MethodHandle setter;
+        public final String javaName;
+        public final int modifiers;
+        private final MethodHandle getter;
+        private final MethodHandle setter;
 
-        private Field(final String name, final Struct owner, final Type type,
-                      final java.lang.reflect.Field reflect, final MethodHandle getter, final MethodHandle setter) {
+        private Field(String name, String javaName, Struct owner, Type type, int modifiers, MethodHandle getter, MethodHandle setter) {
             this.name = name;
+            this.javaName = javaName;
             this.owner = owner;
             this.type = type;
-            this.reflect = reflect;
+            this.modifiers = modifiers;
             this.getter = getter;
             this.setter = setter;
         }
@@ -290,7 +306,7 @@ public final class Definition {
             staticMembers = new HashMap<>();
             members = new HashMap<>();
         }
-        
+
         private Struct(final Struct struct) {
             name = struct.name;
             clazz = struct.clazz;
@@ -374,6 +390,22 @@ public final class Definition {
         }
     }
 
+    /** Returns whether or not a non-array type exists. */
+    public static boolean isSimpleType(final String name) {
+        return INSTANCE.structsMap.containsKey(name);
+    }
+
+    /** Returns whether or not a type exists without an exception. */
+    public static boolean isType(final String name) {
+        try {
+            INSTANCE.getTypeInternal(name);
+
+            return true;
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
+    }
+
     /** Gets the type given by its name */
     public static Type getType(final String name) {
         return INSTANCE.getTypeInternal(name);
@@ -383,13 +415,13 @@ public final class Definition {
     public static Type getType(final Struct struct, final int dimensions) {
         return INSTANCE.getTypeInternal(struct, dimensions);
     }
-    
+
     public static RuntimeClass getRuntimeClass(Class<?> clazz) {
         return INSTANCE.runtimeMap.get(clazz);
     }
-    
+
     // INTERNAL IMPLEMENTATION:
-    
+
     private final Map<Class<?>, RuntimeClass> runtimeMap;
     private final Map<String, Struct> structsMap;
     private final Map<String, Type> simpleTypesMap;
@@ -420,102 +452,106 @@ public final class Definition {
     /** adds classes from definition. returns hierarchy */
     private Map<String,List<String>> addStructs() {
         final Map<String,List<String>> hierarchy = new HashMap<>();
-        int currentLine = -1;
-        try {
-            try (InputStream stream = Definition.class.getResourceAsStream(DEFINITION_FILE);
-                    LineNumberReader reader = new LineNumberReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-                String line = null;
-                while ((line = reader.readLine()) != null) {
-                    currentLine = reader.getLineNumber();
-                    line = line.trim();
-                    if (line.length() == 0 || line.charAt(0) == '#') {
-                        continue;
-                    }
-                    if (line.startsWith("class ")) {
-                        String elements[] = line.split("\u0020");
-                        assert elements[2].equals("->");
-                        if (elements.length == 7) {
-                            hierarchy.put(elements[1], Arrays.asList(elements[5].split(",")));
-                        } else {
-                            assert elements.length == 5;
+        for (String file : DEFINITION_FILES) {
+            int currentLine = -1;
+            try {
+                try (InputStream stream = Definition.class.getResourceAsStream(file);
+                        LineNumberReader reader = new LineNumberReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                    String line = null;
+                    while ((line = reader.readLine()) != null) {
+                        currentLine = reader.getLineNumber();
+                        line = line.trim();
+                        if (line.length() == 0 || line.charAt(0) == '#') {
+                            continue;
                         }
-                        String className = elements[1];
-                        String javaPeer = elements[3];
-                        final Class<?> javaClazz;
-                        switch (javaPeer) {
-                            case "void":
-                                javaClazz = void.class;
-                                break;
-                            case "boolean":
-                                javaClazz = boolean.class;
-                                break;
-                            case "byte":
-                                javaClazz = byte.class;
-                                break;
-                            case "short":
-                                javaClazz = short.class;
-                                break;
-                            case "char":
-                                javaClazz = char.class;
-                                break;
-                            case "int":
-                                javaClazz = int.class;
-                                break;
-                            case "long":
-                                javaClazz = long.class;
-                                break;
-                            case "float":
-                                javaClazz = float.class;
-                                break;
-                            case "double":
-                                javaClazz = double.class;
-                                break;
-                            default:
-                                javaClazz = Class.forName(javaPeer);
-                                break;
+                        if (line.startsWith("class ")) {
+                            String elements[] = line.split("\u0020");
+                            assert elements[2].equals("->");
+                            if (elements.length == 7) {
+                                hierarchy.put(elements[1], Arrays.asList(elements[5].split(",")));
+                            } else {
+                                assert elements.length == 5;
+                            }
+                            String className = elements[1];
+                            String javaPeer = elements[3];
+                            final Class<?> javaClazz;
+                            switch (javaPeer) {
+                                case "void":
+                                    javaClazz = void.class;
+                                    break;
+                                case "boolean":
+                                    javaClazz = boolean.class;
+                                    break;
+                                case "byte":
+                                    javaClazz = byte.class;
+                                    break;
+                                case "short":
+                                    javaClazz = short.class;
+                                    break;
+                                case "char":
+                                    javaClazz = char.class;
+                                    break;
+                                case "int":
+                                    javaClazz = int.class;
+                                    break;
+                                case "long":
+                                    javaClazz = long.class;
+                                    break;
+                                case "float":
+                                    javaClazz = float.class;
+                                    break;
+                                case "double":
+                                    javaClazz = double.class;
+                                    break;
+                                default:
+                                    javaClazz = Class.forName(javaPeer);
+                                    break;
+                            }
+                            addStruct(className, javaClazz);
                         }
-                        addStruct(className, javaClazz);
                     }
                 }
+            } catch (Exception e) {
+                throw new RuntimeException("syntax error in " + file + ", line: " + currentLine, e);
             }
-        } catch (Exception e) {
-            throw new RuntimeException("syntax error in definition line: " + currentLine, e);
         }
         return hierarchy;
     }
 
     /** adds class methods/fields/ctors */
     private void addElements() {
-        int currentLine = -1;
-        try {
-            try (InputStream stream = Definition.class.getResourceAsStream(DEFINITION_FILE);
-                 LineNumberReader reader = new LineNumberReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-                String line = null;
-                String currentClass = null;
-                while ((line = reader.readLine()) != null) {
-                    currentLine = reader.getLineNumber();
-                    line = line.trim();
-                    if (line.length() == 0 || line.charAt(0) == '#') {
-                        continue;
-                    } else if (line.startsWith("class ")) {
-                        assert currentClass == null;
-                        currentClass = line.split("\u0020")[1];
-                    } else if (line.equals("}")) {
-                        assert currentClass != null;
-                        currentClass = null;
-                    } else {
-                        assert currentClass != null;
-                        addSignature(currentClass, line);
+        for (String file : DEFINITION_FILES) {
+            int currentLine = -1;
+            try {
+                try (InputStream stream = Definition.class.getResourceAsStream(file);
+                        LineNumberReader reader = new LineNumberReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                    String line = null;
+                    String currentClass = null;
+                    while ((line = reader.readLine()) != null) {
+                        currentLine = reader.getLineNumber();
+                        line = line.trim();
+                        if (line.length() == 0 || line.charAt(0) == '#') {
+                            continue;
+                        } else if (line.startsWith("class ")) {
+                            assert currentClass == null;
+                            currentClass = line.split("\u0020")[1];
+                        } else if (line.equals("}")) {
+                            assert currentClass != null;
+                            currentClass = null;
+                        } else {
+                            assert currentClass != null;
+                            addSignature(currentClass, line);
+                        }
                     }
                 }
+            } catch (Exception e) {
+                throw new RuntimeException("syntax error in " + file + ", line: " + currentLine, e);
             }
-        } catch (Exception e) {
-            throw new RuntimeException("syntax error in definition line: " + currentLine, e);
         }
     }
 
     private final void addStruct(final String name, final Class<?> clazz) {
-        if (!name.matches("^[_a-zA-Z][<>,_a-zA-Z0-9]*$")) {
+        if (!name.matches("^[_a-zA-Z][\\.,_a-zA-Z0-9]*$")) {
             throw new IllegalArgumentException("Invalid struct name [" + name + "].");
         }
 
@@ -575,7 +611,7 @@ public final class Definition {
         }
 
         final org.objectweb.asm.commons.Method asm = org.objectweb.asm.commons.Method.getMethod(reflect);
-        final Constructor constructor = new Constructor(name, owner, Arrays.asList(args), asm, reflect);
+        final Constructor constructor = new Constructor(name, owner, Arrays.asList(args), asm);
 
         owner.constructors.put(methodKey, constructor);
     }
@@ -697,8 +733,8 @@ public final class Definition {
                 " with arguments " + Arrays.toString(classes) + ".");
         }
 
-        final Method method = new Method(name, owner, rtn, Arrays.asList(args), asm, reflect, handle);
         final int modifiers = reflect.getModifiers();
+        final Method method = new Method(name, owner, rtn, Arrays.asList(args), asm, modifiers, handle);
 
         if (java.lang.reflect.Modifier.isStatic(modifiers)) {
             owner.staticMethods.put(methodKey, method);
@@ -751,7 +787,7 @@ public final class Definition {
                 " not found for class [" + owner.clazz.getName() + "].");
         }
 
-        final Field field = new Field(name, owner, type, reflect, getter, setter);
+        final Field field = new Field(name, reflect.getName(), owner, type, modifiers, getter, setter);
 
         if (isStatic) {
             // require that all static fields are static final
@@ -766,7 +802,7 @@ public final class Definition {
         }
     }
 
-    private final void copyStruct(final String struct, List<String> children) {
+    private void copyStruct(String struct, List<String> children) {
         final Struct owner = structsMap.get(struct);
 
         if (owner == null) {
@@ -776,7 +812,7 @@ public final class Definition {
         for (int count = 0; count < children.size(); ++count) {
             final Struct child = structsMap.get(children.get(count));
 
-            if (struct == null) {
+            if (child == null) {
                 throw new IllegalArgumentException("Child struct [" + children.get(count) + "]" +
                     " not defined for copy to owner struct [" + owner.name + "].");
             }
@@ -786,62 +822,19 @@ public final class Definition {
                     " is not a super type of owner struct [" + owner.name + "] in copy.");
             }
 
-            final boolean object = child.clazz.equals(Object.class) &&
-                java.lang.reflect.Modifier.isInterface(owner.clazz.getModifiers());
-
             for (Map.Entry<MethodKey,Method> kvPair : child.methods.entrySet()) {
                 MethodKey methodKey = kvPair.getKey();
                 Method method = kvPair.getValue();
                 if (owner.methods.get(methodKey) == null) {
-                    final Class<?> clazz = object ? Object.class : owner.clazz;
-
-                    java.lang.reflect.Method reflect;
-                    MethodHandle handle;
-
-                    try {
-                        reflect = clazz.getMethod(method.method.getName(), method.reflect.getParameterTypes());
-                    } catch (final NoSuchMethodException exception) {
-                        throw new IllegalArgumentException("Method [" + method.method.getName() + "] not found for" +
-                            " class [" + owner.clazz.getName() + "] with arguments " +
-                            Arrays.toString(method.reflect.getParameterTypes()) + ".");
-                    }
-
-                    try {
-                        handle = MethodHandles.publicLookup().in(owner.clazz).unreflect(reflect);
-                    } catch (final IllegalAccessException exception) {
-                        throw new IllegalArgumentException("Method [" + method.method.getName() + "] not found for" +
-                            " class [" + owner.clazz.getName() + "] with arguments " +
-                            Arrays.toString(method.reflect.getParameterTypes()) + ".");
-                    }
-
                     owner.methods.put(methodKey,
-                        new Method(method.name, owner, method.rtn, method.arguments, method.method, reflect, handle));
+                        new Method(method.name, owner, method.rtn, method.arguments, method.method, method.modifiers, method.handle));
                 }
             }
 
-            for (final Field field : child.members.values()) {
+            for (Field field : child.members.values()) {
                 if (owner.members.get(field.name) == null) {
-                    java.lang.reflect.Field reflect;
-                    MethodHandle getter;
-                    MethodHandle setter;
-
-                    try {
-                        reflect = owner.clazz.getField(field.reflect.getName());
-                    } catch (final NoSuchFieldException exception) {
-                        throw new IllegalArgumentException("Field [" + field.reflect.getName() + "]" +
-                            " not found for class [" + owner.clazz.getName() + "].");
-                    }
-
-                    try {
-                        getter = MethodHandles.publicLookup().unreflectGetter(reflect);
-                        setter = MethodHandles.publicLookup().unreflectSetter(reflect);
-                    } catch (final IllegalAccessException exception) {
-                        throw new IllegalArgumentException("Getter/Setter [" + field.name + "]" +
-                            " not found for class [" + owner.clazz.getName() + "].");
-                    }
-
                     owner.members.put(field.name,
-                        new Field(field.name, owner, field.type, reflect, getter, setter));
+                        new Field(field.name, field.javaName, owner, field.type, field.modifiers, field.getter, field.setter));
                 }
             }
         }
@@ -898,15 +891,17 @@ public final class Definition {
         runtimeMap.put(struct.clazz, new RuntimeClass(methods, getters, setters));
     }
 
-    private Type getTypeInternal(final String name) {
+    private Type getTypeInternal(String name) {
         // simple types (e.g. 0 array dimensions) are a simple hash lookup for speed
         Type simple = simpleTypesMap.get(name);
+
         if (simple != null) {
             return simple;
         }
-        final int dimensions = getDimensions(name);
-        final String structstr = dimensions == 0 ? name : name.substring(0, name.indexOf('['));
-        final Struct struct = structsMap.get(structstr);
+
+        int dimensions = getDimensions(name);
+        String structstr = dimensions == 0 ? name : name.substring(0, name.indexOf('['));
+        Struct struct = structsMap.get(structstr);
 
         if (struct == null) {
             throw new IllegalArgumentException("The struct with name [" + name + "] has not been defined.");
@@ -915,29 +910,29 @@ public final class Definition {
         return getTypeInternal(struct, dimensions);
     }
 
-    private Type getTypeInternal(final Struct struct, final int dimensions) {
+    private Type getTypeInternal(Struct struct, int dimensions) {
         String name = struct.name;
         org.objectweb.asm.Type type = struct.type;
         Class<?> clazz = struct.clazz;
         Sort sort;
 
         if (dimensions > 0) {
-            final StringBuilder builder = new StringBuilder(name);
-            final char[] brackets = new char[dimensions];
+            StringBuilder builder = new StringBuilder(name);
+            char[] brackets = new char[dimensions];
 
             for (int count = 0; count < dimensions; ++count) {
                 builder.append("[]");
                 brackets[count] = '[';
             }
 
-            final String descriptor = new String(brackets) + struct.type.getDescriptor();
+            String descriptor = new String(brackets) + struct.type.getDescriptor();
 
             name = builder.toString();
             type = org.objectweb.asm.Type.getType(descriptor);
 
             try {
                 clazz = Class.forName(type.getInternalName().replace('/', '.'));
-            } catch (final ClassNotFoundException exception) {
+            } catch (ClassNotFoundException exception) {
                 throw new IllegalArgumentException("The class [" + type.getInternalName() + "]" +
                     " could not be found to create type [" + name + "].");
             }
@@ -948,7 +943,7 @@ public final class Definition {
         } else {
             sort = Sort.OBJECT;
 
-            for (final Sort value : Sort.values()) {
+            for (Sort value : Sort.values()) {
                 if (value.clazz == null) {
                     continue;
                 }
@@ -964,12 +959,12 @@ public final class Definition {
         return new Type(name, dimensions, struct, clazz, type, sort);
     }
 
-    private int getDimensions(final String name) {
+    private int getDimensions(String name) {
         int dimensions = 0;
         int index = name.indexOf('[');
 
         if (index != -1) {
-            final int length = name.length();
+            int length = name.length();
 
             while (index < length) {
                 if (name.charAt(index) == '[' && ++index < length && name.charAt(index++) == ']') {

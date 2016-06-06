@@ -45,6 +45,7 @@ import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Filter results of a query to include only those within a specific distance to some
@@ -330,7 +331,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         builder.endObject();
     }
 
-    public static GeoDistanceQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<GeoDistanceQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token;
@@ -445,7 +446,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         qb.boost(boost);
         qb.queryName(queryName);
         qb.ignoreUnmapped(ignoreUnmapped);
-        return qb;
+        return Optional.of(qb);
     }
 
     @Override

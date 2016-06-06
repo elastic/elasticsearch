@@ -157,7 +157,7 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
             setClusterReadOnly(true);
             GetSnapshotsResponse response = client().admin().cluster().prepareGetSnapshots(REPOSITORY_NAME).execute().actionGet();
             assertThat(response.getSnapshots(), hasSize(1));
-            assertThat(response.getSnapshots().get(0).name(), equalTo(SNAPSHOT_NAME));
+            assertThat(response.getSnapshots().get(0).snapshotId().getName(), equalTo(SNAPSHOT_NAME));
         } finally {
             setClusterReadOnly(false);
         }

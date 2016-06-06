@@ -179,12 +179,32 @@ public class ESExceptionTests extends ESTestCase {
         }
     }
 
+    /**
+     * Check whether this exception contains an exception of the given type:
+     * either it is of the given class itself or it contains a nested cause
+     * of the given type.
+     *
+     * @param exType the exception type to look for
+     * @return whether there is a nested exception of the specified type
+     */
+    private boolean contains(Throwable t, Class<? extends Throwable> exType) {
+        if (exType == null) {
+            return false;
+        }
+        for (Throwable cause = t; t != null; t = t.getCause()) {
+            if (exType.isInstance(cause)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public void testGetRootCause() {
         Exception root = new RuntimeException("foobar");
         ElasticsearchException exception = new ElasticsearchException("foo", new ElasticsearchException("bar", new IllegalArgumentException("index is closed", root)));
         assertEquals(root, exception.getRootCause());
-        assertTrue(exception.contains(RuntimeException.class));
-        assertFalse(exception.contains(EOFException.class));
+        assertTrue(contains(exception, RuntimeException.class));
+        assertFalse(contains(exception, EOFException.class));
     }
 
     public void testToString() {

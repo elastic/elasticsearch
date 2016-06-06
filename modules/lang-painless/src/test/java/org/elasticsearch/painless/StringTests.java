@@ -162,32 +162,24 @@ public class StringTests extends ScriptTestCase {
         assertEquals('c', exec("String s = \"c\"; (char)s"));
         assertEquals('c', exec("String s = 'c'; (char)s"));
 
-        try {
+        ClassCastException expected = expectScriptThrows(ClassCastException.class, () -> {
             assertEquals("cc", exec("return (String)(char)\"cc\""));
-            fail();
-        } catch (final ClassCastException cce) {
-            assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
-        }
+        });
+        assertTrue(expected.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
 
-        try {
+        expected = expectScriptThrows(ClassCastException.class, () -> {
             assertEquals("cc", exec("return (String)(char)'cc'"));
-            fail();
-        } catch (final ClassCastException cce) {
-            assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
-        }
+        });
+        assertTrue(expected.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
 
-        try {
+        expected = expectScriptThrows(ClassCastException.class, () -> {
             assertEquals('c', exec("String s = \"cc\"; (char)s"));
-            fail();
-        } catch (final ClassCastException cce) {
-            assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
-        }
+        });
+        assertTrue(expected.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
 
-        try {
+        expected = expectScriptThrows(ClassCastException.class, () -> {
             assertEquals('c', exec("String s = 'cc'; (char)s"));
-            fail();
-        } catch (final ClassCastException cce) {
-            assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
-        }
+        });
+        assertTrue(expected.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
     }
 }

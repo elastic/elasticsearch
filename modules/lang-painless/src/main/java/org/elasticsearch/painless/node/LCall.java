@@ -20,7 +20,9 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
@@ -37,8 +39,8 @@ public final class LCall extends ALink {
 
     Method method = null;
 
-    public LCall(int line, String location, String name, List<AExpression> arguments) {
-        super(line, location, -1);
+    public LCall(Location location, String name, List<AExpression> arguments) {
+        super(location, -1);
 
         this.name = name;
         this.arguments = arguments;
@@ -47,20 +49,20 @@ public final class LCall extends ALink {
     @Override
     ALink analyze(Variables variables) {
         if (before == null) {
-            throw new IllegalStateException(error("Illegal tree structure."));
-        } else if (before.sort == Definition.Sort.ARRAY) {
-            throw new IllegalArgumentException(error("Illegal call [" + name + "] on array type."));
+            throw createError(new IllegalArgumentException("Illegal call [" + name + "] made without target."));
+        } else if (before.sort == Sort.ARRAY) {
+            throw createError(new IllegalArgumentException("Illegal call [" + name + "] on array type."));
         } else if (store) {
-            throw new IllegalArgumentException(error("Cannot assign a value to a call [" + name + "]."));
+            throw createError(new IllegalArgumentException("Cannot assign a value to a call [" + name + "]."));
         }
 
         Definition.MethodKey methodKey = new Definition.MethodKey(name, arguments.size());
-        final Struct struct = before.struct;
+        Struct struct = before.struct;
         method = statik ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
 
         if (method != null) {
             for (int argument = 0; argument < arguments.size(); ++argument) {
-                final AExpression expression = arguments.get(argument);
+                AExpression expression = arguments.get(argument);
 
                 expression.expected = method.arguments.get(argument);
                 expression.internal = true;
@@ -72,43 +74,44 @@ public final class LCall extends ALink {
             after = method.rtn;
 
             return this;
-        } else if (before.sort == Definition.Sort.DEF) {
-            final ALink link = new LDefCall(line, location, name, arguments);
+        } else if (before.sort == Sort.DEF) {
+            ALink link = new LDefCall(location, name, arguments);
             link.copy(this);
 
             return link.analyze(variables);
         }
 
-        throw new IllegalArgumentException(error("Unknown call [" + name + "] with [" + arguments.size() +
+        throw createError(new IllegalArgumentException("Unknown call [" + name + "] with [" + arguments.size() +
                                                  "] arguments on type [" + struct.name + "]."));
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter adapter) {
-        for (final AExpression argument : arguments) {
-            argument.write(adapter);
+    void load(MethodWriter writer) {
+        writer.writeDebugInfo(location);
+        for (AExpression argument : arguments) {
+            argument.write(writer);
         }
 
-        if (java.lang.reflect.Modifier.isStatic(method.reflect.getModifiers())) {
-            adapter.invokeStatic(method.owner.type, method.method);
+        if (java.lang.reflect.Modifier.isStatic(method.modifiers)) {
+            writer.invokeStatic(method.owner.type, method.method);
         } else if (java.lang.reflect.Modifier.isInterface(method.owner.clazz.getModifiers())) {
-            adapter.invokeInterface(method.owner.type, method.method);
+            writer.invokeInterface(method.owner.type, method.method);
         } else {
-            adapter.invokeVirtual(method.owner.type, method.method);
+            writer.invokeVirtual(method.owner.type, method.method);
         }
 
         if (!method.rtn.clazz.equals(method.handle.type().returnType())) {
-            adapter.checkCast(method.rtn.type);
+            writer.checkCast(method.rtn.type);
         }
     }
 
     @Override
-    void store(MethodWriter adapter) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+    void store(MethodWriter writer) {
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

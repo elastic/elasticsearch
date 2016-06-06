@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -28,8 +29,8 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class EBoolean extends AExpression {
 
-    public EBoolean(int line, String location, boolean constant) {
-        super(line, location);
+    public EBoolean(Location location, boolean constant) {
+        super(location);
 
         this.constant = constant;
     }
@@ -41,6 +42,6 @@ public final class EBoolean extends AExpression {
 
     @Override
     void write(MethodWriter adapter) {
-        throw new IllegalArgumentException(error("Illegal tree structure."));
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

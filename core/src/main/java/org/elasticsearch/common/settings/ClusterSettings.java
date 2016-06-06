@@ -24,7 +24,7 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.bootstrap.BootstrapSettings;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.ClusterModule;
@@ -81,7 +81,6 @@ import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.repositories.uri.URLRepository;
@@ -332,7 +331,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Environment.PATH_DATA_SETTING,
                     Environment.PATH_HOME_SETTING,
                     Environment.PATH_LOGS_SETTING,
-                    Environment.PATH_PLUGINS_SETTING,
                     Environment.PATH_REPO_SETTING,
                     Environment.PATH_SCRIPTS_SETTING,
                     Environment.PATH_SHARED_DATA_SETTING,
@@ -408,7 +406,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     PageCacheRecycler.TYPE_SETTING,
                     PluginsService.MANDATORY_SETTING,
                     BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING,
-                    BootstrapSettings.MLOCKALL_SETTING,
+                    BootstrapSettings.MEMORY_LOCK_SETTING,
                     BootstrapSettings.SECCOMP_SETTING,
                     BootstrapSettings.CTRLHANDLER_SETTING,
                     BootstrapSettings.IGNORE_SYSTEM_BOOTSTRAP_CHECKS,

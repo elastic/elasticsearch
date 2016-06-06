@@ -25,7 +25,7 @@ public class OverloadTests extends ScriptTestCase {
     public void testMethod() {
         assertEquals(2, exec("return 'abc123abc'.indexOf('c');"));
         assertEquals(8, exec("return 'abc123abc'.indexOf('c', 3);"));
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("return 'abc123abc'.indexOf('c', 3, 'bogus');");
         });
         assertTrue(expected.getMessage().contains("[indexOf] with [3] arguments"));
@@ -34,19 +34,21 @@ public class OverloadTests extends ScriptTestCase {
     public void testMethodDynamic() {
         assertEquals(2, exec("def x = 'abc123abc'; return x.indexOf('c');"));
         assertEquals(8, exec("def x = 'abc123abc'; return x.indexOf('c', 3);"));
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("def x = 'abc123abc'; return x.indexOf('c', 3, 'bogus');");
         });
         assertTrue(expected.getMessage().contains("dynamic method [indexOf] with signature [(String,int,String)"));
     }
     
     public void testConstructor() {
-        assertEquals(true, exec("FeatureTest f = new FeatureTest(); return f.x == 0 && f.y == 0;"));
-        assertEquals(true, exec("FeatureTest f = new FeatureTest(1, 2); return f.x == 1 && f.y == 2;"));
+        assertEquals(true, exec("org.elasticsearch.painless.FeatureTest f = new org.elasticsearch.painless.FeatureTest();" +
+                                "return f.x == 0 && f.y == 0;"));
+        assertEquals(true, exec("org.elasticsearch.painless.FeatureTest f = new org.elasticsearch.painless.FeatureTest(1, 2);" +
+                                "return f.x == 1 && f.y == 2;"));
     }
     
     public void testStatic() {
-        assertEquals(true, exec("return FeatureTest.overloadedStatic();"));
-        assertEquals(false, exec("return FeatureTest.overloadedStatic(false);"));
+        assertEquals(true, exec("return org.elasticsearch.painless.FeatureTest.overloadedStatic();"));
+        assertEquals(false, exec("return org.elasticsearch.painless.FeatureTest.overloadedStatic(false);"));
     }
 }

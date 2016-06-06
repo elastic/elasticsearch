@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;

@@ -376,14 +376,20 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
          * Initializes a new empty index, to be restored from a snapshot
          */
         public Builder initializeAsNewRestore(IndexMetaData indexMetaData, RestoreSource restoreSource, IntSet ignoreShards) {
-            return initializeAsRestore(indexMetaData, restoreSource, ignoreShards, true, new UnassignedInfo(UnassignedInfo.Reason.NEW_INDEX_RESTORED, "restore_source[" + restoreSource.snapshotId().getRepository() + "/" + restoreSource.snapshotId().getSnapshot() + "]"));
+            final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NEW_INDEX_RESTORED,
+                                                                     "restore_source[" + restoreSource.snapshot().getRepository() + "/" +
+                                                                         restoreSource.snapshot().getSnapshotId().getName() + "]");
+            return initializeAsRestore(indexMetaData, restoreSource, ignoreShards, true, unassignedInfo);
         }
 
         /**
          * Initializes an existing index, to be restored from a snapshot
          */
         public Builder initializeAsRestore(IndexMetaData indexMetaData, RestoreSource restoreSource) {
-            return initializeAsRestore(indexMetaData, restoreSource, null, false, new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED, "restore_source[" + restoreSource.snapshotId().getRepository() + "/" + restoreSource.snapshotId().getSnapshot() + "]"));
+            final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
+                                                                     "restore_source[" + restoreSource.snapshot().getRepository() + "/" +
+                                                                         restoreSource.snapshot().getSnapshotId().getName() + "]");
+            return initializeAsRestore(indexMetaData, restoreSource, null, false, unassignedInfo);
         }
 
         /**
@@ -486,10 +492,10 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
          * Adds a new shard routing (makes a copy of it), with reference data used from the index shard routing table
          * if it needs to be created.
          */
-        public Builder addShard(IndexShardRoutingTable refData, ShardRouting shard) {
+        public Builder addShard(ShardRouting shard) {
             IndexShardRoutingTable indexShard = shards.get(shard.id());
             if (indexShard == null) {
-                indexShard = new IndexShardRoutingTable.Builder(refData.shardId()).addShard(shard).build();
+                indexShard = new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard).build();
             } else {
                 indexShard = new IndexShardRoutingTable.Builder(indexShard).addShard(shard).build();
             }

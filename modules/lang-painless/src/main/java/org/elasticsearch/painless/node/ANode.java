@@ -19,41 +19,22 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Label;
+import org.elasticsearch.painless.Location;
 
 /**
  * The superclass for all other nodes.
  */
 public abstract class ANode {
-
     /**
-     * The line number in the original source used for debug messages.
+     * The identifier of the script and character offset used for debugging and errors.
      */
-    final int line;
+    final Location location;
 
-    /**
-     * The location in the original source to be printed in error messages.
-     */
-    final String location;
-
-    ANode(final int line, final String location) {
-        this.line = line;
+    ANode(Location location) {
         this.location = location;
     }
-
-    public String error(final String message) {
-        return "Error " + location  + ": " + message;
-    }
     
-    /** 
-     * Writes line number information
-     * <p>
-     * Currently we emit line number data for for leaf S-nodes
-     */
-    void writeDebugInfo(MethodWriter adapter) {
-        Label label = new Label();
-        adapter.visitLabel(label);
-        adapter.visitLineNumber(line, label);
+    public RuntimeException createError(RuntimeException exception) {
+        return location.createError(exception);
     }
 }

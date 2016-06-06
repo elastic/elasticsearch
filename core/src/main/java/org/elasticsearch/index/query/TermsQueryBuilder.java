@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -238,7 +239,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         builder.endObject();
     }
 
-    public static TermsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<TermsQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -289,9 +290,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] query requires a field name, " +
                     "followed by array of terms or a document lookup specification");
         }
-        return new TermsQueryBuilder(fieldName, values, termsLookup)
+        return Optional.of(new TermsQueryBuilder(fieldName, values, termsLookup)
                 .boost(boost)
-                .queryName(queryName);
+                .queryName(queryName));
     }
 
     private static List<Object> parseValues(XContentParser parser) throws IOException {

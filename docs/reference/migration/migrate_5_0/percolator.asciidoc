@@ -47,3 +47,60 @@ the existing document.
 ==== Percolate Stats
 
 The percolate stats have been removed. This is because the percolator no longer caches the percolator queries.
+
+==== Java client
+
+The percolator is no longer part of the core elasticsearch dependency. It has moved to the percolator module.
+Therefor when using the percolator feature from the Java client the new percolator module should also be on the
+classpath. Also the transport client should load the percolator module as plugin:
+
+[source,java]
+--------------------------------------------------
+TransportClient transportClient = TransportClient.builder()
+        .settings(Settings.builder().put("node.name", "node"))
+        .addPlugin(PercolatorPlugin.class)
+        .build();
+transportClient.addTransportAddress(
+        new InetSocketTransportAddress(new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 9300))
+);
+--------------------------------------------------
+
+The percolator and multi percolate related methods from the `Client` interface have been removed. These APIs have been
+deprecated and it is recommended to use the `percolate` query in either the search or multi search APIs. However the
+percolate and multi percolate APIs can still be used from the Java client.
+
+Using percolate request:
+
+[source,java]
+--------------------------------------------------
+PercolateRequest request = new PercolateRequest();
+// set stuff and then execute:
+PercolateResponse response = transportClient.execute(PercolateAction.INSTANCE, request).actionGet();
+--------------------------------------------------
+
+Using percolate request builder:
+
+[source,java]
+--------------------------------------------------
+PercolateRequestBuilder builder = new PercolateRequestBuilder(transportClient, PercolateAction.INSTANCE);
+// set stuff and then execute:
+PercolateResponse response = builder.get();
+--------------------------------------------------
+
+Using multi percolate request:
+
+[source,java]
+--------------------------------------------------
+MultiPercolateRequest request = new MultiPercolateRequest();
+// set stuff and then execute:
+MultiPercolateResponse response = transportClient.execute(MultiPercolateAction.INSTANCE, request).get();
+--------------------------------------------------
+
+Using multi percolate request builder:
+
+[source,java]
+--------------------------------------------------
+MultiPercolateRequestBuilder builder = new MultiPercolateRequestBuilder(transportClient, MultiPercolateAction.INSTANCE);
+// set stuff and then execute:
+MultiPercolateResponse response = builder.get();
+--------------------------------------------------

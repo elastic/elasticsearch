@@ -62,6 +62,24 @@ public class GatewayAllocator extends AbstractComponent {
         this.replicaShardAllocator = new InternalReplicaShardAllocator(settings, storeAction);
     }
 
+    /**
+     * Returns true if the given shard has an async fetch pending
+     */
+    public boolean hasFetchPending(ShardId shardId, boolean primary) {
+        if (primary) {
+            AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetch = asyncFetchStarted.get(shardId);
+            if (fetch != null) {
+                return fetch.getNumberOfInFlightFetches() > 0;
+            }
+        } else {
+            AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetch = asyncFetchStore.get(shardId);
+            if (fetch != null) {
+                return fetch.getNumberOfInFlightFetches() > 0;
+            }
+        }
+        return false;
+    }
+
     public void setReallocation(final ClusterService clusterService, final RoutingService routingService) {
         this.routingService = routingService;
         clusterService.add(new ClusterStateListener() {

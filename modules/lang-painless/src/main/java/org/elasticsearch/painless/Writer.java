@@ -33,15 +33,15 @@ import static org.elasticsearch.painless.WriterConstants.EXECUTE;
 import static org.elasticsearch.painless.WriterConstants.MAP_GET;
 import static org.elasticsearch.painless.WriterConstants.MAP_TYPE;
 
+import java.util.BitSet;
+
 /**
  * Runs the writing phase of compilation using the Painless AST.
  */
 final class Writer {
 
-    static byte[] write(final CompilerSettings settings,
-                               String name, final String source, final Variables variables, final SSource root) {
-        final Writer writer = new Writer(settings, name, source, variables, root);
-
+    static byte[] write(CompilerSettings settings, String name, String source, Variables variables, SSource root, BitSet expressions) {
+        Writer writer = new Writer(settings, name, source, variables, root, expressions);
         return writer.getBytes();
     }
 
@@ -54,8 +54,7 @@ final class Writer {
     private final ClassWriter writer;
     private final MethodWriter adapter;
 
-    private Writer(final CompilerSettings settings,
-                     String name, final String source, final Variables variables, final SSource root) {
+    private Writer(CompilerSettings settings, String name, String source, Variables variables, SSource root, BitSet expressions) {
         this.settings = settings;
         this.scriptName = name;
         this.source = source;
@@ -67,14 +66,11 @@ final class Writer {
         writeBegin();
         writeConstructor();
 
-        adapter = new MethodWriter(Opcodes.ACC_PUBLIC, EXECUTE, null, writer);
+        adapter = new MethodWriter(Opcodes.ACC_PUBLIC, EXECUTE, null, writer, expressions);
 
         writeExecute();
         writeEnd();
     }
-
-    // This maximum length is theoretically 65535 bytes, but as it's CESU-8 encoded we dont know how large it is in bytes, so be safe
-    private static final int MAX_NAME_LENGTH = 256;
 
     private void writeBegin() {
         final int version = Opcodes.V1_8;
@@ -87,47 +83,7 @@ final class Writer {
             new String[] { WriterConstants.NEEDS_SCORE_TYPE.getInternalName() } : null;
 
         writer.visit(version, access, name, null, base, interfaces);
-        writer.visitSource(computeSourceName(), null);
-    }
-
-    /** Computes the file name (mostly important for stacktraces) */
-    private String computeSourceName() {
-        StringBuilder fileName = new StringBuilder();
-        if (scriptName.equals(PainlessScriptEngineService.INLINE_NAME)) {
-            // its an anonymous script, include at least a portion of the source to help identify which one it is
-            // but don't create stacktraces with filenames that contain newlines or huge names.
-
-            // truncate to the first newline
-            int limit = source.indexOf('\n');
-            if (limit >= 0) {
-                int limit2 = source.indexOf('\r');
-                if (limit2 >= 0) {
-                    limit = Math.min(limit, limit2);
-                }
-            } else {
-                limit = source.length();
-            }
-
-            // truncate to our limit
-            limit = Math.min(limit, MAX_NAME_LENGTH);
-            fileName.append(source, 0, limit);
-
-            // if we truncated, make it obvious
-            if (limit != source.length()) {
-                fileName.append(" ...");
-            }
-            fileName.append(" @ <inline script>");
-        } else {
-            // its a named script, just use the name
-            // but don't trust this has a reasonable length!
-            if (scriptName.length() > MAX_NAME_LENGTH) {
-                fileName.append(scriptName, 0, MAX_NAME_LENGTH);
-                fileName.append(" ...");
-            } else {
-                fileName.append(scriptName);
-            }
-        }
-        return fileName.toString();
+        writer.visitSource(Location.computeSourceName(scriptName,source), null);
     }
 
     private void writeConstructor() {

@@ -32,7 +32,6 @@ import java.io.IOException;
 
 /**
  */
-@SuppressWarnings("deprecation")
 public class Version {
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA
@@ -75,8 +74,10 @@ public class Version {
     public static final Version V_5_0_0_alpha1 = new Version(V_5_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_6_0_0);
     public static final int V_5_0_0_alpha2_ID = 5000002;
     public static final Version V_5_0_0_alpha2 = new Version(V_5_0_0_alpha2_ID, org.apache.lucene.util.Version.LUCENE_6_0_0);
+    public static final int V_5_0_0_alpha3_ID = 5000003;
+    public static final Version V_5_0_0_alpha3 = new Version(V_5_0_0_alpha3_ID, org.apache.lucene.util.Version.LUCENE_6_0_0);
     public static final int V_5_0_0_ID = 5000099;
-    public static final Version V_5_0_0 = new Version(V_5_0_0_ID, org.apache.lucene.util.Version.LUCENE_6_0_0);
+    public static final Version V_5_0_0 = new Version(V_5_0_0_ID, org.apache.lucene.util.Version.LUCENE_6_0_1);
     public static final Version CURRENT = V_5_0_0;
 
     static {
@@ -92,6 +93,8 @@ public class Version {
         switch (id) {
             case V_5_0_0_ID:
                 return V_5_0_0;
+            case V_5_0_0_alpha3_ID:
+                return V_5_0_0_alpha3;
             case V_5_0_0_alpha2_ID:
                 return V_5_0_0_alpha2;
             case V_5_0_0_alpha1_ID:

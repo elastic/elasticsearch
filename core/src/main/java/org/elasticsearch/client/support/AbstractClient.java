@@ -212,6 +212,10 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoreRequestBui
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkRequest;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkRequestBuilder;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
@@ -295,14 +299,6 @@ import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
-import org.elasticsearch.action.percolate.MultiPercolateAction;
-import org.elasticsearch.action.percolate.MultiPercolateRequest;
-import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
-import org.elasticsearch.action.percolate.MultiPercolateResponse;
-import org.elasticsearch.action.percolate.PercolateAction;
-import org.elasticsearch.action.percolate.PercolateRequest;
-import org.elasticsearch.action.percolate.PercolateRequestBuilder;
-import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollRequestBuilder;
@@ -621,36 +617,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public MultiTermVectorsRequestBuilder prepareMultiTermVectors() {
         return new MultiTermVectorsRequestBuilder(this, MultiTermVectorsAction.INSTANCE);
-    }
-
-    @Override
-    public ActionFuture<PercolateResponse> percolate(final PercolateRequest request) {
-        return execute(PercolateAction.INSTANCE, request);
-    }
-
-    @Override
-    public void percolate(final PercolateRequest request, final ActionListener<PercolateResponse> listener) {
-        execute(PercolateAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public PercolateRequestBuilder preparePercolate() {
-        return new PercolateRequestBuilder(this, PercolateAction.INSTANCE);
-    }
-
-    @Override
-    public MultiPercolateRequestBuilder prepareMultiPercolate() {
-        return new MultiPercolateRequestBuilder(this, MultiPercolateAction.INSTANCE);
-    }
-
-    @Override
-    public void multiPercolate(MultiPercolateRequest request, ActionListener<MultiPercolateResponse> listener) {
-        execute(MultiPercolateAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public ActionFuture<MultiPercolateResponse> multiPercolate(MultiPercolateRequest request) {
-        return execute(MultiPercolateAction.INSTANCE, request);
     }
 
     @Override
@@ -1720,6 +1686,22 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public GetSettingsRequestBuilder prepareGetSettings(String... indices) {
             return new GetSettingsRequestBuilder(this, GetSettingsAction.INSTANCE, indices);
+        }
+
+        @Override
+        public ShrinkRequestBuilder prepareShrinkIndex(String sourceIndex, String targetIndex) {
+            return new ShrinkRequestBuilder(this, ShrinkAction.INSTANCE).setSourceIndex(sourceIndex)
+                .setTargetIndex(new CreateIndexRequest(targetIndex));
+        }
+
+        @Override
+        public ActionFuture<ShrinkResponse> shrinkIndex(ShrinkRequest request) {
+            return execute(ShrinkAction.INSTANCE, request);
+        }
+
+        @Override
+        public void shrinkIndex(ShrinkRequest request, ActionListener<ShrinkResponse> listener) {
+            execute(ShrinkAction.INSTANCE, request, listener);
         }
 
         @Override

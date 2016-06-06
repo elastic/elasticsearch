@@ -781,7 +781,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         try {
             generator.close();
         } catch (IOException e) {
-            // ignore
+            throw new IllegalStateException("failed to close the XContentBuilder", e);
         }
     }
 

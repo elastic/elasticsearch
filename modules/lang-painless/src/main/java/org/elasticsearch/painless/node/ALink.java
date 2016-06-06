@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -73,8 +74,8 @@ public abstract class ALink extends ANode {
      */
     String string = null;
 
-    ALink(int line, String location, int size) {
-        super(line, location);
+    ALink(Location location, int size) {
+        super(location);
 
         this.size = size;
     }
@@ -90,17 +91,17 @@ public abstract class ALink extends ANode {
     /**
      * Write values before a load/store occurs such as an array index.
      */
-    abstract void write(MethodWriter adapter);
+    abstract void write(MethodWriter writer);
 
     /**
      * Write a load for the specific link type.
      */
-    abstract void load(MethodWriter adapter);
+    abstract void load(MethodWriter writer);
 
     /**
      * Write a store for the specific link type.
      */
-    abstract void store(MethodWriter adapter);
+    abstract void store(MethodWriter writer);
 
     /**
      * Used to copy link data from one to another during analysis in the case of replacement.

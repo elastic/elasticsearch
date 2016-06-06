@@ -23,10 +23,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.SuppressForbidden;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserError;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -36,8 +36,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
 import org.junit.After;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringReader;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -61,7 +63,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -530,6 +531,34 @@ public class InstallPluginCommandTests extends ESTestCase {
         String pluginZip = zip.toUri().toURL().toString();
         IOException e = expectThrows(IOException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("resolving outside of plugin directory"));
+    }
+
+    public void testOfficialPluginsHelpSorted() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        new InstallPluginCommand().main(new String[] { "--help" }, terminal);
+        try (BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()))) {
+            String line = reader.readLine();
+
+            // first find the beginning of our list of official plugins
+            while (line.endsWith("may be installed by name:") == false) {
+                line = reader.readLine();
+            }
+
+            // now check each line compares greater than the last, until we reach an empty line
+            String prev = reader.readLine();
+            line = reader.readLine();
+            while (line != null && line.trim().isEmpty() == false) {
+                assertTrue(prev + " < " + line, prev.compareTo(line) < 0);
+                prev = line;
+                line = reader.readLine();
+            }
+        }
+    }
+
+    public void testOfficialPluginsIncludesXpack() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        new InstallPluginCommand().main(new String[] { "--help" }, terminal);
+        assertTrue(terminal.getOutput(), terminal.getOutput().contains("x-pack"));
     }
 
     // TODO: test batch flag?

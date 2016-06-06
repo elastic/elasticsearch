@@ -28,9 +28,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 
 import java.io.IOException;
@@ -42,7 +43,7 @@ import java.util.Objects;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 
-public class CumulativeSumPipelineAggregatorBuilder extends PipelineAggregatorBuilder<CumulativeSumPipelineAggregatorBuilder> {
+public class CumulativeSumPipelineAggregatorBuilder extends AbstractPipelineAggregatorBuilder<CumulativeSumPipelineAggregatorBuilder> {
     public static final String NAME = CumulativeSumPipelineAggregator.TYPE.name();
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
@@ -98,7 +99,7 @@ public class CumulativeSumPipelineAggregatorBuilder extends PipelineAggregatorBu
 
     @Override
     public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-            List<PipelineAggregatorBuilder<?>> pipelineAggregatorFactories) {
+            List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");

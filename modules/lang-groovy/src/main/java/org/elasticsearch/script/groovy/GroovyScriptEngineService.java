@@ -50,7 +50,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -193,7 +193,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             if (logger.isTraceEnabled()) {
                 logger.trace("exception compiling Groovy script:", e);
             }
-            throw new ScriptException("failed to compile groovy script", e);
+            throw new GeneralScriptException("failed to compile groovy script", e);
         }
     }
 
@@ -219,7 +219,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             }
             return new GroovyScript(compiledScript, createScript(compiledScript.compiled(), allVars), this.logger);
         } catch (ReflectiveOperationException e) {
-            throw new ScriptException("failed to build executable " + compiledScript, e);
+            throw new GeneralScriptException("failed to build executable " + compiledScript, e);
         }
     }
 
@@ -239,7 +239,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 try {
                     scriptObject = createScript(compiledScript.compiled(), allVars);
                 } catch (ReflectiveOperationException e) {
-                    throw new ScriptException("failed to build search " + compiledScript, e);
+                    throw new GeneralScriptException("failed to build search " + compiledScript, e);
                 }
                 return new GroovyScript(compiledScript, scriptObject, leafLookup, logger);
             }
@@ -312,7 +312,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 if (logger.isTraceEnabled()) {
                     logger.trace("failed to run {}", e, compiledScript);
                 }
-                throw new ScriptException("failed to run " + compiledScript, e);
+                throw new GeneralScriptException("failed to run " + compiledScript, e);
             }
         }
 

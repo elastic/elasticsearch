@@ -42,6 +42,7 @@ public final class ClusterAllocationExplainTests extends ESSingleNodeTestCase {
         assertEquals(0, cae.getShard().getId());
         assertEquals(false, cae.isPrimary());
         assertNull(cae.getAssignedNodeId());
+        assertFalse(cae.isStillFetchingShardData());
         assertNotNull(cae.getUnassignedInfo());
         NodeExplanation explanation = cae.getNodeExplanations().values().iterator().next();
         ClusterAllocationExplanation.FinalDecision fd = explanation.getFinalDecision();
@@ -68,6 +69,7 @@ public final class ClusterAllocationExplainTests extends ESSingleNodeTestCase {
         assertEquals("test", cae.getShard().getIndexName());
         assertEquals(0, cae.getShard().getId());
         assertEquals(true, cae.isPrimary());
+        assertFalse(cae.isStillFetchingShardData());
         assertNotNull("shard should have assigned node id", cae.getAssignedNodeId());
         assertNull("assigned shard should not have unassigned info", cae.getUnassignedInfo());
         explanation = cae.getNodeExplanations().values().iterator().next();

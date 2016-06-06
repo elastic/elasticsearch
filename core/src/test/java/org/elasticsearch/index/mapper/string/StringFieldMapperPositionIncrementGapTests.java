@@ -136,6 +136,7 @@ public class StringFieldMapperPositionIncrementGapTests extends ESSingleNodeTest
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties").startObject("string");
         mapping.field("type", "string");
         mapping.field("position_increment_gap", positionIncrementGap);
+        mapping.endObject().endObject().endObject();
         client().admin().indices().prepareCreate("test")
                 .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0).build())
                 .addMapping("test", mapping)
@@ -151,6 +152,7 @@ public class StringFieldMapperPositionIncrementGapTests extends ESSingleNodeTest
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties").startObject("string");
         mapping.field("type", "string");
         mapping.field("analyzer", analyzer);
+        mapping.endObject().endObject().endObject();
         client().admin().indices().prepareCreate("test")
                 .addMapping("test", mapping)
                 .setSettings(settings)

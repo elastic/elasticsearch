@@ -54,7 +54,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -170,7 +170,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             BytesStreamOutput out = new BytesStreamOutput();
             clusterStateHealth.writeTo(out);
             StreamInput in = StreamInput.wrap(out.bytes());
-            clusterStateHealth = ClusterStateHealth.readClusterHealth(in);
+            clusterStateHealth = new ClusterStateHealth(in);
         }
         return clusterStateHealth;
     }

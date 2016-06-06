@@ -112,6 +112,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -134,7 +135,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final TimeValue shardsClosedTimeout;
     private final AnalysisRegistry analysisRegistry;
     private final IndicesQueriesRegistry indicesQueriesRegistry;
-    private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexScopedSettings indexScopeSetting;
     private final IndicesFieldDataCache indicesFieldDataCache;
@@ -143,6 +143,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final CircuitBreakerService circuitBreakerService;
     private volatile Map<String, IndexService> indices = emptyMap();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
+    private final AtomicInteger numUncompletedDeletes = new AtomicInteger();
     private final OldShardsStats oldShardsStats = new OldShardsStats();
     private final IndexStoreConfig indexStoreConfig;
     private final MapperRegistry mapperRegistry;
@@ -163,7 +164,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv,
                           ClusterSettings clusterSettings, AnalysisRegistry analysisRegistry,
                           IndicesQueriesRegistry indicesQueriesRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
-                          ClusterService clusterService, MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry,
+                          MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry,
                           ThreadPool threadPool, IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService,
                           MetaStateService metaStateService) {
         super(settings);
@@ -174,7 +175,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         this.indexStoreConfig = new IndexStoreConfig(settings);
         this.analysisRegistry = analysisRegistry;
         this.indicesQueriesRegistry = indicesQueriesRegistry;
-        this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indicesRequestCache = new IndicesRequestCache(settings);
         this.indicesQueryCache = new IndicesQueryCache(settings);
@@ -394,6 +394,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                                                          Consumer<ShardId> globalCheckpointSyncer,
                                                          IndexingOperationListener... indexingOperationListeners) throws IOException {
         final Index index = indexMetaData.getIndex();
+        final ClusterService clusterService = nodeServicesProvider.getClusterService();
         final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(index.getName(), indexExpression, clusterService.state());
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexNameMatcher, indexScopeSetting);
         logger.debug("creating Index [{}], shards [{}]/[{}{}] - reason [{}]",
@@ -799,6 +800,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 pendingDeletes.put(index, list);
             }
             list.add(pendingDelete);
+            numUncompletedDeletes.incrementAndGet();
         }
     }
 
@@ -857,6 +859,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         logger.debug("{} processing pending deletes", index);
         final long startTimeNS = System.nanoTime();
         final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, timeout.millis());
+        int numRemoved = 0;
         try {
             Map<ShardId, ShardLock> locks = new HashMap<>();
             for (ShardLock lock : shardLocks) {
@@ -867,6 +870,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                  remove = pendingDeletes.remove(index);
             }
             if (remove != null && remove.isEmpty() == false) {
+                numRemoved = remove.size();
                 CollectionUtil.timSort(remove); // make sure we delete indices first
                 final long maxSleepTimeMs = 10 * 1000; // ensure we retry after 10 sec
                 long sleepTime = 10;
@@ -913,6 +917,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             }
         } finally {
             IOUtils.close(shardLocks);
+            if (numRemoved > 0) {
+                int remainingUncompletedDeletes = numUncompletedDeletes.addAndGet(-numRemoved);
+                assert remainingUncompletedDeletes >= 0;
+            }
         }
     }
 
@@ -924,6 +932,14 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             }
             return deleteList.size();
         }
+    }
+
+    /**
+     * Checks if all pending deletes have completed. Used by tests to ensure we don't check directory contents while deletion still ongoing.
+     * The reason is that, on Windows, browsing the directory contents can interfere with the deletion process and delay it unnecessarily.
+     */
+    public boolean hasUncompletedPendingDeletes() {
+        return numUncompletedDeletes.get() > 0;
     }
 
     /**

@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
@@ -36,8 +37,8 @@ final class LDefCall extends ALink implements IDefLink {
     final String name;
     final List<AExpression> arguments;
 
-    LDefCall(int line, String location, String name, List<AExpression> arguments) {
-        super(line, location, -1);
+    LDefCall(Location location, String name, List<AExpression> arguments) {
+        super(location, -1);
 
         this.name = name;
         this.arguments = arguments;
@@ -46,7 +47,7 @@ final class LDefCall extends ALink implements IDefLink {
     @Override
     ALink analyze(Variables variables) {
         for (int argument = 0; argument < arguments.size(); ++argument) {
-            final AExpression expression = arguments.get(argument);
+            AExpression expression = arguments.get(argument);
 
             expression.internal = true;
             expression.analyze(variables);
@@ -61,34 +62,33 @@ final class LDefCall extends ALink implements IDefLink {
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter adapter) {
-        final StringBuilder signature = new StringBuilder();
+    void load(MethodWriter writer) {
+        writer.writeDebugInfo(location);
+        StringBuilder signature = new StringBuilder();
 
         signature.append('(');
         // first parameter is the receiver, we never know its type: always Object
         signature.append(Definition.DEF_TYPE.type.getDescriptor());
 
-        // TODO: remove our explicit conversions and feed more type information for return value,
-        // it can avoid some unnecessary boxing etc.
-        for (final AExpression argument : arguments) {
+        for (AExpression argument : arguments) {
             signature.append(argument.actual.type.getDescriptor());
-            argument.write(adapter);
+            argument.write(writer);
         }
 
         signature.append(')');
         // return value
         signature.append(after.type.getDescriptor());
 
-        adapter.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.METHOD_CALL);
+        writer.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.METHOD_CALL);
     }
 
     @Override
-    void store(MethodWriter adapter) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+    void store(MethodWriter writer) {
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

@@ -68,7 +68,7 @@ public class TranslogRecoveryPerformer {
         int numOps = 0;
         try {
             for (Translog.Operation operation : operations) {
-                performRecoveryOperation(engine, operation, false);
+                performRecoveryOperation(engine, operation, false, Engine.Operation.Origin.PEER_RECOVERY);
                 numOps++;
             }
             engine.getTranslog().sync();
@@ -83,7 +83,7 @@ public class TranslogRecoveryPerformer {
         int opsRecovered = 0;
         while ((operation = snapshot.next()) != null) {
             try {
-                performRecoveryOperation(engine, operation, true);
+                performRecoveryOperation(engine, operation, true, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY);
                 opsRecovered++;
             } catch (ElasticsearchException e) {
                 if (e.status() == RestStatus.BAD_REQUEST) {
@@ -146,14 +146,14 @@ public class TranslogRecoveryPerformer {
      *                            cause a {@link MapperException} to be thrown if an update
      *                            is encountered.
      */
-    public void performRecoveryOperation(Engine engine, Translog.Operation operation, boolean allowMappingUpdates) {
+    private void performRecoveryOperation(Engine engine, Translog.Operation operation, boolean allowMappingUpdates, Engine.Operation.Origin origin) {
         try {
             switch (operation.opType()) {
                 case INDEX:
                     Translog.Index index = (Translog.Index) operation;
                     Engine.Index engineIndex = IndexShard.prepareIndex(docMapper(index.type()), source(shardId.getIndexName(), index.type(), index.id(), index.source())
-                                    .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()),
-                            index.seqNo(), index.version(), index.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY);
+                            .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()), index.seqNo(),
+                        index.version(), index.versionType().versionTypeForReplicationAndRecovery(), origin);
                     maybeAddMappingUpdate(engineIndex.type(), engineIndex.parsedDoc().dynamicMappingsUpdate(), engineIndex.id(), allowMappingUpdates);
                     if (logger.isTraceEnabled()) {
                         logger.trace("[translog] recover [index] op of [{}][{}]", index.type(), index.id());
@@ -166,8 +166,8 @@ public class TranslogRecoveryPerformer {
                     if (logger.isTraceEnabled()) {
                         logger.trace("[translog] recover [delete] op of [{}][{}]", uid.type(), uid.id());
                     }
-                    final Engine.Delete engineDelete = IndexShard.prepareDelete(uid.type(), uid.id(), delete.uid(), delete.seqNo(),
-                            delete.version(), delete.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY);
+                    final Engine.Delete engineDelete = new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.seqNo(),
+                        delete.version(), delete.versionType().versionTypeForReplicationAndRecovery(), origin, System.nanoTime(), false);
                     delete(engine, engineDelete);
                     break;
                 default:

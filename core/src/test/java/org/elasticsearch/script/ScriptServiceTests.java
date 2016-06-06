@@ -481,7 +481,7 @@ public class ScriptServiceTests extends ESTestCase {
         try {
             scriptService.compile(new Script(script, scriptType, lang, null), scriptContext, Collections.emptyMap(), emptyClusterState());
             fail("compile should have been rejected for lang [" + lang + "], script_type [" + scriptType + "], scripted_op [" + scriptContext + "]");
-        } catch(ScriptException e) {
+        } catch(IllegalStateException e) {
             //all good
         }
     }

@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -41,7 +40,7 @@ import java.util.concurrent.ExecutionException;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@ClusterScope(scope = Scope.TEST, numClientNodes = 0)
+@ClusterScope(scope = Scope.TEST, numClientNodes = 0, supportsDedicatedMasters = false)
 public class TransportClientRetryIT extends ESIntegTestCase {
     public void testRetry() throws IOException, ExecutionException, InterruptedException {
         Iterable<TransportService> instances = internalCluster().getInstances(TransportService.class);

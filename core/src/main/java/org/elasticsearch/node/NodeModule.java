@@ -19,7 +19,6 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.ingest.ProcessorsRegistry;
@@ -56,7 +55,6 @@ public class NodeModule extends AbstractModule {
     private final ProcessorsRegistry.Builder processorsRegistryBuilder;
 
     // pkg private so tests can mock
-    Class<? extends PageCacheRecycler> pageCacheRecyclerImpl = PageCacheRecycler.class;
     Class<? extends BigArrays> bigArraysImpl = BigArrays.class;
 
     public NodeModule(Node node, MonitorService monitorService) {
@@ -84,11 +82,6 @@ public class NodeModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        if (pageCacheRecyclerImpl == PageCacheRecycler.class) {
-            bind(PageCacheRecycler.class).asEagerSingleton();
-        } else {
-            bind(PageCacheRecycler.class).to(pageCacheRecyclerImpl).asEagerSingleton();
-        }
         if (bigArraysImpl == BigArrays.class) {
             bind(BigArrays.class).asEagerSingleton();
         } else {

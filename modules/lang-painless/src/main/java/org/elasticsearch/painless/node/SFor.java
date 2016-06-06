@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
@@ -29,15 +30,15 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class SFor extends AStatement {
 
+    final int maxLoopCounter;
     ANode initializer;
     AExpression condition;
     AExpression afterthought;
-    final AStatement block;
-    final int maxLoopCounter;
+    final SBlock block;
 
-    public SFor(int line, String location,
-                ANode initializer, AExpression condition, AExpression afterthought, AStatement block, int maxLoopCounter) {
-        super(line, location);
+    public SFor(Location location, int maxLoopCounter,
+                ANode initializer, AExpression condition, AExpression afterthought, SBlock block) {
+        super(location);
 
         this.initializer = initializer;
         this.condition = condition;
@@ -56,21 +57,20 @@ public final class SFor extends AStatement {
             if (initializer instanceof SDeclBlock) {
                 ((SDeclBlock)initializer).analyze(variables);
             } else if (initializer instanceof AExpression) {
-                final AExpression initializer = (AExpression)this.initializer;
+                AExpression initializer = (AExpression)this.initializer;
 
                 initializer.read = false;
                 initializer.analyze(variables);
 
                 if (!initializer.statement) {
-                    throw new IllegalArgumentException(initializer.error("Not a statement."));
+                    throw createError(new IllegalArgumentException("Not a statement."));
                 }
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
         if (condition != null) {
-
             condition.expected = Definition.BOOLEAN_TYPE;
             condition.analyze(variables);
             condition = condition.cast(variables);
@@ -79,11 +79,11 @@ public final class SFor extends AStatement {
                 continuous = (boolean)condition.constant;
 
                 if (!continuous) {
-                    throw new IllegalArgumentException(error("Extraneous for loop."));
+                    throw createError(new IllegalArgumentException("Extraneous for loop."));
                 }
 
                 if (block == null) {
-                    throw new IllegalArgumentException(error("For loop has no escape."));
+                    throw createError(new IllegalArgumentException("For loop has no escape."));
                 }
             }
         } else {
@@ -95,11 +95,9 @@ public final class SFor extends AStatement {
             afterthought.analyze(variables);
 
             if (!afterthought.statement) {
-                throw new IllegalArgumentException(afterthought.error("Not a statement."));
+                throw createError(new IllegalArgumentException("Not a statement."));
             }
         }
-
-        int count = 1;
 
         if (block != null) {
             block.beginLoop = true;
@@ -108,7 +106,7 @@ public final class SFor extends AStatement {
             block.analyze(variables);
 
             if (block.loopEscape && !block.anyContinue) {
-                throw new IllegalArgumentException(error("Extraneous for loop."));
+                throw createError(new IllegalArgumentException("Extraneous for loop."));
             }
 
             if (continuous && !block.anyBreak) {
@@ -116,7 +114,7 @@ public final class SFor extends AStatement {
                 allEscape = true;
             }
 
-            block.statementCount = Math.max(count, block.statementCount);
+            block.statementCount = Math.max(1, block.statementCount);
         }
 
         statementCount = 1;
@@ -129,26 +127,26 @@ public final class SFor extends AStatement {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        final Label start = new Label();
-        final Label begin = afterthought == null ? start : new Label();
-        final Label end = new Label();
+    void write(MethodWriter writer) {
+        writer.writeStatementOffset(location);
+        Label start = new Label();
+        Label begin = afterthought == null ? start : new Label();
+        Label end = new Label();
 
         if (initializer instanceof SDeclBlock) {
-            ((SDeclBlock)initializer).write(adapter);
+            ((SDeclBlock)initializer).write(writer);
         } else if (initializer instanceof AExpression) {
             AExpression initializer = (AExpression)this.initializer;
 
-            initializer.write(adapter);
-            adapter.writePop(initializer.expected.sort.size);
+            initializer.write(writer);
+            writer.writePop(initializer.expected.sort.size);
         }
 
-        adapter.mark(start);
+        writer.mark(start);
 
         if (condition != null) {
             condition.fals = end;
-            condition.write(adapter);
+            condition.write(writer);
         }
 
         boolean allEscape = false;
@@ -162,21 +160,21 @@ public final class SFor extends AStatement {
                 ++statementCount;
             }
 
-            adapter.writeLoopCounter(loopCounterSlot, statementCount);
-            block.write(adapter);
+            writer.writeLoopCounter(loopCounterSlot, statementCount, location);
+            block.write(writer);
         } else {
-            adapter.writeLoopCounter(loopCounterSlot, 1);
+            writer.writeLoopCounter(loopCounterSlot, 1, location);
         }
 
         if (afterthought != null) {
-            adapter.mark(begin);
-            afterthought.write(adapter);
+            writer.mark(begin);
+            afterthought.write(writer);
         }
 
         if (afterthought != null || !allEscape) {
-            adapter.goTo(start);
+            writer.goTo(start);
         }
 
-        adapter.mark(end);
+        writer.mark(end);
     }
 }

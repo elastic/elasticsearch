@@ -108,8 +108,6 @@ public class DelayedAllocationIT extends ESIntegTestCase {
      * allocation to a very small value, it kicks the allocation of the unassigned shard
      * even though the node it was hosted on will not come back.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/18293")
-    @TestLogging("_root:DEBUG,cluster.routing:TRACE")
     public void testDelayedAllocationChangeWithSettingTo100ms() throws Exception {
         internalCluster().startNodesAsync(3).get();
         prepareCreate("test").setSettings(Settings.builder()
@@ -145,12 +143,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
         ensureGreen("test");
         indexRandomData();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(client().admin().cluster().prepareState().all().get().getState().getRoutingNodes().unassigned().size() > 0, equalTo(true));
-            }
-        });
+        assertBusy(() -> assertThat(client().admin().cluster().prepareState().all().get().getState().getRoutingNodes().unassigned().size() > 0, equalTo(true)));
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(0))).get());
         ensureGreen("test");

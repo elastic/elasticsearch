@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Collections;
@@ -31,18 +32,22 @@ import java.util.List;
  */
 public final class STry extends AStatement {
 
-    final AStatement block;
-    final List<STrap> traps;
+    final SBlock block;
+    final List<SCatch> catches;
 
-    public STry(int line, String location, AStatement block, List<STrap> traps) {
-        super(line, location);
+    public STry(Location location, SBlock block, List<SCatch> traps) {
+        super(location);
 
         this.block = block;
-        this.traps = Collections.unmodifiableList(traps);
+        this.catches = Collections.unmodifiableList(traps);
     }
 
     @Override
     void analyze(Variables variables) {
+        if (block == null) {
+            throw createError(new IllegalArgumentException("Extraneous try statement."));
+        }
+
         block.lastSource = lastSource;
         block.inLoop = inLoop;
         block.lastLoop = lastLoop;
@@ -59,55 +64,55 @@ public final class STry extends AStatement {
 
         int statementCount = 0;
 
-        for (final STrap trap : traps) {
-            trap.lastSource = lastSource;
-            trap.inLoop = inLoop;
-            trap.lastLoop = lastLoop;
+        for (SCatch catc : catches) {
+            catc.lastSource = lastSource;
+            catc.inLoop = inLoop;
+            catc.lastLoop = lastLoop;
 
             variables.incrementScope();
-            trap.analyze(variables);
+            catc.analyze(variables);
             variables.decrementScope();
 
-            methodEscape &= trap.methodEscape;
-            loopEscape &= trap.loopEscape;
-            allEscape &= trap.allEscape;
-            anyContinue |= trap.anyContinue;
-            anyBreak |= trap.anyBreak;
+            methodEscape &= catc.methodEscape;
+            loopEscape &= catc.loopEscape;
+            allEscape &= catc.allEscape;
+            anyContinue |= catc.anyContinue;
+            anyBreak |= catc.anyBreak;
 
-            statementCount = Math.max(statementCount, trap.statementCount);
+            statementCount = Math.max(statementCount, catc.statementCount);
         }
 
         this.statementCount = block.statementCount + statementCount;
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        final Label begin = new Label();
-        final Label end = new Label();
-        final Label exception = new Label();
+    void write(MethodWriter writer) {
+        writer.writeStatementOffset(location);
+        Label begin = new Label();
+        Label end = new Label();
+        Label exception = new Label();
 
-        adapter.mark(begin);
+        writer.mark(begin);
 
         block.continu = continu;
         block.brake = brake;
-        block.write(adapter);
+        block.write(writer);
 
         if (!block.allEscape) {
-            adapter.goTo(exception);
+            writer.goTo(exception);
         }
 
-        adapter.mark(end);
+        writer.mark(end);
 
-        for (final STrap trap : traps) {
-            trap.begin = begin;
-            trap.end = end;
-            trap.exception = traps.size() > 1 ? exception : null;
-            trap.write(adapter);
+        for (SCatch catc : catches) {
+            catc.begin = begin;
+            catc.end = end;
+            catc.exception = catches.size() > 1 ? exception : null;
+            catc.write(writer);
         }
 
-        if (!block.allEscape || traps.size() > 1) {
-            adapter.mark(exception);
+        if (!block.allEscape || catches.size() > 1) {
+            writer.mark(exception);
         }
     }
 }

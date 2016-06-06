@@ -21,17 +21,18 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
- * Respresents a constant.  Note this replaces any other expression
+ * Represents a constant.  Note this replaces any other expression
  * node with a constant value set during a cast.  (Internal only.)
  */
 final class EConstant extends AExpression {
 
-    EConstant(int line, String location, Object constant) {
-        super(line, location);
+    EConstant(Location location, Object constant) {
+        super(location);
 
         this.constant = constant;
     }
@@ -57,39 +58,39 @@ final class EConstant extends AExpression {
         } else if (constant instanceof Boolean) {
             actual = Definition.BOOLEAN_TYPE;
         } else {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        final Sort sort = actual.sort;
+    void write(MethodWriter writer) {
+        Sort sort = actual.sort;
 
         switch (sort) {
-            case STRING: adapter.push((String)constant);  break;
-            case DOUBLE: adapter.push((double)constant);  break;
-            case FLOAT:  adapter.push((float)constant);   break;
-            case LONG:   adapter.push((long)constant);    break;
-            case INT:    adapter.push((int)constant);     break;
-            case CHAR:   adapter.push((char)constant);    break;
-            case SHORT:  adapter.push((short)constant);   break;
-            case BYTE:   adapter.push((byte)constant);    break;
+            case STRING: writer.push((String)constant);  break;
+            case DOUBLE: writer.push((double)constant);  break;
+            case FLOAT:  writer.push((float)constant);   break;
+            case LONG:   writer.push((long)constant);    break;
+            case INT:    writer.push((int)constant);     break;
+            case CHAR:   writer.push((char)constant);    break;
+            case SHORT:  writer.push((short)constant);   break;
+            case BYTE:   writer.push((byte)constant);    break;
             case BOOL:
                 if (tru != null && (boolean)constant) {
-                    adapter.goTo(tru);
+                    writer.goTo(tru);
                 } else if (fals != null && !(boolean)constant) {
-                    adapter.goTo(fals);
+                    writer.goTo(fals);
                 } else if (tru == null && fals == null) {
-                    adapter.push((boolean)constant);
+                    writer.push((boolean)constant);
                 }
 
                 break;
             default:
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
         if (sort != Sort.BOOL) {
-            adapter.writeBranch(tru, fals);
+            writer.writeBranch(tru, fals);
         }
     }
 }

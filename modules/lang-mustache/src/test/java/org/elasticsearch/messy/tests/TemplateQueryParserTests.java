@@ -169,7 +169,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         QueryShardContext context = contextFactory.get();
         templateSourceParser.nextToken();
 
-        Query query = QueryBuilder.rewriteQuery(TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)),
+        Query query = QueryBuilder.rewriteQuery(TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)).get(),
                 context).toQuery(context);
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
@@ -180,7 +180,9 @@ public class TemplateQueryParserTests extends ESTestCase {
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
         QueryShardContext context = contextFactory.get();
 
-        Query query = QueryBuilder.rewriteQuery(TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)), context).toQuery(context);
+        Query query = QueryBuilder
+                .rewriteQuery(TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)).get(), context)
+                .toQuery(context);
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
 
@@ -197,7 +199,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         QueryShardContext context = contextFactory.get();
 
         try {
-            TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)).rewrite(context);
+            TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)).get().rewrite(context);
             fail("Expected ParsingException");
         } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("query malformed, no field after start_object"));
@@ -212,7 +214,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         templateSourceParser.nextToken();
 
 
-        Query query = QueryBuilder.rewriteQuery(TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)),
+        Query query = QueryBuilder.rewriteQuery(TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)).get(),
                 context).toQuery(context);
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
@@ -224,7 +226,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         QueryShardContext context = contextFactory.get();
         templateSourceParser.nextToken();
         try {
-            TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)).toQuery(context);
+            TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)).get().toQuery(context);
             fail();
         } catch (UnsupportedOperationException ex) {
             assertEquals("this query must be rewritten first", ex.getMessage());

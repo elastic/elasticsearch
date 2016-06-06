@@ -215,7 +215,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         nodesFD.setLocalNode(clusterService.localNode());
         joinThreadControl.start();
         pingService.start();
-        this.nodeJoinController = new NodeJoinController(clusterService, routingService, discoverySettings, settings);
+        this.nodeJoinController = new NodeJoinController(clusterService, routingService, electMaster, discoverySettings, settings);
     }
 
     @Override
@@ -617,6 +617,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                electMaster.logMinimumMasterNodesWarningIfNecessary(oldState, newState);
             }
         });
     }
@@ -1144,14 +1145,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         /** cleans any running joining thread and calls {@link #rejoin} */
         public ClusterState stopRunningThreadAndRejoin(ClusterState clusterState, String reason) {
-            assertClusterStateThread();
+            ClusterService.assertClusterStateThread();
             currentJoinThread.set(null);
             return rejoin(clusterState, reason);
         }
 
         /** starts a new joining thread if there is no currently active one and join thread controlling is started */
         public void startNewThreadIfNotRunning() {
-            assertClusterStateThread();
+            ClusterService.assertClusterStateThread();
             if (joinThreadActive()) {
                 return;
             }
@@ -1184,7 +1185,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
          * If the given thread is not the currently running join thread, the command is ignored.
          */
         public void markThreadAsDoneAndStartNew(Thread joinThread) {
-            assertClusterStateThread();
+            ClusterService.assertClusterStateThread();
             if (!markThreadAsDone(joinThread)) {
                 return;
             }
@@ -1193,7 +1194,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         /** marks the given joinThread as completed. Returns false if the supplied thread is not the currently active join thread */
         public boolean markThreadAsDone(Thread joinThread) {
-            assertClusterStateThread();
+            ClusterService.assertClusterStateThread();
             return currentJoinThread.compareAndSet(joinThread, null);
         }
 
@@ -1207,10 +1208,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         public void start() {
             running.set(true);
-        }
-
-        private void assertClusterStateThread() {
-            assert clusterService instanceof ClusterService == false || ((ClusterService) clusterService).assertClusterStateThread();
         }
 
     }

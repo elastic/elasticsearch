@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
@@ -36,68 +37,75 @@ final class LShortcut extends ALink {
     Method getter = null;
     Method setter = null;
 
-    LShortcut(int line, String location, String value) {
-        super(line, location, 1);
+    LShortcut(Location location, String value) {
+        super(location, 1);
 
         this.value = value;
     }
 
     @Override
     ALink analyze(Variables variables) {
-        final Struct struct = before.struct;
+        Struct struct = before.struct;
 
         getter = struct.methods.get(new Definition.MethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+
+        if (getter == null) {
+            getter = struct.methods.get(new Definition.MethodKey("is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+        }
+
         setter = struct.methods.get(new Definition.MethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
         if (getter != null && (getter.rtn.sort == Sort.VOID || !getter.arguments.isEmpty())) {
-            throw new IllegalArgumentException(error(
+            throw createError(new IllegalArgumentException(
                 "Illegal get shortcut on field [" + value + "] for type [" + struct.name + "]."));
         }
 
         if (setter != null && (setter.rtn.sort != Sort.VOID || setter.arguments.size() != 1)) {
-            throw new IllegalArgumentException(error(
+            throw createError(new IllegalArgumentException(
                 "Illegal set shortcut on field [" + value + "] for type [" + struct.name + "]."));
         }
 
         if (getter != null && setter != null && setter.arguments.get(0) != getter.rtn) {
-            throw new IllegalArgumentException(error("Shortcut argument types must match."));
+            throw createError(new IllegalArgumentException("Shortcut argument types must match."));
         }
 
         if ((getter != null || setter != null) && (!load || getter != null) && (!store || setter != null)) {
             after = setter != null ? setter.arguments.get(0) : getter.rtn;
         } else {
-            throw new IllegalArgumentException(error("Illegal shortcut on field [" + value + "] for type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal shortcut on field [" + value + "] for type [" + struct.name + "]."));
         }
 
         return this;
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter adapter) {
+    void load(MethodWriter writer) {
+        writer.writeDebugInfo(location);
         if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
-            adapter.invokeInterface(getter.owner.type, getter.method);
+            writer.invokeInterface(getter.owner.type, getter.method);
         } else {
-            adapter.invokeVirtual(getter.owner.type, getter.method);
+            writer.invokeVirtual(getter.owner.type, getter.method);
         }
 
         if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
-            adapter.checkCast(getter.rtn.type);
+            writer.checkCast(getter.rtn.type);
         }
     }
 
     @Override
-    void store(MethodWriter adapter) {
+    void store(MethodWriter writer) {
+        writer.writeDebugInfo(location);
         if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {
-            adapter.invokeInterface(setter.owner.type, setter.method);
+            writer.invokeInterface(setter.owner.type, setter.method);
         } else {
-            adapter.invokeVirtual(setter.owner.type, setter.method);
+            writer.invokeVirtual(setter.owner.type, setter.method);
         }
 
-        adapter.writePop(setter.rtn.sort.size);
+        writer.writePop(setter.rtn.sort.size);
     }
 }

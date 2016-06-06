@@ -51,7 +51,7 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
         return RethrottleAction.INSTANCE.newRequestBuilder(client());
     }
 
-    protected static BulkIndexByScrollResponseMatcher matcher() {
+    public static BulkIndexByScrollResponseMatcher matcher() {
         return new BulkIndexByScrollResponseMatcher();
     }
 }

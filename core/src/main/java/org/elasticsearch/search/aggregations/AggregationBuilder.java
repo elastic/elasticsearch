@@ -20,30 +20,25 @@ package org.elasticsearch.search.aggregations;
 
 
 import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
-public abstract class AggregationBuilder<AB extends AggregationBuilder<AB>>
+public abstract class AggregationBuilder
     extends ToXContentToBytes
     implements NamedWriteable, ToXContent {
 
-    protected String name;
-    protected Type type;
+    protected final String name;
+    protected final Type type;
     protected AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();
-    protected Map<String, Object> metaData;
 
     /**
      * Constructs a new aggregation builder.
@@ -51,7 +46,7 @@ public abstract class AggregationBuilder<AB extends AggregationBuilder<AB>>
      * @param name  The aggregation name
      * @param type  The aggregation type
      */
-    public AggregationBuilder(String name, Type type) {
+    protected AggregationBuilder(String name, Type type) {
         if (name == null) {
             throw new IllegalArgumentException("[name] must not be null: [" + name + "]");
         }
@@ -62,136 +57,36 @@ public abstract class AggregationBuilder<AB extends AggregationBuilder<AB>>
         this.type = type;
     }
 
-    /**
-     * Read from a stream.
-     */
-    protected AggregationBuilder(StreamInput in, Type type) throws IOException {
-        name = in.readString();
-        this.type = type;
-        factoriesBuilder = new AggregatorFactories.Builder(in);
-        metaData = in.readMap();
+    /** Return this aggregation's name. */
+    public String getName() {
+        return name;
     }
 
-    @Override
-    public final void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        factoriesBuilder.writeTo(out);
-        out.writeMap(metaData);
-        doWriteTo(out);
-    }
+    /** Internal: build an {@link AggregatorFactory} based on the configuration of this builder. */
+    protected abstract AggregatorFactory<?> build(AggregationContext context, AggregatorFactory<?> parent) throws IOException;
 
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+    /** Associate metadata with this {@link AggregationBuilder}. */
+    public abstract AggregationBuilder setMetaData(Map<String, Object> metaData);
 
-    /**
-     * Add a sub aggregation to this aggregation.
-     */
-    @SuppressWarnings("unchecked")
-    public AB subAggregation(AggregationBuilder<?> aggregation) {
-        if (aggregation == null) {
-            throw new IllegalArgumentException("[aggregation] must not be null: [" + name + "]");
-        }
-        factoriesBuilder.addAggregator(aggregation);
-        return (AB) this;
-    }
+    /** Add a sub aggregation to this builder. */
+    public abstract AggregationBuilder subAggregation(AggregationBuilder aggregation);
+
+    /** Add a sub aggregation to this builder. */
+    public abstract AggregationBuilder subAggregation(PipelineAggregatorBuilder aggregation);
 
     /**
-     * Add a sub aggregation to this aggregation.
-     */
-    @SuppressWarnings("unchecked")
-    public AB subAggregation(PipelineAggregatorBuilder<?> aggregation) {
-        if (aggregation == null) {
-            throw new IllegalArgumentException("[aggregation] must not be null: [" + name + "]");
-        }
-        factoriesBuilder.addPipelineAggregator(aggregation);
-        return (AB) this;
-    }
-
-    /**
-     * Registers sub-factories with this factory. The sub-factory will be
+     * Internal: Registers sub-factories with this factory. The sub-factory will be
      * responsible for the creation of sub-aggregators under the aggregator
-     * created by this factory.
+     * created by this factory. This is only for use by {@link AggregatorParsers}.
      *
      * @param subFactories
      *            The sub-factories
      * @return this factory (fluent interface)
      */
-    @SuppressWarnings("unchecked")
-    public AB subAggregations(AggregatorFactories.Builder subFactories) {
-        if (subFactories == null) {
-            throw new IllegalArgumentException("[subFactories] must not be null: [" + name + "]");
-        }
-        this.factoriesBuilder = subFactories;
-        return (AB) this;
+    protected abstract AggregationBuilder subAggregations(AggregatorFactories.Builder subFactories);
+
+    /** Common xcontent fields shared among aggregator builders */
+    public static final class CommonFields extends ParseField.CommonFields {
+        public static final ParseField VALUE_TYPE = new ParseField("value_type");
     }
-
-    @SuppressWarnings("unchecked")
-    public AB setMetaData(Map<String, Object> metaData) {
-        if (metaData == null) {
-            throw new IllegalArgumentException("[metaData] must not be null: [" + name + "]");
-        }
-        this.metaData = metaData;
-        return (AB) this;
-    }
-
-    public String getType() {
-        return type.name();
-    }
-
-    public final AggregatorFactory<?> build(AggregationContext context, AggregatorFactory<?> parent) throws IOException {
-        AggregatorFactory<?> factory = doBuild(context, parent, factoriesBuilder);
-        return factory;
-    }
-
-    protected abstract AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subfactoriesBuilder) throws IOException;
-
-    @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
-
-        if (this.metaData != null) {
-            builder.field("meta", this.metaData);
-        }
-        builder.field(type.name());
-        internalXContent(builder, params);
-
-        if (factoriesBuilder != null && (factoriesBuilder.count()) > 0) {
-            builder.field("aggregations");
-            factoriesBuilder.toXContent(builder, params);
-
-        }
-
-        return builder.endObject();
-    }
-
-    protected abstract XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException;
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(factoriesBuilder, metaData, name, type, doHashCode());
-    }
-
-    protected abstract int doHashCode();
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        @SuppressWarnings("unchecked")
-        AggregationBuilder<AB> other = (AggregationBuilder<AB>) obj;
-        if (!Objects.equals(name, other.name))
-            return false;
-        if (!Objects.equals(type, other.type))
-            return false;
-        if (!Objects.equals(metaData, other.metaData))
-            return false;
-        if (!Objects.equals(factoriesBuilder, other.factoriesBuilder))
-            return false;
-        return doEquals(obj);
-    }
-
-    protected abstract boolean doEquals(Object obj);
-
 }

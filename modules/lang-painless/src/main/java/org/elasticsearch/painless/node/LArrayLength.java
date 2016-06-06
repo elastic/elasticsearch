@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -30,8 +31,8 @@ public final class LArrayLength extends ALink {
 
     final String value;
 
-    LArrayLength(int line, String location, String value) {
-        super(line, location, -1);
+    LArrayLength(Location location, String value) {
+        super(location, -1);
 
         this.value = value;
     }
@@ -40,31 +41,32 @@ public final class LArrayLength extends ALink {
     ALink analyze(Variables variables) {
         if ("length".equals(value)) {
             if (!load) {
-                throw new IllegalArgumentException(error("Must read array field [length]."));
+                throw createError(new IllegalArgumentException("Must read array field [length]."));
             } else if (store) {
-                throw new IllegalArgumentException(error("Cannot write to read-only array field [length]."));
+                throw createError(new IllegalArgumentException("Cannot write to read-only array field [length]."));
             }
 
             after = Definition.INT_TYPE;
         } else {
-            throw new IllegalArgumentException(error("Illegal field access [" + value + "]."));
+            throw createError(new IllegalArgumentException("Illegal field access [" + value + "]."));
         }
 
         return this;
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter adapter) {
-        adapter.arrayLength();
+    void load(MethodWriter writer) {
+        writer.writeDebugInfo(location);
+        writer.arrayLength();
     }
 
     @Override
-    void store(MethodWriter adapter) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+    void store(MethodWriter writer) {
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

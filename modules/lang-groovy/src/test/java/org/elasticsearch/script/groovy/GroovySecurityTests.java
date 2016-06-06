@@ -24,7 +24,7 @@ import org.apache.lucene.util.Constants;
 import org.codehaus.groovy.control.MultipleCompilationErrorsException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -43,12 +43,6 @@ import java.util.Map;
 public class GroovySecurityTests extends ESTestCase {
 
     private GroovyScriptEngineService se;
-
-    static {
-        // ensure we load all the timezones in the parent classloader with all permissions
-        // relates to https://github.com/elastic/elasticsearch/issues/14524
-        org.joda.time.DateTimeZone.getDefault();
-    }
 
     @Override
     public void setUp() throws Exception {
@@ -157,7 +151,7 @@ public class GroovySecurityTests extends ESTestCase {
         try {
             doTest(script);
             fail("did not get expected exception");
-        } catch (ScriptException expected) {
+        } catch (GeneralScriptException expected) {
             Throwable cause = expected.getCause();
             assertNotNull(cause);
             if (exceptionClass.isAssignableFrom(cause.getClass()) == false) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
@@ -29,12 +30,12 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class SDo extends AStatement {
 
-    final AStatement block;
-    AExpression condition;
     final int maxLoopCounter;
+    final SBlock block;
+    AExpression condition;
 
-    public SDo(int line, String location, AStatement block, AExpression condition, int maxLoopCounter) {
-        super(line, location);
+    public SDo(Location location, int maxLoopCounter, SBlock block, AExpression condition) {
+        super(location);
 
         this.condition = condition;
         this.block = block;
@@ -45,13 +46,17 @@ public final class SDo extends AStatement {
     void analyze(Variables variables) {
         variables.incrementScope();
 
+        if (block == null) {
+            throw createError(new IllegalArgumentException("Extraneous do while loop."));
+        }
+
         block.beginLoop = true;
         block.inLoop = true;
 
         block.analyze(variables);
 
         if (block.loopEscape && !block.anyContinue) {
-            throw new IllegalArgumentException(error("Extraneous do while loop."));
+            throw createError(new IllegalArgumentException("Extraneous do while loop."));
         }
 
         condition.expected = Definition.BOOLEAN_TYPE;
@@ -62,7 +67,7 @@ public final class SDo extends AStatement {
             final boolean continuous = (boolean)condition.constant;
 
             if (!continuous) {
-                throw new IllegalArgumentException(error("Extraneous do while loop."));
+                throw createError(new IllegalArgumentException("Extraneous do while loop."));
             }
 
             if (!block.anyBreak) {
@@ -81,26 +86,26 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        final Label start = new Label();
-        final Label begin = new Label();
-        final Label end = new Label();
+    void write(MethodWriter writer) {
+        writer.writeStatementOffset(location);
+        Label start = new Label();
+        Label begin = new Label();
+        Label end = new Label();
 
-        adapter.mark(start);
+        writer.mark(start);
 
         block.continu = begin;
         block.brake = end;
-        block.write(adapter);
+        block.write(writer);
 
-        adapter.mark(begin);
+        writer.mark(begin);
 
         condition.fals = end;
-        condition.write(adapter);
+        condition.write(writer);
 
-        adapter.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount));
+        writer.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount), location);
 
-        adapter.goTo(start);
-        adapter.mark(end);
+        writer.goTo(start);
+        writer.mark(end);
     }
 }

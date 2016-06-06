@@ -52,10 +52,12 @@ public class IngestDocumentMustacheIT extends AbstractMustacheTestCase {
         innerObject.put("qux", Collections.singletonMap("fubar", "hello qux and fubar"));
         document.put("foo", innerObject);
         IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, null, null, document);
-        ingestDocument.setFieldValue(templateService.compile("field1"), ValueSource.wrap("1 {{foo.bar}} {{foo.baz}} {{foo.qux.fubar}}", templateService));
+        ingestDocument.setFieldValue(templateService.compile("field1"),
+                ValueSource.wrap("1 {{foo.bar}} {{foo.baz}} {{foo.qux.fubar}}", templateService));
         assertThat(ingestDocument.getFieldValue("field1", String.class), equalTo("1 hello bar hello baz hello qux and fubar"));
 
-        ingestDocument.setFieldValue(templateService.compile("field1"), ValueSource.wrap("2 {{_source.foo.bar}} {{_source.foo.baz}} {{_source.foo.qux.fubar}}", templateService));
+        ingestDocument.setFieldValue(templateService.compile("field1"),
+                ValueSource.wrap("2 {{_source.foo.bar}} {{_source.foo.baz}} {{_source.foo.qux.fubar}}", templateService));
         assertThat(ingestDocument.getFieldValue("field1", String.class), equalTo("2 hello bar hello baz hello qux and fubar"));
     }
 
@@ -79,7 +81,9 @@ public class IngestDocumentMustacheIT extends AbstractMustacheTestCase {
         ingestMap.put("timestamp", "bogus_timestamp");
         document.put("_ingest", ingestMap);
         IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, null, null, document);
-        ingestDocument.setFieldValue(templateService.compile("ingest_timestamp"), ValueSource.wrap("{{_ingest.timestamp}} and {{_source._ingest.timestamp}}", templateService));
-        assertThat(ingestDocument.getFieldValue("ingest_timestamp", String.class), equalTo(ingestDocument.getIngestMetadata().get("timestamp") + " and bogus_timestamp"));
+        ingestDocument.setFieldValue(templateService.compile("ingest_timestamp"),
+                ValueSource.wrap("{{_ingest.timestamp}} and {{_source._ingest.timestamp}}", templateService));
+        assertThat(ingestDocument.getFieldValue("ingest_timestamp", String.class),
+                equalTo(ingestDocument.getIngestMetadata().get("timestamp") + " and bogus_timestamp"));
     }
 }

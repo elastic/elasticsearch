@@ -682,7 +682,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return refCounter.refCount();
     }
 
-    private static final class StoreDirectory extends FilterDirectory {
+    static final class StoreDirectory extends FilterDirectory {
 
         private final ESLogger deletesLogger;
 
@@ -715,7 +715,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         public String toString() {
             return "store(" + in.toString() + ")";
         }
-
     }
 
     /**
@@ -821,7 +820,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
                 numDocs = Lucene.getNumDocs(segmentCommitInfos);
                 commitUserDataBuilder.putAll(segmentCommitInfos.getUserData());
-                @SuppressWarnings("deprecation")
                 Version maxVersion = segmentCommitInfos.getMinSegmentLuceneVersion(); // we don't know which version was used to write so we take the max version.
                 for (SegmentCommitInfo info : segmentCommitInfos) {
                     final Version version = info.info.getVersion();

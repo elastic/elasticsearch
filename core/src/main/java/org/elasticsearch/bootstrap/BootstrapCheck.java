@@ -20,7 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.SuppressForbidden;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -152,7 +152,7 @@ final class BootstrapCheck {
         final FileDescriptorCheck fileDescriptorCheck
             = Constants.MAC_OS_X ? new OsXFileDescriptorCheck() : new FileDescriptorCheck();
         checks.add(fileDescriptorCheck);
-        checks.add(new MlockallCheck(BootstrapSettings.MLOCKALL_SETTING.get(settings)));
+        checks.add(new MlockallCheck(BootstrapSettings.MEMORY_LOCK_SETTING.get(settings)));
         if (Constants.LINUX) {
             checks.add(new MaxNumberOfThreadsCheck());
         }

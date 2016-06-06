@@ -50,11 +50,13 @@ public class IngestMustacheSetProcessorIT extends AbstractMustacheTestCase {
     }
 
     public void testSetWithTemplates() throws Exception {
-        IngestDocument.MetaData randomMetaData = randomFrom(IngestDocument.MetaData.INDEX, IngestDocument.MetaData.TYPE, IngestDocument.MetaData.ID);
+        IngestDocument.MetaData randomMetaData = randomFrom(IngestDocument.MetaData.INDEX, IngestDocument.MetaData.TYPE,
+                IngestDocument.MetaData.ID);
         Processor processor = createSetProcessor("field{{_type}}", "_value {{" + randomMetaData.getFieldName() + "}}");
         IngestDocument ingestDocument = createIngestDocument(new HashMap<>());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue("field_type", String.class), Matchers.equalTo("_value " + ingestDocument.getFieldValue(randomMetaData.getFieldName(), String.class)));
+        assertThat(ingestDocument.getFieldValue("field_type", String.class),
+                Matchers.equalTo("_value " + ingestDocument.getFieldValue(randomMetaData.getFieldName(), String.class)));
     }
 
     private SetProcessor createSetProcessor(String fieldName, Object fieldValue) throws Exception {

@@ -113,7 +113,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             // enforce gradle version
-            GradleVersion minGradle = GradleVersion.version('2.8')
+            GradleVersion minGradle = GradleVersion.version('2.13')
             if (GradleVersion.current() < minGradle) {
                 throw new GradleException("${minGradle} or above is required to build elasticsearch")
             }
@@ -143,7 +143,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             project.rootProject.ext.javaHome = javaHome
-            project.rootProject.ext.javaVersion = javaVersion
+            project.rootProject.ext.javaVersion = javaVersionEnum
             project.rootProject.ext.buildChecksDone = true
         }
         project.targetCompatibility = minimumJava
@@ -372,25 +372,30 @@ class BuildPlugin implements Plugin<Project> {
                 options.fork = true
                 options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
                 options.forkOptions.memoryMaximumSize = "1g"
+                if (project.targetCompatibility >= JavaVersion.VERSION_1_8) {
+                    // compile with compact 3 profile by default
+                    // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
+                    if (project.compactProfile != 'full') {
+                        options.compilerArgs << '-profile' << project.compactProfile
+                    }
+                }
                 /*
                  * -path because gradle will send in paths that don't always exist.
                  * -missing because we have tons of missing @returns and @param.
                  * -serial because we don't use java serialization.
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
-                options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options' << '-Xdoclint:all' << '-Xdoclint:-missing'
-                // compile with compact 3 profile by default
-                // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
-                if (project.compactProfile != 'full') {
-                    options.compilerArgs << '-profile' << project.compactProfile
-                }
+                options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation' << '-Xdoclint:all' << '-Xdoclint:-missing'
                 options.encoding = 'UTF-8'
                 //options.incremental = true
 
-                // gradle ignores target/source compatibility when it is "unnecessary", but since to compile with
-                // java 9, gradle is running in java 8, it incorrectly thinks it is unnecessary
-                assert minimumJava == JavaVersion.VERSION_1_8
-                options.compilerArgs << '-target' << '1.8' << '-source' << '1.8'
+                if (project.javaVersion == JavaVersion.VERSION_1_9) {
+                    // hack until gradle supports java 9's new "-release" arg
+                    assert minimumJava == JavaVersion.VERSION_1_8
+                    options.compilerArgs << '-release' << '8'
+                    project.sourceCompatibility = null
+                    project.targetCompatibility = null
+                }
             }
         }
     }

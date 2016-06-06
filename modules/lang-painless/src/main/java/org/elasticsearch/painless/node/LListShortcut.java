@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
@@ -34,8 +35,8 @@ final class LListShortcut extends ALink {
     Method getter;
     Method setter;
 
-    LListShortcut(int line, String location, AExpression index) {
-        super(line, location, 2);
+    LListShortcut(Location location, AExpression index) {
+        super(location, 2);
 
         this.index = index;
     }
@@ -47,16 +48,16 @@ final class LListShortcut extends ALink {
 
         if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1 ||
             getter.arguments.get(0).sort != Sort.INT)) {
-            throw new IllegalArgumentException(error("Illegal list get shortcut for type [" + before.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal list get shortcut for type [" + before.name + "]."));
         }
 
         if (setter != null && (setter.arguments.size() != 2 || setter.arguments.get(0).sort != Sort.INT)) {
-            throw new IllegalArgumentException(error("Illegal list set shortcut for type [" + before.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal list set shortcut for type [" + before.name + "]."));
         }
 
         if (getter != null && setter != null && (!getter.arguments.get(0).equals(setter.arguments.get(0))
             || !getter.rtn.equals(setter.arguments.get(1)))) {
-            throw new IllegalArgumentException(error("Shortcut argument types must match."));
+            throw createError(new IllegalArgumentException("Shortcut argument types must match."));
         }
 
         if ((load || store) && (!load || getter != null) && (!store || setter != null)) {
@@ -66,38 +67,40 @@ final class LListShortcut extends ALink {
 
             after = setter != null ? setter.arguments.get(1) : getter.rtn;
         } else {
-            throw new IllegalArgumentException(error("Illegal list shortcut for type [" + before.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal list shortcut for type [" + before.name + "]."));
         }
 
         return this;
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        index.write(adapter);
+    void write(MethodWriter writer) {
+        index.write(writer);
     }
 
     @Override
-    void load(MethodWriter adapter) {
+    void load(MethodWriter writer) {
+        writer.writeDebugInfo(location);
         if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
-            adapter.invokeInterface(getter.owner.type, getter.method);
+            writer.invokeInterface(getter.owner.type, getter.method);
         } else {
-            adapter.invokeVirtual(getter.owner.type, getter.method);
+            writer.invokeVirtual(getter.owner.type, getter.method);
         }
 
         if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
-            adapter.checkCast(getter.rtn.type);
+            writer.checkCast(getter.rtn.type);
         }
     }
 
     @Override
-    void store(MethodWriter adapter) {
+    void store(MethodWriter writer) {
+        writer.writeDebugInfo(location);
         if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {
-            adapter.invokeInterface(setter.owner.type, setter.method);
+            writer.invokeInterface(setter.owner.type, setter.method);
         } else {
-            adapter.invokeVirtual(setter.owner.type, setter.method);
+            writer.invokeVirtual(setter.owner.type, setter.method);
         }
 
-        adapter.writePop(setter.rtn.sort.size);
+        writer.writePop(setter.rtn.sort.size);
     }
 }

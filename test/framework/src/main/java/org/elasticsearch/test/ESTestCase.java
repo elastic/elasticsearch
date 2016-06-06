@@ -37,7 +37,7 @@ import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -56,6 +56,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
@@ -70,6 +71,7 @@ import org.junit.Rule;
 import org.junit.rules.RuleChain;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -82,9 +84,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -443,24 +443,13 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Runs the code block for 10 seconds waiting for no assertion to trip.
      */
     public static void assertBusy(Runnable codeBlock) throws Exception {
-        assertBusy(Executors.callable(codeBlock), 10, TimeUnit.SECONDS);
-    }
-
-    public static void assertBusy(Runnable codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
-        assertBusy(Executors.callable(codeBlock), maxWaitTime, unit);
-    }
-
-    /**
-     * Runs the code block for 10 seconds waiting for no assertion to trip.
-     */
-    public static <V> V assertBusy(Callable<V> codeBlock) throws Exception {
-        return assertBusy(codeBlock, 10, TimeUnit.SECONDS);
+        assertBusy(codeBlock, 10, TimeUnit.SECONDS);
     }
 
     /**
      * Runs the code block for the provided interval, waiting for no assertions to trip.
      */
-    public static <V> V assertBusy(Callable<V> codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
+    public static void assertBusy(Runnable codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
         long iterations = Math.max(Math.round(Math.log10(maxTimeInMillis) / Math.log10(2)), 1);
         long timeInMillis = 1;
@@ -468,7 +457,8 @@ public abstract class ESTestCase extends LuceneTestCase {
         List<AssertionError> failures = new ArrayList<>();
         for (int i = 0; i < iterations; i++) {
             try {
-                return codeBlock.call();
+                codeBlock.run();
+                return;
             } catch (AssertionError e) {
                 failures.add(e);
             }
@@ -479,7 +469,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         timeInMillis = maxTimeInMillis - sum;
         Thread.sleep(Math.max(timeInMillis, 0));
         try {
-            return codeBlock.call();
+            codeBlock.run();
         } catch (AssertionError e) {
             for (AssertionError failure : failures) {
                 e.addSuppressed(failure);
@@ -683,17 +673,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         return enabled;
     }
 
-    /**
-     * Asserts that there are no files in the specified path
-     */
-    public void assertPathHasBeenCleared(String path) throws Exception {
-        assertPathHasBeenCleared(PathUtils.get(path));
+    public void assertAllIndicesRemovedAndDeletionCompleted(Iterable<IndicesService> indicesServices) throws Exception {
+        for (IndicesService indicesService : indicesServices) {
+            assertBusy(() -> assertFalse(indicesService.iterator().hasNext()), 1, TimeUnit.MINUTES);
+            assertBusy(() -> assertFalse(indicesService.hasUncompletedPendingDeletes()), 1, TimeUnit.MINUTES);
+        }
     }
 
     /**
      * Asserts that there are no files in the specified path
      */
-    public void assertPathHasBeenCleared(Path path) throws Exception {
+    public void assertPathHasBeenCleared(Path path) {
         logger.info("--> checking that [{}] has been cleared", path);
         int count = 0;
         StringBuilder sb = new StringBuilder();
@@ -714,6 +704,8 @@ public abstract class ESTestCase extends LuceneTestCase {
                         sb.append("\n");
                     }
                 }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
         }
         sb.append("]");

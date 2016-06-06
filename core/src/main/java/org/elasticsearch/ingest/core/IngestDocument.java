@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest.core;
 
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
@@ -30,11 +29,11 @@ import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 
-import java.io.IOException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -42,8 +41,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TimeZone;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
@@ -144,11 +141,7 @@ public final class IngestDocument {
         if (object instanceof byte[]) {
             return (byte[]) object;
         } else if (object instanceof String) {
-            try {
-                return Base64.decode(object.toString().getBytes(UTF_8));
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Could not base64 decode path [ " + path + "]", e);
-            }
+            return Base64.getDecoder().decode(object.toString());
         } else {
             throw new IllegalArgumentException("Content field [" + path + "] of unknown type [" + object.getClass().getName() +
                 "], must be string or byte array");
@@ -464,7 +457,6 @@ public final class IngestDocument {
 
     private static void appendValues(List<Object> list, Object value) {
         if (value instanceof List) {
-            @SuppressWarnings("unchecked")
             List<?> valueList = (List<?>) value;
             valueList.stream().forEach(list::add);
         } else {

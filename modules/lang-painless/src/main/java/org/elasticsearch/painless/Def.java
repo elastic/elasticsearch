@@ -53,7 +53,7 @@ public final class Def {
 
     /** Helper class for isolating MethodHandles and methods to get the length of arrays
      * (to emulate a "arraystore" bytecode using MethodHandles).
-     * This should really be a method in {@link MethodHandles} class!
+     * See: https://bugs.openjdk.java.net/browse/JDK-8156915
      */
     @SuppressWarnings("unused") // getArrayLength() methods are are actually used, javac just does not know :)
     private static final class ArrayLengthHelper {
@@ -103,6 +103,8 @@ public final class Def {
     private static final MethodHandle LIST_GET;
     /** pointer to List.set(int,Object) */
     private static final MethodHandle LIST_SET;
+    /** factory for arraylength MethodHandle (intrinsic) from Java 9 */
+    private static final MethodHandle JAVA9_ARRAY_LENGTH_MH_FACTORY;
 
     static {
         final Lookup lookup = MethodHandles.publicLookup();
@@ -115,11 +117,37 @@ public final class Def {
         } catch (final ReflectiveOperationException roe) {
             throw new AssertionError(roe);
         }
+        
+        // lookup up the factory for arraylength MethodHandle (intrinsic) from Java 9:
+        // https://bugs.openjdk.java.net/browse/JDK-8156915
+        MethodHandle arrayLengthMHFactory;
+        try {
+            arrayLengthMHFactory = lookup.findStatic(MethodHandles.class, "arrayLength",
+                MethodType.methodType(MethodHandle.class, Class.class));
+        } catch (final ReflectiveOperationException roe) {
+            arrayLengthMHFactory = null;
+        }
+        JAVA9_ARRAY_LENGTH_MH_FACTORY = arrayLengthMHFactory;
     }
 
+    /** Hack to rethrow unknown Exceptions from {@link MethodHandle#invokeExact}: */
+    @SuppressWarnings("unchecked")
+    private static <T extends Throwable> void rethrow(Throwable t) throws T {
+        throw (T) t;
+    }
+    
     /** Returns an array length getter MethodHandle for the given array type */
     static MethodHandle arrayLengthGetter(Class<?> arrayType) {
-        return ArrayLengthHelper.arrayLengthGetter(arrayType);
+        if (JAVA9_ARRAY_LENGTH_MH_FACTORY != null) {
+            try {
+                return (MethodHandle) JAVA9_ARRAY_LENGTH_MH_FACTORY.invokeExact(arrayType);
+            } catch (Throwable t) {
+                rethrow(t);
+                throw new AssertionError(t);
+            }
+        } else {
+            return ArrayLengthHelper.arrayLengthGetter(arrayType);
+        }
     }
 
     /**

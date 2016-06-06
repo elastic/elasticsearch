@@ -219,11 +219,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     }
 
     private void recordOperationBytes(Engine.Operation op) {
-        Translog.Location loc = op.getTranslogLocation();
-        // This can be null on (harmless) version conflict during recovery:
-        if (loc != null) {
-            bytesWritten(loc.size);
-        }
+        bytesWritten(op.sizeInBytes());
     }
 
     private static final class ShardAndBytesUsed implements Comparable<ShardAndBytesUsed> {

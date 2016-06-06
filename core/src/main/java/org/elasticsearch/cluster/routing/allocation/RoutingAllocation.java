@@ -56,7 +56,7 @@ public class RoutingAllocation {
 
         private final MetaData metaData;
 
-        private RoutingExplanations explanations = new RoutingExplanations();
+        private final RoutingExplanations explanations;
 
         /**
          * Creates a new {@link RoutingAllocation.Result}
@@ -65,9 +65,7 @@ public class RoutingAllocation {
          * @param metaData the {@link MetaData} this Result references
          */
         public Result(boolean changed, RoutingTable routingTable, MetaData metaData) {
-            this.changed = changed;
-            this.routingTable = routingTable;
-            this.metaData = metaData;
+            this(changed, routingTable, metaData, new RoutingExplanations());
         }
 
         /**
@@ -122,6 +120,8 @@ public class RoutingAllocation {
 
     private final MetaData metaData;
 
+    private final RoutingTable routingTable;
+
     private final DiscoveryNodes nodes;
 
     private final ImmutableOpenMap<String, ClusterState.Custom> customs;
@@ -154,6 +154,7 @@ public class RoutingAllocation {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
         this.metaData = clusterState.metaData();
+        this.routingTable = clusterState.routingTable();
         this.nodes = clusterState.nodes();
         this.customs = clusterState.customs();
         this.clusterInfo = clusterInfo;
@@ -179,7 +180,7 @@ public class RoutingAllocation {
      * @return current routing table
      */
     public RoutingTable routingTable() {
-        return routingNodes.routingTable();
+        return routingTable;
     }
 
     /**

@@ -31,7 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -185,7 +185,7 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
                 });
             } catch (Exception e) {
                 logger.error("Error running {}", e, template);
-                throw new ScriptException("Error running " + template, e);
+                throw new GeneralScriptException("Error running " + template, e);
             }
             return result.bytes();
         }

@@ -21,7 +21,7 @@ package org.elasticsearch.snapshots.mockstore;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -174,6 +174,10 @@ public class MockRepository extends FsRepository {
         blockOnControlFiles = blocked;
     }
 
+    public boolean blockOnDataFiles() {
+        return blockOnDataFiles;
+    }
+
     public synchronized void unblockExecution() {
         blocked = false;
         // Clean blocking flags, so we wouldn't try to block again
@@ -231,7 +235,7 @@ public class MockRepository extends FsRepository {
 
             private boolean shouldFail(String blobName, double probability) {
                 if (probability > 0.0) {
-                    String path = path().add(blobName).buildAsString("/") + "/" + randomPrefix;
+                    String path = path().add(blobName).buildAsString() + randomPrefix;
                     path += "/" + incrementAndGet(path);
                     logger.info("checking [{}] [{}]", path, Math.abs(hashCode(path)) < Integer.MAX_VALUE * probability);
                     return Math.abs(hashCode(path)) < Integer.MAX_VALUE * probability;

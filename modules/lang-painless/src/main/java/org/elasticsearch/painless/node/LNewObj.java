@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Constructor;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.Type;
@@ -29,7 +30,7 @@ import org.elasticsearch.painless.MethodWriter;
 import java.util.List;
 
 /**
- * Respresents and object instantiation.
+ * Represents and object instantiation.
  */
 public final class LNewObj extends ALink {
 
@@ -38,8 +39,8 @@ public final class LNewObj extends ALink {
 
     Constructor constructor;
 
-    public LNewObj(int line, String location, String type, List<AExpression> arguments) {
-        super(line, location, -1);
+    public LNewObj(Location location, String type, List<AExpression> arguments) {
+        super(location, -1);
 
         this.type = type;
         this.arguments = arguments;
@@ -48,33 +49,33 @@ public final class LNewObj extends ALink {
     @Override
     ALink analyze(Variables variables) {
         if (before != null) {
-            throw new IllegalStateException(error("Illegal tree structure"));
+            throw createError(new IllegalArgumentException("Illegal new call with a target already defined."));
         } else if (store) {
-            throw new IllegalArgumentException(error("Cannot assign a value to a new call."));
+            throw createError(new IllegalArgumentException("Cannot assign a value to a new call."));
         }
 
         final Type type;
 
         try {
             type = Definition.getType(this.type);
-        } catch (final IllegalArgumentException exception) {
-            throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
+        } catch (IllegalArgumentException exception) {
+            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        final Struct struct = type.struct;
+        Struct struct = type.struct;
         constructor = struct.constructors.get(new Definition.MethodKey("new", arguments.size()));
 
         if (constructor != null) {
-            final Type[] types = new Type[constructor.arguments.size()];
+            Type[] types = new Type[constructor.arguments.size()];
             constructor.arguments.toArray(types);
 
             if (constructor.arguments.size() != arguments.size()) {
-                throw new IllegalArgumentException(error("When calling constructor on type [" + struct.name + "]" +
+                throw createError(new IllegalArgumentException("When calling constructor on type [" + struct.name + "]" +
                     " expected [" + constructor.arguments.size() + "] arguments, but found [" + arguments.size() + "]."));
             }
 
             for (int argument = 0; argument < arguments.size(); ++argument) {
-                final AExpression expression = arguments.get(argument);
+                AExpression expression = arguments.get(argument);
 
                 expression.expected = types[argument];
                 expression.internal = true;
@@ -85,34 +86,35 @@ public final class LNewObj extends ALink {
             statement = true;
             after = type;
         } else {
-            throw new IllegalArgumentException(error("Unknown new call on type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException("Unknown new call on type [" + struct.name + "]."));
         }
 
         return this;
     }
 
     @Override
-    void write(MethodWriter adapter) {
+    void write(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter adapter) {
-        adapter.newInstance(after.type);
+    void load(MethodWriter writer) {
+        writer.writeDebugInfo(location);
+        writer.newInstance(after.type);
 
         if (load) {
-            adapter.dup();
+            writer.dup();
         }
 
         for (AExpression argument : arguments) {
-            argument.write(adapter);
+            argument.write(writer);
         }
 
-        adapter.invokeConstructor(constructor.owner.type, constructor.method);
+        writer.invokeConstructor(constructor.owner.type, constructor.method);
     }
 
     @Override
-    void store(MethodWriter adapter) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+    void store(MethodWriter writer) {
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

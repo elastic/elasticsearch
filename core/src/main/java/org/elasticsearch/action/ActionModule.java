@@ -115,6 +115,8 @@ import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettin
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
+import org.elasticsearch.action.admin.indices.shrink.TransportShrinkAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
@@ -165,10 +167,6 @@ import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.TransportMainAction;
-import org.elasticsearch.action.percolate.MultiPercolateAction;
-import org.elasticsearch.action.percolate.PercolateAction;
-import org.elasticsearch.action.percolate.TransportMultiPercolateAction;
-import org.elasticsearch.action.percolate.TransportPercolateAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
@@ -290,6 +288,7 @@ public class ActionModule extends AbstractModule {
         registerAction(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
         registerAction(IndicesShardStoresAction.INSTANCE, TransportIndicesShardStoresAction.class);
         registerAction(CreateIndexAction.INSTANCE, TransportCreateIndexAction.class);
+        registerAction(ShrinkAction.INSTANCE, TransportShrinkAction.class);
         registerAction(DeleteIndexAction.INSTANCE, TransportDeleteIndexAction.class);
         registerAction(GetIndexAction.INSTANCE, TransportGetIndexAction.class);
         registerAction(OpenIndexAction.INSTANCE, TransportOpenIndexAction.class);
@@ -332,8 +331,6 @@ public class ActionModule extends AbstractModule {
         registerAction(SearchAction.INSTANCE, TransportSearchAction.class);
         registerAction(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
         registerAction(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
-        registerAction(PercolateAction.INSTANCE, TransportPercolateAction.class);
-        registerAction(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class);
         registerAction(ExplainAction.INSTANCE, TransportExplainAction.class);
         registerAction(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
         registerAction(RecoveryAction.INSTANCE, TransportRecoveryAction.class);

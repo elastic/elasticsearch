@@ -133,6 +133,10 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
             return;
         }
 
+        if (task != null && request.getShouldPersistResult()) {
+            listener = new PersistentActionListener<>(taskManager, task, listener);
+        }
+
         if (filters.length == 0) {
             try {
                 doExecute(task, request, listener);
@@ -171,7 +175,7 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
                 if (i < this.action.filters.length) {
                     this.action.filters[i].apply(task, actionName, request, listener, this);
                 } else if (i == this.action.filters.length) {
-                    this.action.doExecute(task, request, new FilteredActionListener<Response>(actionName, listener,
+                    this.action.doExecute(task, request, new FilteredActionListener<>(actionName, listener,
                             new ResponseFilterChain<>(this.action.filters, logger)));
                 } else {
                     listener.onFailure(new IllegalStateException("proceed was called too many times"));
@@ -244,6 +248,39 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
         @Override
         public void onFailure(Throwable e) {
             listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Wrapper for an action listener that persists the result at the end of the execution
+     */
+    private static class PersistentActionListener<Response extends ActionResponse> implements ActionListener<Response> {
+        private final ActionListener<Response> delegate;
+        private final Task task;
+        private final TaskManager taskManager;
+
+        private  PersistentActionListener(TaskManager taskManager, Task task, ActionListener<Response> delegate) {
+            this.taskManager = taskManager;
+            this.task = task;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void onResponse(Response response) {
+            try {
+                taskManager.persistResult(task, response, delegate);
+            } catch (Throwable e) {
+                delegate.onFailure(e);
+            }
+        }
+
+        @Override
+        public void onFailure(Throwable e) {
+            try {
+                taskManager.persistResult(task, e, delegate);
+            } catch (Throwable e1) {
+                delegate.onFailure(e1);
+            }
         }
     }
 }

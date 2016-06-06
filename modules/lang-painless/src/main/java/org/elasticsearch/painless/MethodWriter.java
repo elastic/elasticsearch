@@ -30,6 +30,7 @@ import org.objectweb.asm.commons.Method;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Deque;
 import java.util.List;
 
@@ -86,13 +87,15 @@ import static org.elasticsearch.painless.WriterConstants.UTILITY_TYPE;
  * shared by the nodes of the Painless tree.
  */
 public final class MethodWriter extends GeneratorAdapter {
+    private final BitSet statements;
 
     private final Deque<List<org.objectweb.asm.Type>> stringConcatArgs = (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ?
             null : new ArrayDeque<>();
 
-    MethodWriter(int access, Method method, org.objectweb.asm.Type[] exceptions, ClassVisitor cv) {
+    MethodWriter(int access, Method method, org.objectweb.asm.Type[] exceptions, ClassVisitor cv, BitSet statements) {
         super(Opcodes.ASM5, cv.visitMethod(access, method.getName(), method.getDescriptor(), null, getInternalNames(exceptions)),
                 access, method.getName(), method.getDescriptor());
+        this.statements = statements;
     }
 
     private static String[] getInternalNames(final org.objectweb.asm.Type[] types) {
@@ -106,8 +109,34 @@ public final class MethodWriter extends GeneratorAdapter {
         return names;
     }
 
-    public void writeLoopCounter(final int slot, final int count) {
+    /** 
+     * Marks a new statement boundary. 
+     * <p>
+     * This is invoked for each statement boundary (leaf {@code S*} nodes).
+     */
+    public void writeStatementOffset(Location location) {
+        int offset = location.getOffset();
+        // ensure we don't have duplicate stuff going in here. can catch bugs
+        // (e.g. nodes get assigned wrong offsets by antlr walker)
+        assert statements.get(offset) == false;
+        statements.set(offset);
+    }
+
+    /** 
+     * Encodes the offset into the line number table as {@code offset + 1}.
+     * <p>
+     * This is invoked before instructions that can hit exceptions.
+     */
+    public void writeDebugInfo(Location location) {
+        // TODO: maybe track these in bitsets too? this is trickier...
+        Label label = new Label();
+        visitLabel(label);
+        visitLineNumber(location.getOffset() + 1, label);
+    }
+
+    public void writeLoopCounter(int slot, int count, Location location) {
         if (slot > -1) {
+            writeDebugInfo(location);
             final Label end = new Label();
 
             iinc(slot, -count);
@@ -253,14 +282,14 @@ public final class MethodWriter extends GeneratorAdapter {
         }
     }
 
-    public void writeBinaryInstruction(final String location, final Type type, final Operation operation) {
+    public void writeBinaryInstruction(Location location, Type type, Operation operation) {
         final Sort sort = type.sort;
 
         if ((sort == Sort.FLOAT || sort == Sort.DOUBLE) &&
                 (operation == Operation.LSH || operation == Operation.USH ||
                 operation == Operation.RSH || operation == Operation.BWAND ||
                 operation == Operation.XOR || operation == Operation.BWOR)) {
-            throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
+            throw location.createError(new IllegalStateException("Illegal tree structure."));
         }
 
         if (sort == Sort.DEF) {
@@ -277,7 +306,7 @@ public final class MethodWriter extends GeneratorAdapter {
                 case XOR:   invokeStatic(DEF_UTIL_TYPE, DEF_XOR_CALL); break;
                 case BWOR:  invokeStatic(DEF_UTIL_TYPE, DEF_OR_CALL);  break;
                 default:
-                    throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
+                    throw location.createError(new IllegalStateException("Illegal tree structure."));
             }
         } else {
             switch (operation) {
@@ -293,7 +322,7 @@ public final class MethodWriter extends GeneratorAdapter {
                 case XOR:   math(GeneratorAdapter.XOR,  type.type); break;
                 case BWOR:  math(GeneratorAdapter.OR,   type.type); break;
                 default:
-                    throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
+                    throw location.createError(new IllegalStateException("Illegal tree structure."));
             }
         }
     }

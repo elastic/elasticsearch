@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -30,8 +31,8 @@ public final class SReturn extends AStatement {
 
     AExpression expression;
 
-    public SReturn(int line, String location, AExpression expression) {
-        super(line, location);
+    public SReturn(Location location, AExpression expression) {
+        super(location);
 
         this.expression = expression;
     }
@@ -51,9 +52,9 @@ public final class SReturn extends AStatement {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        expression.write(adapter);
-        adapter.returnValue();
+    void write(MethodWriter writer) {
+        writer.writeStatementOffset(location);
+        expression.write(writer);
+        writer.returnValue();
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Variables;
@@ -34,8 +35,8 @@ public final class LCast extends ALink {
 
     Cast cast = null;
 
-    public LCast(int line, String location, String type) {
-        super(line, location, -1);
+    public LCast(Location location, String type) {
+        super(location, -1);
 
         this.type = type;
     }
@@ -43,15 +44,15 @@ public final class LCast extends ALink {
     @Override
     ALink analyze(Variables variables) {
         if (before == null) {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw createError(new IllegalStateException("Illegal cast without a target."));
         } else if (store) {
-            throw new IllegalArgumentException(error("Cannot assign a value to a cast."));
+            throw createError(new IllegalArgumentException("Cannot assign a value to a cast."));
         }
 
         try {
             after = Definition.getType(type);
-        } catch (final IllegalArgumentException exception) {
-            throw new IllegalArgumentException(error("Not a type [" + type + "]."));
+        } catch (IllegalArgumentException exception) {
+            throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
         }
 
         cast = AnalyzerCaster.getLegalCast(location, before, after, true, false);
@@ -60,17 +61,18 @@ public final class LCast extends ALink {
     }
 
     @Override
-    void write(MethodWriter adapter) {
-        adapter.writeCast(cast);
+    void write(MethodWriter writer) {
+        writer.writeDebugInfo(location);
+        writer.writeCast(cast);
     }
 
     @Override
-    void load(MethodWriter adapter) {
+    void load(MethodWriter writer) {
         // Do nothing.
     }
 
     @Override
-    void store(MethodWriter adapter) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+    void store(MethodWriter writer) {
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

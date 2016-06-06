@@ -26,9 +26,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
@@ -43,7 +42,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
-public class FiltersAggregationBuilder extends AggregationBuilder<FiltersAggregationBuilder> {
+public class FiltersAggregationBuilder extends AbstractAggregationBuilder<FiltersAggregationBuilder> {
     public static final String NAME = InternalFilters.TYPE.name();
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
@@ -235,8 +234,8 @@ public class FiltersAggregationBuilder extends AggregationBuilder<FiltersAggrega
                         if (token == XContentParser.Token.FIELD_NAME) {
                             key = parser.currentName();
                         } else {
-                            QueryBuilder filter = context.parseInnerQueryBuilder();
-                            keyedFilters.add(new FiltersAggregator.KeyedFilter(key, filter == null ? matchAllQuery() : filter));
+                            QueryBuilder filter = context.parseInnerQueryBuilder().orElse(matchAllQuery());
+                            keyedFilters.add(new FiltersAggregator.KeyedFilter(key, filter));
                         }
                     }
                 } else {
@@ -247,8 +246,8 @@ public class FiltersAggregationBuilder extends AggregationBuilder<FiltersAggrega
                 if (context.getParseFieldMatcher().match(currentFieldName, FILTERS_FIELD)) {
                     nonKeyedFilters = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        QueryBuilder filter = context.parseInnerQueryBuilder();
-                        nonKeyedFilters.add(filter == null ? QueryBuilders.matchAllQuery() : filter);
+                        QueryBuilder filter = context.parseInnerQueryBuilder().orElse(matchAllQuery());
+                        nonKeyedFilters.add(filter);
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),

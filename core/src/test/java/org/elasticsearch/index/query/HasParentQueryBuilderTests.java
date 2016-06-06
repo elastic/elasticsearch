@@ -32,30 +32,34 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.AbstractQueryTestCase;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.startsWith;
 
 public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQueryBuilder> {
     protected static final String PARENT_TYPE = "parent";
     protected static final String CHILD_TYPE = "child";
 
-    @BeforeClass
-    public static void beforeClass() throws Exception {
-        MapperService mapperService = createShardContext().getMapperService();
+    @Override
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
                 STRING_FIELD_NAME, "type=text",
                 STRING_FIELD_NAME_2, "type=keyword",
@@ -98,14 +102,10 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     @Override
     protected void doAssertLuceneQuery(HasParentQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        QueryBuilder innerQueryBuilder = queryBuilder.query();
-        if (innerQueryBuilder instanceof EmptyQueryBuilder) {
-            assertNull(query);
-        } else {
-            assertThat(query, instanceOf(HasChildQueryBuilder.LateParsingQuery.class));
-            HasChildQueryBuilder.LateParsingQuery lpq = (HasChildQueryBuilder.LateParsingQuery) query;
-            assertEquals(queryBuilder.score() ? ScoreMode.Max : ScoreMode.None, lpq.getScoreMode());
-        }
+        assertThat(query, instanceOf(HasChildQueryBuilder.LateParsingQuery.class));
+        HasChildQueryBuilder.LateParsingQuery lpq = (HasChildQueryBuilder.LateParsingQuery) query;
+        assertEquals(queryBuilder.score() ? ScoreMode.Max : ScoreMode.None, lpq.getScoreMode());
+
         if (queryBuilder.innerHit() != null) {
             SearchContext searchContext = SearchContext.current();
             assertNotNull(searchContext);
@@ -228,6 +228,27 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         checkGeneratedJson(json, parsed);
         assertEquals(json, "blog", parsed.type());
         assertEquals(json, "something", ((TermQueryBuilder) parsed.query()).value());
+    }
+
+    /**
+     * we resolve empty inner clauses by representing this whole query as empty optional upstream
+     */
+    public void testFromJsonEmptyQueryBody() throws IOException {
+        String query =  "{\n" +
+                "  \"has_parent\" : {\n" +
+                "    \"query\" : { },\n" +
+                "    \"parent_type\" : \"blog\"" +
+                "   }" +
+                "}";
+        XContentParser parser = XContentFactory.xContent(query).createParser(query);
+        QueryParseContext context = createParseContext(parser, ParseFieldMatcher.EMPTY);
+        Optional<QueryBuilder> innerQueryBuilder = context.parseInnerQueryBuilder();
+        assertTrue(innerQueryBuilder.isPresent() == false);
+
+        parser = XContentFactory.xContent(query).createParser(query);
+        QueryParseContext otherContext = createParseContext(parser, ParseFieldMatcher.STRICT);
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> otherContext.parseInnerQueryBuilder());
+        assertThat(ex.getMessage(), startsWith("query malformed, empty clause found at"));
     }
 
     public void testIgnoreUnmapped() throws IOException {

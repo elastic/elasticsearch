@@ -21,7 +21,6 @@ package org.elasticsearch.ingest.attachment;
 
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
@@ -30,6 +29,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -209,7 +209,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         String path = "/org/elasticsearch/ingest/attachment/test/sample-files/" + filename;
         try (InputStream is = AttachmentProcessorTests.class.getResourceAsStream(path)) {
             byte bytes[] = IOUtils.toByteArray(is);
-            return Base64.encodeBytes(bytes);
+            return Base64.getEncoder().encodeToString(bytes);
         }
     }
 }

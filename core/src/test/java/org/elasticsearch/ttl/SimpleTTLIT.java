@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(scope= Scope.SUITE, numDataNodes = 1)
+@ClusterScope(scope= Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class SimpleTTLIT extends ESIntegTestCase {
 
     static private final long PURGE_INTERVAL = 200;
@@ -214,7 +214,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
         assertTTLMappingEnabled(index, type);
 
         // update some field in the mapping
-        XContentBuilder updateMappingBuilder = jsonBuilder().startObject().startObject("properties").startObject("otherField").field("type", "text").endObject().endObject();
+        XContentBuilder updateMappingBuilder = jsonBuilder().startObject().startObject("properties").startObject("otherField").field("type", "text").endObject().endObject().endObject();
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
         assertAcked(putMappingResponse);
 

@@ -114,34 +114,22 @@ public class DivisionTests extends ScriptTestCase {
     }
 
     public void testDivideByZero() throws Exception {
-        try {
+        expectScriptThrows(ArithmeticException.class, () -> {
             exec("int x = 1; int y = 0; return x / y;");
-            fail("should have hit exception");
-        } catch (ArithmeticException expected) {
-            // divide by zero
-        }
+        });
 
-        try {
+        expectScriptThrows(ArithmeticException.class, () -> {
             exec("long x = 1L; long y = 0L; return x / y;");
-            fail("should have hit exception");
-        } catch (ArithmeticException expected) {
-            // divide by zero
-        }
+        });
     }
 
     public void testDivideByZeroConst() throws Exception {
-        try {
+        expectScriptThrows(ArithmeticException.class, () -> {
             exec("return 1/0;");
-            fail("should have hit exception");
-        } catch (ArithmeticException expected) {
-            // divide by zero
-        }
+        });
 
-        try {
+        expectScriptThrows(ArithmeticException.class, () -> {
             exec("return 1L/0L;");
-            fail("should have hit exception");
-        } catch (ArithmeticException expected) {
-            // divide by zero
-        }
+        });
     }
 }

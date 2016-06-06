@@ -129,7 +129,6 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
         throw new IllegalArgumentException("No directory found for type [" + storeType + "]");
     }
 
-    @SuppressWarnings("deprecation")
     private static boolean isDefault(String storeType) {
         return IndexModule.Type.DEFAULT.match(storeType);
     }

@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -340,15 +341,13 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     public ShardIterator onlyNodeActiveInitializingShardsIt(String nodeId) {
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
-        // fill it in a randomized fashion
-        for (int i = 0; i < activeShards.size(); i++) {
-            ShardRouting shardRouting = activeShards.get(i);
+        int seed = shuffler.nextSeed();
+        for (ShardRouting shardRouting : shuffler.shuffle(activeShards, seed)) {
             if (nodeId.equals(shardRouting.currentNodeId())) {
                 ordered.add(shardRouting);
             }
         }
-        for (int i = 0; i < allInitializingShards.size(); i++) {
-            ShardRouting shardRouting = allInitializingShards.get(i);
+        for (ShardRouting shardRouting : shuffler.shuffle(allInitializingShards, seed)) {
             if (nodeId.equals(shardRouting.currentNodeId())) {
                 ordered.add(shardRouting);
             }
@@ -356,26 +355,31 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return new PlainShardIterator(shardId, ordered);
     }
 
+    public ShardIterator onlyNodeSelectorActiveInitializingShardsIt(String nodeAttributes, DiscoveryNodes discoveryNodes) {
+        return onlyNodeSelectorActiveInitializingShardsIt(new String[] {nodeAttributes}, discoveryNodes);
+    }
+
     /**
      * Returns shards based on nodeAttributes given  such as node name , node attribute, node IP
      * Supports node specifications in cluster API
      */
-    public ShardIterator onlyNodeSelectorActiveInitializingShardsIt(String nodeAttribute, DiscoveryNodes discoveryNodes) {
+    public ShardIterator onlyNodeSelectorActiveInitializingShardsIt(String[] nodeAttributes, DiscoveryNodes discoveryNodes) {
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
-        Set<String> selectedNodes = Sets.newHashSet(discoveryNodes.resolveNodesIds(nodeAttribute));
-
-        for (ShardRouting shardRouting : activeShards) {
+        Set<String> selectedNodes = Sets.newHashSet(discoveryNodes.resolveNodesIds(nodeAttributes));
+        int seed = shuffler.nextSeed();
+        for (ShardRouting shardRouting : shuffler.shuffle(activeShards, seed)) {
             if (selectedNodes.contains(shardRouting.currentNodeId())) {
                 ordered.add(shardRouting);
             }
         }
-        for (ShardRouting shardRouting : allInitializingShards) {
+        for (ShardRouting shardRouting : shuffler.shuffle(allInitializingShards, seed)) {
             if (selectedNodes.contains(shardRouting.currentNodeId())) {
                 ordered.add(shardRouting);
             }
         }
         if (ordered.isEmpty()) {
-            throw new IllegalArgumentException("No data node with criteria [" + nodeAttribute + "] found");
+            throw new IllegalArgumentException("no data nodes with critera(s) " +
+                Strings.arrayToCommaDelimitedString(nodeAttributes) + "] found for shard:" + shardId());
         }
         return new PlainShardIterator(shardId, ordered);
     }

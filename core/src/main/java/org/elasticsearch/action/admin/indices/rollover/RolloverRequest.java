@@ -23,17 +23,21 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -44,14 +48,20 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest {
 
     private String sourceAlias;
-    private String optionalTargetAlias;
-    private List<Condition> conditions = new ArrayList<>();
+    private Set<Condition> conditions = new HashSet<>(2);
+
+    public static ObjectParser<Set<Condition>, ParseFieldMatcherSupplier> TLP_PARSER =
+        new ObjectParser<>("conditions", null);
+    static {
+        TLP_PARSER.declareField((parser, conditions, parseFieldMatcherSupplier) ->
+        Condition.PARSER.parse(parser, conditions,  () -> ParseFieldMatcher.EMPTY),
+            new ParseField("conditions"), ObjectParser.ValueType.OBJECT);
+    }
 
     RolloverRequest() {}
 
-    public RolloverRequest(String sourceAlias, String optionalTargetAlias) {
+    public RolloverRequest(String sourceAlias) {
         this.sourceAlias = sourceAlias;
-        this.optionalTargetAlias = optionalTargetAlias;
     }
 
     @Override
@@ -67,12 +77,9 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         sourceAlias = in.readString();
-        optionalTargetAlias = in.readOptionalString();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            Condition.ConditionType type = Condition.ConditionType.fromId(in.readByte());
-            long value = in.readLong();
-            this.conditions.add(new Condition(type, value));
+            this.conditions.add(in.readNamedWriteable(Condition.class));
         }
     }
 
@@ -80,11 +87,9 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(sourceAlias);
-        out.writeOptionalString(optionalTargetAlias);
         out.writeVInt(conditions.size());
         for (Condition condition : conditions) {
-            out.writeByte(condition.getType().getId());
-            out.writeLong(condition.getValue());
+            out.writeNamedWriteable(condition);
         }
     }
 
@@ -102,27 +107,15 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         this.sourceAlias = sourceAlias;
     }
 
-    public void setOptionalTargetAlias(String optionalTargetAlias) {
-        this.optionalTargetAlias = optionalTargetAlias;
+    public void addMaxIndexAgeCondition(TimeValue age) {
+        this.conditions.add(new Condition.MaxAge(age));
     }
 
-    public void addMaxIndexAgeCondition(String age) {
-        addCondition(Condition.ConditionType.MAX_AGE, Condition.ConditionType.parseFromString(Condition.ConditionType.MAX_AGE, age));
+    public void addMaxIndexDocsCondition(long docs) {
+        this.conditions.add(new Condition.MaxDocs(docs));
     }
 
-    public void addMaxIndexDocsCondition(String docs) {
-        addCondition(Condition.ConditionType.MAX_DOCS, Condition.ConditionType.parseFromString(Condition.ConditionType.MAX_DOCS, docs));
-    }
-
-    public void addMaxIndexSizeCondition(String size) {
-        addCondition(Condition.ConditionType.MAX_SIZE, Condition.ConditionType.parseFromString(Condition.ConditionType.MAX_SIZE, size));
-    }
-
-    private void addCondition(Condition.ConditionType conditionType, long value) {
-        this.conditions.add(new Condition(conditionType, value));
-    }
-
-    public List<Condition> getConditions() {
+    public Set<Condition> getConditions() {
         return conditions;
     }
 
@@ -130,35 +123,16 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return sourceAlias;
     }
 
-    public String getOptionalTargetAlias() {
-        return optionalTargetAlias;
-    }
-
     public void source(BytesReference source) {
         XContentType xContentType = XContentFactory.xContentType(source);
         if (xContentType != null) {
             try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(source)) {
-                source(parser.map());
+                TLP_PARSER.parse(parser, this.conditions, () -> ParseFieldMatcher.EMPTY);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to parse source for rollover index", e);
             }
         } else {
             throw new ElasticsearchParseException("failed to parse content type for rollover index source");
-        }
-    }
-
-    private void source(Map<String, Object> map) {
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            if (entry.getKey().equals("conditions")) {
-                final Map<String, String> conditions = (Map<String, String>) entry.getValue();
-                for (Map.Entry<String, String> conditionEntry : conditions.entrySet()) {
-                    final Condition.ConditionType conditionType = Condition.ConditionType.fromString(conditionEntry.getKey());
-                    this.addCondition(conditionType, Condition.ConditionType.parseFromString(conditionType,
-                        conditionEntry.getValue()));
-                }
-            } else {
-                throw new ElasticsearchParseException("unknown property [" + entry.getKey() + "]");
-            }
         }
     }
 }

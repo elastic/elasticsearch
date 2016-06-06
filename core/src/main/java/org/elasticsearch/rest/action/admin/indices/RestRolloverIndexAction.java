@@ -43,8 +43,8 @@ public class RestRolloverIndexAction extends BaseRestHandler {
     @Inject
     public RestRolloverIndexAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
-        controller.registerHandler(RestRequest.Method.PUT, "/{alias}/_rollover/{optional_alias}", this);
-        controller.registerHandler(RestRequest.Method.POST, "/{alias}/_rollover/{optional_alias}", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/{alias}/_rollover", this);
+        controller.registerHandler(RestRequest.Method.POST, "/{alias}/_rollover", this);
     }
 
     @Override
@@ -52,7 +52,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         if (request.param("alias") == null) {
             throw new IllegalArgumentException("no source alias");
         }
-        RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("alias"), request.param("optional_alias"));
+        RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("alias"));
         if (request.hasContent()) {
             rolloverIndexRequest.source(request.content());
         }

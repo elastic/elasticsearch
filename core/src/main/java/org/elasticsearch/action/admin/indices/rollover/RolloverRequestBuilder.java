@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.unit.TimeValue;
 
 
 /**
@@ -36,22 +37,12 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         return this;
     }
 
-    public RolloverRequestBuilder setOptionalTargetAlias(String optionalTargetAlias) {
-        this.request.setOptionalTargetAlias(optionalTargetAlias);
-        return this;
-    }
-
-    public RolloverRequestBuilder addMaxIndexSizeCondition(String size) {
-        this.request.addMaxIndexSizeCondition(size);
-        return this;
-    }
-
-    public RolloverRequestBuilder addMaxIndexAgeCondition(String age) {
+    public RolloverRequestBuilder addMaxIndexAgeCondition(TimeValue age) {
         this.request.addMaxIndexAgeCondition(age);
         return this;
     }
 
-    public RolloverRequestBuilder addMaxIndexDocsCondition(String docs) {
+    public RolloverRequestBuilder addMaxIndexDocsCondition(long docs) {
         this.request.addMaxIndexDocsCondition(docs);
         return this;
     }

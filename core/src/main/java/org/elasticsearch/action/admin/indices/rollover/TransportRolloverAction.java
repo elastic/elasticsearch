@@ -41,13 +41,13 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.List;
+import java.util.Set;
 
 /**
  * Main class to swap the index pointed to by an alias, given some predicates
@@ -97,56 +97,55 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(rolloverRequest.getSourceAlias());
         final IndexMetaData indexMetaData = aliasOrIndex.getIndices().get(0);
         final String sourceIndexName = indexMetaData.getIndex().getName();
-        client.admin().indices().prepareStats(sourceIndexName).clear().setDocs(true).setStore(true)
-            .execute(new ActionListener<IndicesStatsResponse>() {
-            @Override
-            public void onResponse(IndicesStatsResponse indicesStatsResponse) {
-                final IndexMetaData sourceIndex = metaData.index(sourceIndexName);
-                DocsStats docsStats = indicesStatsResponse.getTotal().getDocs();
-                long docCount = docsStats == null ? 0 : docsStats.getCount();
-                StoreStats storeStats = indicesStatsResponse.getTotal().getStore();
-                long sizeInBytes = storeStats == null ? 0 : storeStats.getSizeInBytes();
-                long creationDate = sourceIndex.getCreationDate();
-                if (satisfiesConditions(rolloverRequest.getConditions(), docCount, sizeInBytes, creationDate)) {
-                    final String rolloverIndexName = generateRolloverIndexName(sourceIndexName);
-                    boolean createRolloverIndex = metaData.index(rolloverIndexName) == null;
-                    if (createRolloverIndex) {
-                        CreateIndexClusterStateUpdateRequest updateRequest =
-                            prepareCreateIndexRequest(rolloverIndexName, rolloverRequest);
-                        createIndexService.createIndex(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
-                            @Override
-                            public void onResponse(ClusterStateUpdateResponse response) {
-                                indexAliasesService.indicesAliases(
-                                    prepareIndicesAliasesRequest(sourceIndexName, rolloverIndexName, rolloverRequest),
-                                    new IndicesAliasesListener(sourceIndexName, rolloverIndexName, listener));
-                            }
-
-                            @Override
-                            public void onFailure(Throwable t) {
-                                if (t instanceof IndexAlreadyExistsException) {
-                                    logger.trace("[{}] failed to create rollover index", t, updateRequest.index());
-                                } else {
-                                    logger.debug("[{}] failed to create rollover index", t, updateRequest.index());
+        client.admin().indices().prepareStats(sourceIndexName).clear().setDocs(true).execute(
+            new ActionListener<IndicesStatsResponse>() {
+                @Override
+                public void onResponse(IndicesStatsResponse indicesStatsResponse) {
+                    final IndexMetaData sourceIndex = metaData.index(sourceIndexName);
+                    DocsStats docsStats = indicesStatsResponse.getTotal().getDocs();
+                    long docCount = docsStats == null ? 0 : docsStats.getCount();
+                    long indexAge = System.currentTimeMillis() - sourceIndex.getCreationDate();
+                    if (satisfiesConditions(rolloverRequest.getConditions(), docCount, indexAge)) {
+                        final String rolloverIndexName = generateRolloverIndexName(sourceIndexName);
+                        boolean createRolloverIndex = metaData.index(rolloverIndexName) == null;
+                        if (createRolloverIndex) {
+                            CreateIndexClusterStateUpdateRequest updateRequest =
+                                prepareCreateIndexRequest(rolloverIndexName, rolloverRequest);
+                            createIndexService.createIndex(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
+                                @Override
+                                public void onResponse(ClusterStateUpdateResponse response) {
+                                    indexAliasesService.indicesAliases(
+                                        prepareIndicesAliasesRequest(sourceIndexName, rolloverIndexName, rolloverRequest),
+                                        new IndicesAliasesListener(sourceIndexName, rolloverIndexName, listener));
                                 }
-                                listener.onFailure(t);
-                            }
-                        });
+
+                                @Override
+                                public void onFailure(Throwable t) {
+                                    if (t instanceof IndexAlreadyExistsException) {
+                                        logger.trace("[{}] failed to create rollover index", t, updateRequest.index());
+                                    } else {
+                                        logger.debug("[{}] failed to create rollover index", t, updateRequest.index());
+                                    }
+                                    listener.onFailure(t);
+                                }
+                            });
+                        } else {
+                            indexAliasesService.indicesAliases(
+                                prepareIndicesAliasesRequest(sourceIndexName, rolloverIndexName, rolloverRequest),
+                                new IndicesAliasesListener(sourceIndexName, rolloverIndexName, listener));
+                        }
                     } else {
-                        indexAliasesService.indicesAliases(
-                            prepareIndicesAliasesRequest(sourceIndexName, rolloverIndexName, rolloverRequest),
-                            new IndicesAliasesListener(sourceIndexName, rolloverIndexName, listener));
+                        // conditions not met
+                        listener.onResponse(new RolloverResponse(sourceIndexName, sourceIndexName));
                     }
-                } else {
-                    // conditions not met
-                    listener.onResponse(new RolloverResponse(sourceIndexName, sourceIndexName));
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    listener.onFailure(e);
                 }
             }
-
-            @Override
-            public void onFailure(Throwable e) {
-                listener.onFailure(e);
-            }
-        });
+        );
 
     }
 
@@ -178,17 +177,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest()
             .ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout());
-        final AliasAction[] actions;
-        if (request.getOptionalTargetAlias() != null) {
-            actions = new AliasAction[3];
-            actions[0] = new AliasAction(AliasAction.Type.ADD, targetIndex, request.getSourceAlias());
-            actions[1] = new AliasAction(AliasAction.Type.ADD, targetIndex, request.getOptionalTargetAlias());
-            actions[2] = new AliasAction(AliasAction.Type.REMOVE, concreteSourceIndex, request.getSourceAlias());
-        } else {
-            actions = new AliasAction[2];
-            actions[0] = new AliasAction(AliasAction.Type.ADD, targetIndex, request.getSourceAlias());
-            actions[1] = new AliasAction(AliasAction.Type.REMOVE, concreteSourceIndex, request.getSourceAlias());
-        }
+        AliasAction[] actions = new AliasAction[2];
+        actions[0] = new AliasAction(AliasAction.Type.ADD, targetIndex, request.getSourceAlias());
+        actions[1] = new AliasAction(AliasAction.Type.REMOVE, concreteSourceIndex, request.getSourceAlias());
         updateRequest.actions(actions);
         return updateRequest;
     }
@@ -208,26 +199,21 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         return String.join("-", indexPrefix, String.valueOf(counter));
     }
 
-    static boolean satisfiesConditions(List<Condition> requestConditions, long docCount, long sizeInBytes,
-                                       long creationDate) {
-        for (Condition condition: requestConditions) {
-            switch (condition.getType()) {
-                case MAX_SIZE:
-                    if (sizeInBytes < condition.getValue()) {
-                        return false;
-                    }
-                    break;
-                case MAX_AGE:
-                    long currentAge = System.currentTimeMillis() - creationDate;
-                    if (currentAge < condition.getValue()) {
-                        return false;
-                    }
-                    break;
-                case MAX_DOCS:
-                    if (docCount < condition.getValue()) {
-                        return false;
-                    }
-                    break;
+    static boolean satisfiesConditions(Set<Condition> conditions, long docCount, long indexAge) {
+        for (Condition condition: conditions) {
+            if (condition instanceof Condition.MaxAge) {
+                Condition.MaxAge maxAge = (Condition.MaxAge) condition;
+                final TimeValue age = TimeValue.timeValueMillis(indexAge);
+                if (maxAge.matches(age) == false) {
+                    return false;
+                }
+            } else if (condition instanceof Condition.MaxDocs) {
+                final Condition.MaxDocs maxDocs = (Condition.MaxDocs) condition;
+                if (maxDocs.matches(docCount) == false) {
+                    return false;
+                }
+            } else {
+                throw new IllegalArgumentException("unknown condition [" + condition.getClass().getSimpleName() + "]");
             }
         }
         return true;

@@ -19,87 +19,82 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectParser;
 
-import java.util.Locale;
+import java.io.IOException;
+import java.util.Set;
 
-public class Condition {
+public abstract class Condition<T> implements NamedWriteable {
+    public static ObjectParser<Set<Condition>, ParseFieldMatcherSupplier> PARSER =
+        new ObjectParser<>("conditions", null);
+    static {
+        PARSER.declareString((conditions, s) ->
+            conditions.add(new MaxAge(TimeValue.parseTimeValue(s, MaxAge.NAME))), new ParseField(MaxAge.NAME));
+        PARSER.declareLong((conditions, value) ->
+            conditions.add(new MaxDocs(value)), new ParseField(MaxDocs.NAME));
+    }
 
-    public enum ConditionType {
-        MAX_SIZE((byte) 0),
-        MAX_AGE((byte) 1),
-        MAX_DOCS((byte) 2);
+    public static class MaxAge extends Condition<TimeValue> {
+        public final static String NAME = "max_age";
 
-        private final byte id;
-
-        ConditionType(byte id) {
-            this.id = id;
+        public MaxAge(TimeValue value) {
+            this.value = value;
         }
 
-        public byte getId() {
-            return id;
+        public MaxAge(StreamInput in) throws IOException {
+            this.value = TimeValue.timeValueMillis(in.readLong());
         }
 
-        public static ConditionType fromId(byte id) {
-            if (id == 0) {
-                return MAX_SIZE;
-            } else if (id == 1) {
-                return MAX_AGE;
-            } else if (id == 2) {
-                return MAX_DOCS;
-            } else {
-                throw new IllegalArgumentException("no condition type [" + id + "]");
-            }
+        @Override
+        public boolean matches(TimeValue value) {
+            return this.value.getMillis() <= value.getMillis();
         }
 
-        public static ConditionType fromString(String type) {
-            final String typeString = type.toLowerCase(Locale.ROOT);
-            switch (typeString) {
-                case "max_size":
-                    return MAX_SIZE;
-                case "max_age":
-                    return MAX_AGE;
-                case "max_docs":
-                    return MAX_DOCS;
-                default:
-                    throw new IllegalArgumentException("no condition type [" + type + "]");
-            }
+        @Override
+        public String getWriteableName() {
+            return NAME;
         }
 
-        public static long parseFromString(ConditionType condition, String value) {
-            switch (condition) {
-                case MAX_SIZE:
-                    return ByteSizeValue.parseBytesSizeValue(value, MAX_SIZE.name().toLowerCase(Locale.ROOT)).getBytes();
-                case MAX_AGE:
-                    return TimeValue.parseTimeValue(value, MAX_AGE.name().toLowerCase(Locale.ROOT)).getMillis();
-                case MAX_DOCS:
-                    try {
-                       return Long.valueOf(value);
-                    } catch (NumberFormatException e) {
-                        throw new ElasticsearchParseException("Failed to parse setting [{}] with value [{}] as long", e,
-                            MAX_DOCS.name().toLowerCase(Locale.ROOT), value);
-                    }
-                default:
-                    throw new ElasticsearchParseException("condition [" + condition + "] not recognized");
-            }
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(value.getMillis());
         }
     }
 
-    private final ConditionType type;
-    private final long value;
+    public static class MaxDocs extends Condition<Long> {
+        public final static String NAME = "max_docs";
 
-    public Condition(ConditionType type, long value) {
-        this.type = type;
-        this.value = value;
+        public MaxDocs(Long value) {
+            this.value = value;
+        }
+
+        public MaxDocs(StreamInput in) throws IOException {
+            this.value = in.readLong();
+        }
+
+        @Override
+        public boolean matches(Long value) {
+            return this.value <= value;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(value);
+        }
     }
 
-    public ConditionType getType() {
-        return type;
-    }
+    protected T value;
 
-    public long getValue() {
-        return value;
-    }
+    public abstract boolean matches(T value);
 }

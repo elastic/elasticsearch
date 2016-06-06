@@ -33,9 +33,6 @@ import org.elasticsearch.painless.Variables.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
-import java.util.HashMap;
-import java.util.Map;
-
 public class SEach extends AStatement {
 
     final int maxLoopCounter;
@@ -62,7 +59,6 @@ public class SEach extends AStatement {
         this.block = block;
     }
 
-
     @Override
     AStatement analyze(Variables variables) {
         expression.analyze(variables);
@@ -72,7 +68,7 @@ public class SEach extends AStatement {
         Sort sort = expression.actual.sort;
 
         if (sort == Sort.ARRAY) {
-            throw location.createError(new UnsupportedOperationException("Cannot execute for each against array type."));
+            return new SArrayEach(location, maxLoopCounter, type, name, expression, (SBlock)block).copy(this).analyze(variables);
         } else if (sort == Sort.DEF) {
             throw location.createError(new UnsupportedOperationException("Cannot execute for each against def type."));
         } else if (Iterable.class.isAssignableFrom(expression.actual.clazz)) {
@@ -120,6 +116,8 @@ public class SEach extends AStatement {
                 throw location.createError(new IllegalArgumentException("Extraneous for each loop."));
             }
 
+            block.beginLoop = true;
+            block.inLoop = true;
             block = block.analyze(variables);
             block.statementCount = Math.max(1, block.statementCount);
 
@@ -143,6 +141,8 @@ public class SEach extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
+        writer.writeStatementOffset(location);
+
         expression.write(writer);
 
         if (java.lang.reflect.Modifier.isInterface(method.owner.clazz.getModifiers())) {

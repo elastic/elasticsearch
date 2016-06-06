@@ -135,6 +135,15 @@ public class BasicStatementTests extends ScriptTestCase {
             " for (Map.Entry e : m.entrySet()) { cat += e.getKey(); total += e.getValue(); } return cat + total"));
     }
 
+    public void testArrayForEachStatement() {
+        assertEquals(6, exec("int[] a = new int[3]; a[0] = 1; a[1] = 2; a[2] = 3; int total = 0;" +
+            " for (int x : a) total += x; return total"));
+        assertEquals("123", exec("String[] a = new String[3]; a[0] = '1'; a[1] = '2'; a[2] = '3'; def total = '';" +
+            " for (String x : a) total += x; return total"));
+        assertEquals(6, exec("int[][] i = new int[3][1]; i[0][0] = 1; i[1][0] = 2; i[2][0] = 3; int total = 0;" +
+            " for (int[] j : i) total += j[0]; return total"));
+    }
+
     public void testDeclarationStatement() {
         assertEquals((byte)2, exec("byte a = 2; return a;"));
         assertEquals((short)2, exec("short a = 2; return a;"));

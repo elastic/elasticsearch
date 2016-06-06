@@ -124,4 +124,23 @@ public abstract class AStatement extends ANode {
      * Writes ASM based on the data collected during the analysis phase.
      */
     abstract void write(MethodWriter writer);
+
+    /**
+     * Used to copy statement data from one to another during analysis in the case of replacement.
+     */
+    final AStatement copy(AStatement statement) {
+        lastSource      = statement.lastSource;
+        beginLoop       = statement.beginLoop;
+        inLoop          = statement.inLoop;
+        lastLoop        = statement.lastLoop;
+        methodEscape    = statement.methodEscape;
+        loopEscape      = statement.loopEscape;
+        allEscape       = statement.allEscape;
+        anyContinue     = statement.anyContinue;
+        anyBreak        = statement.anyBreak;
+        loopCounterSlot = statement.loopCounterSlot;
+        statementCount  = statement.statementCount;
+
+        return this;
+    }
 }

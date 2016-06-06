@@ -39,7 +39,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -117,7 +116,7 @@ public abstract class TransportWriteAction<
     /**
      * Result of taking the action on the primary.
      */
-    class WritePrimaryResult extends PrimaryResult {
+    class WritePrimaryResult extends PrimaryResult implements RespondingWriteResult {
         boolean finishedAsyncActions;
         ActionListener<Response> listener = null;
 
@@ -129,7 +128,7 @@ public abstract class TransportWriteAction<
              * We call this before replication because this might wait for a refresh and that can take a while. This way we wait for the
              * refresh in parallel on the primary and on the replica.
              */
-            postWriteActions(indexShard, request, location, this::onFinishedAsyncActions, logger);
+            postWriteActions(indexShard, request, location, this, logger);
         }
 
         @Override
@@ -147,7 +146,8 @@ public abstract class TransportWriteAction<
             }
         }
 
-        public synchronized void onFinishedAsyncActions(boolean forcedRefresh) {
+        @Override
+        public synchronized void respondAfterAsyncAction(boolean forcedRefresh) {
             finalResponse.setForcedRefresh(forcedRefresh);
             finishedAsyncActions = true;
             respondIfPossible();
@@ -157,12 +157,12 @@ public abstract class TransportWriteAction<
     /**
      * Result of taking the action on the replica.
      */
-    class WriteReplicaResult extends ReplicaResult  {
+    class WriteReplicaResult extends ReplicaResult implements RespondingWriteResult {
         boolean finishedAsyncActions;
         private ActionListener<TransportResponse.Empty> listener;
 
         public WriteReplicaResult(IndexShard indexShard, ReplicatedWriteRequest<?> request, Translog.Location location) {
-            postWriteActions(indexShard, request, location, this::onFinishedAsyncActions, logger);
+            postWriteActions(indexShard, request, location, this, logger);
         }
 
         @Override
@@ -180,16 +180,21 @@ public abstract class TransportWriteAction<
             }
         }
 
-        public synchronized void onFinishedAsyncActions(boolean forcedRefresh) {
+        @Override
+        public synchronized void respondAfterAsyncAction(boolean forcedRefresh) {
             finishedAsyncActions = true;
             respondIfPossible();
         }
     }
 
+    private interface RespondingWriteResult {
+        void respondAfterAsyncAction(boolean forcedRefresh);
+    }
+
     static void postWriteActions(final IndexShard indexShard,
                                  final WriteRequest<?> request,
                                  @Nullable final Translog.Location location,
-                                 final Consumer<Boolean> onDone,
+                                 final RespondingWriteResult respond,
                                  final ESLogger logger) {
         boolean pendingOps = false;
         boolean immediateRefresh = false;
@@ -203,7 +208,7 @@ public abstract class TransportWriteAction<
                     pendingOps = true;
                     indexShard.addRefreshListener(location, forcedRefresh -> {
                         logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
-                        onDone.accept(forcedRefresh);
+                        respond.respondAfterAsyncAction(forcedRefresh);
                     });
                 }
                 break;
@@ -216,7 +221,7 @@ public abstract class TransportWriteAction<
         }
         indexShard.maybeFlush();
         if (pendingOps == false) {
-            onDone.accept(immediateRefresh);
+            respond.respondAfterAsyncAction(immediateRefresh);
         }
     }
 }

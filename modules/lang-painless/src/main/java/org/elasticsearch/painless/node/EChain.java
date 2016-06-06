@@ -269,14 +269,14 @@ public final class EChain extends AExpression {
      */
     @Override
     void write(MethodWriter writer) {
+        writer.writeDebugInfo(location);
+
         // For the case where the chain represents a String concatenation
-        // we must first write debug information, and then depending on the
-        // Java version write a StringBuilder or track types going onto the
-        // stack.  This must be done before the links in the chain are read
-        // because we need the StringBuilder to be placed on the stack
-        // ahead of any potential concatenation arguments.
+        // we must, depending on the Java version, write a StringBuilder or
+        // track types going onto the stack.  This must be done before the
+        // links in the chain are read because we need the StringBuilder to
+        // be placed on the stack ahead of any potential concatenation arguments.
         if (cat) {
-            writer.writeDebugInfo(location);
             writer.writeNewStrings();
         }
 

@@ -88,6 +88,9 @@ public class SEach extends AStatement {
             Type itr = Definition.getType("Iterator");
 
             variable = variables.addVariable(location, type, name, true, false);
+
+            // We must store the iterator as a variable for securing a slot on the stack, and
+            // also add the location offset to make the name unique in case of nested for each loops.
             iterator = variables.addVariable(location, itr, "#itr" + location.getOffset(), true, false);
 
             method = expression.actual.struct.methods.get(new MethodKey("iterator", 0));

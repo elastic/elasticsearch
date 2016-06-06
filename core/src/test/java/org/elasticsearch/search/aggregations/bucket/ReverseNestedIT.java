@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -509,7 +510,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
                         .addMapping("product", mapping)
         );
 
-        client().prepareIndex("idx3", "product", "1").setRefresh(true).setSource(
+        client().prepareIndex("idx3", "product", "1").setRefreshPolicy(IMMEDIATE).setSource(
                 jsonBuilder().startObject()
                         .startArray("sku")
                             .startObject()

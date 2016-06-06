@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 
 public interface WriteRequestBuilder<B extends WriteRequestBuilder<B>> {
@@ -36,15 +35,11 @@ public interface WriteRequestBuilder<B extends WriteRequestBuilder<B>> {
     }
 
     /**
-     * If set to true then this request will force an immediate refresh. Backwards compatibility layer for Elasticsearch's old
-     * {@code setRefresh} calls.
-     *
-     * @deprecated use {@link #setRefreshPolicy(RefreshPolicy)} with {@link RefreshPolicy#IMMEDIATE} or {@link RefreshPolicy#NONE} instead.
-     *             Will be removed in 6.0.
+     * Parse the refresh policy from a string, only modifying it if the string is non null. Convenient to use with request parsing.
      */
-    @Deprecated
-    default B setRefresh(boolean refresh) {
-        assert Version.CURRENT.major < 6 : "Remove setRefresh(boolean) in 6.0";
-        return setRefreshPolicy(refresh ? RefreshPolicy.IMMEDIATE : RefreshPolicy.NONE);
+    @SuppressWarnings("unchecked")
+    default B setRefreshPolicy(String refreshPolicy) {
+        request().setRefreshPolicy(refreshPolicy);
+        return (B) this;
     }
 }

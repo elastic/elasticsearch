@@ -47,6 +47,7 @@ import java.util.Map;
 import java.lang.NumberFormatException;
 
 import static org.apache.lucene.spatial.util.GeoEncodingUtils.mortonHash;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -812,7 +813,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         mappingRequest.execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client().prepareIndex("test", "pin", "1").setSource(jsonBuilder().startObject().startObject("location").field("lat", 40.7143528)
-                .field("lon", -74.0059731).endObject().endObject()).setRefresh(true).execute().actionGet();
+                .field("lon", -74.0059731).endObject().endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         // match all search with geohash field
         SearchResponse searchResponse = client().prepareSearch().addField("location.geohash").setQuery(matchAllQuery()).execute().actionGet();
@@ -837,7 +838,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         mappingRequest.execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client().prepareIndex("test", "pin", "1").setSource(jsonBuilder().startObject().startObject("location").field("lat", 40.7143528)
-                .field("lon", -74.0059731).endObject().endObject()).setRefresh(true).execute().actionGet();
+                .field("lon", -74.0059731).endObject().endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         // match all search with geohash field (includes prefixes)
         SearchResponse searchResponse = client().prepareSearch().addField("location.geohash").setQuery(matchAllQuery()).execute().actionGet();
@@ -867,7 +868,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         for (int i=0; i<numDocs; ++i) {
             final GeoPoint pt = RandomGeoGenerator.randomPoint(random());
             client().prepareIndex("test", "pin").setSource(jsonBuilder().startObject().startObject("location").field("lat", pt.lat())
-                .field("lon", pt.lon()).endObject().endObject()).setRefresh(true).execute().actionGet();
+                .field("lon", pt.lon()).endObject().endObject()).setRefreshPolicy(IMMEDIATE).get();
         }
 
         // query by geohash subfield

@@ -45,6 +45,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -110,7 +111,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
 
         // index something into test_index, will match on both templates
-        client().prepareIndex("test_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
         SearchResponse searchResponse = client().prepareSearch("test_index")
@@ -123,7 +124,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         // field2 is not stored.
         assertThat(searchResponse.getHits().getAt(0).field("field2"), nullValue());
 
-        client().prepareIndex("text_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefresh(true).execute().actionGet();
+        client().prepareIndex("text_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
         // now only match on one template (template_1)

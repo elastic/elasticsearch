@@ -116,6 +116,12 @@ public class JvmInfo implements Streamable, ToXContent {
             Method valueMethod = vmOptionClazz.getMethod("getValue");
 
             try {
+                Object onOutOfMemoryError = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "OnOutOfMemoryError");
+                info.onOutOfMemoryError = (String) valueMethod.invoke(onOutOfMemoryError);
+            } catch (Exception ignored) {
+            }
+
+            try {
                 Object useCompressedOopsVmOption = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseCompressedOops");
                 info.useCompressedOops = (String) valueMethod.invoke(useCompressedOopsVmOption);
             } catch (Exception ignored) {
@@ -178,6 +184,8 @@ public class JvmInfo implements Streamable, ToXContent {
 
     String[] gcCollectors = Strings.EMPTY_ARRAY;
     String[] memoryPools = Strings.EMPTY_ARRAY;
+
+    private String onOutOfMemoryError;
 
     private String useCompressedOops = "unknown";
 
@@ -312,6 +320,10 @@ public class JvmInfo implements Streamable, ToXContent {
 
     public long getConfiguredMaxHeapSize() {
         return configuredMaxHeapSize;
+    }
+
+    public String onOutOfMemoryError() {
+        return onOutOfMemoryError;
     }
 
     /**

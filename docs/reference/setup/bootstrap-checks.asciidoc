@@ -16,6 +16,10 @@ checks that fail appear as warnings in the Elasticsearch log. If
 Elasticsearch is in production mode, any bootstrap checks that fail will
 cause Elasticsearch to refuse to start.
 
+There are some bootstrap checks that are always enforced to prevent
+Elasticsearch from running with incompatible settings. These checks are
+documented individually.
+
 [float]
 === Development vs. production mode
 
@@ -152,3 +156,15 @@ JVM check, you must start Elasticsearch with the server VM. On modern
 systems and operating systems, the server VM is the
 default. Additionally, Elasticsearch is configured by default to force
 the server VM.
+
+=== OnOutOfMemoryError check
+
+The JVM option `OnOutOfMemoryError` enables executing an arbitrary
+command if the JVM throws an `OutOfMemoryError`. However, by default,
+Elasticsearch system call filters (seccomp) are enabled and these
+filters prevent forking. Thus, using `OnOutOfMemoryError` and system
+call filters are incompatible. The `OnOutOfMemoryError` check prevents
+Elasticsearch from starting if this JVM option is used and system call
+filters are enabled. This check is always enforced. To pass this check
+do not enable `OnOutOfMemoryError`; instead, upgrade to Java 8u92 and
+use the JVM flag `ExitOnOutOfMemoryError`.

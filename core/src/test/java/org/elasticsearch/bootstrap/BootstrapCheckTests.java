@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -383,7 +384,7 @@ public class BootstrapCheckTests extends ESTestCase {
             }
         };
 
-        RuntimeException e = expectThrows(
+        final RuntimeException e = expectThrows(
                 RuntimeException.class,
                 () -> BootstrapCheck.check(true, false, Collections.singletonList(check), "testClientJvmCheck"));
         assertThat(
@@ -395,8 +396,50 @@ public class BootstrapCheckTests extends ESTestCase {
         BootstrapCheck.check(true, false, Collections.singletonList(check), "testClientJvmCheck");
     }
 
+    public void testOnOutOfMemoryErrorCheck() {
+        final AtomicBoolean isSeccompInstalled = new AtomicBoolean();
+        final AtomicReference<String> onOutOfMemoryError = new AtomicReference<>();
+        final BootstrapCheck.Check check = new BootstrapCheck.OnOutOfMemoryErrorCheck() {
+            @Override
+            boolean isSeccompInstalled() {
+                return isSeccompInstalled.get();
+            }
+
+            @Override
+            String onOutOfMemoryError() {
+                return onOutOfMemoryError.get();
+            }
+        };
+
+        // if seccomp is disabled, nothing should happen
+        isSeccompInstalled.set(false);
+        onOutOfMemoryError.set(randomBoolean() ? "" : randomAsciiOfLength(16));
+        BootstrapCheck.check(true, false, Collections.singletonList(check), "testOnOutOfMemoryErrorCheck");
+
+        // if seccomp is enabled, and OnOutOfMemoryError is not, nothing
+        // should happen
+        isSeccompInstalled.set(true);
+        onOutOfMemoryError.set("");
+        BootstrapCheck.check(true, false, Collections.singletonList(check), "testOnOutOfMemoryErrorCheck");
+
+        // if seccomp is enabled, and OnOutOfMemoryError is, the check
+        // should be enforced, regardless of bootstrap checks being
+        // enabled or not
+        isSeccompInstalled.set(true);
+        final String command = randomAsciiOfLength(16);
+        onOutOfMemoryError.set(command);
+        final RuntimeException e = expectThrows(
+            RuntimeException.class,
+            () -> BootstrapCheck.check(randomBoolean(), randomBoolean(), Collections.singletonList(check), "testOnOutOfMemoryErrorCheck"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "OnOutOfMemoryError [" + command + "] requires forking but is prevented by system call filters ([bootstrap.seccomp=true]);"
+                    + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError"));
+    }
+
     public void testIgnoringSystemChecks() {
-        BootstrapCheck.Check check = new BootstrapCheck.Check() {
+        final BootstrapCheck.Check check = new BootstrapCheck.Check() {
             @Override
             public boolean check() {
                 return true;
@@ -428,6 +471,35 @@ public class BootstrapCheckTests extends ESTestCase {
         // nothing should happen if we ignore all checks
         BootstrapCheck.check(false, randomBoolean(), Collections.singletonList(check), logger);
         verify(logger).warn("error");
+    }
+
+    public void testAlwaysEnforcedChecks() {
+        final BootstrapCheck.Check check = new BootstrapCheck.Check() {
+            @Override
+            public boolean check() {
+                return true;
+            }
+
+            @Override
+            public String errorMessage() {
+                return "error";
+            }
+
+            @Override
+            public boolean isSystemCheck() {
+                return randomBoolean();
+            }
+
+            @Override
+            public boolean alwaysEnforce() {
+                return true;
+            }
+        };
+
+        final RuntimeException alwaysEnforced = expectThrows(
+            RuntimeException.class,
+            () -> BootstrapCheck.check(randomBoolean(), randomBoolean(), Collections.singletonList(check), "testAlwaysEnforcedChecks"));
+        assertThat(alwaysEnforced, hasToString(containsString("error")));
     }
 
 }

@@ -106,7 +106,7 @@ final class BootstrapCheck {
 
         for (final Check check : checks) {
             if (check.check()) {
-                if (!enforceLimits || (check.isSystemCheck() && ignoreSystemChecks)) {
+                if ((!enforceLimits || (check.isSystemCheck() && ignoreSystemChecks)) && !check.alwaysEnforce()) {
                     ignoredErrors.add(check.errorMessage());
                 } else {
                     errors.add(check.errorMessage());
@@ -164,6 +164,7 @@ final class BootstrapCheck {
             checks.add(new MaxMapCountCheck());
         }
         checks.add(new ClientJvmCheck());
+        checks.add(new OnOutOfMemoryErrorCheck());
         return Collections.unmodifiableList(checks);
     }
 
@@ -193,6 +194,10 @@ final class BootstrapCheck {
          * to an Elasticsearch-level check
          */
         boolean isSystemCheck();
+
+        default boolean alwaysEnforce() {
+            return false;
+        }
 
     }
 
@@ -245,7 +250,6 @@ final class BootstrapCheck {
 
     }
 
-    // visible for testing
     static class FileDescriptorCheck implements Check {
 
         private final int limit;
@@ -288,7 +292,6 @@ final class BootstrapCheck {
 
     }
 
-    // visible for testing
     static class MlockallCheck implements Check {
 
         private final boolean mlockallSet;
@@ -500,6 +503,46 @@ final class BootstrapCheck {
         @Override
         public final boolean isSystemCheck() {
             return false;
+        }
+
+    }
+
+    static class OnOutOfMemoryErrorCheck implements BootstrapCheck.Check {
+
+        @Override
+        public boolean check() {
+            final String onOutOfMemoryError = onOutOfMemoryError();
+            return isSeccompInstalled() && onOutOfMemoryError != null && !onOutOfMemoryError.equals("");
+        }
+
+        // visible for testing
+        boolean isSeccompInstalled() {
+            return Natives.isSeccompInstalled();
+        }
+
+        // visible for testing
+        String onOutOfMemoryError() {
+            return JvmInfo.jvmInfo().onOutOfMemoryError();
+        }
+
+        @Override
+        public String errorMessage() {
+            return String.format(
+                Locale.ROOT,
+                "OnOutOfMemoryError [%s] requires forking but is prevented by system call filters ([%s=true]);" +
+                    " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError",
+                onOutOfMemoryError(),
+                BootstrapSettings.SECCOMP_SETTING.getKey());
+        }
+
+        @Override
+        public boolean isSystemCheck() {
+            return false;
+        }
+
+        @Override
+        public boolean alwaysEnforce() {
+            return true;
         }
 
     }

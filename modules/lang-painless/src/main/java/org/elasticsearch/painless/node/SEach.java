@@ -33,6 +33,9 @@ import org.elasticsearch.painless.Variables.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
+/**
+ * Represents a for-each loop shortcut for iterables.  Defers to other S-nodes for non-iterable types.
+ */
 public class SEach extends AStatement {
 
     final int maxLoopCounter;

@@ -30,6 +30,9 @@ import org.elasticsearch.painless.Variables.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
+/**
+ * Represents a for-each loop shortcut for arrays.  (Internal only.)
+ */
 class SArrayEach extends AStatement {
     final int maxLoopCounter;
     final String type;

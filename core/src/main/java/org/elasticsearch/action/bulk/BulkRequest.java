@@ -26,6 +26,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -54,16 +55,21 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Note that we only support refresh on the bulk request not per item.
  * @see org.elasticsearch.client.Client#bulk(BulkRequest)
  */
-public class BulkRequest extends ActionRequest<BulkRequest> implements CompositeIndicesRequest {
+public class BulkRequest extends ActionRequest<BulkRequest> implements CompositeIndicesRequest, WriteRequest<BulkRequest> {
 
     private static final int REQUEST_OVERHEAD = 50;
 
+    /**
+     * Requests that are part of this request. It is only possible to add things that are both {@link ActionRequest}s and
+     * {@link WriteRequest}s to this but java doesn't support syntax to declare that everything in the array has both types so we declare
+     * the one with the least casts.
+     */
     final List<ActionRequest<?>> requests = new ArrayList<>();
     List<Object> payloads = null;
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
-    private boolean refresh = false;
+    private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
     private long sizeInBytes = 0;
 
@@ -437,18 +443,15 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         return this.consistencyLevel;
     }
 
-    /**
-     * Should a refresh be executed post this bulk operation causing the operations to
-     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
-    public BulkRequest refresh(boolean refresh) {
-        this.refresh = refresh;
+    @Override
+    public BulkRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
+        this.refreshPolicy = refreshPolicy;
         return this;
     }
 
-    public boolean refresh() {
-        return this.refresh;
+    @Override
+    public RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
     }
 
     /**
@@ -483,7 +486,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
      * @return Whether this bulk request contains index request with an ingest pipeline enabled.
      */
     public boolean hasIndexRequestsWithPipelines() {
-        for (ActionRequest actionRequest : requests) {
+        for (ActionRequest<?> actionRequest : requests) {
             if (actionRequest instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) actionRequest;
                 if (Strings.hasText(indexRequest.getPipeline())) {
@@ -503,10 +506,9 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         }
         for (ActionRequest<?> request : requests) {
             // We first check if refresh has been set
-            if ((request instanceof DeleteRequest && ((DeleteRequest)request).refresh()) ||
-                    (request instanceof UpdateRequest && ((UpdateRequest)request).refresh()) ||
-                    (request instanceof IndexRequest && ((IndexRequest)request).refresh())) {
-                    validationException = addValidationError("Refresh is not supported on an item request, set the refresh flag on the BulkRequest instead.", validationException);
+            if (((WriteRequest<?>) request).getRefreshPolicy() != RefreshPolicy.NONE) {
+                validationException = addValidationError(
+                        "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.", validationException);
             }
             ActionRequestValidationException ex = request.validate();
             if (ex != null) {
@@ -541,7 +543,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                 requests.add(request);
             }
         }
-        refresh = in.readBoolean();
+        refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = TimeValue.readTimeValue(in);
     }
 
@@ -560,7 +562,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
             }
             request.writeTo(out);
         }
-        out.writeBoolean(refresh);
+        refreshPolicy.writeTo(out);
         timeout.writeTo(out);
     }
 }

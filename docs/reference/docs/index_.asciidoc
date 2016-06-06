@@ -30,7 +30,8 @@ The result of the above index operation is:
     "_type" : "tweet",
     "_id" : "1",
     "_version" : 1,
-    "created" : true
+    "created" : true,
+    "forced_refresh": false
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"successful" : 2/"successful" : 1/]
@@ -221,7 +222,8 @@ The result of the above index operation is:
     "_type" : "tweet",
     "_id" : "6a8ca01c-7896-48e9-81cc-9f70661fcb32",
     "_version" : 1,
-    "created" : true
+    "created" : true,
+    "forced_refresh": false
 }
 --------------------------------------------------
 // TESTRESPONSE[s/6a8ca01c-7896-48e9-81cc-9f70661fcb32/$body._id/ s/"successful" : 2/"successful" : 1/]
@@ -385,13 +387,8 @@ replication group have indexed the document (sync replication).
 [[index-refresh]]
 === Refresh
 
-To refresh the shard (not the whole index) immediately after the operation
-occurs, so that the document appears in search results immediately, the
-`refresh` parameter can be set to `true`. Setting this option to `true` should
-*ONLY* be done after careful thought and verification that it does not lead to
-poor performance, both from an indexing and a search standpoint. Note, getting
-a document using the get API is completely realtime and doesn't require a
-refresh.
+Control when the changes made by this request are visible to search. See
+<<docs-refresh>>.
 
 [float]
 [[index-noop]]

@@ -40,11 +40,11 @@ public final class SFor extends AStatement {
                 ANode initializer, AExpression condition, AExpression afterthought, SBlock block) {
         super(location);
 
+        this.maxLoopCounter = maxLoopCounter;
         this.initializer = initializer;
         this.condition = condition;
         this.afterthought = afterthought;
         this.block = block;
-        this.maxLoopCounter = maxLoopCounter;
     }
 
     @Override

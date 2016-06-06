@@ -47,7 +47,7 @@ public final class LBrace extends ALink {
             throw createError(new IllegalArgumentException("Illegal array access made without target."));
         }
 
-        final Sort sort = before.sort;
+        Sort sort = before.sort;
 
         if (sort == Sort.ARRAY) {
             index.expected = Definition.INT_TYPE;

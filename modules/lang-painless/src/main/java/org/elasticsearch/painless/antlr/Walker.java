@@ -263,11 +263,9 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         if (ctx.trailer() != null) {
             SBlock block = (SBlock)visit(ctx.trailer());
 
-            return new SFor(location(ctx),
-                settings.getMaxLoopCounter(), initializer, expression, afterthought, block);
+            return new SFor(location(ctx), settings.getMaxLoopCounter(), initializer, expression, afterthought, block);
         } else if (ctx.empty() != null) {
-            return new SFor(location(ctx),
-                settings.getMaxLoopCounter(), initializer, expression, afterthought, null);
+            return new SFor(location(ctx), settings.getMaxLoopCounter(), initializer, expression, afterthought, null);
         } else {
             throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
         }
@@ -275,12 +273,16 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
     @Override
     public Object visitEach(EachContext ctx) {
+        if (settings.getMaxLoopCounter() > 0) {
+            reserved.usesLoop();
+        }
+
         String type = ctx.decltype().getText();
         String name = ctx.ID().getText();
         AExpression expression = (AExpression)visit(ctx.expression());
         SBlock block = (SBlock)visit(ctx.trailer());
 
-        return new SEach(location(ctx), type, name, expression, block);
+        return new SEach(location(ctx), settings.getMaxLoopCounter(), type, name, expression, block);
     }
 
     @Override

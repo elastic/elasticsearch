@@ -125,6 +125,11 @@ public class BasicStatementTests extends ScriptTestCase {
         }
     }
 
+    public void testEachStatement() {
+        assertEquals(6, exec("List l = new ArrayList(); l.add(1); l.add(2); l.add(3); int total = 0;" +
+            " for (int x : l) total += x; return x"));
+    }
+
     public void testDeclarationStatement() {
         assertEquals((byte)2, exec("byte a = 2; return a;"));
         assertEquals((short)2, exec("short a = 2; return a;"));

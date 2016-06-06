@@ -47,7 +47,7 @@ Response:
         "errors" : {
           "doc_count" : 34,
             "monthly" : {
-              "buckets : [
+              "buckets" : [
                 ... // the histogram monthly breakdown
               ]
             }
@@ -55,7 +55,7 @@ Response:
           "warnings" : {
             "doc_count" : 439,
             "monthly" : {
-              "buckets : [
+              "buckets" : [
                  ... // the histogram monthly breakdown
               ]
             }
@@ -116,7 +116,7 @@ request.  The response for this example would be:
         {
           "doc_count" : 439,
           "monthly" : {
-            "buckets : [
+            "buckets" : [
               ... // the histogram monthly breakdown
             ]
           }

@@ -33,6 +33,9 @@ import org.elasticsearch.painless.Variables.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class SEach extends AStatement {
 
     final int maxLoopCounter;
@@ -85,7 +88,7 @@ public class SEach extends AStatement {
 
             Type itr = Definition.getType("Iterator");
 
-            variable = variables.addVariable(location, type, name, false, false);
+            variable = variables.addVariable(location, type, name, true, false);
             iterator = variables.addVariable(location, itr, "#itr" + location.getOffset(), true, false);
 
             method = expression.actual.struct.methods.get(new MethodKey("iterator", 0));
@@ -107,11 +110,11 @@ public class SEach extends AStatement {
 
             if (next == null) {
                 throw location.createError(new IllegalArgumentException("Method [next] does not exist for type [Iterator]."));
-            } else if (next.rtn.sort != Sort.OBJECT) {
-                throw location.createError(new IllegalArgumentException("Method [next] does not return type [Object]."));
+            } else if (next.rtn.sort != Sort.DEF) {
+                throw location.createError(new IllegalArgumentException("Method [next] does not return type [def]."));
             }
 
-            cast = AnalyzerCaster.getLegalCast(location, Definition.getType("Object"), type, true, true);
+            cast = AnalyzerCaster.getLegalCast(location, Definition.DEF_TYPE, type, true, true);
 
             if (block == null) {
                 throw location.createError(new IllegalArgumentException("Extraneous for each loop."));
@@ -150,7 +153,10 @@ public class SEach extends AStatement {
 
         writer.visitVarInsn(iterator.type.type.getOpcode(Opcodes.ISTORE), iterator.slot);
 
+        Label begin = new Label();
         Label end = new Label();
+
+        writer.mark(begin);
 
         writer.visitVarInsn(iterator.type.type.getOpcode(Opcodes.ILOAD), iterator.slot);
         writer.invokeInterface(hasNext.owner.type, hasNext.method);
@@ -163,6 +169,7 @@ public class SEach extends AStatement {
 
         block.write(writer);
 
+        writer.goTo(begin);
         writer.mark(end);
     }
 }

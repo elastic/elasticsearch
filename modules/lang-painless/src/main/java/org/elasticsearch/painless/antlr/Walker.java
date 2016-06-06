@@ -279,7 +279,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
         String type = ctx.decltype().getText();
         String name = ctx.ID().getText();
-        AExpression expression = (AExpression)visit(ctx.expression());
+        AExpression expression = (AExpression)visitExpression(ctx.expression());
         SBlock block = (SBlock)visit(ctx.trailer());
 
         return new SEach(location(ctx), settings.getMaxLoopCounter(), type, name, expression, block);

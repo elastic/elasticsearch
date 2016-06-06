@@ -125,9 +125,14 @@ public class BasicStatementTests extends ScriptTestCase {
         }
     }
 
-    public void testEachStatement() {
+    public void testIterableForEachStatement() {
         assertEquals(6, exec("List l = new ArrayList(); l.add(1); l.add(2); l.add(3); int total = 0;" +
-            " for (int x : l) total += x; return x"));
+            " for (int x : l) total += x; return total"));
+        assertEquals("123", exec("List l = new ArrayList(); l.add('1'); l.add('2'); l.add('3'); String cat = '';" +
+            " for (String x : l) cat += x; return cat"));
+        assertEquals("1236", exec("Map m = new HashMap(); m.put('1', 1); m.put('2', 2); m.put('3', 3);" +
+            " String cat = ''; int total = 0;" +
+            " for (Map.Entry e : m.entrySet()) { cat += e.getKey(); total += e.getValue(); } return cat + total"));
     }
 
     public void testDeclarationStatement() {

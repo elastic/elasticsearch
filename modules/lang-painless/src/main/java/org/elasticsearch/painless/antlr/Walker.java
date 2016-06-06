@@ -391,7 +391,15 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
     @Override
     public Object visitFuncref(FuncrefContext ctx) {
-        return new EFunctionRef(location(ctx), ctx.TYPE().getText(), ctx.ID().getText());
+        final String methodText;
+        if (ctx.ID() != null) {
+            methodText = ctx.ID().getText();
+        } else if (ctx.NEW() != null ){
+            methodText = ctx.NEW().getText();
+        } else {
+            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        }
+        return new EFunctionRef(location(ctx), ctx.TYPE().getText(), methodText);
     }
 
     @Override

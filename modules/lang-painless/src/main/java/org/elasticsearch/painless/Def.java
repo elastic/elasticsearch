@@ -22,6 +22,9 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.RuntimeClass;
 
+import java.lang.invoke.CallSite;
+import java.lang.invoke.LambdaConversionException;
+import java.lang.invoke.LambdaMetafactory;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
@@ -123,7 +126,52 @@ public final class Def {
     }
 
     /**
-     * Looks up handle for a dynamic method call.
+     * Looks up method entry for a dynamic method call.
+     * <p>
+     * A dynamic method call for variable {@code x} of type {@code def} looks like:
+     * {@code x.method(args...)}
+     * <p>
+     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
+     * until it finds a matching whitelisted method. If one is not found, it throws an exception.
+     * Otherwise it returns the matching method.
+     * <p>
+     * @param receiverClass Class of the object to invoke the method on.
+     * @param name Name of the method.
+     * @param arity arity of method
+     * @return matching method to invoke. never returns null.
+     * @throws IllegalArgumentException if no matching whitelisted method was found.
+     */
+    static Method lookupMethodInternal(Class<?> receiverClass, String name, int arity) {
+        Definition.MethodKey key = new Definition.MethodKey(name, arity);
+        // check whitelist for matching method
+        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
+            RuntimeClass struct = Definition.getRuntimeClass(clazz);
+
+            if (struct != null) {
+                Method method = struct.methods.get(key);
+                if (method != null) {
+                    return method;
+                }
+            }
+
+            for (Class<?> iface : clazz.getInterfaces()) {
+                struct = Definition.getRuntimeClass(iface);
+
+                if (struct != null) {
+                    Method method = struct.methods.get(key);
+                    if (method != null) {
+                        return method;
+                    }
+                }
+            }
+        }
+        
+        throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] with [" + arity + "] arguments " +
+                                           "for class [" + receiverClass.getCanonicalName() + "].");
+    }
+
+    /**
+     * Looks up handle for a dynamic method call, with lambda replacement
      * <p>
      * A dynamic method call for variable {@code x} of type {@code def} looks like:
      * {@code x.method(args...)}
@@ -134,41 +182,72 @@ public final class Def {
      * <p>
      * @param receiverClass Class of the object to invoke the method on.
      * @param name Name of the method.
-     * @param type Callsite signature. Need not match exactly, except the number of parameters.
+     * @param args args passed to callsite
+     * @param recipe bitset marking functional parameters
      * @return pointer to matching method to invoke. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      */
-     static MethodHandle lookupMethod(Class<?> receiverClass, String name, MethodType type) {
-         // we don't consider receiver an argument/counting towards arity
-         type = type.dropParameterTypes(0, 1);
-         Definition.MethodKey key = new Definition.MethodKey(name, type.parameterCount());
-         // check whitelist for matching method
-         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-             RuntimeClass struct = Definition.getRuntimeClass(clazz);
+     static MethodHandle lookupMethod(Class<?> receiverClass, String name, Object args[], long recipe) {
+         Method method = lookupMethodInternal(receiverClass, name, args.length - 1);
+         MethodHandle handle = method.handle;
+         MethodHandle filters[] = new MethodHandle[args.length];
 
-             if (struct != null) {
-                 Method method = struct.methods.get(key);
-                 if (method != null) {
-                     return method.handle;
-                 }
-             }
-
-             for (final Class<?> iface : clazz.getInterfaces()) {
-                 struct = Definition.getRuntimeClass(iface);
-
-                 if (struct != null) {
-                     Method method = struct.methods.get(key);
-                     if (method != null) {
-                         return method.handle;
-                     }
+         if (recipe != 0) {
+             for (int i = 0; i < args.length; i++) {
+                 // its a functional reference, replace the argument with an impl
+                 if ((recipe & (1L << (i - 1))) != 0) {
+                     filters[i] = lookupReference(method.arguments.get(i - 1).clazz, (String) args[i]);
                  }
              }
          }
-
-         // no matching methods in whitelist found
-         throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] with signature [" + type + "] " +
-                 "for class [" + receiverClass.getCanonicalName() + "].");
-    }
+         handle = MethodHandles.filterArguments(handle, 0, filters);
+         
+         return handle;
+     }
+     
+     /** Returns a method handle to an implementation of clazz, given method reference signature */
+     private static MethodHandle lookupReference(Class<?> clazz, String signature) {
+         int separator = signature.indexOf('.');
+         FunctionRef ref = new FunctionRef(clazz, signature.substring(0, separator), signature.substring(separator+1));
+         MethodHandles.Lookup lookup = MethodHandles.lookup(); // XXX: no lookuping needed, we should pass this from DefBootstrap!
+         final CallSite callSite;
+         // XXX: clean all this up to use handles in FunctionRef, deal with ASM in EFunctionRef differently
+         MethodType invokedType = MethodType.fromMethodDescriptorString(ref.invokedType.getDescriptor(), Def.class.getClassLoader());
+         MethodType samMethodType = MethodType.fromMethodDescriptorString(ref.samMethodType.getDescriptor(), Def.class.getClassLoader());
+         MethodType interfaceType = MethodType.fromMethodDescriptorString(ref.interfaceType.getDescriptor(), Def.class.getClassLoader());
+         try {
+             if (ref.interfaceType.equals(ref.samMethodType)) {
+                 callSite = LambdaMetafactory.altMetafactory(lookup, 
+                         ref.invokedName, 
+                         invokedType,
+                         samMethodType,
+                         ref.implMethodHandle,
+                         samMethodType,
+                         0);
+             } else {
+                 callSite = LambdaMetafactory.altMetafactory(lookup, 
+                         ref.invokedName, 
+                         invokedType,
+                         samMethodType,
+                         ref.implMethodHandle,
+                         samMethodType,
+                         LambdaMetafactory.FLAG_BRIDGES,
+                         1,
+                         interfaceType);
+             }
+         } catch (LambdaConversionException e) {
+             throw new RuntimeException(e);
+         }
+         try {
+             // create an implementation of the interface (instance)
+             Object instance = callSite.dynamicInvoker().asType(MethodType.methodType(clazz)).invoke();
+             // bind this instance as a constant replacement for the parameter
+             return MethodHandles.dropArguments(MethodHandles.constant(clazz, instance), 0, Object.class);
+         } catch (Throwable e) {
+             throw new RuntimeException(e);
+         }
+     }
+     
 
     /**
      * Looks up handle for a dynamic field getter (field load)

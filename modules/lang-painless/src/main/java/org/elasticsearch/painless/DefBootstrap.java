@@ -66,12 +66,16 @@ public final class DefBootstrap {
 
         private final String name;
         private final int flavor;
+        private final long recipe;
         int depth; // pkg-protected for testing
 
-        PIC(String name, MethodType type, int flavor) {
+        PIC(String name, MethodType type, int flavor, long recipe) {
             super(type);
             this.name = name;
             this.flavor = flavor;
+            this.recipe = recipe;
+            assert recipe == 0 || flavor == METHOD_CALL;
+            assert Long.bitCount(flavor) <= type.parameterCount();
 
             final MethodHandle fallback = FALLBACK.bindTo(this)
               .asCollector(Object[].class, type.parameterCount())
@@ -91,10 +95,10 @@ public final class DefBootstrap {
         /**
          * Does a slow lookup against the whitelist.
          */
-        private static MethodHandle lookup(int flavor, Class<?> clazz, String name, MethodType type) {
+        private static MethodHandle lookup(int flavor, Class<?> clazz, String name, Object[] args, long recipe) {
             switch(flavor) {
                 case METHOD_CALL:
-                    return Def.lookupMethod(clazz, name, type);
+                    return Def.lookupMethod(clazz, name, args, recipe);
                 case LOAD:
                     return Def.lookupGetter(clazz, name);
                 case STORE:
@@ -115,7 +119,7 @@ public final class DefBootstrap {
             final MethodType type = type();
             final Object receiver = args[0];
             final Class<?> receiverClass = receiver.getClass();
-            final MethodHandle target = lookup(flavor, receiverClass, name, type).asType(type);
+            final MethodHandle target = lookup(flavor, receiverClass, name, args, recipe).asType(type);
 
             if (depth >= MAX_DEPTH) {
                 // revert to a vtable call
@@ -157,8 +161,8 @@ public final class DefBootstrap {
      * <p>
      * see https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html#jvms-6.5.invokedynamic
      */
-    public static CallSite bootstrap(Lookup lookup, String name, MethodType type, int flavor) {
-        return new PIC(name, type, flavor);
+    public static CallSite bootstrap(Lookup lookup, String name, MethodType type, int flavor, long recipe) {
+        return new PIC(name, type, flavor, recipe);
     }
 
 }

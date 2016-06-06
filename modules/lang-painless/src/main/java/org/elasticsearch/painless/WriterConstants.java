@@ -27,6 +27,8 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
 import java.lang.invoke.CallSite;
+import java.lang.invoke.LambdaMetafactory;
+import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.BitSet;
@@ -62,7 +64,7 @@ public final class WriterConstants {
 
     /** dynamic callsite bootstrap signature */
     public final static MethodType DEF_BOOTSTRAP_TYPE =
-        MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, int.class);
+        MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, int.class, long.class);
     public final static Handle DEF_BOOTSTRAP_HANDLE =
         new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(DefBootstrap.class),
             "bootstrap", DEF_BOOTSTRAP_TYPE.toMethodDescriptorString());
@@ -101,7 +103,15 @@ public final class WriterConstants {
     public final static Method DEF_LTE_CALL = getAsmMethod(boolean.class, "lte", Object.class, Object.class);
     public final static Method DEF_GT_CALL  = getAsmMethod(boolean.class, "gt" , Object.class, Object.class);
     public final static Method DEF_GTE_CALL = getAsmMethod(boolean.class, "gte", Object.class, Object.class);
-
+    
+    /** invokedynamic bootstrap for lambda expression/method references */
+    public final static MethodType LAMBDA_BOOTSTRAP_TYPE =
+            MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, 
+                                  MethodType.class, Object[].class);
+    public final static Handle LAMBDA_BOOTSTRAP_HANDLE =
+            new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(LambdaMetafactory.class),
+                "altMetafactory", LAMBDA_BOOTSTRAP_TYPE.toMethodDescriptorString());
+        
     /** dynamic invokedynamic bootstrap for indy string concats (Java 9+) */
     public final static Handle INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
     static {

@@ -36,6 +36,7 @@ final class LDefCall extends ALink implements IDefLink {
 
     final String name;
     final List<AExpression> arguments;
+    long recipe;
 
     LDefCall(Location location, String name, List<AExpression> arguments) {
         super(location, -1);
@@ -46,9 +47,20 @@ final class LDefCall extends ALink implements IDefLink {
 
     @Override
     ALink analyze(Variables variables) {
+        if (arguments.size() > 63) {
+            // technically, the limitation is just methods with > 63 params, containing method references.
+            // this is because we are lazy and use a long as a bitset. we can always change to a "string" if need be.
+            // but NEED NOT BE. nothing with this many parameters is in the whitelist and we do not support varargs.
+            throw new UnsupportedOperationException("methods with > 63 arguments are currently not supported");
+        }
+        
+        recipe = 0;
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
+            if (expression instanceof EFunctionRef) {
+                recipe |= (1L << argument); // mark argument as deferred reference
+            }
             expression.internal = true;
             expression.analyze(variables);
             expression.expected = expression.actual;
@@ -84,7 +96,7 @@ final class LDefCall extends ALink implements IDefLink {
         // return value
         signature.append(after.type.getDescriptor());
 
-        writer.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.METHOD_CALL);
+        writer.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.METHOD_CALL, recipe);
     }
 
     @Override

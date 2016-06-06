@@ -24,8 +24,9 @@
 
 #### Interfaces
 
-class ChronoLocalDate -> java.time.chrono.ChronoLocalDate extends Comparable,Temporal,TemporalAccessor,TemporalAdjuster {
+class ChronoLocalDate -> java.time.chrono.ChronoLocalDate extends Temporal,TemporalAccessor,TemporalAdjuster,Comparable {
   ChronoLocalDateTime atTime(LocalTime)
+  int compareTo(ChronoLocalDate)
   boolean equals(Object)
   String format(DateTimeFormatter)
   ChronoLocalDate from(TemporalAccessor)
@@ -50,8 +51,9 @@ class ChronoLocalDate -> java.time.chrono.ChronoLocalDate extends Comparable,Tem
   ChronoLocalDate with(TemporalField,long)
 }
 
-class ChronoLocalDateTime -> java.time.chrono.ChronoLocalDateTime extends Comparable,Temporal,TemporalAccessor,TemporalAdjuster {
+class ChronoLocalDateTime -> java.time.chrono.ChronoLocalDateTime extends Temporal,TemporalAccessor,TemporalAdjuster,Comparable {
   ChronoZonedDateTime atZone(ZoneId)
+  int compareTo(ChronoLocalDateTime)
   boolean equals(Object)
   String format(DateTimeFormatter)
   ChronoLocalDateTime from(TemporalAccessor)
@@ -75,6 +77,7 @@ class ChronoLocalDateTime -> java.time.chrono.ChronoLocalDateTime extends Compar
 }
 
 class Chronology -> java.time.chrono.Chronology extends Comparable {
+  int compareTo(Chronology)
   ChronoLocalDate date(TemporalAccessor)
   ChronoLocalDate date(Era,int,int,int)
   ChronoLocalDate date(int,int,int)
@@ -121,7 +124,8 @@ class ChronoPeriod -> java.time.chrono.ChronoPeriod extends TemporalAmount {
   String toString()
 }
 
-class ChronoZonedDateTime -> java.time.chrono.ChronoZonedDateTime extends Comparable,Temporal,TemporalAccessor {
+class ChronoZonedDateTime -> java.time.chrono.ChronoZonedDateTime extends Temporal,TemporalAccessor,Comparable {
+  int compareTo(ChronoZonedDateTime)
   boolean equals(Object)
   String format(DateTimeFormatter)
   ChronoZonedDateTime from(TemporalAccessor)
@@ -158,10 +162,10 @@ class Era -> java.time.chrono.Era extends TemporalAccessor,TemporalAdjuster {
 
 #### Classes
 
-class AbstractChronology -> java.time.chrono.Chronology extends Comparable,Chronology,Object {
+class AbstractChronology -> java.time.chrono.Chronology extends Chronology,Comparable,Object {
 }
 
-class HijrahChronology -> java.time.chrono.HijrahChronology extends AbstractChronology,Comparable,Chronology,Object {
+class HijrahChronology -> java.time.chrono.HijrahChronology extends AbstractChronology,Chronology,Comparable,Object {
   HijrahChronology INSTANCE
   HijrahDate date(TemporalAccessor)
   HijrahDate date(int,int,int)
@@ -172,25 +176,26 @@ class HijrahChronology -> java.time.chrono.HijrahChronology extends AbstractChro
   HijrahDate dateYearDay(int,int)
   HijrahDate dateYearDay(Era,int,int)
   HijrahEra eraOf(int)
+  HijrahDate resolveDate(Map,ResolverStyle)
 }
 
-class HijrahDate -> java.time.chrono.HijrahDate extends Comparable,ChronoLocalDate,Temporal,TemporalAccessor,TemporalAdjuster,Object {
-  HijrahDate now()
-  HijrahDate now(ZoneId)
-  HijrahDate of(int,int,int)
+class HijrahDate -> java.time.chrono.HijrahDate extends ChronoLocalDate,Temporal,TemporalAccessor,TemporalAdjuster,Comparable,Object {
   HijrahDate from(TemporalAccessor)
   HijrahChronology getChronology()
   HijrahEra getEra()
+  HijrahDate minus(TemporalAmount)
+  HijrahDate minus(long,TemporalUnit)
+  HijrahDate now()
+  HijrahDate now(ZoneId)
+  HijrahDate of(int,int,int)
+  HijrahDate plus(TemporalAmount)
+  HijrahDate plus(long,TemporalUnit)
   HijrahDate with(TemporalField,long)
   HijrahDate with(TemporalAdjuster)
   HijrahDate withVariant(HijrahChronology)
-  HijrahDate plus(TemporalAmount)
-  HijrahDate minus(TemporalAmount)
-  HijrahDate plus(long,TemporalUnit)
-  HijrahDate minus(long,TemporalUnit)
 }
 
-class IsoChronology -> java.time.chrono.IsoChronology extends AbstractChronology,Comparable,Chronology,Object {
+class IsoChronology -> java.time.chrono.IsoChronology extends AbstractChronology,Chronology,Comparable,Object {
   IsoChronology INSTANCE
   LocalDate date(TemporalAccessor)
   LocalDate date(int,int,int)
@@ -201,9 +206,14 @@ class IsoChronology -> java.time.chrono.IsoChronology extends AbstractChronology
   LocalDate dateYearDay(int,int)
   LocalDate dateYearDay(Era,int,int)
   IsoEra eraOf(int)
+  LocalDateTime localDateTime(TemporalAccessor)
+  Period period(int,int,int)
+  LocalDate resolveDate(Map,ResolverStyle)
+  ZonedDateTime zonedDateTime(TemporalAccessor)
+  ZonedDateTime zonedDateTime(Instant,ZoneId)
 }
 
-class JapaneseChronology -> java.time.chrono.JapaneseChronology extends AbstractChronology,Comparable,Chronology,Object {
+class JapaneseChronology -> java.time.chrono.JapaneseChronology extends AbstractChronology,Chronology,Comparable,Object {
   JapaneseChronology INSTANCE
   JapaneseDate date(TemporalAccessor)
   JapaneseDate date(int,int,int)
@@ -214,9 +224,10 @@ class JapaneseChronology -> java.time.chrono.JapaneseChronology extends Abstract
   JapaneseDate dateYearDay(int,int)
   JapaneseDate dateYearDay(Era,int,int)
   JapaneseEra eraOf(int)
+  JapaneseDate resolveDate(Map,ResolverStyle)
 }
 
-class JapaneseDate -> java.time.chrono.JapaneseDate extends Comparable,ChronoLocalDate,Temporal,TemporalAccessor,TemporalAdjuster,Object {
+class JapaneseDate -> java.time.chrono.JapaneseDate extends ChronoLocalDate,Temporal,TemporalAccessor,TemporalAdjuster,Comparable,Object {
   JapaneseDate now()
   JapaneseDate now(ZoneId)
   JapaneseDate of(int,int,int)
@@ -242,7 +253,7 @@ class JapaneseEra -> java.time.chrono.JapaneseEra extends Era,TemporalAccessor,T
   JapaneseEra[] values()
 }
 
-class MinguoChronology -> java.time.chrono.MinguoChronology extends AbstractChronology,Comparable,Chronology,Object {
+class MinguoChronology -> java.time.chrono.MinguoChronology extends AbstractChronology,Chronology,Comparable,Object {
   MinguoChronology INSTANCE
   MinguoDate date(TemporalAccessor)
   MinguoDate date(int,int,int)
@@ -253,9 +264,10 @@ class MinguoChronology -> java.time.chrono.MinguoChronology extends AbstractChro
   MinguoDate dateYearDay(int,int)
   MinguoDate dateYearDay(Era,int,int)
   MinguoEra eraOf(int)
+  MinguoDate resolveDate(Map,ResolverStyle)
 }
 
-class MinguoDate -> java.time.chrono.MinguoDate extends Comparable,ChronoLocalDate,Temporal,TemporalAccessor,TemporalAdjuster,Object {
+class MinguoDate -> java.time.chrono.MinguoDate extends ChronoLocalDate,Temporal,TemporalAccessor,TemporalAdjuster,Comparable,Object {
   MinguoDate now()
   MinguoDate now(ZoneId)
   MinguoDate of(int,int,int)
@@ -270,7 +282,7 @@ class MinguoDate -> java.time.chrono.MinguoDate extends Comparable,ChronoLocalDa
   MinguoDate minus(long,TemporalUnit)
 }
 
-class ThaiBuddhistChronology -> java.time.chrono.ThaiBuddhistChronology extends AbstractChronology,Comparable,Chronology,Object {
+class ThaiBuddhistChronology -> java.time.chrono.ThaiBuddhistChronology extends AbstractChronology,Chronology,Comparable,Object {
   ThaiBuddhistChronology INSTANCE
   ThaiBuddhistDate date(TemporalAccessor)
   ThaiBuddhistDate date(int,int,int)
@@ -281,9 +293,10 @@ class ThaiBuddhistChronology -> java.time.chrono.ThaiBuddhistChronology extends 
   ThaiBuddhistDate dateYearDay(int,int)
   ThaiBuddhistDate dateYearDay(Era,int,int)
   ThaiBuddhistEra eraOf(int)
+  ThaiBuddhistDate resolveDate(Map,ResolverStyle)
 }
 
-class ThaiBuddhistDate -> java.time.chrono.ThaiBuddhistDate extends Comparable,ChronoLocalDate,Temporal,TemporalAccessor,TemporalAdjuster,Object {
+class ThaiBuddhistDate -> java.time.chrono.ThaiBuddhistDate extends ChronoLocalDate,Temporal,TemporalAccessor,TemporalAdjuster,Comparable,Object {
   ThaiBuddhistDate now()
   ThaiBuddhistDate now(ZoneId)
   ThaiBuddhistDate of(int,int,int)

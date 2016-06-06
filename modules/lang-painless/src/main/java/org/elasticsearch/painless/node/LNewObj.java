@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Definition.Constructor;
+import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Variables;
@@ -37,7 +37,7 @@ public final class LNewObj extends ALink {
     final String type;
     final List<AExpression> arguments;
 
-    Constructor constructor;
+    Method constructor;
 
     public LNewObj(Location location, String type, List<AExpression> arguments) {
         super(location, -1);
@@ -63,7 +63,7 @@ public final class LNewObj extends ALink {
         }
 
         Struct struct = type.struct;
-        constructor = struct.constructors.get(new Definition.MethodKey("new", arguments.size()));
+        constructor = struct.constructors.get(new Definition.MethodKey("<init>", arguments.size()));
 
         if (constructor != null) {
             Type[] types = new Type[constructor.arguments.size()];

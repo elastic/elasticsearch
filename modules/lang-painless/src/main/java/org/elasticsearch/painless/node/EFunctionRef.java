@@ -19,16 +19,24 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Variables;
+
+import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
+
+import java.lang.invoke.LambdaMetafactory;
 
 /**
  * Represents a function reference.
  */
 public class EFunctionRef extends AExpression {
-    public String type;
-    public String call;
+    public final String type;
+    public final String call;
+    
+    private FunctionRef ref;
 
     public EFunctionRef(Location location, String type, String call) {
         super(location);
@@ -39,12 +47,35 @@ public class EFunctionRef extends AExpression {
 
     @Override
     void analyze(Variables variables) {
-        throw createError(new UnsupportedOperationException("Function references [" + type + "::" + call + 
-                                                            "] are not currently supported."));
+        if (expected == null) {
+            ref = null;
+            actual = Definition.getType("String");
+        } else {
+            try {
+                ref = new FunctionRef(expected.clazz, type, call);
+            } catch (IllegalArgumentException e) {
+                throw createError(e);
+            }
+            actual = expected;
+        }
     }
 
     @Override
     void write(MethodWriter writer) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
+        if (ref == null) {
+            writer.push(type + "." + call);
+        } else {
+            writer.writeDebugInfo(location);
+            // currently if the interface differs, we ask for a bridge, but maybe we should do smarter checking?
+            // either way, stuff will fail if its wrong :)
+            if (ref.interfaceType.equals(ref.samMethodType)) {
+                writer.invokeDynamic(ref.invokedName, ref.invokedType.getDescriptor(), LAMBDA_BOOTSTRAP_HANDLE, 
+                                     ref.samMethodType, ref.implMethod, ref.samMethodType, 0);
+            } else {
+                writer.invokeDynamic(ref.invokedName, ref.invokedType.getDescriptor(), LAMBDA_BOOTSTRAP_HANDLE, 
+                                     ref.samMethodType, ref.implMethod, ref.samMethodType, 
+                                     LambdaMetafactory.FLAG_BRIDGES, 1, ref.interfaceType);
+            }
+        }
     }
 }

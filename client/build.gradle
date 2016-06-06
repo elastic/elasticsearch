@@ -33,11 +33,11 @@ dependencies {
 
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
-  testCompile "org.hamcrest:hamcrest-all:1.3"
+  testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
   testCompile "org.apache.lucene:lucene-test-framework:${versions.lucene}"
   testCompile "org.apache.lucene:lucene-core:${versions.lucene}"
   testCompile "org.apache.lucene:lucene-codecs:${versions.lucene}"
-  testCompile "org.elasticsearch:securemock:1.2"
+  testCompile "org.elasticsearch:securemock:${versions.securemock}"
 }
 
 //TODO compiling from 1.8 with target 1.7 and source 1.7 is best effort, not enough to ensure we are java 7 compatible

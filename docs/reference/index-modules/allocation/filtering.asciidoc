@@ -9,7 +9,7 @@ conjunction with the cluster-wide allocation filters explained in
 <<shards-allocation>>.
 
 It is possible to assign arbitrary metadata attributes to each node at
-startup.  For instance, nodes could be assigned a `rack` and a `group`
+startup.  For instance, nodes could be assigned a `rack` and a `size`
 attribute as follows:
 
 [source,sh]

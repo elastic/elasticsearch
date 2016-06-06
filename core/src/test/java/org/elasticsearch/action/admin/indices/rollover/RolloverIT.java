@@ -25,6 +25,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Map;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -36,6 +38,10 @@ public class RolloverIT extends ESIntegTestCase {
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.getOldIndex(), equalTo("test_index"));
         assertThat(response.getNewIndex(), equalTo("test_index-1"));
+        assertThat(response.isSimulate(), equalTo(false));
+        assertThat(response.isRolledOver(), equalTo(true));
+        assertThat(response.isRolloverIndexCreated(), equalTo(true));
+        assertThat(response.getConditionStatus().size(), equalTo(0));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index");
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));
@@ -50,11 +56,33 @@ public class RolloverIT extends ESIntegTestCase {
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.getOldIndex(), equalTo("test_index"));
         assertThat(response.getNewIndex(), equalTo("test_index-1"));
+        assertThat(response.isSimulate(), equalTo(false));
+        assertThat(response.isRolledOver(), equalTo(true));
+        assertThat(response.isRolloverIndexCreated(), equalTo(true));
+        assertThat(response.getConditionStatus().size(), equalTo(0));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index");
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));
         final IndexMetaData newIndex = state.metaData().index("test_index-1");
         assertTrue(newIndex.getAliases().containsKey("test_alias"));
+    }
+
+    public void testRolloverSimulate() throws Exception {
+        assertAcked(prepareCreate("test_index").addAlias(new Alias("test_alias")).get());
+        index("test_index", "type1", "1", "field", "value");
+        flush("test_index");
+        final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").simulate(true).get();
+        assertThat(response.getOldIndex(), equalTo("test_index"));
+        assertThat(response.getNewIndex(), equalTo("test_index-1"));
+        assertThat(response.isSimulate(), equalTo(true));
+        assertThat(response.isRolledOver(), equalTo(false));
+        assertThat(response.isRolloverIndexCreated(), equalTo(false));
+        assertThat(response.getConditionStatus().size(), equalTo(0));
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final IndexMetaData oldIndex = state.metaData().index("test_index");
+        assertTrue(oldIndex.getAliases().containsKey("test_alias"));
+        final IndexMetaData newIndex = state.metaData().index("test_index-1");
+        assertNull(newIndex);
     }
 
     public void testRolloverConditionsNotMet() throws Exception {
@@ -65,6 +93,13 @@ public class RolloverIT extends ESIntegTestCase {
             .addMaxIndexAgeCondition(TimeValue.timeValueHours(4)).get();
         assertThat(response.getOldIndex(), equalTo("test_index"));
         assertThat(response.getNewIndex(), equalTo("test_index"));
+        assertThat(response.isSimulate(), equalTo(false));
+        assertThat(response.isRolledOver(), equalTo(false));
+        assertThat(response.isRolloverIndexCreated(), equalTo(false));
+        assertThat(response.getConditionStatus().size(), equalTo(1));
+        final Map.Entry<String, Boolean> conditionEntry = response.getConditionStatus().iterator().next();
+        assertThat(conditionEntry.getKey(), equalTo(new Condition.MaxAge(TimeValue.timeValueHours(4)).toString()));
+        assertThat(conditionEntry.getValue(), equalTo(false));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index");
         assertTrue(oldIndex.getAliases().containsKey("test_alias"));
@@ -81,6 +116,9 @@ public class RolloverIT extends ESIntegTestCase {
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.getOldIndex(), equalTo("test_index"));
         assertThat(response.getNewIndex(), equalTo("test_index-1"));
+        assertThat(response.isSimulate(), equalTo(false));
+        assertThat(response.isRolledOver(), equalTo(true));
+        assertThat(response.isRolloverIndexCreated(), equalTo(false));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index");
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));

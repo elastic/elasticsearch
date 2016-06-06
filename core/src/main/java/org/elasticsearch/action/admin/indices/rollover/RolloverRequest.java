@@ -48,6 +48,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest {
 
     private String sourceAlias;
+    private boolean simulate;
     private Set<Condition> conditions = new HashSet<>(2);
 
     public static ObjectParser<Set<Condition>, ParseFieldMatcherSupplier> TLP_PARSER =
@@ -77,6 +78,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         sourceAlias = in.readString();
+        simulate = in.readBoolean();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             this.conditions.add(in.readNamedWriteable(Condition.class));
@@ -87,6 +89,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(sourceAlias);
+        out.writeBoolean(simulate);
         out.writeVInt(conditions.size());
         for (Condition condition : conditions) {
             out.writeNamedWriteable(condition);
@@ -107,12 +110,20 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         this.sourceAlias = sourceAlias;
     }
 
+    public void simulate(boolean simulate) {
+        this.simulate = simulate;
+    }
+
     public void addMaxIndexAgeCondition(TimeValue age) {
         this.conditions.add(new Condition.MaxAge(age));
     }
 
     public void addMaxIndexDocsCondition(long docs) {
         this.conditions.add(new Condition.MaxDocs(docs));
+    }
+
+    public boolean isSimulate() {
+        return simulate;
     }
 
     public Set<Condition> getConditions() {
@@ -135,4 +146,5 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             throw new ElasticsearchParseException("failed to parse content type for rollover index source");
         }
     }
+
 }

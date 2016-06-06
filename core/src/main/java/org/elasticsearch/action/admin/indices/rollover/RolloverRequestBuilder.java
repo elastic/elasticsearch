@@ -46,4 +46,9 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         this.request.addMaxIndexDocsCondition(docs);
         return this;
     }
+
+    public RolloverRequestBuilder simulate(boolean simulate) {
+        this.request.simulate(simulate);
+        return this;
+    }
 }

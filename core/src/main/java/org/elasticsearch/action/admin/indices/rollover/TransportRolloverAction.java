@@ -47,7 +47,11 @@ import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.AbstractMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Main class to swap the index pointed to by an alias, given some predicates
@@ -105,9 +109,23 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     DocsStats docsStats = indicesStatsResponse.getTotal().getDocs();
                     long docCount = docsStats == null ? 0 : docsStats.getCount();
                     long indexAge = System.currentTimeMillis() - sourceIndex.getCreationDate();
-                    if (satisfiesConditions(rolloverRequest.getConditions(), docCount, indexAge)) {
-                        final String rolloverIndexName = generateRolloverIndexName(sourceIndexName);
-                        boolean createRolloverIndex = metaData.index(rolloverIndexName) == null;
+                    final Set<Map.Entry<Condition, Boolean>> evaluatedConditions =
+                        evaluateConditions(rolloverRequest.getConditions(), docCount, indexAge);
+                    final Set<Map.Entry<String, Boolean>> conditionStatus = evaluatedConditions.stream()
+                        .map(entry -> new AbstractMap.SimpleEntry<>(entry.getKey().toString(), entry.getValue()))
+                        .collect(Collectors.toSet());
+                    final String rolloverIndexName = generateRolloverIndexName(sourceIndexName);
+                    final boolean createRolloverIndex = metaData.index(rolloverIndexName) == null;
+                    if (rolloverRequest.isSimulate()) {
+                        listener.onResponse(
+                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionStatus, true, false,
+                                false));
+                        return;
+                    }
+                    if (conditionStatus.stream().allMatch(Map.Entry::getValue)) {
+                        final RolloverResponse rolloverResponse =
+                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionStatus, false, true,
+                                createRolloverIndex);
                         if (createRolloverIndex) {
                             CreateIndexClusterStateUpdateRequest updateRequest =
                                 prepareCreateIndexRequest(rolloverIndexName, rolloverRequest);
@@ -116,7 +134,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                 public void onResponse(ClusterStateUpdateResponse response) {
                                     indexAliasesService.indicesAliases(
                                         prepareIndicesAliasesRequest(sourceIndexName, rolloverIndexName, rolloverRequest),
-                                        new IndicesAliasesListener(sourceIndexName, rolloverIndexName, listener));
+                                        new IndicesAliasesListener(rolloverResponse, listener));
                                 }
 
                                 @Override
@@ -132,11 +150,14 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                         } else {
                             indexAliasesService.indicesAliases(
                                 prepareIndicesAliasesRequest(sourceIndexName, rolloverIndexName, rolloverRequest),
-                                new IndicesAliasesListener(sourceIndexName, rolloverIndexName, listener));
+                                new IndicesAliasesListener(rolloverResponse, listener));
                         }
                     } else {
                         // conditions not met
-                        listener.onResponse(new RolloverResponse(sourceIndexName, sourceIndexName));
+                        listener.onResponse(
+                            new RolloverResponse(sourceIndexName, sourceIndexName, conditionStatus, false, false,
+                                false)
+                        );
                     }
                 }
 
@@ -152,18 +173,16 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     private static final class IndicesAliasesListener implements ActionListener<ClusterStateUpdateResponse> {
 
         private final ActionListener<RolloverResponse> listener;
-        private final String oldIndex;
-        private final String newIndex;
+        private final RolloverResponse response;
 
-        public IndicesAliasesListener(String oldIndex, String newIndex, ActionListener<RolloverResponse> listener) {
-            this.oldIndex = oldIndex;
-            this.newIndex = newIndex;
+        public IndicesAliasesListener(RolloverResponse response, ActionListener<RolloverResponse> listener) {
+            this.response = response;
             this.listener = listener;
         }
 
         @Override
         public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
-            listener.onResponse(new RolloverResponse(oldIndex, newIndex));
+            listener.onResponse(response);
         }
 
         @Override
@@ -199,24 +218,21 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         return String.join("-", indexPrefix, String.valueOf(counter));
     }
 
-    static boolean satisfiesConditions(Set<Condition> conditions, long docCount, long indexAge) {
+    static Set<Map.Entry<Condition, Boolean>> evaluateConditions(Set<Condition> conditions, long docCount, long indexAge) {
+        Set<Map.Entry<Condition, Boolean>> result = new HashSet<>(conditions.size());
         for (Condition condition: conditions) {
             if (condition instanceof Condition.MaxAge) {
                 Condition.MaxAge maxAge = (Condition.MaxAge) condition;
                 final TimeValue age = TimeValue.timeValueMillis(indexAge);
-                if (maxAge.matches(age) == false) {
-                    return false;
-                }
+                result.add(new AbstractMap.SimpleEntry<>(condition, maxAge.matches(age)));
             } else if (condition instanceof Condition.MaxDocs) {
                 final Condition.MaxDocs maxDocs = (Condition.MaxDocs) condition;
-                if (maxDocs.matches(docCount) == false) {
-                    return false;
-                }
+                result.add(new AbstractMap.SimpleEntry<>(condition, maxDocs.matches(docCount)));
             } else {
                 throw new IllegalArgumentException("unknown condition [" + condition.getClass().getSimpleName() + "]");
             }
         }
-        return true;
+        return result;
     }
 
     static void validate(MetaData metaData, RolloverRequest request) {

@@ -20,20 +20,14 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestBuilderListener;
-
-import static org.elasticsearch.rest.RestStatus.OK;
+import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 /**
  *
@@ -45,6 +39,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(RestRequest.Method.PUT, "/{alias}/_rollover", this);
         controller.registerHandler(RestRequest.Method.POST, "/{alias}/_rollover", this);
+        controller.registerHandler(RestRequest.Method.GET, "/{alias}/_rollover", this);
     }
 
     @Override
@@ -56,17 +51,9 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         if (request.hasContent()) {
             rolloverIndexRequest.source(request.content());
         }
+        rolloverIndexRequest.simulate(request.method() == RestRequest.Method.GET || request.paramAsBoolean("simulate", false));
         rolloverIndexRequest.timeout(request.paramAsTime("timeout", rolloverIndexRequest.timeout()));
         rolloverIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", rolloverIndexRequest.masterNodeTimeout()));
-        client.admin().indices().rolloverIndex(rolloverIndexRequest, new RestBuilderListener<RolloverResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(RolloverResponse rolloverResponse, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                builder.field("old_index", rolloverResponse.getOldIndex());
-                builder.field("new_index", rolloverResponse.getNewIndex());
-                builder.endObject();
-                return new BytesRestResponse(OK, builder);
-            }
-        });
+        client.admin().indices().rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));
     }
 }

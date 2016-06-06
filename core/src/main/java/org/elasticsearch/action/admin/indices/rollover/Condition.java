@@ -44,10 +44,12 @@ public abstract class Condition<T> implements NamedWriteable {
         public final static String NAME = "max_age";
 
         public MaxAge(TimeValue value) {
+            super(NAME);
             this.value = value;
         }
 
         public MaxAge(StreamInput in) throws IOException {
+            super(NAME);
             this.value = TimeValue.timeValueMillis(in.readLong());
         }
 
@@ -71,10 +73,12 @@ public abstract class Condition<T> implements NamedWriteable {
         public final static String NAME = "max_docs";
 
         public MaxDocs(Long value) {
+            super(NAME);
             this.value = value;
         }
 
         public MaxDocs(StreamInput in) throws IOException {
+            super(NAME);
             this.value = in.readLong();
         }
 
@@ -95,6 +99,16 @@ public abstract class Condition<T> implements NamedWriteable {
     }
 
     protected T value;
+    protected final String name;
+
+    protected Condition(String name) {
+        this.name = name;
+    }
 
     public abstract boolean matches(T value);
+
+    @Override
+    public final String toString() {
+        return "[" + name + ": " + value + "]";
+    }
 }

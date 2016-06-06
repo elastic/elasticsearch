@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -396,10 +397,66 @@ public class BootstrapCheckTests extends ESTestCase {
         BootstrapCheck.check(true, false, Collections.singletonList(check), "testClientJvmCheck");
     }
 
+    public void testMightForkCheck() {
+        final AtomicBoolean isSeccompInstalled = new AtomicBoolean();
+        final AtomicBoolean mightFork = new AtomicBoolean();
+        final BootstrapCheck.MightForkCheck check = new BootstrapCheck.MightForkCheck() {
+            @Override
+            boolean isSeccompInstalled() {
+                return isSeccompInstalled.get();
+            }
+
+            @Override
+            boolean mightFork() {
+                return mightFork.get();
+            }
+
+            @Override
+            public String errorMessage() {
+                return "error";
+            }
+        };
+
+        runMightForkTest(
+            check,
+            isSeccompInstalled,
+            () -> mightFork.set(false),
+            () -> mightFork.set(true),
+            e -> assertThat(e.getMessage(), containsString("error")));
+    }
+
+    public void testOnErrorCheck() {
+        final AtomicBoolean isSeccompInstalled = new AtomicBoolean();
+        final AtomicReference<String> onError = new AtomicReference<>();
+        final BootstrapCheck.MightForkCheck check = new BootstrapCheck.OnErrorCheck() {
+            @Override
+            boolean isSeccompInstalled() {
+                return isSeccompInstalled.get();
+            }
+
+            @Override
+            String onError() {
+                return onError.get();
+            }
+        };
+
+        final String command = randomAsciiOfLength(16);
+        runMightForkTest(
+            check,
+            isSeccompInstalled,
+            () -> onError.set(randomBoolean() ? "" : null),
+            () -> onError.set(command),
+            e -> assertThat(
+                e.getMessage(),
+                containsString(
+                    "OnError [" + command + "] requires forking but is prevented by system call filters ([bootstrap.seccomp=true]);"
+                        + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
+    }
+
     public void testOnOutOfMemoryErrorCheck() {
         final AtomicBoolean isSeccompInstalled = new AtomicBoolean();
         final AtomicReference<String> onOutOfMemoryError = new AtomicReference<>();
-        final BootstrapCheck.Check check = new BootstrapCheck.OnOutOfMemoryErrorCheck() {
+        final BootstrapCheck.MightForkCheck check = new BootstrapCheck.OnOutOfMemoryErrorCheck() {
             @Override
             boolean isSeccompInstalled() {
                 return isSeccompInstalled.get();
@@ -411,31 +468,52 @@ public class BootstrapCheckTests extends ESTestCase {
             }
         };
 
+        final String command = randomAsciiOfLength(16);
+        runMightForkTest(
+            check,
+            isSeccompInstalled,
+            () -> onOutOfMemoryError.set(randomBoolean() ? "" : null),
+            () -> onOutOfMemoryError.set(command),
+            e -> assertThat(
+                e.getMessage(),
+                containsString(
+                    "OnOutOfMemoryError [" + command + "]"
+                        + " requires forking but is prevented by system call filters ([bootstrap.seccomp=true]);"
+                        + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
+    }
+
+    private void runMightForkTest(
+        final BootstrapCheck.MightForkCheck check,
+        final AtomicBoolean isSeccompInstalled,
+        final Runnable disableMightFork,
+        final Runnable enableMightFork,
+        final Consumer<RuntimeException> consumer) {
+
         // if seccomp is disabled, nothing should happen
         isSeccompInstalled.set(false);
-        onOutOfMemoryError.set(randomBoolean() ? "" : randomAsciiOfLength(16));
-        BootstrapCheck.check(true, false, Collections.singletonList(check), "testOnOutOfMemoryErrorCheck");
+        if (randomBoolean()) {
+            disableMightFork.run();
+        } else {
+            enableMightFork.run();
+        }
+        BootstrapCheck.check(true, randomBoolean(), Collections.singletonList(check), "testMightFork");
 
-        // if seccomp is enabled, and OnOutOfMemoryError is not, nothing
-        // should happen
+        // if seccomp is enabled, but we will not fork, nothing should
+        // happen
         isSeccompInstalled.set(true);
-        onOutOfMemoryError.set("");
-        BootstrapCheck.check(true, false, Collections.singletonList(check), "testOnOutOfMemoryErrorCheck");
+        disableMightFork.run();
+        BootstrapCheck.check(true, randomBoolean(), Collections.singletonList(check), "testMightFork");
 
-        // if seccomp is enabled, and OnOutOfMemoryError is, the check
-        // should be enforced, regardless of bootstrap checks being
-        // enabled or not
+        // if seccomp is enabled, and we might fork, the check should
+        // be enforced, regardless of bootstrap checks being enabled or
+        // not
         isSeccompInstalled.set(true);
-        final String command = randomAsciiOfLength(16);
-        onOutOfMemoryError.set(command);
+        enableMightFork.run();
+
         final RuntimeException e = expectThrows(
             RuntimeException.class,
-            () -> BootstrapCheck.check(randomBoolean(), randomBoolean(), Collections.singletonList(check), "testOnOutOfMemoryErrorCheck"));
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "OnOutOfMemoryError [" + command + "] requires forking but is prevented by system call filters ([bootstrap.seccomp=true]);"
-                    + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError"));
+            () -> BootstrapCheck.check(randomBoolean(), randomBoolean(), Collections.singletonList(check), "testMightFork"));
+        consumer.accept(e);
     }
 
     public void testIgnoringSystemChecks() {

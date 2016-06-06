@@ -37,7 +37,6 @@ public class RestRolloverIndexAction extends BaseRestHandler {
     @Inject
     public RestRolloverIndexAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
-        controller.registerHandler(RestRequest.Method.PUT, "/{alias}/_rollover", this);
         controller.registerHandler(RestRequest.Method.POST, "/{alias}/_rollover", this);
         controller.registerHandler(RestRequest.Method.GET, "/{alias}/_rollover", this);
     }

@@ -56,6 +56,8 @@ public final class DefBootstrap {
     public static final int ARRAY_LOAD = 3;
     /** static bootstrap parameter indicating a dynamic array store, e.g. foo[bar] = baz */
     public static final int ARRAY_STORE = 4;
+    /** static bootstrap parameter indicating a dynamic iteration, e.g. for (x : y) */
+    public static final int ITERATOR = 5;
 
     /**
      * CallSite that implements the polymorphic inlining cache (PIC).
@@ -103,6 +105,8 @@ public final class DefBootstrap {
                     return Def.lookupArrayLoad(clazz);
                 case ARRAY_STORE:
                     return Def.lookupArrayStore(clazz);
+                case ITERATOR:
+                    return Def.lookupIterator(clazz);
                 default: throw new AssertionError();
             }
         }

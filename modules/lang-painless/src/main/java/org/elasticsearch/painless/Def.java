@@ -27,6 +27,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -103,6 +104,8 @@ public final class Def {
     private static final MethodHandle LIST_GET;
     /** pointer to List.set(int,Object) */
     private static final MethodHandle LIST_SET;
+    /** pointer to Iterable.iterator() */
+    private static final MethodHandle ITERATOR;
     /** factory for arraylength MethodHandle (intrinsic) from Java 9 */
     private static final MethodHandle JAVA9_ARRAY_LENGTH_MH_FACTORY;
 
@@ -114,6 +117,7 @@ public final class Def {
             MAP_PUT  = lookup.findVirtual(Map.class , "put", MethodType.methodType(Object.class, Object.class, Object.class));
             LIST_GET = lookup.findVirtual(List.class, "get", MethodType.methodType(Object.class, int.class));
             LIST_SET = lookup.findVirtual(List.class, "set", MethodType.methodType(Object.class, int.class, Object.class));
+            ITERATOR = lookup.findVirtual(Iterable.class, "iterator", MethodType.methodType(Iterator.class));
         } catch (final ReflectiveOperationException roe) {
             throw new AssertionError(roe);
         }
@@ -373,6 +377,20 @@ public final class Def {
         }
         throw new IllegalArgumentException("Attempting to address a non-array type " +
                                            "[" + receiverClass.getCanonicalName() + "] as an array.");
+    }
+    
+    /**
+     * Returns a method handle to do iteration (for enhanced for loop)
+     * @param receiverClass Class of the array to load the value from
+     * @return a MethodHandle that accepts the receiver as first argument, returns iterator
+     */
+    static MethodHandle lookupIterator(Class<?> receiverClass) {
+        if (Iterable.class.isAssignableFrom(receiverClass)) {
+            return ITERATOR;
+        } else {
+            // TODO: arrays
+            throw new IllegalArgumentException("Cannot iterate over [" + receiverClass.getCanonicalName() + "]");
+        }
     }
 
     // NOTE: Below methods are not cached, instead invoked directly because they are performant.

@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Method;
@@ -32,6 +33,8 @@ import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.Variables.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
+
+import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 
 /**
  * Represents a for-each loop shortcut for iterables.  Defers to other S-nodes for non-iterable types.
@@ -71,9 +74,7 @@ public class SEach extends AStatement {
 
         if (sort == Sort.ARRAY) {
             return new SArrayEach(location, maxLoopCounter, type, name, expression, (SBlock)block).copy(this).analyze(variables);
-        } else if (sort == Sort.DEF) {
-            return new SDefEach(location, maxLoopCounter, type, name, expression, (SBlock)block).copy(this).analyze(variables);
-        } else if (Iterable.class.isAssignableFrom(expression.actual.clazz)) {
+        } else if (sort == Sort.DEF || Iterable.class.isAssignableFrom(expression.actual.clazz)) {
             final Type type;
 
             try {
@@ -92,11 +93,15 @@ public class SEach extends AStatement {
             // also add the location offset to make the name unique in case of nested for each loops.
             iterator = variables.addVariable(location, itr, "#itr" + location.getOffset(), true, false);
 
-            method = expression.actual.struct.methods.get(new MethodKey("iterator", 0));
+            if (sort == Sort.DEF) {
+                method = null;
+            } else {
+                method = expression.actual.struct.methods.get(new MethodKey("iterator", 0));
 
-            if (method == null) {
-                throw location.createError(new IllegalArgumentException(
-                    "Unable to create iterator for the type [" + expression.actual.name + "]."));
+                if (method == null) {
+                    throw location.createError(new IllegalArgumentException(
+                            "Unable to create iterator for the type [" + expression.actual.name + "]."));
+                }
             }
 
             hasNext = itr.struct.methods.get(new MethodKey("hasNext", 0));
@@ -150,7 +155,11 @@ public class SEach extends AStatement {
 
         expression.write(writer);
 
-        if (java.lang.reflect.Modifier.isInterface(method.owner.clazz.getModifiers())) {
+        if (method == null) {
+            Type itr = Definition.getType("Iterator");
+            String desc = org.objectweb.asm.Type.getMethodDescriptor(itr.type, Definition.DEF_TYPE.type);
+            writer.invokeDynamic("iterator", desc, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.ITERATOR);
+        } else if (java.lang.reflect.Modifier.isInterface(method.owner.clazz.getModifiers())) {
             writer.invokeInterface(method.owner.type, method.method);
         } else {
             writer.invokeVirtual(method.owner.type, method.method);

@@ -52,8 +52,10 @@ final class RequestLogger {
      * Logs a request that yielded a response
      */
     static void log(Log logger, String message, HttpUriRequest request, HttpHost host, HttpResponse httpResponse) {
-        logger.debug(message + " [" + request.getMethod() + " " + host + request.getRequestLine().getUri() +
-                "] [" + httpResponse.getStatusLine() + "]");
+        if (logger.isDebugEnabled()) {
+            logger.debug(message + " [" + request.getMethod() + " " + host + request.getRequestLine().getUri() +
+                    "] [" + httpResponse.getStatusLine() + "]");
+        }
 
         if (tracer.isTraceEnabled()) {
             String requestLine;

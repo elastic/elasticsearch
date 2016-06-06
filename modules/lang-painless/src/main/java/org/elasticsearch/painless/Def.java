@@ -238,14 +238,9 @@ public final class Def {
          } catch (LambdaConversionException e) {
              throw new RuntimeException(e);
          }
-         try {
-             // create an implementation of the interface (instance)
-             Object instance = callSite.dynamicInvoker().asType(MethodType.methodType(clazz)).invoke();
-             // bind this instance as a constant replacement for the parameter
-             return MethodHandles.dropArguments(MethodHandles.constant(clazz, instance), 0, Object.class);
-         } catch (Throwable e) {
-             throw new RuntimeException(e);
-         }
+         // we could actually invoke and cache here (in non-capturing cases), but this is not a speedup.
+         MethodHandle factory = callSite.dynamicInvoker().asType(MethodType.methodType(clazz));
+         return MethodHandles.dropArguments(factory, 0, Object.class);
      }
      
 

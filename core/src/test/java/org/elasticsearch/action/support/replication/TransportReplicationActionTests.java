@@ -24,6 +24,7 @@ import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ReplicationOperation.ReplicaResponse;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -43,7 +44,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -502,7 +502,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         setState(clusterService, state);
 
         // check that at unknown node fails
-        PlainActionFuture<TransportResponse.Empty> listener = new PlainActionFuture<>();
+        PlainActionFuture<ReplicaResponse> listener = new PlainActionFuture<>();
         proxy.performOn(
             TestShardRouting.newShardRouting(shardId, "NOT THERE", false, randomFrom(ShardRoutingState.values())),
             new Request(), listener);
@@ -519,9 +519,11 @@ public class TransportReplicationActionTests extends ESTestCase {
         CapturingTransport.CapturedRequest[] captures = transport.getCapturedRequestsAndClear();
         assertThat(captures, arrayWithSize(1));
         if (randomBoolean()) {
-            transport.handleResponse(captures[0].requestId, TransportResponse.Empty.INSTANCE);
+            final TransportReplicationAction.ReplicaResponse response =
+                new TransportReplicationAction.ReplicaResponse(randomAsciiOfLength(10), randomLong());
+            transport.handleResponse(captures[0].requestId, response);
             assertTrue(listener.isDone());
-            listener.get();
+            assertThat(listener.get(), equalTo(response));
         } else if (randomBoolean()) {
             transport.handleRemoteError(captures[0].requestId, new ElasticsearchException("simulated"));
             assertTrue(listener.isDone());
@@ -598,7 +600,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, "_na_", 0);
         // we use one replica to check the primary term was set on the operation and sent to the replica
         setState(clusterService,
-                state(index, true, ShardRoutingState.STARTED, randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED)));
+            state(index, true, ShardRoutingState.STARTED, randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED)));
         logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
         Request request = new Request(shardId);
         PlainActionFuture<Response> listener = new PlainActionFuture<>();

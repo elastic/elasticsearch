@@ -31,11 +31,10 @@ import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
-import org.elasticsearch.index.mapper.core.LegacyTokenCountFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
@@ -54,6 +53,7 @@ import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.percolator.PercolatorFieldMapper;
+import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -162,6 +162,7 @@ public class IndicesModule extends AbstractModule {
         bind(UpdateHelper.class).asEagerSingleton();
         bind(MetaDataIndexUpgradeService.class).asEagerSingleton();
         bind(NodeServicesProvider.class).asEagerSingleton();
+        bind(GlobalCheckpointSyncAction.class).asEagerSingleton();
     }
 
     // public for testing

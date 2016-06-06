@@ -42,7 +42,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 
@@ -140,7 +139,7 @@ public class MetaDataMappingService extends AbstractComponent {
             IndexService indexService = indicesService.indexService(indexMetaData.getIndex());
             if (indexService == null) {
                 // we need to create the index here, and add the current mapping to it, so we can merge
-                indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.emptyList());
+                indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.emptyList(), shardId -> {});
                 removeIndex = true;
                 for (ObjectCursor<MappingMetaData> metaData : indexMetaData.getMappings().values()) {
                     // don't apply the default mapping, it has been applied when the mapping was created
@@ -224,7 +223,7 @@ public class MetaDataMappingService extends AbstractComponent {
                                 // close it later once we are done with mapping update
                                 indicesToClose.add(indexMetaData.getIndex());
                                 IndexService indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData,
-                                    Collections.emptyList());
+                                    Collections.emptyList(), shardId -> {});
                                 // add mappings for all types, we need them for cross-type validation
                                 for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
                                     indexService.mapperService().merge(mapping.value.type(), mapping.value.source(),

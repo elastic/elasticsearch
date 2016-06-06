@@ -56,7 +56,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
-import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
@@ -1149,7 +1148,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public SeqNoStats seqNoStats() {
-        return seqNoService.stats();
+    public SequenceNumbersService seqNoService() {
+        return seqNoService;
     }
 }

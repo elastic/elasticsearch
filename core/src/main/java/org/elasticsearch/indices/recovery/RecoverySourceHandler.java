@@ -362,7 +362,10 @@ public class RecoverySourceHandler {
         logger.trace("[{}][{}] finalizing recovery to {}", indexName, shardId, request.targetNode());
 
 
-        cancellableThreads.execute(recoveryTarget::finalizeRecovery);
+        cancellableThreads.execute(() -> {
+            RecoveryTarget.FinalizeResponse response = recoveryTarget.finalizeRecovery();
+            shard.markAllocationIdAsInSync(response.getAllocationId(), response.getLocalCheckpoint());
+        });
 
         if (isPrimaryRelocation()) {
             /**

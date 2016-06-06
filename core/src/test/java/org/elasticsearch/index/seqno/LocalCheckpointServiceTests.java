@@ -40,9 +40,9 @@ import static org.hamcrest.Matchers.isOneOf;
 
 public class LocalCheckpointServiceTests extends ESTestCase {
 
-    LocalCheckpointService checkpointService;
+    private LocalCheckpointService checkpointService;
 
-    final int SMALL_CHUNK_SIZE = 4;
+    private final int SMALL_CHUNK_SIZE = 4;
 
     @Override
     @Before
@@ -51,19 +51,19 @@ public class LocalCheckpointServiceTests extends ESTestCase {
         checkpointService = getCheckpointService();
     }
 
-    protected LocalCheckpointService getCheckpointService() {
+    private LocalCheckpointService getCheckpointService() {
         return new LocalCheckpointService(
             new ShardId("test", "_na_", 0),
             IndexSettingsModule.newIndexSettings("test",
                 Settings.builder()
-                    .put(LocalCheckpointService.SETTINGS_BIT_ARRAYS_SIZE, SMALL_CHUNK_SIZE)
+                    .put(LocalCheckpointService.SETTINGS_BIT_ARRAYS_SIZE.getKey(), SMALL_CHUNK_SIZE)
                     .build()
             ));
     }
 
     public void testSimplePrimary() {
         long seqNo1, seqNo2;
-        assertThat(checkpointService.getCheckpoint(), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+        assertThat(checkpointService.getCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
         seqNo1 = checkpointService.generateSeqNo();
         assertThat(seqNo1, equalTo(0L));
         checkpointService.markSeqNoAsCompleted(seqNo1);
@@ -79,7 +79,7 @@ public class LocalCheckpointServiceTests extends ESTestCase {
     }
 
     public void testSimpleReplica() {
-        assertThat(checkpointService.getCheckpoint(), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+        assertThat(checkpointService.getCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
         checkpointService.markSeqNoAsCompleted(0L);
         assertThat(checkpointService.getCheckpoint(), equalTo(0L));
         checkpointService.markSeqNoAsCompleted(2L);

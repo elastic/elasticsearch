@@ -22,15 +22,22 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
-/** a very light weight implementation. will be replaced with proper machinery later */
+import java.util.Set;
+
+/**
+ * a very light weight implementation. will be replaced with proper machinery later
+ */
 public class SequenceNumbersService extends AbstractIndexShardComponent {
 
-    public final static long UNASSIGNED_SEQ_NO = -1L;
+    public final static long UNASSIGNED_SEQ_NO = -2L;
+    public final static long NO_OPS_PERFORMED = -1L;
     final LocalCheckpointService localCheckpointService;
+    final GlobalCheckpointService globalCheckpointService;
 
     public SequenceNumbersService(ShardId shardId, IndexSettings indexSettings) {
         super(shardId, indexSettings);
         localCheckpointService = new LocalCheckpointService(shardId, indexSettings);
+        globalCheckpointService = new GlobalCheckpointService(shardId, indexSettings);
     }
 
     /**
@@ -54,6 +61,62 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * Gets sequence number related stats
      */
     public SeqNoStats stats() {
-        return new SeqNoStats(localCheckpointService.getMaxSeqNo(), localCheckpointService.getCheckpoint());
+        return new SeqNoStats(localCheckpointService.getMaxSeqNo(), localCheckpointService.getCheckpoint(),
+            globalCheckpointService.getCheckpoint());
+    }
+
+    /**
+     * notifies the service of a local checkpoint.
+     * see {@link GlobalCheckpointService#updateLocalCheckpoint(String, long)} for details.
+     */
+    public void updateLocalCheckpointForShard(String allocationId, long checkpoint) {
+        globalCheckpointService.updateLocalCheckpoint(allocationId, checkpoint);
+    }
+
+    /**
+     * marks the allocationId as "in sync" with the primary shard.
+     * see {@link GlobalCheckpointService#markAllocationIdAsInSync(String, long)} for details.
+     *
+     * @param allocationId    allocationId of the recovering shard
+     * @param localCheckpoint the local checkpoint of the shard in question
+     */
+    public void markAllocationIdAsInSync(String allocationId, long localCheckpoint) {
+        globalCheckpointService.markAllocationIdAsInSync(allocationId, localCheckpoint);
+    }
+
+    public long getLocalCheckpoint() {
+        return localCheckpointService.getCheckpoint();
+    }
+
+    public long getGlobalCheckpoint() {
+        return globalCheckpointService.getCheckpoint();
+    }
+
+    /**
+     * updates the global checkpoint on a replica shard (after it has been updated by the primary).
+     */
+    public void updateGlobalCheckpointOnReplica(long checkpoint) {
+        globalCheckpointService.updateCheckpointOnReplica(checkpoint);
+    }
+
+    /**
+     * Notifies the service of the current allocation ids in the cluster state.
+     * see {@link GlobalCheckpointService#updateAllocationIdsFromMaster(Set, Set)} for details.
+     *
+     * @param activeAllocationIds       the allocation ids of the currently active shard copies
+     * @param initializingAllocationIds the allocation ids of the currently initializing shard copies
+     */
+    public void updateAllocationIdsFromMaster(Set<String> activeAllocationIds, Set<String> initializingAllocationIds) {
+        globalCheckpointService.updateAllocationIdsFromMaster(activeAllocationIds, initializingAllocationIds);
+    }
+
+    /**
+     * Scans through the currently known local checkpoint and updates the global checkpoint accordingly.
+     *
+     * @return true if the checkpoint has been updated or if it can not be updated since one of the local checkpoints
+     * of one of the active allocations is not known.
+     */
+    public boolean updateGlobalCheckpointOnPrimary() {
+        return globalCheckpointService.updateCheckpointOnPrimary();
     }
 }

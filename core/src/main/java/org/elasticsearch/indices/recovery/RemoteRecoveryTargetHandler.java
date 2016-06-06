@@ -27,6 +27,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.FutureTransportResponseHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
@@ -82,11 +83,16 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void finalizeRecovery() {
-        transportService.submitRequest(targetNode, RecoveryTargetService.Actions.FINALIZE,
+    public FinalizeResponse finalizeRecovery() {
+        return transportService.submitRequest(targetNode, RecoveryTargetService.Actions.FINALIZE,
                 new RecoveryFinalizeRecoveryRequest(recoveryId, shardId),
                 TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
-                EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                new FutureTransportResponseHandler<FinalizeResponse>() {
+                    @Override
+                    public FinalizeResponse newInstance() {
+                        return new FinalizeResponse();
+                    }
+                }).txGet();
     }
 
     @Override

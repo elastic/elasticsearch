@@ -95,7 +95,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         indicesService.deleteIndex(idx, "simon says");
         try {
             NodeServicesProvider nodeServicesProvider = getInstanceFromNode(NodeServicesProvider.class);
-            IndexService index = indicesService.createIndex(nodeServicesProvider, metaData, Arrays.asList(countingListener));
+            IndexService index = indicesService.createIndex(nodeServicesProvider, metaData, Arrays.asList(countingListener), s -> {});
             idx = index.index();
             ShardRouting newRouting = shardRouting;
             String nodeId = newRouting.currentNodeId();

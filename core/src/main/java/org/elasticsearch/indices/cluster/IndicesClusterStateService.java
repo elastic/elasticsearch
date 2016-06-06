@@ -52,6 +52,7 @@ import org.elasticsearch.index.IndexShardAlreadyExistsException;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -75,6 +76,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
 
 /**
  *
@@ -89,6 +91,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final NodeIndexDeletedAction nodeIndexDeletedAction;
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
     private final NodeServicesProvider nodeServicesProvider;
+    private final GlobalCheckpointSyncAction globalCheckpointSyncAction;
 
     private static final ShardStateAction.Listener SHARD_STATE_ACTION_LISTENER = new ShardStateAction.Listener() {
     };
@@ -113,9 +116,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                                       NodeMappingRefreshAction nodeMappingRefreshAction,
                                       RepositoriesService repositoriesService, RestoreService restoreService,
                                       SearchService searchService, SyncedFlushService syncedFlushService,
-                                      RecoverySource recoverySource, NodeServicesProvider nodeServicesProvider) {
+                                      RecoverySource recoverySource, NodeServicesProvider nodeServicesProvider,
+                                      GlobalCheckpointSyncAction globalCheckpointSyncAction) {
         super(settings);
         this.buildInIndexListener = Arrays.asList(recoverySource, recoveryTargetService, searchService, syncedFlushService);
+        this.globalCheckpointSyncAction = globalCheckpointSyncAction;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -379,7 +384,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.debug("[{}] creating index", indexMetaData.getIndex());
                 }
                 try {
-                    indicesService.createIndex(nodeServicesProvider, indexMetaData, buildInIndexListener);
+                    indicesService.createIndex(nodeServicesProvider, indexMetaData, buildInIndexListener,
+                        globalCheckpointSyncAction::updateCheckpointForShard);
                 } catch (Throwable e) {
                     sendFailShard(shard, "failed to create index", e);
                 }
@@ -527,6 +533,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 if (shardHasBeenRemoved == false) {
                     try {
                         indexShard.updateRoutingEntry(shardRouting, event.state().blocks().disableStatePersistence() == false);
+                        if (shardRouting.primary()) {
+                            final IndexShardRoutingTable shardRoutingTable = routingTable.shardRoutingTable(shardRouting.shardId());
+                            Set<String> activeIds = shardRoutingTable.activeShards().stream().map(sr -> sr.allocationId().getId()).collect(Collectors.toSet());
+                            Set<String> initializingIds = shardRoutingTable.getAllInitializingShards().stream().map(sr -> sr.allocationId().getId()).collect(Collectors.toSet());
+                            indexShard.updateAllocationIdsFromMaster(activeIds, initializingIds);
+                        }
                     } catch (Throwable e) {
                         failAndRemoveShard(shardRouting, indexService, true, "failed updating shard routing entry", e);
                     }

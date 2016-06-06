@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -43,6 +44,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -425,16 +427,18 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         @Override
         protected void doRun() throws Exception {
             setPhase(task, "replica");
+            final ReplicaResponse response;
             assert request.shardId() != null : "request shardId must be set";
-            try (Releasable ignored = acquireReplicaOperationLock(request.shardId(), request.primaryTerm())) {
+            try (ShardReference replica = getReplicaShardReference(request.shardId(), request.primaryTerm())) {
                 shardOperationOnReplica(request);
+                response = new ReplicaResponse(replica.routingEntry().allocationId().getId(), replica.getLocalCheckpoint());
                 if (logger.isTraceEnabled()) {
                     logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction, request.shardId(),
                         request);
                 }
             }
             setPhase(task, "finished");
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            channel.sendResponse(response);
         }
     }
 
@@ -705,13 +709,13 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     }
 
     /**
-     * Acquire an operation on replicas. The lock is closed as soon as
+     * Get a reference to a replica shard. The reference is released as soon as
      * replication is completed on the node.
      */
-    protected Releasable acquireReplicaOperationLock(ShardId shardId, long primaryTerm) {
+    protected ShardReference getReplicaShardReference(ShardId shardId, long primaryTerm) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        return indexShard.acquireReplicaOperationLock(primaryTerm);
+        return new ShardReference(indexShard, indexShard.acquireReplicaOperationLock(primaryTerm));
     }
 
     /**
@@ -722,12 +726,12 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         return IndexMetaData.isIndexUsingShadowReplicas(settings) == false;
     }
 
-    class PrimaryShardReference implements ReplicationOperation.Primary<Request, ReplicaRequest, Response>, Releasable {
+    class ShardReference implements Releasable {
 
-        private final IndexShard indexShard;
+        protected final IndexShard indexShard;
         private final Releasable operationLock;
 
-        PrimaryShardReference(IndexShard indexShard, Releasable operationLock) {
+        ShardReference(IndexShard indexShard, Releasable operationLock) {
             this.indexShard = indexShard;
             this.operationLock = operationLock;
         }
@@ -735,6 +739,22 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         @Override
         public void close() {
             operationLock.close();
+        }
+
+        public long getLocalCheckpoint() {
+            return indexShard.getLocalCheckpoint();
+        }
+
+        public ShardRouting routingEntry() {
+            return indexShard.routingEntry();
+        }
+
+    }
+
+    class PrimaryShardReference extends ShardReference implements ReplicationOperation.Primary<Request, ReplicaRequest, Response> {
+
+        PrimaryShardReference(IndexShard indexShard, Releasable operationLock) {
+            super(indexShard, operationLock);
         }
 
         public boolean isRelocated() {
@@ -758,15 +778,59 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
 
         @Override
-        public ShardRouting routingEntry() {
-            return indexShard.routingEntry();
+        public void updateLocalCheckpointForShard(String allocationId, long checkpoint) {
+            indexShard.updateLocalCheckpointForShard(allocationId, checkpoint);
+        }
+
+        @Override
+        public long localCheckpoint() {
+            return indexShard.getLocalCheckpoint();
+        }
+    }
+
+
+    static class ReplicaResponse extends ActionResponse implements ReplicationOperation.ReplicaResponse {
+        private long localCheckpoint;
+        private String allocationId;
+
+        ReplicaResponse() {
+
+        }
+
+        ReplicaResponse(String allocationId, long localCheckpoint) {
+            this.allocationId = allocationId;
+            this.localCheckpoint = localCheckpoint;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            localCheckpoint = in.readZLong();
+            allocationId = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeZLong(localCheckpoint);
+            out.writeString(allocationId);
+        }
+
+        @Override
+        public long localCheckpoint() {
+            return localCheckpoint;
+        }
+
+        @Override
+        public String allocationId() {
+            return allocationId;
         }
     }
 
     final class ReplicasProxy implements ReplicationOperation.Replicas<ReplicaRequest> {
 
         @Override
-        public void performOn(ShardRouting replica, ReplicaRequest request, ActionListener<TransportResponse.Empty> listener) {
+        public void performOn(ShardRouting replica, ReplicaRequest request, ActionListener<ReplicationOperation.ReplicaResponse> listener) {
             String nodeId = replica.currentNodeId();
             final DiscoveryNode node = clusterService.state().nodes().get(nodeId);
             if (node == null) {
@@ -774,7 +838,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 return;
             }
             transportService.sendRequest(node, transportReplicaAction, request, transportOptions,
-                new ActionListenerResponseHandler<>(listener, () -> TransportResponse.Empty.INSTANCE));
+                new ActionListenerResponseHandler<>(listener, ReplicaResponse::new));
         }
 
         @Override

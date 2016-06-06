@@ -53,7 +53,8 @@ public final class ShadowIndexShard extends IndexShard {
                             ThreadPool threadPool, BigArrays bigArrays, Engine.Warmer engineWarmer,
                             List<SearchOperationListener> searchOperationListeners) throws IOException {
         super(shardRouting, indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldDataService, engineFactory,
-            indexEventListener, wrapper, threadPool, bigArrays, engineWarmer, searchOperationListeners, Collections.emptyList());
+            indexEventListener, wrapper, threadPool, bigArrays, engineWarmer, () -> {
+            }, searchOperationListeners, Collections.emptyList());
     }
 
     /**
@@ -101,5 +102,23 @@ public final class ShadowIndexShard extends IndexShard {
     @Override
     public TranslogStats translogStats() {
         return null; // shadow engine has no translog
+    }
+
+
+    @Override
+    public void updateGlobalCheckpointOnReplica(long checkpoint) {
+        // nocommit: think shadow replicas through
+    }
+
+    @Override
+    public long getLocalCheckpoint() {
+        // nocommit: think shadow replicas through
+        return -1;
+    }
+
+    @Override
+    public long getGlobalCheckpoint() {
+        // nocommit: think shadow replicas through
+        return -1;
     }
 }

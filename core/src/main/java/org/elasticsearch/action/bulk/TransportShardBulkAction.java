@@ -30,7 +30,8 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.action.support.replication.TransportReplicationAction;
+import org.elasticsearch.action.support.replication.TransportWriteAction;
+import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -53,6 +54,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -67,7 +69,7 @@ import static org.elasticsearch.action.support.replication.ReplicationOperation.
 /**
  * Performs the index operation.
  */
-public class TransportShardBulkAction extends TransportReplicationAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
+public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardResponse> {
 
     private final static String OP_TYPE_UPDATE = "update";
     private final static String OP_TYPE_DELETE = "delete";
@@ -83,9 +85,8 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
                                     IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                     MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper, ActionFilters actionFilters,
                                     IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction,
-            actionFilters, indexNameExpressionResolver,
-                BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.BULK);
+        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
+                indexNameExpressionResolver, BulkShardRequest::new, ThreadPool.Names.BULK);
         this.updateHelper = updateHelper;
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
         this.mappingUpdatedAction = mappingUpdatedAction;
@@ -107,10 +108,9 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
     }
 
     @Override
-    protected Tuple<BulkShardResponse, BulkShardRequest> shardOperationOnPrimary(BulkShardRequest request) {
+    protected WriteResult<BulkShardResponse> onPrimaryShard(BulkShardRequest request, IndexShard indexShard) throws Exception {
         ShardId shardId = request.shardId();
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        final IndexShard indexShard = indexService.getShard(shardId.getId());
         final IndexMetaData metaData = indexService.getIndexSettings().getIndexMetaData();
 
         long[] preVersions = new long[request.items().length];
@@ -121,13 +121,13 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
             location = handleItem(metaData, request, indexShard, preVersions, preVersionTypes, location, requestIndex, item);
         }
 
-        processAfterWrite(request.refresh(), indexShard, location);
         BulkItemResponse[] responses = new BulkItemResponse[request.items().length];
         BulkItemRequest[] items = request.items();
         for (int i = 0; i < items.length; i++) {
             responses[i] = items[i].getPrimaryResponse();
         }
-        return new Tuple<>(new BulkShardResponse(request.shardId(), responses), request);
+        BulkShardResponse response = new BulkShardResponse(request.shardId(), responses);
+        return new WriteResult<>(response, location);
     }
 
     private Translog.Location handleItem(IndexMetaData metaData, BulkShardRequest request, IndexShard indexShard, long[] preVersions, VersionType[] preVersionTypes, Translog.Location location, int requestIndex, BulkItemRequest item) {
@@ -154,9 +154,9 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
         preVersionTypes[requestIndex] = indexRequest.versionType();
         try {
             WriteResult<IndexResponse> result = shardIndexOperation(request, indexRequest, metaData, indexShard, true);
-            location = locationToSync(location, result.location);
+            location = locationToSync(location, result.getLocation());
             // add the response
-            IndexResponse indexResponse = result.response();
+            IndexResponse indexResponse = result.getResponse();
             setResponse(item, new BulkItemResponse(item.id(), indexRequest.opType().lowercase(), indexResponse));
         } catch (Throwable e) {
             // rethrow the failure if we are going to retry on primary and let parent failure to handle it
@@ -197,8 +197,8 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
         try {
             // add the response
             final WriteResult<DeleteResponse> writeResult = TransportDeleteAction.executeDeleteRequestOnPrimary(deleteRequest, indexShard);
-            DeleteResponse deleteResponse = writeResult.response();
-            location = locationToSync(location, writeResult.location);
+            DeleteResponse deleteResponse = writeResult.getResponse();
+            location = locationToSync(location, writeResult.getLocation());
             setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_DELETE, deleteResponse));
         } catch (Throwable e) {
             // rethrow the failure if we are going to retry on primary and let parent failure to handle it
@@ -237,16 +237,17 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
             }
             if (updateResult.success()) {
                 if (updateResult.writeResult != null) {
-                    location = locationToSync(location, updateResult.writeResult.location);
+                    location = locationToSync(location, updateResult.writeResult.getLocation());
                 }
                 switch (updateResult.result.operation()) {
                     case UPSERT:
                     case INDEX:
+                        @SuppressWarnings("unchecked")
                         WriteResult<IndexResponse> result = updateResult.writeResult;
                         IndexRequest indexRequest = updateResult.request();
                         BytesReference indexSourceAsBytes = indexRequest.source();
                         // add the response
-                        IndexResponse indexResponse = result.response();
+                        IndexResponse indexResponse = result.getResponse();
                         UpdateResponse updateResponse = new UpdateResponse(indexResponse.getShardInfo(), indexResponse.getShardId(), indexResponse.getType(), indexResponse.getId(), indexResponse.getVersion(), indexResponse.isCreated());
                         if (updateRequest.fields() != null && updateRequest.fields().length > 0) {
                             Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(indexSourceAsBytes, true);
@@ -256,8 +257,9 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
                         setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_UPDATE, updateResponse));
                         break;
                     case DELETE:
+                        @SuppressWarnings("unchecked")
                         WriteResult<DeleteResponse> writeResult = updateResult.writeResult;
-                        DeleteResponse response = writeResult.response();
+                        DeleteResponse response = writeResult.getResponse();
                         DeleteRequest deleteRequest = updateResult.request();
                         updateResponse = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), false);
                         updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, request.index(), response.getVersion(), updateResult.result.updatedSourceAsMap(), updateResult.result.updateSourceContentType(), null));
@@ -326,11 +328,14 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
         request.setPrimaryResponse(response);
         if (response.isFailed()) {
             request.setIgnoreOnReplica();
+        } else {
+            // Set the ShardInfo to 0 so we can safely send it to the replicas. We won't use it in the real response though.
+            response.getResponse().setShardInfo(new ShardInfo());
         }
     }
 
-    private WriteResult shardIndexOperation(BulkShardRequest request, IndexRequest indexRequest, IndexMetaData metaData,
-                                            IndexShard indexShard, boolean processed) throws Throwable {
+    private WriteResult<IndexResponse> shardIndexOperation(BulkShardRequest request, IndexRequest indexRequest, IndexMetaData metaData,
+            IndexShard indexShard, boolean processed) throws Throwable {
 
         MappingMetaData mappingMd = metaData.mappingOrDefault(indexRequest.type());
         if (!processed) {
@@ -431,12 +436,8 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
         }
     }
 
-
     @Override
-    protected void shardOperationOnReplica(BulkShardRequest request) {
-        final ShardId shardId = request.shardId();
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardId.id());
+    protected Location onReplicaShard(BulkShardRequest request, IndexShard indexShard) {
         Translog.Location location = null;
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
@@ -472,8 +473,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
                 throw new IllegalStateException("Unexpected index operation: " + item.request());
             }
         }
-
-        processAfterWrite(request.refresh(), indexShard, location);
+        return location;
     }
 
     private void applyVersion(BulkItemRequest item, long version, VersionType versionType) {

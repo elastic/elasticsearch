@@ -24,9 +24,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,7 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public abstract class BucketMetricsPipelineAggregatorBuilder<AF extends BucketMetricsPipelineAggregatorBuilder<AF>>
-        extends PipelineAggregatorBuilder<AF> {
+        extends AbstractPipelineAggregatorBuilder<AF> {
 
     private String format = null;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
@@ -106,7 +107,7 @@ public abstract class BucketMetricsPipelineAggregatorBuilder<AF extends BucketMe
 
     @Override
     public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
-            List<PipelineAggregatorBuilder<?>> pipelineAggregatorFactories) {
+            List<PipelineAggregatorBuilder> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");

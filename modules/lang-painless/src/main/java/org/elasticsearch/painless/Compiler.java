@@ -101,7 +101,7 @@ final class Compiler {
         }
 
         Reserved reserved = new Reserved();
-        SSource root = Walker.buildPainlessTree(source, reserved, settings);
+        SSource root = Walker.buildPainlessTree(name, source, reserved, settings);
         Variables variables = Analyzer.analyze(reserved, root);
         BitSet expressions = new BitSet(source.length());
         byte[] bytes = Writer.write(settings, name, source, variables, root, expressions);
@@ -131,7 +131,7 @@ final class Compiler {
         }
 
         Reserved reserved = new Reserved();
-        SSource root = Walker.buildPainlessTree(source, reserved, settings);
+        SSource root = Walker.buildPainlessTree(name, source, reserved, settings);
         Variables variables = Analyzer.analyze(reserved, root);
 
         return Writer.write(settings, name, source, variables, root, new BitSet(source.length()));

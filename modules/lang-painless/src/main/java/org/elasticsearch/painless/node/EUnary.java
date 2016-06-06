@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.AnalyzerCaster;
@@ -40,8 +41,8 @@ public final class EUnary extends AExpression {
     final Operation operation;
     AExpression child;
 
-    public EUnary(int line, int offset, String location, Operation operation, AExpression child) {
-        super(line, offset, location);
+    public EUnary(Location location, Operation operation, AExpression child) {
+        super(location);
 
         this.operation = operation;
         this.child = child;
@@ -58,7 +59,7 @@ public final class EUnary extends AExpression {
         } else if (operation == Operation.SUB) {
             analyzerSub(variables);
         } else {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
@@ -80,7 +81,7 @@ public final class EUnary extends AExpression {
         Type promote = AnalyzerCaster.promoteNumeric(child.actual, false);
 
         if (promote == null) {
-            throw new ClassCastException(error("Cannot apply not [~] to type [" + child.actual.name + "]."));
+            throw createError(new ClassCastException("Cannot apply not [~] to type [" + child.actual.name + "]."));
         }
 
         child.expected = promote;
@@ -94,7 +95,7 @@ public final class EUnary extends AExpression {
             } else if (sort == Sort.LONG) {
                 constant = ~(long)child.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
@@ -107,7 +108,7 @@ public final class EUnary extends AExpression {
         Type promote = AnalyzerCaster.promoteNumeric(child.actual, true);
 
         if (promote == null) {
-            throw new ClassCastException(error("Cannot apply positive [+] to type [" + child.actual.name + "]."));
+            throw createError(new ClassCastException("Cannot apply positive [+] to type [" + child.actual.name + "]."));
         }
 
         child.expected = promote;
@@ -125,7 +126,7 @@ public final class EUnary extends AExpression {
             } else if (sort == Sort.DOUBLE) {
                 constant = +(double)child.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
@@ -138,7 +139,7 @@ public final class EUnary extends AExpression {
         Type promote = AnalyzerCaster.promoteNumeric(child.actual, true);
 
         if (promote == null) {
-            throw new ClassCastException(error("Cannot apply negative [-] to type [" + child.actual.name + "]."));
+            throw createError(new ClassCastException("Cannot apply negative [-] to type [" + child.actual.name + "]."));
         }
 
         child.expected = promote;
@@ -156,7 +157,7 @@ public final class EUnary extends AExpression {
             } else if (sort == Sort.DOUBLE) {
                 constant = -(double)child.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
@@ -165,7 +166,7 @@ public final class EUnary extends AExpression {
 
     @Override
     void write(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+        writer.writeDebugInfo(location);
 
         if (operation == Operation.NOT) {
             if (tru == null && fals == null) {
@@ -200,7 +201,7 @@ public final class EUnary extends AExpression {
                     } else if (sort == Sort.LONG) {
                         writer.push(-1L);
                     } else {
-                        throw new IllegalStateException(error("Illegal tree structure."));
+                        throw createError(new IllegalStateException("Illegal tree structure."));
                     }
 
                     writer.math(MethodWriter.XOR, type);
@@ -212,7 +213,7 @@ public final class EUnary extends AExpression {
                     writer.math(MethodWriter.NEG, type);
                 }
             } else if (operation != Operation.ADD) {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
 
             writer.writeBranch(tru, fals);

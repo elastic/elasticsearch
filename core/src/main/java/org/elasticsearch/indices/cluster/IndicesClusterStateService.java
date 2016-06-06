@@ -20,18 +20,17 @@
 package org.elasticsearch.indices.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -43,7 +42,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -70,7 +71,6 @@ import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -78,6 +78,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  *
@@ -89,7 +91,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final ThreadPool threadPool;
     private final RecoveryTargetService recoveryTargetService;
     private final ShardStateAction shardStateAction;
-    private final NodeIndexDeletedAction nodeIndexDeletedAction;
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
     private final NodeServicesProvider nodeServicesProvider;
 
@@ -112,7 +113,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
                                       ThreadPool threadPool, RecoveryTargetService recoveryTargetService,
                                       ShardStateAction shardStateAction,
-                                      NodeIndexDeletedAction nodeIndexDeletedAction,
                                       NodeMappingRefreshAction nodeMappingRefreshAction,
                                       RepositoriesService repositoriesService, RestoreService restoreService,
                                       SearchService searchService, SyncedFlushService syncedFlushService,
@@ -124,7 +124,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         this.threadPool = threadPool;
         this.recoveryTargetService = recoveryTargetService;
         this.shardStateAction = shardStateAction;
-        this.nodeIndexDeletedAction = nodeIndexDeletedAction;
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
         this.restoreService = restoreService;
         this.repositoriesService = repositoriesService;
@@ -243,14 +242,28 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     indexSettings = null;
                 }
             }
-            // indexSettings can only be null if there was no IndexService and no metadata existed
-            // on disk for this index, so it won't need to go through the node deleted action anyway
             if (indexSettings != null) {
-                try {
-                    nodeIndexDeletedAction.nodeIndexDeleted(event.state(), index, indexSettings, localNodeId);
-                } catch (Exception e) {
-                    logger.debug("failed to send to master index {} deleted event", e, index);
-                }
+                threadPool.generic().execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Throwable t) {
+                        logger.warn("[{}] failed to complete pending deletion for index", t, index);
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        try {
+                            // we are waiting until we can lock the index / all shards on the node and then we ack the delete of the store to the
+                            // master. If we can't acquire the locks here immediately there might be a shard of this index still holding on to the lock
+                            // due to a "currently canceled recovery" or so. The shard will delete itself BEFORE the lock is released so it's guaranteed to be
+                            // deleted by the time we get the lock
+                            indicesService.processPendingDeletes(index, indexSettings, new TimeValue(30, TimeUnit.MINUTES));
+                        } catch (LockObtainFailedException exc) {
+                            logger.warn("[{}] failed to lock all shards for index - timed out after 30 seconds", index);
+                        } catch (InterruptedException e) {
+                            logger.warn("[{}] failed to lock all shards for index - interrupted", index);
+                        }
+                    }
+                });
             }
         }
 
@@ -668,7 +681,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         @Override
         public void onRecoveryDone(RecoveryState state) {
             if (state.getType() == RecoveryState.Type.SNAPSHOT) {
-                restoreService.indexShardRestoreCompleted(state.getRestoreSource().snapshotId(), shardRouting.shardId());
+                restoreService.indexShardRestoreCompleted(state.getRestoreSource().snapshot(), shardRouting.shardId());
             }
             shardStateAction.shardStarted(shardRouting, message(state), SHARD_STATE_ACTION_LISTENER);
         }
@@ -689,7 +702,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             if (state.getType() == RecoveryState.Type.SNAPSHOT) {
                 try {
                     if (Lucene.isCorruptionException(e.getCause())) {
-                        restoreService.failRestore(state.getRestoreSource().snapshotId(), shardRouting.shardId());
+                        restoreService.failRestore(state.getRestoreSource().snapshot(), shardRouting.shardId());
                     }
                 } catch (Throwable inner) {
                     e.addSuppressed(inner);

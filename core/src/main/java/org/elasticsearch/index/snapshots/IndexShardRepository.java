@@ -21,7 +21,7 @@ package org.elasticsearch.index.snapshots;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 

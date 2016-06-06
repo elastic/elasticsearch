@@ -135,6 +135,9 @@ public class Ec2DiscoveryPlugin extends Plugin {
         settingsModule.registerSetting(AwsEc2Service.DISCOVERY_EC2.AVAILABILITY_ZONES_SETTING);
         settingsModule.registerSetting(AwsEc2Service.DISCOVERY_EC2.NODE_CACHE_TIME_SETTING);
         settingsModule.registerSetting(AwsEc2Service.DISCOVERY_EC2.TAG_SETTING);
+
+        // Register cloud node settings: cloud.node
+        settingsModule.registerSetting(AwsEc2Service.AUTO_ATTRIBUTE_SETTING);
     }
 
     /**

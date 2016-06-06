@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.node;
 
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.plugins.Plugin;
 
@@ -35,7 +34,6 @@ public class NodeMocksPlugin extends Plugin {
     }
 
     public void onModule(NodeModule module) {
-        module.pageCacheRecyclerImpl = MockPageCacheRecycler.class;
         module.bigArraysImpl = MockBigArrays.class;
     }
 }

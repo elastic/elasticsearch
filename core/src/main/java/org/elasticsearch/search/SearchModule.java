@@ -37,7 +37,6 @@ import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
-import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.FieldMaskingSpanQueryBuilder;
 import org.elasticsearch.index.query.FuzzyQueryBuilder;
@@ -98,6 +97,7 @@ import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
+import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.children.InternalChildren;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -201,7 +201,6 @@ import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggreg
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountParser;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketPipelineAggregatorBuilder;
@@ -422,7 +421,7 @@ public class SearchModule extends AbstractModule {
      * @param aggregationName names by which the aggregation may be parsed. The first name is special because it is the name that the reader
      *        is registered under.
      */
-    public <AB extends AggregationBuilder<AB>> void registerAggregation(Writeable.Reader<AB> reader, Aggregator.Parser aggregationParser,
+    public void registerAggregation(Writeable.Reader<? extends AggregationBuilder> reader, Aggregator.Parser aggregationParser,
                                                                         ParseField aggregationName) {
         aggregationParserRegistry.register(aggregationParser, aggregationName);
         namedWriteableRegistry.register(AggregationBuilder.class, aggregationName.getPreferredName(), reader);
@@ -436,7 +435,7 @@ public class SearchModule extends AbstractModule {
      * @param aggregationName names by which the aggregation may be parsed. The first name is special because it is the name that the reader
      *        is registered under.
      */
-    public <AB extends PipelineAggregatorBuilder<AB>> void registerPipelineAggregation(Writeable.Reader<AB> reader,
+    public void registerPipelineAggregation(Writeable.Reader<? extends PipelineAggregatorBuilder> reader,
             PipelineAggregator.Parser aggregationParser, ParseField aggregationName) {
         pipelineAggregationParserRegistry.register(aggregationParser, aggregationName);
         namedWriteableRegistry.register(PipelineAggregatorBuilder.class, aggregationName.getPreferredName(), reader);
@@ -698,9 +697,6 @@ public class SearchModule extends AbstractModule {
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQuery(GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent, GeoShapeQueryBuilder.QUERY_NAME_FIELD);
         }
-        // EmptyQueryBuilder is not registered as query parser but used internally.
-        // We need to register it with the NamedWriteableRegistry in order to serialize it
-        namedWriteableRegistry.register(QueryBuilder.class, EmptyQueryBuilder.NAME, EmptyQueryBuilder::new);
     }
 
     static {

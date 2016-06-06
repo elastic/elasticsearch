@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Variables;
 
@@ -30,8 +31,8 @@ public final class LStatic extends ALink {
 
     final String type;
 
-    public LStatic(int line, int offset, String location, String type) {
-        super(line, offset, location, 0);
+    public LStatic(Location location, String type) {
+        super(location, 0);
 
         this.type = type;
     }
@@ -39,14 +40,14 @@ public final class LStatic extends ALink {
     @Override
     ALink analyze(Variables variables) {
         if (before != null) {
-            throw new IllegalArgumentException(error("Illegal static type [" + type + "] after target already defined."));
+            throw createError(new IllegalArgumentException("Illegal static type [" + type + "] after target already defined."));
         }
 
         try {
             after = Definition.getType(type);
             statik = true;
         } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException(error("Not a type [" + type + "]."));
+            throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
         }
 
         return this;
@@ -54,16 +55,16 @@ public final class LStatic extends ALink {
 
     @Override
     void write(MethodWriter writer) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override
     void load(MethodWriter writer) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override
     void store(MethodWriter writer) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

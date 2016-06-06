@@ -22,6 +22,8 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -47,6 +49,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
  * Task storing information about a currently running BulkByScroll request.
  */
 public class BulkByScrollTask extends CancellableTask {
+    private static final ESLogger logger = ESLoggerFactory.getLogger(BulkByScrollTask.class.getName());
+
     /**
      * The total number of documents this request will process. 0 means we don't yet know or, possibly, there are actually 0 documents
      * to process. Its ok that these have the same meaning because any request with 0 actual documents should be quite short lived.
@@ -121,12 +125,6 @@ public class BulkByScrollTask extends CancellableTask {
          * in the response.
          */
         public static final String INCLUDE_UPDATED = "include_updated";
-
-        /**
-         * XContent param name to indicate if "deleted" count must be included
-         * in the response.
-         */
-        public static final String INCLUDE_DELETED = "include_deleted";
 
         private final long total;
         private final long updated;
@@ -209,9 +207,7 @@ public class BulkByScrollTask extends CancellableTask {
             if (params.paramAsBoolean(INCLUDE_CREATED, true)) {
                 builder.field("created", created);
             }
-            if (params.paramAsBoolean(INCLUDE_DELETED, true)) {
-                builder.field("deleted", deleted);
-            }
+            builder.field("deleted", deleted);
             builder.field("batches", batches);
             builder.field("version_conflicts", versionConflicts);
             builder.field("noops", noops);
@@ -436,10 +432,16 @@ public class BulkByScrollTask extends CancellableTask {
 
     void rethrottle(float newRequestsPerSecond) {
         synchronized (delayedPrepareBulkRequestReference) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("[{}]: Rethrottling to [{}] requests per second", getId(), newRequestsPerSecond);
+            }
             setRequestsPerSecond(newRequestsPerSecond);
 
             DelayedPrepareBulkRequest delayedPrepareBulkRequest = this.delayedPrepareBulkRequestReference.get();
             if (delayedPrepareBulkRequest == null) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}]: Skipping rescheduling because there is no scheduled task", getId());
+                }
                 // No request has been queued yet so nothing to reschedule.
                 return;
             }
@@ -478,6 +480,10 @@ public class BulkByScrollTask extends CancellableTask {
                  * The user is attempting to slow the request down. We'll let the change in throttle take effect the next time we delay
                  * prepareBulkRequest. We can't just reschedule the request further out in the future the bulk context might time out.
                  */
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}]: Skipping rescheduling because the new throttle [{}] is slower than the old one [{}].", getId(),
+                            newRequestsPerSecond, requestsPerSecond);
+                }
                 return this;
             }
 
@@ -485,6 +491,9 @@ public class BulkByScrollTask extends CancellableTask {
             // Actually reschedule the task
             if (false == FutureUtils.cancel(future)) {
                 // Couldn't cancel, probably because the task has finished or been scheduled. Either way we have nothing to do here.
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}]: Skipping rescheduling we couldn't cancel the task.", getId());
+                }
                 return this;
             }
 
@@ -493,6 +502,9 @@ public class BulkByScrollTask extends CancellableTask {
              * test it you'll find that requests sneak through. So each request is given a runOnce boolean to prevent that.
              */
             TimeValue newDelay = newDelay(remainingDelay, newRequestsPerSecond);
+            if (logger.isDebugEnabled()) {
+                logger.debug("[{}]: Rescheduling for [{}] in the future.", getId(), newDelay);
+            }
             return new DelayedPrepareBulkRequest(threadPool, requestsPerSecond, newDelay, command);
         }
 

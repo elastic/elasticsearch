@@ -287,9 +287,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         this.scheduledPing = new ScheduledPing();
         this.pingSchedule = PING_SCHEDULE.get(settings);
-        if (pingSchedule.millis() > 0) {
-            threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, scheduledPing);
-        }
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.circuitBreakerService = circuitBreakerService;
     }
@@ -365,6 +362,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     createServerBootstrap(name, mergedSettings);
                     bindServerBootstrap(name, mergedSettings);
                 }
+            }
+            if (pingSchedule.millis() > 0) {
+                threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, scheduledPing);
             }
             success = true;
         } finally {

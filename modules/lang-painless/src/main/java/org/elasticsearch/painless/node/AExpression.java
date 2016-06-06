@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
@@ -98,8 +99,8 @@ public abstract class AExpression extends ANode {
      */
     protected Label fals = null;
 
-    public AExpression(int line, int offset, String location) {
-        super(line, offset, location);
+    public AExpression(Location location) {
+        super(location);
     }
 
     /**
@@ -134,11 +135,11 @@ public abstract class AExpression extends ANode {
                 // from this node because the output data for the EConstant
                 // will already be the same.
 
-                EConstant econstant = new EConstant(line, offset, location, constant);
+                EConstant econstant = new EConstant(location, constant);
                 econstant.analyze(variables);
 
                 if (!expected.equals(econstant.actual)) {
-                    throw new IllegalStateException(error("Illegal tree structure."));
+                    throw createError(new IllegalStateException("Illegal tree structure."));
                 }
 
                 return econstant;
@@ -150,7 +151,7 @@ public abstract class AExpression extends ANode {
                 // The output data from this node is copied to the ECast for
                 // further reads done by the parent.
 
-                ECast ecast = new ECast(line, offset, location, this, cast);
+                ECast ecast = new ECast(location, this, cast);
                 ecast.statement = statement;
                 ecast.actual = expected;
                 ecast.isNull = isNull;
@@ -168,11 +169,11 @@ public abstract class AExpression extends ANode {
 
                     constant = AnalyzerCaster.constCast(location, constant, cast);
 
-                    EConstant econstant = new EConstant(line, offset, location, constant);
+                    EConstant econstant = new EConstant(location, constant);
                     econstant.analyze(variables);
 
                     if (!expected.equals(econstant.actual)) {
-                        throw new IllegalStateException(error("Illegal tree structure."));
+                        throw createError(new IllegalStateException("Illegal tree structure."));
                     }
 
                     return econstant;
@@ -185,7 +186,7 @@ public abstract class AExpression extends ANode {
                     // from this node because the output data for the EConstant
                     // will already be the same.
 
-                    ECast ecast = new ECast(line, offset, location, this, cast);
+                    ECast ecast = new ECast(location, this, cast);
                     ecast.actual = expected;
 
                     return ecast;
@@ -199,14 +200,14 @@ public abstract class AExpression extends ANode {
                     // need to be copied from this node because the output data for
                     // the EConstant will already be the same.
 
-                    EConstant econstant = new EConstant(line, offset, location, constant);
+                    EConstant econstant = new EConstant(location, constant);
                     econstant.analyze(variables);
 
                     if (!actual.equals(econstant.actual)) {
-                        throw new IllegalStateException(error("Illegal tree structure."));
+                        throw createError(new IllegalStateException("Illegal tree structure."));
                     }
 
-                    ECast ecast = new ECast(line, offset, location, econstant, cast);
+                    ECast ecast = new ECast(location, econstant, cast);
                     ecast.actual = expected;
 
                     return ecast;

@@ -35,9 +35,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
-import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -47,6 +47,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder> {
 
@@ -94,7 +95,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         builder.endObject();
     }
 
-    public static ScriptQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<ScriptQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
 
@@ -149,9 +150,9 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
             throw new ParsingException(parser.getTokenLocation(), "script must be provided with a [script] filter");
         }
 
-        return new ScriptQueryBuilder(script)
+        return Optional.of(new ScriptQueryBuilder(script)
                 .boost(boost)
-                .queryName(queryName);
+                .queryName(queryName));
     }
 
     @Override

@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -56,8 +56,8 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
     private List<SortBuilder<?>> sorts;
     private Boolean trackScores;
     private HighlightBuilder highlightBuilder;
-    private List<AggregationBuilder<?>> aggregationBuilders;
-    private List<PipelineAggregatorBuilder<?>> pipelineAggregationBuilders;
+    private List<AggregationBuilder> aggregationBuilders;
+    private List<PipelineAggregatorBuilder> pipelineAggregationBuilders;
 
     /**
      * Sets the document to run the percolate queries against.
@@ -129,7 +129,7 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
     /**
      * Add an aggregation definition.
      */
-    public PercolateSourceBuilder addAggregation(AggregationBuilder<?> aggregationBuilder) {
+    public PercolateSourceBuilder addAggregation(AggregationBuilder aggregationBuilder) {
         if (aggregationBuilders == null) {
             aggregationBuilders = new ArrayList<>();
         }
@@ -140,7 +140,7 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
     /**
      * Add an aggregation definition.
      */
-    public PercolateSourceBuilder addAggregation(PipelineAggregatorBuilder<?> aggregationBuilder) {
+    public PercolateSourceBuilder addAggregation(PipelineAggregatorBuilder aggregationBuilder) {
         if (pipelineAggregationBuilders == null) {
             pipelineAggregationBuilders = new ArrayList<>();
         }
@@ -178,12 +178,12 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
             builder.field("aggregations");
             builder.startObject();
             if (aggregationBuilders != null) {
-                for (AggregationBuilder<?> aggregation : aggregationBuilders) {
+                for (AggregationBuilder aggregation : aggregationBuilders) {
                     aggregation.toXContent(builder, params);
                 }
             }
             if (pipelineAggregationBuilders != null) {
-                for (PipelineAggregatorBuilder<?> aggregation : pipelineAggregationBuilders) {
+                for (PipelineAggregatorBuilder aggregation : pipelineAggregationBuilders) {
                     aggregation.toXContent(builder, params);
                 }
             }

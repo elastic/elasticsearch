@@ -164,6 +164,11 @@ public final class Definition {
 
             return result;
         }
+
+        @Override
+        public String toString() {
+            return name;
+        }
     }
 
     public static final class Constructor {

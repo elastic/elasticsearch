@@ -24,8 +24,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
+import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.EwmaModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltLinearModel;
@@ -110,13 +110,13 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
-        assertEquals(expected.name(), parser.currentName());
+        assertEquals(expected.getName(), parser.currentName());
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(expected.type(), parser.currentName());
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        PipelineAggregatorBuilder<?> newAgg = aggParsers.pipelineParser(expected.getWriteableName(), ParseFieldMatcher.STRICT)
-                .parse(expected.name(), parseContext);
+        PipelineAggregatorBuilder newAgg = aggParsers.pipelineParser(expected.getWriteableName(), ParseFieldMatcher.STRICT)
+                .parse(expected.getName(), parseContext);
         assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());

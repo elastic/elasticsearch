@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
@@ -32,8 +33,8 @@ public final class SSource extends AStatement {
 
     final List<AStatement> statements;
 
-    public SSource(int line, int offset, String location, List<AStatement> statements) {
-        super(line, offset, location);
+    public SSource(Location location, List<AStatement> statements) {
+        super(location);
 
         this.statements = statements;
     }
@@ -41,7 +42,7 @@ public final class SSource extends AStatement {
     @Override
     public AStatement analyze(Variables variables) {
         if (statements == null || statements.isEmpty()) {
-            throw new IllegalArgumentException(error("Cannot generate an empty script."));
+            throw createError(new IllegalArgumentException("Cannot generate an empty script."));
         }
 
         variables.incrementScope();
@@ -49,8 +50,10 @@ public final class SSource extends AStatement {
         for (int index = 0; index < statements.size(); ++index) {
             AStatement statement = statements.get(index);
 
+            // Note that we do not need to check after the last statement because
+            // there is no statement that can be unreachable after the last.
             if (allEscape) {
-                throw new IllegalArgumentException(error("Unreachable statement."));
+                throw createError(new IllegalArgumentException("Unreachable statement."));
             }
 
             statement.lastSource = index == statements.size() - 1;

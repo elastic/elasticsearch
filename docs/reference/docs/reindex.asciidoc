@@ -30,6 +30,7 @@ That will return something like this:
   "timed_out": false,
   "created": 120,
   "updated": 0,
+  "deleted": 0,
   "batches": 1,
   "version_conflicts": 0,
   "noops": 0,
@@ -237,12 +238,30 @@ POST _reindex
     "version_type": "external"
   },
   "script": {
-    "script": "if (ctx._source.foo == 'bar') {ctx._version++; ctx._source.remove('foo')}"
+    "inline": "if (ctx._source.foo == 'bar') {ctx._version++; ctx._source.remove('foo')}"
   }
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
+
+Just as in `_update_by_query`, you can set `ctx.op` to change the
+operation that is executed on the destination index:
+
+`noop`::
+
+Set `ctx.op = "noop"` if your script decides that the document doesn't have
+to be indexed in the destination index. This no operation will be reported
+in the `noop` counter in the <<docs-reindex-response-body, response body>>.
+
+`delete`::
+
+Set `ctx.op = "delete"` if your script decides that the document must be
+ deleted from the destination index. The deletion will be reported in the
+ `deleted` counter in the <<docs-reindex-response-body, response body>>.
+
+Setting `ctx.op` to anything else is an error. Setting any
+other field in `ctx` is an error.
 
 Think of the possibilities! Just be careful! With great power.... You can
 change:
@@ -377,6 +396,7 @@ starting the next set. This is "bursty" instead of "smooth". The default is
 `unlimited` which is also the only non-number value that it accepts.
 
 [float]
+[[docs-reindex-response-body]]
 === Response body
 
 The JSON response looks like this:

@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
@@ -56,7 +57,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
     static {
         QUERY_RESCORE_PARSER.declareObject(InnerBuilder::setQueryBuilder, (p, c) -> {
             try {
-                return c.parseInnerQueryBuilder();
+                return c.parseInnerQueryBuilder().orElse(QueryBuilders.matchAllQuery());
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner query", e);
             }
@@ -71,6 +72,9 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
      * @param builder the query builder to build the rescore query from
      */
     public QueryRescorerBuilder(QueryBuilder builder) {
+        if (builder == null) {
+            throw new IllegalArgumentException("rescore_query cannot be null");
+        }
         this.queryBuilder = builder;
     }
 

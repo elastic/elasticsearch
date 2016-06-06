@@ -44,7 +44,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -600,7 +600,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * Add an aggregation to perform as part of the search.
      */
-    public SearchSourceBuilder aggregation(AggregationBuilder<?> aggregation) {
+    public SearchSourceBuilder aggregation(AggregationBuilder aggregation) {
             if (aggregations == null) {
             aggregations = AggregatorFactories.builder();
             }
@@ -1003,9 +1003,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (context.getParseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
-                    queryBuilder = context.parseInnerQueryBuilder();
+                    queryBuilder = context.parseInnerQueryBuilder().orElse(null);
                 } else if (context.getParseFieldMatcher().match(currentFieldName, POST_FILTER_FIELD)) {
-                    postQueryBuilder = context.parseInnerQueryBuilder();
+                    postQueryBuilder = context.parseInnerQueryBuilder().orElse(null);
                 } else if (context.getParseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
                     fetchSourceContext = FetchSourceContext.parse(context);
                 } else if (context.getParseFieldMatcher().match(currentFieldName, SCRIPT_FIELDS_FIELD)) {

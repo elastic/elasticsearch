@@ -26,6 +26,7 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -187,6 +188,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         } else {
                             update.setGetResult(null);
                         }
+                        update.setForcedRefresh(response.forcedRefresh());
                         listener.onResponse(update);
                     }
 
@@ -219,6 +221,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     public void onResponse(IndexResponse response) {
                         UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), response.isCreated());
                         update.setGetResult(updateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
+                        update.setForcedRefresh(response.forcedRefresh());
                         listener.onResponse(update);
                     }
 
@@ -241,11 +244,13 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 });
                 break;
             case DELETE:
-                deleteAction.execute(result.action(), new ActionListener<DeleteResponse>() {
+                DeleteRequest deleteRequest = result.action();
+                deleteAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
                     @Override
                     public void onResponse(DeleteResponse response) {
                         UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), false);
                         update.setGetResult(updateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), null));
+                        update.setForcedRefresh(response.forcedRefresh());
                         listener.onResponse(update);
                     }
 

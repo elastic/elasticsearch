@@ -114,7 +114,8 @@ public final class MethodWriter extends GeneratorAdapter {
      * <p>
      * This is invoked for each statement boundary (leaf {@code S*} nodes).
      */
-    public void writeStatementOffset(int offset) {
+    public void writeStatementOffset(Location location) {
+        int offset = location.getOffset();
         // ensure we don't have duplicate stuff going in here. can catch bugs
         // (e.g. nodes get assigned wrong offsets by antlr walker)
         assert statements.get(offset) == false;
@@ -126,16 +127,16 @@ public final class MethodWriter extends GeneratorAdapter {
      * <p>
      * This is invoked before instructions that can hit exceptions.
      */
-    public void writeDebugInfo(int offset) {
+    public void writeDebugInfo(Location location) {
         // TODO: maybe track these in bitsets too? this is trickier...
         Label label = new Label();
         visitLabel(label);
-        visitLineNumber(offset + 1, label);
+        visitLineNumber(location.getOffset() + 1, label);
     }
 
-    public void writeLoopCounter(int slot, int count, int offset) {
+    public void writeLoopCounter(int slot, int count, Location location) {
         if (slot > -1) {
-            writeDebugInfo(offset);
+            writeDebugInfo(location);
             final Label end = new Label();
 
             iinc(slot, -count);
@@ -281,14 +282,14 @@ public final class MethodWriter extends GeneratorAdapter {
         }
     }
 
-    public void writeBinaryInstruction(final String location, final Type type, final Operation operation) {
+    public void writeBinaryInstruction(Location location, Type type, Operation operation) {
         final Sort sort = type.sort;
 
         if ((sort == Sort.FLOAT || sort == Sort.DOUBLE) &&
                 (operation == Operation.LSH || operation == Operation.USH ||
                 operation == Operation.RSH || operation == Operation.BWAND ||
                 operation == Operation.XOR || operation == Operation.BWOR)) {
-            throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
+            throw location.createError(new IllegalStateException("Illegal tree structure."));
         }
 
         if (sort == Sort.DEF) {
@@ -305,7 +306,7 @@ public final class MethodWriter extends GeneratorAdapter {
                 case XOR:   invokeStatic(DEF_UTIL_TYPE, DEF_XOR_CALL); break;
                 case BWOR:  invokeStatic(DEF_UTIL_TYPE, DEF_OR_CALL);  break;
                 default:
-                    throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
+                    throw location.createError(new IllegalStateException("Illegal tree structure."));
             }
         } else {
             switch (operation) {
@@ -321,7 +322,7 @@ public final class MethodWriter extends GeneratorAdapter {
                 case XOR:   math(GeneratorAdapter.XOR,  type.type); break;
                 case BWOR:  math(GeneratorAdapter.OR,   type.type); break;
                 default:
-                    throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
+                    throw location.createError(new IllegalStateException("Illegal tree structure."));
             }
         }
     }

@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
@@ -34,8 +35,8 @@ public final class LBrace extends ALink {
 
     AExpression index;
 
-    public LBrace(int line, int offset, String location, AExpression index) {
-        super(line, offset, location, 2);
+    public LBrace(Location location, AExpression index) {
+        super(location, 2);
 
         this.index = index;
     }
@@ -43,7 +44,7 @@ public final class LBrace extends ALink {
     @Override
     ALink analyze(Variables variables) {
         if (before == null) {
-            throw new IllegalArgumentException(error("Illegal array access made without target."));
+            throw createError(new IllegalArgumentException("Illegal array access made without target."));
         }
 
         final Sort sort = before.sort;
@@ -57,14 +58,14 @@ public final class LBrace extends ALink {
 
             return this;
         } else if (sort == Sort.DEF) {
-            return new LDefArray(line, offset, location, index).copy(this).analyze(variables);
+            return new LDefArray(location, index).copy(this).analyze(variables);
         } else if (Map.class.isAssignableFrom(before.clazz)) {
-            return new LMapShortcut(line, offset, location, index).copy(this).analyze(variables);
+            return new LMapShortcut(location, index).copy(this).analyze(variables);
         } else if (List.class.isAssignableFrom(before.clazz)) {
-            return new LListShortcut(line, offset, location, index).copy(this).analyze(variables);
+            return new LListShortcut(location, index).copy(this).analyze(variables);
         }
 
-        throw new IllegalArgumentException(error("Illegal array access on type [" + before.name + "]."));
+        throw createError(new IllegalArgumentException("Illegal array access on type [" + before.name + "]."));
     }
 
     @Override
@@ -74,13 +75,13 @@ public final class LBrace extends ALink {
 
     @Override
     void load(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+        writer.writeDebugInfo(location);
         writer.arrayLoad(after.type);
     }
 
     @Override
     void store(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+        writer.writeDebugInfo(location);
         writer.arrayStore(after.type);
     }
 }

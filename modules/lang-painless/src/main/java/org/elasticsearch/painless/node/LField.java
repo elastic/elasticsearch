@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
@@ -38,8 +39,8 @@ public final class LField extends ALink {
 
     Field field;
 
-    public LField(int line, int offset, String location, String value) {
-        super(line, offset, location, 1);
+    public LField(Location location, String value) {
+        super(location, 1);
 
         this.value = value;
     }
@@ -47,15 +48,15 @@ public final class LField extends ALink {
     @Override
     ALink analyze(Variables variables) {
         if (before == null) {
-            throw new IllegalArgumentException(error("Illegal field [" + value + "] access made without target."));
+            throw createError(new IllegalArgumentException("Illegal field [" + value + "] access made without target."));
         }
 
         Sort sort = before.sort;
 
         if (sort == Sort.ARRAY) {
-            return new LArrayLength(line, offset, location, value).copy(this).analyze(variables);
+            return new LArrayLength(location, value).copy(this).analyze(variables);
         } else if (sort == Sort.DEF) {
-            return new LDefField(line, offset, location, value).copy(this).analyze(variables);
+            return new LDefField(location, value).copy(this).analyze(variables);
         }
 
         Struct struct = before.struct;
@@ -63,7 +64,7 @@ public final class LField extends ALink {
 
         if (field != null) {
             if (store && java.lang.reflect.Modifier.isFinal(field.modifiers)) {
-                throw new IllegalArgumentException(error(
+                throw createError(new IllegalArgumentException(
                     "Cannot write to read-only field [" + value + "] for type [" + struct.name + "]."));
             }
 
@@ -80,22 +81,22 @@ public final class LField extends ALink {
                     Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
             if (shortcut) {
-                return new LShortcut(line, offset, location, value).copy(this).analyze(variables);
+                return new LShortcut(location, value).copy(this).analyze(variables);
             } else {
-                EConstant index = new EConstant(line, offset, location, value);
+                EConstant index = new EConstant(location, value);
                 index.analyze(variables);
 
                 if (Map.class.isAssignableFrom(before.clazz)) {
-                    return new LMapShortcut(line, offset, location, index).copy(this).analyze(variables);
+                    return new LMapShortcut(location, index).copy(this).analyze(variables);
                 }
 
                 if (List.class.isAssignableFrom(before.clazz)) {
-                    return new LListShortcut(line, offset, location, index).copy(this).analyze(variables);
+                    return new LListShortcut(location, index).copy(this).analyze(variables);
                 }
             }
         }
 
-        throw new IllegalArgumentException(error("Unknown field [" + value + "] for type [" + struct.name + "]."));
+        throw createError(new IllegalArgumentException("Unknown field [" + value + "] for type [" + struct.name + "]."));
     }
 
     @Override
@@ -105,7 +106,7 @@ public final class LField extends ALink {
 
     @Override
     void load(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+        writer.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
             writer.getStatic(field.owner.type, field.javaName, field.type.type);
@@ -116,7 +117,7 @@ public final class LField extends ALink {
 
     @Override
     void store(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+        writer.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
             writer.putStatic(field.owner.type, field.javaName, field.type.type);

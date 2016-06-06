@@ -23,6 +23,7 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Variables;
@@ -46,9 +47,9 @@ public final class EChain extends AExpression {
     Cast there = null;
     Cast back = null;
 
-    public EChain(int line, int offset, String location, List<ALink> links,
+    public EChain(Location location, List<ALink> links,
                   boolean pre, boolean post, Operation operation, AExpression expression) {
-        super(line, offset, location);
+        super(location);
 
         this.links = links;
         this.pre = pre;
@@ -114,40 +115,40 @@ public final class EChain extends AExpression {
         ALink last = links.get(links.size() - 1);
 
         if (pre && post) {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw createError(new IllegalStateException("Illegal tree structure."));
         } else if (pre || post) {
             if (expression != null) {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
 
             Sort sort = last.after.sort;
 
             if (operation == Operation.INCR) {
                 if (sort == Sort.DOUBLE) {
-                    expression = new EConstant(line, offset, location, 1D);
+                    expression = new EConstant(location, 1D);
                 } else if (sort == Sort.FLOAT) {
-                    expression = new EConstant(line, offset, location, 1F);
+                    expression = new EConstant(location, 1F);
                 } else if (sort == Sort.LONG) {
-                    expression = new EConstant(line, offset, location, 1L);
+                    expression = new EConstant(location, 1L);
                 } else {
-                    expression = new EConstant(line, offset, location, 1);
+                    expression = new EConstant(location, 1);
                 }
 
                 operation = Operation.ADD;
             } else if (operation == Operation.DECR) {
                 if (sort == Sort.DOUBLE) {
-                    expression = new EConstant(line, offset, location, 1D);
+                    expression = new EConstant(location, 1D);
                 } else if (sort == Sort.FLOAT) {
-                    expression = new EConstant(line, offset, location, 1F);
+                    expression = new EConstant(location, 1F);
                 } else if (sort == Sort.LONG) {
-                    expression = new EConstant(line, offset, location, 1L);
+                    expression = new EConstant(location, 1L);
                 } else {
-                    expression = new EConstant(line, offset, location, 1);
+                    expression = new EConstant(location, 1);
                 }
 
                 operation = Operation.SUB;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
     }
@@ -180,12 +181,12 @@ public final class EChain extends AExpression {
         } else if (operation == Operation.BWOR) {
             promote = AnalyzerCaster.promoteXor(last.after, expression.actual);
         } else {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
         if (promote == null) {
-            throw new ClassCastException("Cannot apply compound assignment " +
-                "[" + operation.symbol + "=] to types [" + last.after + "] and [" + expression.actual + "].");
+            throw createError(new ClassCastException("Cannot apply compound assignment " +
+                "[" + operation.symbol + "=] to types [" + last.after + "] and [" + expression.actual + "]."));
         }
 
         cat = operation == Operation.ADD && promote.sort == Sort.STRING;
@@ -275,7 +276,7 @@ public final class EChain extends AExpression {
         // because we need the StringBuilder to be placed on the stack
         // ahead of any potential concatenation arguments.
         if (cat) {
-            writer.writeDebugInfo(offset);
+            writer.writeDebugInfo(location);
             writer.writeNewStrings();
         }
 

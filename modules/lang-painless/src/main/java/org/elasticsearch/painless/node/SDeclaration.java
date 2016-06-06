@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.Variables.Variable;
@@ -37,8 +38,8 @@ public final class SDeclaration extends AStatement {
 
     Variable variable;
 
-    public SDeclaration(int line, int offset, String location, String type, String name, AExpression expression) {
-        super(line, offset, location);
+    public SDeclaration(Location location, String type, String name, AExpression expression) {
+        super(location);
 
         this.type = type;
         this.name = name;
@@ -52,7 +53,7 @@ public final class SDeclaration extends AStatement {
         try {
             type = Definition.getType(this.type);
         } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
+            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
         if (expression != null) {
@@ -68,11 +69,11 @@ public final class SDeclaration extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writer.writeStatementOffset(offset);
+        writer.writeStatementOffset(location);
 
         if (expression == null) {
             switch (variable.type.sort) {
-                case VOID:   throw new IllegalStateException(error("Illegal tree structure."));
+                case VOID:   throw createError(new IllegalStateException("Illegal tree structure."));
                 case BOOL:
                 case BYTE:
                 case SHORT:

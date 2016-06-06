@@ -38,17 +38,23 @@ public class CompoundProcessor implements Processor {
     public static final String ON_FAILURE_PROCESSOR_TYPE_FIELD = "on_failure_processor_type";
     public static final String ON_FAILURE_PROCESSOR_TAG_FIELD = "on_failure_processor_tag";
 
+    private final boolean ignoreFailure;
     private final List<Processor> processors;
     private final List<Processor> onFailureProcessors;
 
     public CompoundProcessor(Processor... processor) {
-        this(Arrays.asList(processor), Collections.emptyList());
+        this(false, Arrays.asList(processor), Collections.emptyList());
     }
 
-    public CompoundProcessor(List<Processor> processors, List<Processor> onFailureProcessors) {
+    public CompoundProcessor(boolean ignoreFailure, List<Processor> processors, List<Processor> onFailureProcessors) {
         super();
+        this.ignoreFailure = ignoreFailure;
         this.processors = processors;
         this.onFailureProcessors = onFailureProcessors;
+    }
+
+    public boolean isIgnoreFailure() {
+        return ignoreFailure;
     }
 
     public List<Processor> getOnFailureProcessors() {
@@ -93,6 +99,10 @@ public class CompoundProcessor implements Processor {
             try {
                 processor.execute(ingestDocument);
             } catch (Exception e) {
+                if (ignoreFailure) {
+                    continue;
+                }
+
                 ElasticsearchException compoundProcessorException = newCompoundProcessorException(e, processor.getType(), processor.getTag());
                 if (onFailureProcessors.isEmpty()) {
                     throw compoundProcessorException;

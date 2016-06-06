@@ -284,6 +284,11 @@
               user: notfoo
   - match: { hits.total: 0 }
 
+  - do:
+      count:
+        index: new_twitter
+  - match: {count: 1}
+
 ---
 "Noop all docs":
   - do:
@@ -312,6 +317,11 @@
             inline: ctx.op = "noop"
   - match: {updated: 0}
   - match: {noops: 2}
+
+  - do:
+      indices.exists:
+        index: new_twitter
+  - is_false: ''
 
 ---
 "Set version to null to force an update":
@@ -443,3 +453,85 @@
             match:
               user: another
   - match: { hits.total: 1 }
+
+---
+"Reindex all docs with one doc deletion":
+  # Source index
+  - do:
+      index:
+        index:  index1
+        type:   type1
+        id:     1
+        body:   { "lang": "en", "id": 123 }
+  - do:
+      index:
+        index:  index1
+        type:   type1
+        id:     2
+        body:   { "lang": "en", "id": 456 }
+  - do:
+      index:
+        index:  index1
+        type:   type1
+        id:     3
+        body:   { "lang": "fr", "id": 789 }
+  # Destination index
+  - do:
+      index:
+        index:  index2
+        type:   type2
+        id:     fr_789
+        body:   { "lang": "fr", "id": 789 }
+  - do:
+      index:
+        index:  index2
+        type:   type2
+        id:     en_123
+        body:   { "lang": "en", "id": 123 }
+  - do:
+      indices.refresh: {}
+
+  # Reindex all documents from "index1" into "index2", changing their type
+  # to "type2" and their id to the concatened lang+id fields,
+  # trashing all non-english pre existing ones
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: index1
+          dest:
+            index: index2
+            type: type2
+          script:
+            inline: "ctx._id = ctx._source.lang + '_' + ctx._source.id;
+                     if (ctx._source.lang != \"en\" ) {ctx.op = 'delete'}"
+  - match: {created: 1}
+  - match: {noops: 0}
+  - match: {updated: 1}
+  - match: {deleted: 1}
+
+  - do:
+      mget:
+        body:
+          docs:
+            - { _index: index2, _type: type2, _id: en_123}
+            - { _index: index2, _type: type2, _id: en_456}
+            - { _index: index2, _type: type2, _id: fr_789}
+
+  - is_true: docs.0.found
+  - match:  { docs.0._index:     index2      }
+  - match:  { docs.0._type:      type2       }
+  - match:  { docs.0._id:        en_123      }
+  - match:  { docs.0._version:   2           }
+
+  - is_true: docs.1.found
+  - match:  { docs.1._index:     index2      }
+  - match:  { docs.1._type:      type2       }
+  - match:  { docs.1._id:        en_456      }
+  - match:  { docs.1._version:   1           }
+
+  - is_false: docs.2.found
+  - match:  { docs.2._index:     index2      }
+  - match:  { docs.2._type:      type2       }
+  - match:  { docs.2._id:        fr_789      }

@@ -79,7 +79,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class BaseAggregationTestCase<AB extends AggregationBuilder<AB>> extends ESTestCase {
+public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuilder<AB>> extends ESTestCase {
 
     protected static final String STRING_FIELD_NAME = "mapped_string";
     protected static final String INT_FIELD_NAME = "mapped_int";
@@ -237,7 +237,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregationBuilder<AB>>
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(testAgg.type.name(), parser.currentName());
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        AggregationBuilder<?> newAgg = aggParsers.parser(testAgg.getType(), ParseFieldMatcher.STRICT).parse(testAgg.name, parseContext);
+        AggregationBuilder newAgg = aggParsers.parser(testAgg.getType(), ParseFieldMatcher.STRICT).parse(testAgg.name, parseContext);
         assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
@@ -257,7 +257,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregationBuilder<AB>>
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.writeNamedWriteable(testAgg);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregationBuilder<?> deserialized = in.readNamedWriteable(AggregationBuilder.class);
+                AggregationBuilder deserialized = in.readNamedWriteable(AggregationBuilder.class);
                 assertEquals(testAgg, deserialized);
                 assertEquals(testAgg.hashCode(), deserialized.hashCode());
                 assertNotSame(testAgg, deserialized);

@@ -303,9 +303,10 @@ allprojects {
     into '.settings'
   }
   // otherwise .settings is not nuked entirely
-  tasks.cleanEclipse {
+  task wipeEclipseSettings(type: Delete) {
     delete '.settings'
   }
+  tasks.cleanEclipse.dependsOn(wipeEclipseSettings)
   // otherwise the eclipse merging is *super confusing*
   tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 }

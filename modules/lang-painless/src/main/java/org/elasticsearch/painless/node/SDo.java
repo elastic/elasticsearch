@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
@@ -33,8 +34,8 @@ public final class SDo extends AStatement {
     AStatement block;
     AExpression condition;
 
-    public SDo(int line, int offset, String location, int maxLoopCounter, SBlock block, AExpression condition) {
-        super(line, offset, location);
+    public SDo(Location location, int maxLoopCounter, SBlock block, AExpression condition) {
+        super(location);
 
         this.condition = condition;
         this.block = block;
@@ -46,7 +47,7 @@ public final class SDo extends AStatement {
         variables.incrementScope();
 
         if (block == null) {
-            throw new IllegalArgumentException(error("Extraneous do while loop."));
+            throw createError(new IllegalArgumentException("Extraneous do while loop."));
         }
 
         block.beginLoop = true;
@@ -55,7 +56,7 @@ public final class SDo extends AStatement {
         block = block.analyze(variables);
 
         if (block.loopEscape && !block.anyContinue) {
-            throw new IllegalArgumentException(error("Extraneous do while loop."));
+            throw createError(new IllegalArgumentException("Extraneous do while loop."));
         }
 
         condition.expected = Definition.BOOLEAN_TYPE;
@@ -66,7 +67,7 @@ public final class SDo extends AStatement {
             final boolean continuous = (boolean)condition.constant;
 
             if (!continuous) {
-                throw new IllegalArgumentException(error("Extraneous do while loop."));
+                throw createError(new IllegalArgumentException("Extraneous do while loop."));
             }
 
             if (!block.anyBreak) {
@@ -88,7 +89,7 @@ public final class SDo extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writer.writeStatementOffset(offset);
+        writer.writeStatementOffset(location);
 
         Label start = new Label();
         Label begin = new Label();
@@ -105,7 +106,7 @@ public final class SDo extends AStatement {
         condition.fals = end;
         condition.write(writer);
 
-        writer.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount), offset);
+        writer.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount), location);
 
         writer.goTo(start);
         writer.mark(end);

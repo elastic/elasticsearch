@@ -190,17 +190,17 @@ public final class Def {
      static MethodHandle lookupMethod(Class<?> receiverClass, String name, Object args[], long recipe) {
          Method method = lookupMethodInternal(receiverClass, name, args.length - 1);
          MethodHandle handle = method.handle;
-         MethodHandle filters[] = new MethodHandle[args.length];
 
          if (recipe != 0) {
+             MethodHandle filters[] = new MethodHandle[args.length];
              for (int i = 0; i < args.length; i++) {
                  // its a functional reference, replace the argument with an impl
                  if ((recipe & (1L << (i - 1))) != 0) {
                      filters[i] = lookupReference(method.arguments.get(i - 1).clazz, (String) args[i]);
                  }
              }
+             handle = MethodHandles.filterArguments(handle, 0, filters);
          }
-         handle = MethodHandles.filterArguments(handle, 0, filters);
          
          return handle;
      }

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.translog;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.mockfile.FilterFileChannel;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.Matchers;
@@ -204,18 +206,40 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testRead() throws IOException {
+        Location loc0 = translog.getLastWriteLocation();
+        assertNotNull(loc0);
+
         Translog.Location loc1 = translog.add(new Translog.Index("test", "1", new byte[]{1}));
+        assertThat(loc1, greaterThan(loc0));
+        assertThat(translog.getLastWriteLocation(), greaterThan(loc1));
         Translog.Location loc2 = translog.add(new Translog.Index("test", "2", new byte[]{2}));
+        assertThat(loc2, greaterThan(loc1));
+        assertThat(translog.getLastWriteLocation(), greaterThan(loc2));
         assertThat(translog.read(loc1).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
         assertThat(translog.read(loc2).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
+
+        Translog.Location lastLocBeforeSync = translog.getLastWriteLocation();
         translog.sync();
+        assertEquals(lastLocBeforeSync, translog.getLastWriteLocation());
         assertThat(translog.read(loc1).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
         assertThat(translog.read(loc2).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
+
         Translog.Location loc3 = translog.add(new Translog.Index("test", "2", new byte[]{3}));
+        assertThat(loc3, greaterThan(loc2));
+        assertThat(translog.getLastWriteLocation(), greaterThan(loc3));
         assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
+
+        lastLocBeforeSync = translog.getLastWriteLocation();
         translog.sync();
+        assertEquals(lastLocBeforeSync, translog.getLastWriteLocation());
         assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
         translog.prepareCommit();
+        /*
+         * The commit adds to the lastWriteLocation even though is isn't really a write. This is just an implementation artifact but it can
+         * safely be ignored because the lastWriteLocation continues to be greater than the Location returned from the last write operation
+         * and less than the location of the next write operation.
+         */
+        assertThat(translog.getLastWriteLocation(), greaterThan(lastLocBeforeSync));
         assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
         translog.commit();
         assertNull(translog.read(loc1));

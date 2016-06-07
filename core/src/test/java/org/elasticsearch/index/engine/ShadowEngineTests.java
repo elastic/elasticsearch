@@ -57,6 +57,7 @@ import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.RefreshListeners;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.store.DirectoryService;
@@ -67,6 +68,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -126,7 +128,7 @@ public class ShadowEngineTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build()); // TODO randomize more settings
 
-        threadPool = new ThreadPool(getClass().getName());
+        threadPool = new TestThreadPool(getClass().getName());
         dirPath = createTempDir();
         store = createStore(dirPath);
         storeReplica = createStore(dirPath);
@@ -215,7 +217,7 @@ public class ShadowEngineTests extends ESTestCase {
     }
 
     protected ShadowEngine createShadowEngine(IndexSettings indexSettings, Store store) {
-        return new ShadowEngine(config(indexSettings, store, null, null));
+        return new ShadowEngine(config(indexSettings, store, null, null, null));
     }
 
     protected InternalEngine createInternalEngine(IndexSettings indexSettings, Store store, Path translogPath) {
@@ -223,11 +225,12 @@ public class ShadowEngineTests extends ESTestCase {
     }
 
     protected InternalEngine createInternalEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
-        EngineConfig config = config(indexSettings, store, translogPath, mergePolicy);
+        EngineConfig config = config(indexSettings, store, translogPath, mergePolicy, null);
         return new InternalEngine(config);
     }
 
-    public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
+    public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
+            RefreshListeners refreshListeners) {
         IndexWriterConfig iwc = newIndexWriterConfig();
         final EngineConfig.OpenMode openMode;
         try {
@@ -239,14 +242,18 @@ public class ShadowEngineTests extends ESTestCase {
         } catch (IOException e) {
             throw new ElasticsearchException("can't find index?", e);
         }
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-        EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings
-                , null, store, createSnapshotDeletionPolicy(), mergePolicy,
-                iwc.getAnalyzer(), iwc.getSimilarity() , new CodecService(null, logger), new Engine.EventListener() {
+        Engine.EventListener eventListener = new Engine.EventListener() {
             @Override
             public void onFailedEngine(String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
-        }}, null, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5));
+            }
+        };
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
+        EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings, null, store, createSnapshotDeletionPolicy(),
+                mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), eventListener, null,
+                IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
+                TimeValue.timeValueMinutes(5), refreshListeners);
+
         return config;
     }
 
@@ -1011,5 +1018,12 @@ public class ShadowEngineTests extends ESTestCase {
         assertEquals(numDocs, docStats.getCount());
         assertEquals(0, docStats.getDeleted());
         primaryEngine.forceMerge(randomBoolean(), 1, false, false, false);
+    }
+
+    public void testRefreshListenersFails() throws IOException {
+        EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(),
+                new RefreshListeners(null, null, null, logger));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new ShadowEngine(config));
+        assertEquals("ShadowEngine doesn't support RefreshListeners", e.getMessage());
     }
 }

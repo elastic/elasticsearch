@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -34,27 +35,17 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Predicate;
+import java.util.function.IntFunction;
 
 /**
  * Main class to initiate shrinking an index into a new index with a single shard
@@ -87,7 +78,7 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
 
     @Override
     protected ClusterBlockException checkBlock(ShrinkRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getShrinkIndexReqeust().index());
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getShrinkIndexRequest().index());
     }
 
     @Override
@@ -98,7 +89,10 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
             @Override
             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                 CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(shrinkRequest, state,
-                    indicesStatsResponse.getTotal().getDocs(), indexNameExpressionResolver);
+                    (i) -> {
+                        IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
+                        return shard == null ? null : shard.getPrimary().getDocs();
+                    }, indexNameExpressionResolver);
                 createIndexService.createIndex(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
                     @Override
                     public void onResponse(ClusterStateUpdateResponse response) {
@@ -127,24 +121,36 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
 
     // static for unittesting this method
     static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(final ShrinkRequest shrinkReqeust, final ClusterState state
-        , final DocsStats docsStats, IndexNameExpressionResolver indexNameExpressionResolver) {
+        , final IntFunction<DocsStats> perShardDocStats, IndexNameExpressionResolver indexNameExpressionResolver) {
         final String sourceIndex = indexNameExpressionResolver.resolveDateMathExpression(shrinkReqeust.getSourceIndex());
-        final CreateIndexRequest targetIndex = shrinkReqeust.getShrinkIndexReqeust();
+        final CreateIndexRequest targetIndex = shrinkReqeust.getShrinkIndexRequest();
         final String targetIndexName = indexNameExpressionResolver.resolveDateMathExpression(targetIndex.index());
         final IndexMetaData metaData = state.metaData().index(sourceIndex);
         final Settings targetIndexSettings = Settings.builder().put(targetIndex.settings())
             .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
-        long count = docsStats.getCount();
-        if (count >= IndexWriter.MAX_DOCS) {
-            throw new IllegalStateException("Can't merge index with more than [" + IndexWriter.MAX_DOCS
-                + "] docs -  too many documents");
+        int numShards = 1;
+        if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
+            numShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings);
+        }
+        for (int i = 0; i < numShards; i++) {
+            Set<ShardId> shardIds = IndexMetaData.selectShrinkShards(i, metaData, numShards);
+            long count = 0;
+            for (ShardId id : shardIds) {
+                DocsStats docsStats = perShardDocStats.apply(id.id());
+                if (docsStats != null) {
+                    count += docsStats.getCount();
+                }
+                if (count > IndexWriter.MAX_DOCS) {
+                    throw new IllegalStateException("Can't merge index with more than [" + IndexWriter.MAX_DOCS
+                        + "] docs - too many documents in shards " + shardIds);
+                }
+            }
+
         }
         targetIndex.cause("shrink_index");
-        targetIndex.settings(Settings.builder()
-            .put(targetIndexSettings)
-            // we can only shrink to 1 index so far!
-            .put("index.number_of_shards", 1)
-        );
+        Settings.Builder settingsBuilder = Settings.builder().put(targetIndexSettings);
+        settingsBuilder.put("index.number_of_shards", numShards);
+        targetIndex.settings(settingsBuilder);
 
         return new CreateIndexClusterStateUpdateRequest(targetIndex,
             "shrink_index", targetIndexName, true)

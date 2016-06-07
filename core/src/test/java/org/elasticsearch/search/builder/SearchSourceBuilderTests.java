@@ -71,6 +71,7 @@ import org.elasticsearch.search.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.rescore.QueryRescoreBuilderTests;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
@@ -425,6 +426,16 @@ public class SearchSourceBuilderTests extends ESTestCase {
             xContentBuilder.field("term_vectors_fetch", randomAsciiOfLengthBetween(5, 20));
             xContentBuilder.endObject();
             builder.ext(xContentBuilder);
+        }
+        if (randomBoolean()) {
+            String field = randomBoolean() ? null : randomAsciiOfLengthBetween(5, 20);
+            int max = randomInt(1000);
+            int id = randomInt(max-1);
+            if (field == null) {
+                builder.slice(new SliceBuilder(id, max));
+            } else {
+                builder.slice(new SliceBuilder(field, id, max));
+            }
         }
         return builder;
     }

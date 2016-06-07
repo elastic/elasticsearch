@@ -94,6 +94,7 @@ public final class SWhile extends AStatement {
     @Override
     void write(MethodWriter writer) {
         writer.writeStatementOffset(location);
+
         Label begin = new Label();
         Label end = new Label();
 

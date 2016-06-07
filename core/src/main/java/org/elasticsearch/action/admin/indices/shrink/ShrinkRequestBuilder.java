@@ -41,7 +41,7 @@ public class ShrinkRequestBuilder extends AcknowledgedRequestBuilder<ShrinkReque
     }
 
     public ShrinkRequestBuilder setSettings(Settings settings) {
-        this.request.getShrinkIndexReqeust().settings(settings);
+        this.request.getShrinkIndexRequest().settings(settings);
         return this;
     }
 }

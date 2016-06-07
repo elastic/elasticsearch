@@ -84,7 +84,7 @@ public class RestBulkAction extends BaseRestHandler {
             bulkRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
-        bulkRequest.refresh(request.paramAsBoolean("refresh", bulkRequest.refresh()));
+        bulkRequest.setRefreshPolicy(request.param("refresh"));
         bulkRequest.add(request.content(), defaultIndex, defaultType, defaultRouting, defaultFields, defaultPipeline, null, allowExplicitIndex);
 
         client.bulk(bulkRequest, new RestBuilderListener<BulkResponse>(channel) {

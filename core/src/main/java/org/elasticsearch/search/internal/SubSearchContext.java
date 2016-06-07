@@ -20,7 +20,6 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Counter;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.fetch.FetchSearchResult;

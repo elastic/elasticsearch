@@ -22,7 +22,6 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.node.ANode;
 
 /**
  * Used during the analysis phase to collect legal type casts and promotions

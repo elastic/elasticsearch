@@ -50,7 +50,7 @@ public final class SDeclBlock extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        for (SDeclaration declaration : declarations) {
+        for (AStatement declaration : declarations) {
             declaration.write(writer);
         }
     }

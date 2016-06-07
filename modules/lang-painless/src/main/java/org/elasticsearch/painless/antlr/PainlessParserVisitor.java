@@ -45,6 +45,13 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFor(PainlessParser.ForContext ctx);
   /**
+   * Visit a parse tree produced by the {@code each}
+   * labeled alternative in {@link PainlessParser#statement}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitEach(PainlessParser.EachContext ctx);
+  /**
    * Visit a parse tree produced by the {@code decl}
    * labeled alternative in {@link PainlessParser#statement}.
    * @param ctx the parse tree

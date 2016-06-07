@@ -135,7 +135,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 public class IndexShard extends AbstractIndexShardComponent {
 
@@ -210,6 +212,12 @@ public class IndexShard extends AbstractIndexShardComponent {
      * IndexingMemoryController}).
      */
     private final AtomicBoolean active = new AtomicBoolean();
+    /**
+     * Allows for the registration of listeners that are called when a change becomes visible for search. This is nullable because
+     * {@linkplain ShadowIndexShard} doesn't support this.
+     */
+    @Nullable
+    private final RefreshListeners refreshListeners;
 
     public IndexShard(ShardRouting shardRouting, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache,
                       MapperService mapperService, SimilarityService similarityService, IndexFieldDataService indexFieldDataService,
@@ -264,6 +272,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         suspendableRefContainer = new SuspendableRefContainer();
         searcherWrapper = indexSearcherWrapper;
         primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
+        refreshListeners = buildRefreshListeners();
         persistMetadata(shardRouting, null);
     }
 
@@ -595,6 +604,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     public void refresh(String source) {
         verifyNotClosed();
+        
         if (canIndex()) {
             long bytes = getEngine().getIndexBufferRAMBytesUsed();
             writingBytes.addAndGet(bytes);
@@ -1490,7 +1500,10 @@ public class IndexShard extends AbstractIndexShardComponent {
                     markAsRecovering("from local shards", recoveryState); // mark the shard as recovering on the cluster state thread
                     threadPool.generic().execute(() -> {
                         try {
-                            if (recoverFromLocalShards(mappingUpdateConsumer, startedShards)) {
+                            final Set<ShardId> shards = IndexMetaData.selectShrinkShards(shardId().id(), sourceIndexService.getMetaData(),
+                                indexMetaData.getNumberOfShards());
+                            if (recoverFromLocalShards(mappingUpdateConsumer, startedShards.stream()
+                                .filter((s) -> shards.contains(s.shardId())).collect(Collectors.toList()))) {
                                 recoveryListener.onRecoveryDone(recoveryState);
                             }
                         } catch (Throwable t) {
@@ -1618,7 +1631,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         return new EngineConfig(openMode, shardId,
             threadPool, indexSettings, warmer, store, deletionPolicy, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig,
-            IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()));
+            IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()), refreshListeners);
     }
 
     public Releasable acquirePrimaryOperationLock() {
@@ -1715,6 +1728,17 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     /**
+     * Build {@linkplain RefreshListeners} for this shard. Protected so {@linkplain ShadowIndexShard} can override it to return null.
+     */
+    protected RefreshListeners buildRefreshListeners() {
+        return new RefreshListeners(
+                indexSettings::getMaxRefreshListeners,
+                () -> refresh("too_many_listeners"),
+                threadPool.executor(ThreadPool.Names.LISTENER)::execute,
+                logger);
+    }
+
+    /**
      * Simple struct encapsulating a shard failure
      *
      * @see IndexShard#addShardFailureCallback(Callback)
@@ -1739,14 +1763,26 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     /**
-     * Returns <code>true</code> iff one or more changes to the engine are not visible to via the current searcher.
+     * Returns <code>true</code> iff one or more changes to the engine are not visible to via the current searcher *or* there are pending
+     * refresh listeners.
      * Otherwise <code>false</code>.
      *
      * @throws EngineClosedException  if the engine is already closed
      * @throws AlreadyClosedException if the internal indexwriter in the engine is already closed
      */
     public boolean isRefreshNeeded() {
-        return getEngine().refreshNeeded();
+        return getEngine().refreshNeeded() || (refreshListeners != null && refreshListeners.refreshNeeded());
+    }
+
+    /**
+     * Add a listener for refreshes.
+     *
+     * @param location the location to listen for
+     * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
+     *        false otherwise.
+     */
+    public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
+        refreshListeners.addOrNotify(location, listener);
     }
 
     private class IndexShardRecoveryPerformer extends TranslogRecoveryPerformer {

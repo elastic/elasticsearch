@@ -45,9 +45,11 @@ public final class SBlock extends AStatement {
             throw createError(new IllegalArgumentException("A block must contain at least one statement."));
         }
 
-        final AStatement last = statements.get(statements.size() - 1);
+        AStatement last = statements.get(statements.size() - 1);
 
         for (AStatement statement : statements) {
+            // Note that we do not need to check after the last statement because
+            // there is no statement that can be unreachable after the last.
             if (allEscape) {
                 throw createError(new IllegalArgumentException("Unreachable statement."));
             }

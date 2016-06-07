@@ -30,6 +30,7 @@ import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.AfterClass;
@@ -53,7 +54,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     @BeforeClass
     public static void createThreadPool() {
-        threadPool = new ThreadPool(Ec2DiscoveryTests.class.getName());
+        threadPool = new TestThreadPool(Ec2DiscoveryTests.class.getName());
     }
 
     @AfterClass

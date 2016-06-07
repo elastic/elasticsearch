@@ -70,6 +70,7 @@ public final class SIf extends AStatement {
     @Override
     void write(MethodWriter writer) {
         writer.writeStatementOffset(location);
+
         Label fals = new Label();
 
         condition.fals = fals;

@@ -88,6 +88,7 @@ public final class SDo extends AStatement {
     @Override
     void write(MethodWriter writer) {
         writer.writeStatementOffset(location);
+
         Label start = new Label();
         Label begin = new Label();
         Label end = new Label();

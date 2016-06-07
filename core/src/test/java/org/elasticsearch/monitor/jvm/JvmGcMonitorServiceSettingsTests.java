@@ -22,6 +22,7 @@ package org.elasticsearch.monitor.jvm;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.AbstractMap;
@@ -128,7 +129,7 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
         assert constructionShouldFail == (asserts == null);
         ThreadPool threadPool = null;
         try {
-            threadPool = new ThreadPool(JvmGcMonitorServiceSettingsTests.class.getCanonicalName()) {
+            threadPool = new TestThreadPool(JvmGcMonitorServiceSettingsTests.class.getCanonicalName()) {
                 @Override
                 public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, TimeValue interval) {
                     return scheduler.apply(command, interval);

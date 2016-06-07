@@ -72,6 +72,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -126,7 +127,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     @Before
     public void setupForTest() {
         client = new MyMockClient(new NoOpClient(getTestName()));
-        threadPool = new ThreadPool(getTestName());
+        threadPool = new TestThreadPool(getTestName());
         firstSearchRequest = new SearchRequest();
         testRequest = new DummyAbstractBulkByScrollRequest(firstSearchRequest);
         listener = new PlainActionFuture<>();
@@ -315,7 +316,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     public void testThreadPoolRejectionsAbortRequest() throws Exception {
         TimeValue expectedDelay = parseTimeValue(randomPositiveTimeValue(), "test");
         threadPool.shutdown();
-        threadPool = new ThreadPool(getTestName()) {
+        threadPool = new TestThreadPool(getTestName()) {
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
                 assertEquals(expectedDelay, delay); // While we're here we can check that the sleep made it through
@@ -448,7 +449,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         AtomicReference<TimeValue> capturedDelay = new AtomicReference<>();
         AtomicReference<Runnable> capturedCommand = new AtomicReference<>();
         threadPool.shutdown();
-        threadPool = new ThreadPool(getTestName()) {
+        threadPool = new TestThreadPool(getTestName()) {
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
                 capturedDelay.set(delay);
@@ -616,7 +617,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
          * is a delay.
          */
         threadPool.shutdown();
-        threadPool = new ThreadPool(getTestName()) {
+        threadPool = new TestThreadPool(getTestName()) {
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
                 /*

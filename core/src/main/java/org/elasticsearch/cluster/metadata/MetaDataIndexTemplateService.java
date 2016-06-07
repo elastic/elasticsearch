@@ -256,7 +256,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             validationErrors.add("template must not start with '_'");
         }
         if (!Strings.validFileNameExcludingAstrix(request.template)) {
-            validationErrors.add("template must not container the following characters " + Strings.INVALID_FILENAME_CHARS);
+            validationErrors.add("template must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
 
         List<String> indexSettingsValidation = metaDataCreateIndexService.getIndexSettingsValidationErrors(request.settings);

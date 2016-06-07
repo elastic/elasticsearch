@@ -18,10 +18,15 @@
  */
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.WriteResponse;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -31,13 +36,14 @@ import java.io.IOException;
 /**
  * A base class for the response of a write operation that involves a single doc
  */
-public abstract class DocWriteResponse extends ReplicationResponse implements StatusToXContent {
+public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, StatusToXContent {
 
     private ShardId shardId;
     private String id;
     private String type;
     private long version;
     private long seqNo;
+    private boolean forcedRefresh;
 
     public DocWriteResponse(ShardId shardId, String type, String id, long seqNo, long version) {
         this.shardId = shardId;
@@ -94,6 +100,20 @@ public abstract class DocWriteResponse extends ReplicationResponse implements St
         return seqNo;
     }
 
+    /**
+     * Did this request force a refresh? Requests that set {@link WriteRequest#setRefreshPolicy(RefreshPolicy)} to
+     * {@link RefreshPolicy#IMMEDIATE} will always return true for this. Requests that set it to {@link RefreshPolicy#WAIT_UNTIL} will
+     * only return true here if they run out of refresh listener slots (see {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}).
+     */
+    public boolean forcedRefresh() {
+        return forcedRefresh;
+    }
+
+    @Override
+    public void setForcedRefresh(boolean forcedRefresh) {
+        this.forcedRefresh = forcedRefresh;
+    }
+
     /** returns the rest status for this response (based on {@link ShardInfo#status()} */
     public RestStatus status() {
         return getShardInfo().status();
@@ -107,6 +127,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements St
         id = in.readString();
         version = in.readZLong();
         seqNo = in.readZLong();
+        forcedRefresh = in.readBoolean();
     }
 
     @Override
@@ -117,6 +138,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements St
         out.writeString(id);
         out.writeZLong(version);
         out.writeZLong(seqNo);
+        out.writeBoolean(forcedRefresh);
     }
 
     static final class Fields {
@@ -132,9 +154,10 @@ public abstract class DocWriteResponse extends ReplicationResponse implements St
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         ReplicationResponse.ShardInfo shardInfo = getShardInfo();
         builder.field(Fields._INDEX, shardId.getIndexName())
-                .field(Fields._TYPE, type)
-                .field(Fields._ID, id)
-                .field(Fields._VERSION, version);
+            .field(Fields._TYPE, type)
+            .field(Fields._ID, id)
+            .field(Fields._VERSION, version)
+            .field("forced_refresh", forcedRefresh);
         shardInfo.toXContent(builder, params);
         //nocommit: i'm not sure we want to expose it in the api but it will be handy for debugging while we work...
         builder.field(Fields._SHARD_ID, shardId.id());

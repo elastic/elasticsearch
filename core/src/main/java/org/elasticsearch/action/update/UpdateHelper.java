@@ -131,7 +131,7 @@ public class UpdateHelper extends AbstractComponent {
                     // it has to be a "create!"
                     .create(true)
                     .ttl(ttl)
-                    .refresh(request.refresh())
+                    .setRefreshPolicy(request.getRefreshPolicy())
                     .routing(request.routing())
                     .parent(request.parent())
                     .consistencyLevel(request.consistencyLevel());
@@ -229,12 +229,13 @@ public class UpdateHelper extends AbstractComponent {
                     .version(updateVersion).versionType(request.versionType())
                     .consistencyLevel(request.consistencyLevel())
                     .timestamp(timestamp).ttl(ttl)
-                    .refresh(request.refresh());
+                    .setRefreshPolicy(request.getRefreshPolicy());
             return new Result(indexRequest, Operation.INDEX, updatedSourceAsMap, updateSourceContentType);
         } else if ("delete".equals(operation)) {
             DeleteRequest deleteRequest = Requests.deleteRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .version(updateVersion).versionType(request.versionType())
-                    .consistencyLevel(request.consistencyLevel());
+                    .consistencyLevel(request.consistencyLevel())
+                    .setRefreshPolicy(request.getRefreshPolicy());
             return new Result(deleteRequest, Operation.DELETE, updatedSourceAsMap, updateSourceContentType);
         } else if ("none".equals(operation)) {
             UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(), getResult.getVersion(), false);

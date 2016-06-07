@@ -40,11 +40,11 @@ public final class SFor extends AStatement {
                 ANode initializer, AExpression condition, AExpression afterthought, SBlock block) {
         super(location);
 
+        this.maxLoopCounter = maxLoopCounter;
         this.initializer = initializer;
         this.condition = condition;
         this.afterthought = afterthought;
         this.block = block;
-        this.maxLoopCounter = maxLoopCounter;
     }
 
     @Override
@@ -54,8 +54,8 @@ public final class SFor extends AStatement {
         boolean continuous = false;
 
         if (initializer != null) {
-            if (initializer instanceof SDeclBlock) {
-                ((SDeclBlock)initializer).analyze(variables);
+            if (initializer instanceof AStatement) {
+                ((AStatement)initializer).analyze(variables);
             } else if (initializer instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializer;
 
@@ -129,6 +129,7 @@ public final class SFor extends AStatement {
     @Override
     void write(MethodWriter writer) {
         writer.writeStatementOffset(location);
+
         Label start = new Label();
         Label begin = afterthought == null ? start : new Label();
         Label end = new Label();

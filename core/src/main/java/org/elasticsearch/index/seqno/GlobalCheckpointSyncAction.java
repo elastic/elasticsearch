@@ -19,9 +19,9 @@
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -62,18 +62,19 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
     }
 
     @Override
-    protected Tuple<ReplicationResponse, ReplicaRequest> shardOperationOnPrimary(PrimaryRequest request) {
+    protected PrimaryResult shardOperationOnPrimary(PrimaryRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().id());
         long checkpoint = indexShard.getGlobalCheckpoint();
-        return new Tuple<>(new ReplicationResponse(), new ReplicaRequest(request, checkpoint));
+        return new PrimaryResult(new ReplicaRequest(request, checkpoint), new ReplicationResponse());
     }
 
     @Override
-    protected void shardOperationOnReplica(ReplicaRequest request) {
+    protected ReplicaResult shardOperationOnReplica(ReplicaRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().id());
         indexShard.updateGlobalCheckpointOnReplica(request.checkpoint);
+        return new ReplicaResult();
     }
 
     public void updateCheckpointForShard(ShardId shardId) {

@@ -41,8 +41,7 @@ import java.util.BitSet;
 final class Writer {
 
     static byte[] write(CompilerSettings settings, String name, String source, Variables variables, SSource root, BitSet expressions) {
-        Writer writer = new Writer(settings, name, source, variables, root, expressions);
-        return writer.getBytes();
+        return new Writer(settings, name, source, variables, root, expressions).getBytes();
     }
 
     private final CompilerSettings settings;
@@ -66,7 +65,7 @@ final class Writer {
         writeBegin();
         writeConstructor();
 
-        adapter = new MethodWriter(Opcodes.ACC_PUBLIC, EXECUTE, null, writer, expressions);
+        adapter = new MethodWriter(Opcodes.ACC_PUBLIC, EXECUTE, writer, expressions);
 
         writeExecute();
         writeEnd();

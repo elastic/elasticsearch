@@ -36,8 +36,8 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put("threadpool.search.size", 1)
-                .put("threadpool.search.queue_size", 1)
+                .put("thread_pool.search.size", 1)
+                .put("thread_pool.search.queue_size", 1)
                 .build();
     }
 

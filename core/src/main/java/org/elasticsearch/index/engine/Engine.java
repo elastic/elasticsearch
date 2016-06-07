@@ -611,6 +611,7 @@ public abstract class Engine implements Closeable {
      * Synchronously refreshes the engine for new search operations to reflect the latest
      * changes.
      */
+    @Nullable
     public abstract void refresh(String source) throws EngineException;
 
     /**
@@ -1018,6 +1019,9 @@ public abstract class Engine implements Closeable {
 
         public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null);
 
+        /**
+         * Build a realtime get result from the translog.
+         */
         public GetResult(boolean exists, long version, @Nullable Translog.Source source) {
             this.source = source;
             this.exists = exists;
@@ -1026,6 +1030,9 @@ public abstract class Engine implements Closeable {
             this.searcher = null;
         }
 
+        /**
+         * Build a non-realtime get result from the searcher.
+         */
         public GetResult(Searcher searcher, Versions.DocIdAndVersion docIdAndVersion) {
             this.exists = true;
             this.source = null;

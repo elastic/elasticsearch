@@ -82,7 +82,7 @@ public final class LCall extends ALink {
         }
 
         throw createError(new IllegalArgumentException("Unknown call [" + name + "] with [" + arguments.size() +
-                                                 "] arguments on type [" + struct.name + "]."));
+                                                       "] arguments on type [" + struct.name + "]."));
     }
 
     @Override
@@ -93,6 +93,7 @@ public final class LCall extends ALink {
     @Override
     void load(MethodWriter writer) {
         writer.writeDebugInfo(location);
+
         for (AExpression argument : arguments) {
             argument.write(writer);
         }

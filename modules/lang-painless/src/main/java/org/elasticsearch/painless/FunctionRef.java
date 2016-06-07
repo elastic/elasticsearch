@@ -25,6 +25,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 
 /** 
@@ -32,15 +33,19 @@ import java.lang.reflect.Modifier;
  * and reference class + method name
  */
 public class FunctionRef {
-    // XXX: this is a mess, because of ASM versus MethodHandle types
-    // clean all this up, move reflection out of here into definition, etc etc
     public final String invokedName;
-    public final Type invokedType;
-    public final Handle implMethod;
-    public final Type samMethodType;
-    public final Type interfaceType;
 
+    public final Type invokedType;
+    public final MethodType invokedMethodType;
+
+    public final Handle implMethod;
     public final MethodHandle implMethodHandle;
+
+    public final Type samType;
+    public final MethodType samMethodType;
+
+    public final Type interfaceType;
+    public final MethodType interfaceMethodType;
     
     public FunctionRef(Definition.Type expected, String type, String call) {
         boolean isCtorReference = "new".equals(call);
@@ -55,8 +60,10 @@ public class FunctionRef {
         invokedName = method.name;
         // e.g. (Object)Comparator
         invokedType = Type.getMethodType(expected.type);
+        invokedMethodType = MethodType.methodType(expected.clazz);
         // e.g. (Object,Object)int
         interfaceType = Type.getMethodType(method.method.getDescriptor());
+        interfaceMethodType = method.handle.type().dropParameterTypes(0, 1);
         // lookup requested method
         Definition.Struct struct = Definition.getType(type).struct;
         final Definition.Method impl;
@@ -89,15 +96,18 @@ public class FunctionRef {
         implMethod = new Handle(tag, struct.type.getInternalName(), impl.name, impl.method.getDescriptor());
         implMethodHandle = impl.handle;
         if (isCtorReference) {
-            samMethodType = Type.getMethodType(interfaceType.getReturnType(), impl.method.getArgumentTypes());
+            samType = Type.getMethodType(interfaceType.getReturnType(), impl.method.getArgumentTypes());
+            samMethodType = MethodType.methodType(interfaceMethodType.returnType(), impl.handle.type().parameterArray());
         } else if (Modifier.isStatic(impl.modifiers)) {
-            samMethodType = Type.getMethodType(impl.method.getReturnType(), impl.method.getArgumentTypes());
+            samType = Type.getMethodType(impl.method.getReturnType(), impl.method.getArgumentTypes());
+            samMethodType = impl.handle.type();
         } else {
             Type[] argTypes = impl.method.getArgumentTypes();
             Type[] params = new Type[argTypes.length + 1];
             System.arraycopy(argTypes, 0, params, 1, argTypes.length);
             params[0] = struct.type;
-            samMethodType = Type.getMethodType(impl.method.getReturnType(), params);
+            samType = Type.getMethodType(impl.method.getReturnType(), params);
+            samMethodType = impl.handle.type();
         }
     }
 }

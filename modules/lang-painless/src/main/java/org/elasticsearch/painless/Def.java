@@ -246,28 +246,24 @@ public final class Def {
          int separator = signature.indexOf('.');
          FunctionRef ref = new FunctionRef(clazz, signature.substring(0, separator), signature.substring(separator+1));
          final CallSite callSite;
-         // XXX: clean all this up to use handles in FunctionRef, deal with ASM in EFunctionRef differently
-         MethodType invokedType = MethodType.fromMethodDescriptorString(ref.invokedType.getDescriptor(), Def.class.getClassLoader());
-         MethodType samMethodType = MethodType.fromMethodDescriptorString(ref.samMethodType.getDescriptor(), Def.class.getClassLoader());
-         MethodType interfaceType = MethodType.fromMethodDescriptorString(ref.interfaceType.getDescriptor(), Def.class.getClassLoader());
-         if (ref.interfaceType.equals(ref.samMethodType)) {
+         if (ref.interfaceType.equals(ref.samType)) {
              callSite = LambdaMetafactory.altMetafactory(lookup, 
                      ref.invokedName, 
-                     invokedType,
-                     samMethodType,
+                     ref.invokedMethodType,
+                     ref.samMethodType,
                      ref.implMethodHandle,
-                     samMethodType,
+                     ref.samMethodType,
                      0);
          } else {
              callSite = LambdaMetafactory.altMetafactory(lookup, 
                      ref.invokedName, 
-                     invokedType,
-                     samMethodType,
+                     ref.invokedMethodType,
+                     ref.samMethodType,
                      ref.implMethodHandle,
-                     samMethodType,
+                     ref.samMethodType,
                      LambdaMetafactory.FLAG_BRIDGES,
                      1,
-                     interfaceType);
+                     ref.interfaceMethodType);
          }
          // we could actually invoke and cache here (in non-capturing cases), but this is not a speedup.
          MethodHandle factory = callSite.dynamicInvoker().asType(MethodType.methodType(clazz.clazz));

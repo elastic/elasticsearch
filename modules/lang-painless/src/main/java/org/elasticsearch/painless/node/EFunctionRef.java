@@ -68,12 +68,12 @@ public class EFunctionRef extends AExpression {
             writer.writeDebugInfo(location);
             // currently if the interface differs, we ask for a bridge, but maybe we should do smarter checking?
             // either way, stuff will fail if its wrong :)
-            if (ref.interfaceType.equals(ref.samMethodType)) {
+            if (ref.interfaceType.equals(ref.samType)) {
                 writer.invokeDynamic(ref.invokedName, ref.invokedType.getDescriptor(), LAMBDA_BOOTSTRAP_HANDLE, 
-                                     ref.samMethodType, ref.implMethod, ref.samMethodType, 0);
+                                     ref.samType, ref.implMethod, ref.samType, 0);
             } else {
                 writer.invokeDynamic(ref.invokedName, ref.invokedType.getDescriptor(), LAMBDA_BOOTSTRAP_HANDLE, 
-                                     ref.samMethodType, ref.implMethod, ref.samMethodType, 
+                                     ref.samType, ref.implMethod, ref.samType, 
                                      LambdaMetafactory.FLAG_BRIDGES, 1, ref.interfaceType);
             }
         }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.slice;
 
+import com.carrotsearch.hppc.BitMixer;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -51,7 +52,7 @@ public final class DocValuesSliceQuery extends SliceQuery {
                     public boolean get(int doc) {
                         values.setDocument(doc);
                         for (int i = 0; i < values.count(); i++) {
-                            return contains(Long.hashCode(values.valueAt(i)));
+                            return contains(BitMixer.mix(values.valueAt(i)));
                         }
                         return contains(0);
                     }

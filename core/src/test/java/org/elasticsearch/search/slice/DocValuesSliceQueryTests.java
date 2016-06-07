@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.slice;
 
+import com.carrotsearch.hppc.BitMixer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -77,8 +78,8 @@ public class DocValuesSliceQueryTests extends ESTestCase {
             doc.add(new SortedNumericDocValuesField("intField", intValue));
             doc.add(new SortedNumericDocValuesField("doubleField",  doubleValue));
             w.addDocument(doc);
-            sliceCounters1[Math.floorMod(Long.hashCode(intValue), max)] ++;
-            sliceCounters2[Math.floorMod(Long.hashCode(doubleValue), max)] ++;
+            sliceCounters1[Math.floorMod(BitMixer.mix((long) intValue), max)] ++;
+            sliceCounters2[Math.floorMod(BitMixer.mix(doubleValue), max)] ++;
             keys.add(uuid);
         }
         final IndexReader reader = w.getReader();

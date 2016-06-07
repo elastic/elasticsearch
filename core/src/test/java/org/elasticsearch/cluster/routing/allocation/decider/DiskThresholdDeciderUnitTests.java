@@ -298,17 +298,22 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
         shardSizes.put("[test][0][p]", 10L);
         shardSizes.put("[test][1][p]", 100L);
-        shardSizes.put("[test][2][p]", 1000L);
+        shardSizes.put("[test][2][p]", 500L);
+        shardSizes.put("[test][3][p]", 500L);
+
         ClusterInfo info = new DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), shardSizes.build());
         MetaData.Builder metaBuilder = MetaData.builder();
         metaBuilder.put(IndexMetaData.builder("test").settings(settings(Version.CURRENT).put("index.uuid", "1234"))
-            .numberOfShards(3).numberOfReplicas(0));
+            .numberOfShards(4).numberOfReplicas(0));
         metaBuilder.put(IndexMetaData.builder("target").settings(settings(Version.CURRENT).put("index.uuid", "5678")
             .put("index.shrink.source.name", "test").put("index.shrink.source.uuid", "1234")).numberOfShards(1).numberOfReplicas(0));
+        metaBuilder.put(IndexMetaData.builder("target2").settings(settings(Version.CURRENT).put("index.uuid", "9101112")
+            .put("index.shrink.source.name", "test").put("index.shrink.source.uuid", "1234")).numberOfShards(2).numberOfReplicas(0));
         MetaData metaData = metaBuilder.build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         routingTableBuilder.addAsNew(metaData.index("test"));
         routingTableBuilder.addAsNew(metaData.index("target"));
+        routingTableBuilder.addAsNew(metaData.index("target2"));
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
             .metaData(metaData).routingTable(routingTableBuilder.build()).build();
 
@@ -339,18 +344,26 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_2 = ShardRoutingHelper.initialize(test_2, "node1");
 
-        assertEquals(1000L, DiskThresholdDecider.getExpectedShardSize(test_2, allocation, 0));
+        ShardRouting test_3 = ShardRouting.newUnassigned(new ShardId(index, 3), null, true,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        test_3 = ShardRoutingHelper.initialize(test_3, "node1");
+        assertEquals(500l, DiskThresholdDecider.getExpectedShardSize(test_3, allocation, 0));
+        assertEquals(500L, DiskThresholdDecider.getExpectedShardSize(test_2, allocation, 0));
         assertEquals(100L, DiskThresholdDecider.getExpectedShardSize(test_1, allocation, 0));
         assertEquals(10L, DiskThresholdDecider.getExpectedShardSize(test_0, allocation, 0));
 
 
         ShardRouting target = ShardRouting.newUnassigned(new ShardId(new Index("target", "5678"), 0),
             null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-
-
         assertEquals(1110L, DiskThresholdDecider.getExpectedShardSize(target, allocation, 0));
 
+        ShardRouting target2 = ShardRouting.newUnassigned(new ShardId(new Index("target2", "9101112"), 0),
+            null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        assertEquals(110L, DiskThresholdDecider.getExpectedShardSize(target2, allocation, 0));
 
+        target2 = ShardRouting.newUnassigned(new ShardId(new Index("target2", "9101112"), 1),
+            null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        assertEquals(1000L, DiskThresholdDecider.getExpectedShardSize(target2, allocation, 0));
     }
 
 }

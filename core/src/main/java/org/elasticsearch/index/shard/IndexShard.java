@@ -126,6 +126,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -133,6 +134,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 public class IndexShard extends AbstractIndexShardComponent {
 
@@ -1411,7 +1413,10 @@ public class IndexShard extends AbstractIndexShardComponent {
                     markAsRecovering("from local shards", recoveryState); // mark the shard as recovering on the cluster state thread
                     threadPool.generic().execute(() -> {
                         try {
-                            if (recoverFromLocalShards(mappingUpdateConsumer, startedShards)) {
+                            final Set<ShardId> shards = IndexMetaData.selectShrinkShards(shardId().id(), sourceIndexService.getMetaData(),
+                                indexMetaData.getNumberOfShards());
+                            if (recoverFromLocalShards(mappingUpdateConsumer, startedShards.stream()
+                                .filter((s) -> shards.contains(s.shardId())).collect(Collectors.toList()))) {
                                 recoveryListener.onRecoveryDone(recoveryState);
                             }
                         } catch (Throwable t) {

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless;
 
+import org.apache.lucene.util.SetOnce;
+
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.LineNumberReader;
@@ -26,13 +28,16 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.PrimitiveIterator;
+import java.util.Set;
 import java.util.Spliterator;
 
 /**
@@ -281,6 +286,8 @@ public final class Definition {
 
         public final Map<String, Field> staticMembers;
         public final Map<String, Field> members;
+        
+        private final SetOnce<Method> functionalMethod;
 
         private Struct(final String name, final Class<?> clazz, final org.objectweb.asm.Type type) {
             this.name = name;
@@ -293,6 +300,8 @@ public final class Definition {
 
             staticMembers = new HashMap<>();
             members = new HashMap<>();
+            
+            functionalMethod = new SetOnce<Method>();
         }
 
         private Struct(final Struct struct) {
@@ -306,6 +315,8 @@ public final class Definition {
 
             staticMembers = Collections.unmodifiableMap(struct.staticMembers);
             members = Collections.unmodifiableMap(struct.members);
+            
+            functionalMethod = struct.functionalMethod;
         }
 
         private Struct freeze() {
@@ -330,6 +341,14 @@ public final class Definition {
         @Override
         public int hashCode() {
             return name.hashCode();
+        }
+        
+        /** 
+         * If this class is a functional interface according to JLS, returns its method.
+         * Otherwise returns null.
+         */
+        public Method getFunctionalMethod() {
+            return functionalMethod.get();
         }
     }
 
@@ -439,6 +458,11 @@ public final class Definition {
                 assert hierarchy.get(name).contains("Object") : "class '" + name + "' does not extend Object!";
             }
         }
+        // mark functional interfaces (or set null, to mark class is not)
+        for (Struct clazz : structsMap.values()) {
+            clazz.functionalMethod.set(computeFunctionalInterfaceMethod(clazz));
+        }
+
         // precompute runtime classes
         for (Struct struct : structsMap.values()) {
           addRuntimeClass(struct);
@@ -926,6 +950,50 @@ public final class Definition {
         }
 
         runtimeMap.put(struct.clazz, new RuntimeClass(methods, getters, setters));
+    }
+    
+    /** computes the functional interface method for a class, or returns null */
+    private Method computeFunctionalInterfaceMethod(Struct clazz) {
+        if (!clazz.clazz.isInterface()) {
+            return null;
+        }
+        // if its marked with this annotation, we fail if the conditions don't hold (means whitelist bug)
+        // otherwise, this annotation is pretty useless.
+        boolean hasAnnotation = clazz.clazz.isAnnotationPresent(FunctionalInterface.class);
+        List<java.lang.reflect.Method> methods = new ArrayList<>();
+        for (java.lang.reflect.Method m : clazz.clazz.getMethods()) {
+            // default interface methods don't count
+            if (m.isDefault()) {
+                continue;
+            }
+            // static methods don't count
+            if (Modifier.isStatic(m.getModifiers())) {
+                continue;
+            }
+            // if its from Object, it doesn't count
+            try {
+                Object.class.getMethod(m.getName(), m.getParameterTypes());
+                continue;
+            } catch (ReflectiveOperationException e) {
+                // it counts
+            }
+            methods.add(m);
+        }
+        if (methods.size() != 1) {
+            if (hasAnnotation) {
+                throw new IllegalArgumentException("Class: " + clazz.name +
+                                                   " is marked with FunctionalInterface but doesn't fit the bill: " + methods);
+            }
+            return null;
+        }
+        // inspect the one method found from the reflection API, it should match the whitelist!
+        java.lang.reflect.Method oneMethod = methods.get(0);
+        Method painless = clazz.methods.get(new Definition.MethodKey(oneMethod.getName(), oneMethod.getParameterCount()));
+        if (painless == null || painless.method.equals(org.objectweb.asm.commons.Method.getMethod(oneMethod)) == false) {
+            throw new IllegalArgumentException("Class: " + clazz.name + " is functional but the functional " +
+                                               "method is not whitelisted!");
+        }
+        return painless;
     }
 
     private Type getTypeInternal(String name) {

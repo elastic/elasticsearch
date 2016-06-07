@@ -24,6 +24,7 @@ import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Variables;
+import org.objectweb.asm.Type;
 
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
@@ -66,15 +67,28 @@ public class EFunctionRef extends AExpression {
             writer.push(type + "." + call);
         } else {
             writer.writeDebugInfo(location);
-            // currently if the interface differs, we ask for a bridge, but maybe we should do smarter checking?
-            // either way, stuff will fail if its wrong :)
-            if (ref.interfaceType.equals(ref.samType)) {
-                writer.invokeDynamic(ref.invokedName, ref.invokedType.getDescriptor(), LAMBDA_BOOTSTRAP_HANDLE, 
-                                     ref.samType, ref.implMethod, ref.samType, 0);
+            // convert MethodTypes to asm Type for the constant pool.
+            String invokedType = ref.invokedType.toMethodDescriptorString();
+            Type samMethodType = Type.getMethodType(ref.samMethodType.toMethodDescriptorString());
+            Type interfaceType = Type.getMethodType(ref.interfaceMethodType.toMethodDescriptorString());
+            if (ref.needsBridges()) {
+                writer.invokeDynamic(ref.invokedName, 
+                                     invokedType, 
+                                     LAMBDA_BOOTSTRAP_HANDLE, 
+                                     samMethodType, 
+                                     ref.implMethodASM, 
+                                     samMethodType, 
+                                     LambdaMetafactory.FLAG_BRIDGES, 
+                                     1, 
+                                     interfaceType);
             } else {
-                writer.invokeDynamic(ref.invokedName, ref.invokedType.getDescriptor(), LAMBDA_BOOTSTRAP_HANDLE, 
-                                     ref.samType, ref.implMethod, ref.samType, 
-                                     LambdaMetafactory.FLAG_BRIDGES, 1, ref.interfaceType);
+                writer.invokeDynamic(ref.invokedName, 
+                                     invokedType, 
+                                     LAMBDA_BOOTSTRAP_HANDLE, 
+                                     samMethodType, 
+                                     ref.implMethodASM, 
+                                     samMethodType, 
+                                     0);
             }
         }
     }

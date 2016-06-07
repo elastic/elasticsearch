@@ -246,24 +246,24 @@ public final class Def {
          int separator = signature.indexOf('.');
          FunctionRef ref = new FunctionRef(clazz, signature.substring(0, separator), signature.substring(separator+1));
          final CallSite callSite;
-         if (ref.interfaceType.equals(ref.samType)) {
+         if (ref.needsBridges()) {
              callSite = LambdaMetafactory.altMetafactory(lookup, 
                      ref.invokedName, 
-                     ref.invokedMethodType,
+                     ref.invokedType,
                      ref.samMethodType,
-                     ref.implMethodHandle,
-                     ref.samMethodType,
-                     0);
-         } else {
-             callSite = LambdaMetafactory.altMetafactory(lookup, 
-                     ref.invokedName, 
-                     ref.invokedMethodType,
-                     ref.samMethodType,
-                     ref.implMethodHandle,
+                     ref.implMethod,
                      ref.samMethodType,
                      LambdaMetafactory.FLAG_BRIDGES,
                      1,
                      ref.interfaceMethodType);
+         } else {
+             callSite = LambdaMetafactory.altMetafactory(lookup, 
+                     ref.invokedName, 
+                     ref.invokedType,
+                     ref.samMethodType,
+                     ref.implMethod,
+                     ref.samMethodType,
+                     0);
          }
          // we could actually invoke and cache here (in non-capturing cases), but this is not a speedup.
          MethodHandle factory = callSite.dynamicInvoker().asType(MethodType.methodType(clazz.clazz));

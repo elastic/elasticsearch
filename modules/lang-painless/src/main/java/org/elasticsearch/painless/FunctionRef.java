@@ -22,31 +22,38 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.Definition.Method;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 
 /** 
- * computes "everything you need" to call LambdaMetaFactory, given an expected interface,
- * and reference class + method name
+ * Reference to a function or lambda. 
+ * <p>
+ * Once you have created one of these, you have "everything you need" to call LambdaMetaFactory
+ * either statically from bytecode with invokedynamic, or at runtime from Java.  
  */
 public class FunctionRef {
+    /** Function Object's method name */
     public final String invokedName;
-
-    public final Type invokedType;
-    public final MethodType invokedMethodType;
-
-    public final Handle implMethod;
-    public final MethodHandle implMethodHandle;
-
-    public final Type samType;
+    /** CallSite signature */
+    public final MethodType invokedType;
+    /** Implementation method */
+    public final MethodHandle implMethod;
+    /** Function Object's method signature */
     public final MethodType samMethodType;
-
-    public final Type interfaceType;
+    /** When bridging is required, request this bridge interface */
     public final MethodType interfaceMethodType;
     
+    /** ASM "Handle" to the method, for the constant pool */
+    public final Handle implMethodASM;
+    
+    /**
+     * Creates a new FunctionRef.
+     * @param expected interface type to implement.
+     * @param type the left hand side of a method reference expression
+     * @param call the right hand side of a method reference expression
+     */
     public FunctionRef(Definition.Type expected, String type, String call) {
         boolean isCtorReference = "new".equals(call);
         // check its really a functional interface
@@ -59,10 +66,8 @@ public class FunctionRef {
         // e.g. compareTo
         invokedName = method.name;
         // e.g. (Object)Comparator
-        invokedType = Type.getMethodType(expected.type);
-        invokedMethodType = MethodType.methodType(expected.clazz);
+        invokedType = MethodType.methodType(expected.clazz);
         // e.g. (Object,Object)int
-        interfaceType = Type.getMethodType(method.method.getDescriptor());
         interfaceMethodType = method.handle.type().dropParameterTypes(0, 1);
         // lookup requested method
         Definition.Struct struct = Definition.getType(type).struct;
@@ -93,21 +98,22 @@ public class FunctionRef {
         } else {
             tag = Opcodes.H_INVOKEVIRTUAL;
         }
-        implMethod = new Handle(tag, struct.type.getInternalName(), impl.name, impl.method.getDescriptor());
-        implMethodHandle = impl.handle;
+        implMethodASM = new Handle(tag, struct.type.getInternalName(), impl.name, impl.method.getDescriptor());
+        implMethod = impl.handle;
         if (isCtorReference) {
-            samType = Type.getMethodType(interfaceType.getReturnType(), impl.method.getArgumentTypes());
             samMethodType = MethodType.methodType(interfaceMethodType.returnType(), impl.handle.type().parameterArray());
         } else if (Modifier.isStatic(impl.modifiers)) {
-            samType = Type.getMethodType(impl.method.getReturnType(), impl.method.getArgumentTypes());
             samMethodType = impl.handle.type();
         } else {
-            Type[] argTypes = impl.method.getArgumentTypes();
-            Type[] params = new Type[argTypes.length + 1];
-            System.arraycopy(argTypes, 0, params, 1, argTypes.length);
-            params[0] = struct.type;
-            samType = Type.getMethodType(impl.method.getReturnType(), params);
-            samMethodType = impl.handle.type();
+            // ensure the receiver type is exact and not a superclass type
+            samMethodType = impl.handle.type().changeParameterType(0, struct.clazz);
         }
+    }
+    
+    /** Returns true if you should ask LambdaMetaFactory to construct a bridge for the interface signature */
+    public boolean needsBridges() {
+        // currently if the interface differs, we ask for a bridge, but maybe we should do smarter checking?
+        // either way, stuff will fail if its wrong :)
+        return interfaceMethodType.equals(samMethodType) == false;
     }
 }

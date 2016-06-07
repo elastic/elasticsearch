@@ -347,7 +347,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         ShardRouting test_3 = ShardRouting.newUnassigned(new ShardId(index, 3), null, true,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_3 = ShardRoutingHelper.initialize(test_3, "node1");
-        assertEquals(500l, DiskThresholdDecider.getExpectedShardSize(test_3, allocation, 0));
+        assertEquals(500L, DiskThresholdDecider.getExpectedShardSize(test_3, allocation, 0));
         assertEquals(500L, DiskThresholdDecider.getExpectedShardSize(test_2, allocation, 0));
         assertEquals(100L, DiskThresholdDecider.getExpectedShardSize(test_1, allocation, 0));
         assertEquals(10L, DiskThresholdDecider.getExpectedShardSize(test_0, allocation, 0));

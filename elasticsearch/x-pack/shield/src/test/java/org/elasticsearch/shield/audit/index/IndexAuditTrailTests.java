@@ -43,6 +43,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInfo;
@@ -260,7 +261,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         BoundTransportAddress boundTransportAddress = new BoundTransportAddress(new TransportAddress[]{DummyTransportAddress.INSTANCE},
                 DummyTransportAddress.INSTANCE);
         when(transport.boundAddress()).thenReturn(boundTransportAddress);
-        threadPool = new ThreadPool("index audit trail tests");
+        threadPool = new TestThreadPool("index audit trail tests");
         enqueuedMessage = new SetOnce<>();
         auditor = new IndexAuditTrail(settings, transport, Providers.of(internalClient()), threadPool, mock(ClusterService.class)) {
             @Override

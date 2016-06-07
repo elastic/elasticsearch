@@ -15,6 +15,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Script;
@@ -53,7 +54,7 @@ public class ScriptTransformTests extends ESTestCase {
 
     @Before
     public void init() {
-        tp = new ThreadPool(ThreadPool.Names.SAME);
+        tp = new TestThreadPool(ThreadPool.Names.SAME);
     }
 
     @After

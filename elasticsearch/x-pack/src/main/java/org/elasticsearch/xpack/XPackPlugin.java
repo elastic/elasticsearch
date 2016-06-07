@@ -26,6 +26,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.authc.AuthenticationModule;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.xpack.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.action.XPackInfoAction;
@@ -51,6 +53,7 @@ import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 public class XPackPlugin extends Plugin {
 
@@ -199,6 +202,11 @@ public class XPackPlugin extends Plugin {
         watcher.onModule(module);
         graph.onModule(module);
         licensing.onModule(module);
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
+        return watcher.getExecutorBuilders(settings);
     }
 
     public void onModule(NetworkModule module) {

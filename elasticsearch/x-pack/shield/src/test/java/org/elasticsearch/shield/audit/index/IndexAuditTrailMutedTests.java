@@ -25,6 +25,7 @@ import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
 import org.elasticsearch.shield.user.SystemUser;
 import org.elasticsearch.shield.user.User;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportMessage;
@@ -58,7 +59,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { DummyTransportAddress.INSTANCE },
                         DummyTransportAddress.INSTANCE));
 
-        threadPool = new ThreadPool("index audit trail tests");
+        threadPool = new TestThreadPool("index audit trail tests");
         transportClient = TransportClient.builder().settings(Settings.EMPTY).build();
         clientCalled = new AtomicBoolean(false);
         client = new InternalClient(transportClient) {

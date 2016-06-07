@@ -68,6 +68,7 @@ public class EvilSecurityTests extends ESTestCase {
     }
 
     /** test generated permissions for all configured paths */
+    @SuppressWarnings("deprecation") // needs to check settings for deprecated path
     public void testEnvironmentPaths() throws Exception {
         Path path = createTempDir();
         // make a fake ES home and ensure we only grant permissions to that.

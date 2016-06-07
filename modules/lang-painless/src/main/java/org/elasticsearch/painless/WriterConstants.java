@@ -30,6 +30,7 @@ import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.BitSet;
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -55,6 +56,10 @@ public final class WriterConstants {
 
     public final static Type MAP_TYPE  = Type.getType(Map.class);
     public final static Method MAP_GET = getAsmMethod(Object.class, "get", Object.class);
+
+    public final static Type ITERATOR_TYPE = Type.getType(Iterator.class);
+    public final static Method ITERATOR_HASNEXT = getAsmMethod(boolean.class, "hasNext");
+    public final static Method ITERATOR_NEXT = getAsmMethod(Object.class, "next");
 
     public final static Type UTILITY_TYPE = Type.getType(Utility.class);
     public final static Method STRING_TO_CHAR = getAsmMethod(char.class, "StringTochar", String.class);

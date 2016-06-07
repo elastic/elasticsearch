@@ -20,11 +20,60 @@
 package org.elasticsearch.painless;
 
 public class FunctionRefTests extends ScriptTestCase {
-    public void testUnsupported() {
-        expectScriptThrows(UnsupportedOperationException.class, () -> {
-           exec("DoubleStream.Builder builder = DoubleStream.builder();" +
-               "builder.add(2.0); builder.add(1.0); builder.add(3.0);" +
-               "builder.build().reduce(Double::unsupported);");
+
+    public void testStaticMethodReference() {
+        assertEquals(1, exec("List l = new ArrayList(); l.add(2); l.add(1); l.sort(Integer::compare); return l.get(0);"));
+    }
+    
+    public void testStaticMethodReferenceDef() {
+        assertEquals(1, exec("def l = new ArrayList(); l.add(2); l.add(1); l.sort(Integer::compare); return l.get(0);"));
+    }
+
+    public void testVirtualMethodReference() {
+        assertEquals(2, exec("List l = new ArrayList(); l.add(1); l.add(1); return l.stream().mapToInt(Integer::intValue).sum();"));
+    }
+    
+    public void testVirtualMethodReferenceDef() {
+        assertEquals(2, exec("def l = new ArrayList(); l.add(1); l.add(1); return l.stream().mapToInt(Integer::intValue).sum();"));
+    }
+
+    public void testCtorMethodReference() {
+        assertEquals(3.0D, 
+            exec("List l = new ArrayList(); l.add(1.0); l.add(2.0); " + 
+                 "DoubleStream doubleStream = l.stream().mapToDouble(Double::doubleValue);" + 
+                 "DoubleSummaryStatistics stats = doubleStream.collect(DoubleSummaryStatistics::new, " +
+                                                                      "DoubleSummaryStatistics::accept, " +
+                                                                      "DoubleSummaryStatistics::combine); " + 
+                 "return stats.getSum()"));
+    }
+    
+    public void testCtorMethodReferenceDef() {
+        assertEquals(3.0D, 
+            exec("def l = new ArrayList(); l.add(1.0); l.add(2.0); " + 
+                 "def doubleStream = l.stream().mapToDouble(Double::doubleValue);" + 
+                 "def stats = doubleStream.collect(DoubleSummaryStatistics::new, " +
+                                                  "DoubleSummaryStatistics::accept, " +
+                                                  "DoubleSummaryStatistics::combine); " + 
+                 "return stats.getSum()"));
+    }
+
+    public void testMethodMissing() {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("List l = new ArrayList(); l.add(2); l.add(1); l.sort(Integer::bogus); return l.get(0);");
+        });
+        assertTrue(expected.getMessage().contains("Unknown reference"));
+    }
+
+    public void testNotFunctionalInterface() {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("List l = new ArrayList(); l.add(2); l.add(1); l.add(Integer::bogus); return l.get(0);");
+        });
+        assertTrue(expected.getMessage().contains("Cannot convert function reference"));
+    }
+
+    public void testIncompatible() {
+        expectScriptThrows(BootstrapMethodError.class, () -> {
+            exec("List l = new ArrayList(); l.add(2); l.add(1); l.sort(String::startsWith); return l.get(0);");
         });
     }
 }

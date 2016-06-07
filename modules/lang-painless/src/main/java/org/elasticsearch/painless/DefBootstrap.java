@@ -1,5 +1,7 @@
 package org.elasticsearch.painless;
 
+import org.elasticsearch.common.SuppressForbidden;
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -66,14 +68,20 @@ public final class DefBootstrap {
         /** maximum number of types before we go megamorphic */
         static final int MAX_DEPTH = 5;
 
+        private final Lookup lookup;
         private final String name;
         private final int flavor;
+        private final long recipe;
         int depth; // pkg-protected for testing
 
-        PIC(String name, MethodType type, int flavor) {
+        PIC(Lookup lookup, String name, MethodType type, int flavor, long recipe) {
             super(type);
+            this.lookup = lookup;
             this.name = name;
             this.flavor = flavor;
+            this.recipe = recipe;
+            assert recipe == 0 || flavor == METHOD_CALL;
+            assert Long.bitCount(recipe) <= type.parameterCount();
 
             final MethodHandle fallback = FALLBACK.bindTo(this)
               .asCollector(Object[].class, type.parameterCount())
@@ -93,10 +101,10 @@ public final class DefBootstrap {
         /**
          * Does a slow lookup against the whitelist.
          */
-        private static MethodHandle lookup(int flavor, Class<?> clazz, String name, MethodType type) {
+        private MethodHandle lookup(int flavor, Class<?> clazz, String name, Object[] args, long recipe) throws Throwable {
             switch(flavor) {
                 case METHOD_CALL:
-                    return Def.lookupMethod(clazz, name, type);
+                    return Def.lookupMethod(lookup, clazz, name, args, recipe);
                 case LOAD:
                     return Def.lookupGetter(clazz, name);
                 case STORE:
@@ -115,11 +123,12 @@ public final class DefBootstrap {
          * Called when a new type is encountered (or, when we have encountered more than {@code MAX_DEPTH}
          * types at this call site and given up on caching).
          */
+        @SuppressForbidden(reason = "slow path")
         Object fallback(Object[] args) throws Throwable {
             final MethodType type = type();
             final Object receiver = args[0];
             final Class<?> receiverClass = receiver.getClass();
-            final MethodHandle target = lookup(flavor, receiverClass, name, type).asType(type);
+            final MethodHandle target = lookup(flavor, receiverClass, name, args, recipe).asType(type);
 
             if (depth >= MAX_DEPTH) {
                 // revert to a vtable call
@@ -161,8 +170,8 @@ public final class DefBootstrap {
      * <p>
      * see https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html#jvms-6.5.invokedynamic
      */
-    public static CallSite bootstrap(Lookup lookup, String name, MethodType type, int flavor) {
-        return new PIC(name, type, flavor);
+    public static CallSite bootstrap(Lookup lookup, String name, MethodType type, int flavor, long recipe) {
+        return new PIC(lookup, name, type, flavor, recipe);
     }
 
 }

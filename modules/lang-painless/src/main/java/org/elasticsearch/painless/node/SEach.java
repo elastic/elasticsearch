@@ -197,7 +197,7 @@ public class SEach extends AStatement {
         if (method == null) {
             Type itr = Definition.getType("Iterator");
             String desc = org.objectweb.asm.Type.getMethodDescriptor(itr.type, Definition.DEF_TYPE.type);
-            writer.invokeDynamic("iterator", desc, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.ITERATOR);
+            writer.invokeDynamic("iterator", desc, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.ITERATOR, 0);
         } else if (java.lang.reflect.Modifier.isInterface(method.owner.clazz.getModifiers())) {
             writer.invokeInterface(method.owner.type, method.method);
         } else {

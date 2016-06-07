@@ -37,7 +37,7 @@ public class OverloadTests extends ScriptTestCase {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("def x = 'abc123abc'; return x.indexOf('c', 3, 'bogus');");
         });
-        assertTrue(expected.getMessage().contains("dynamic method [indexOf] with signature [(String,int,String)"));
+        assertTrue(expected.getMessage().contains("dynamic method [indexOf]"));
     }
     
     public void testConstructor() {

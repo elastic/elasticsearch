@@ -24,6 +24,7 @@ import org.objectweb.asm.Label;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -31,18 +32,18 @@ import java.util.List;
  */
 public final class STry extends AStatement {
 
-    AStatement block;
+    final SBlock block;
     final List<SCatch> catches;
 
     public STry(Location location, SBlock block, List<SCatch> catches) {
         super(location);
 
         this.block = block;
-        this.catches = catches;
+        this.catches = Collections.unmodifiableList(catches);
     }
 
     @Override
-    AStatement analyze(Variables variables) {
+    void analyze(Variables variables) {
         if (block == null) {
             throw createError(new IllegalArgumentException("Extraneous try statement."));
         }
@@ -52,7 +53,7 @@ public final class STry extends AStatement {
         block.lastLoop = lastLoop;
 
         variables.incrementScope();
-        block = block.analyze(variables);
+        block.analyze(variables);
         variables.decrementScope();
 
         methodEscape = block.methodEscape;
@@ -63,15 +64,13 @@ public final class STry extends AStatement {
 
         int statementCount = 0;
 
-        for (int index = 0; index < catches.size(); ++index) {
-            SCatch catc = catches.get(index);
-
+        for (SCatch catc : catches) {
             catc.lastSource = lastSource;
             catc.inLoop = inLoop;
             catc.lastLoop = lastLoop;
 
             variables.incrementScope();
-            catches.set(index, (SCatch)catc.analyze(variables));
+            catc.analyze(variables);
             variables.decrementScope();
 
             methodEscape &= catc.methodEscape;
@@ -84,8 +83,6 @@ public final class STry extends AStatement {
         }
 
         this.statementCount = block.statementCount + statementCount;
-
-        return this;
     }
 
     @Override

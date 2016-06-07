@@ -23,6 +23,7 @@ import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -35,20 +36,16 @@ public final class SDeclBlock extends AStatement {
     public SDeclBlock(Location location, List<SDeclaration> declarations) {
         super(location);
 
-        this.declarations = declarations;
+        this.declarations = Collections.unmodifiableList(declarations);
     }
 
     @Override
-    AStatement analyze(Variables variables) {
-        for (int index = 0; index < declarations.size(); ++index) {
-            AStatement declaration = declarations.get(index);
-
-            declarations.set(index, (SDeclaration)declaration.analyze(variables));
+    void analyze(Variables variables) {
+        for (SDeclaration declaration : declarations) {
+            declaration.analyze(variables);
         }
 
         statementCount = declarations.size();
-
-        return this;
     }
 
     @Override

@@ -24,6 +24,7 @@ import org.objectweb.asm.Opcodes;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -36,36 +37,35 @@ public final class SSource extends AStatement {
     public SSource(Location location, List<AStatement> statements) {
         super(location);
 
-        this.statements = statements;
+        this.statements = Collections.unmodifiableList(statements);
     }
 
     @Override
-    public AStatement analyze(Variables variables) {
+    public void analyze(Variables variables) {
         if (statements == null || statements.isEmpty()) {
             throw createError(new IllegalArgumentException("Cannot generate an empty script."));
         }
 
         variables.incrementScope();
 
-        for (int index = 0; index < statements.size(); ++index) {
-            AStatement statement = statements.get(index);
+        AStatement last = statements.get(statements.size() - 1);
 
+        for (AStatement statement : statements) {
             // Note that we do not need to check after the last statement because
             // there is no statement that can be unreachable after the last.
             if (allEscape) {
                 throw createError(new IllegalArgumentException("Unreachable statement."));
             }
 
-            statement.lastSource = index == statements.size() - 1;
-            statements.set(index, statement.analyze(variables));
+            statement.lastSource = statement == last;
+
+            statement.analyze(variables);
 
             methodEscape = statement.methodEscape;
             allEscape = statement.allEscape;
         }
 
         variables.decrementScope();
-
-        return this;
     }
 
     @Override

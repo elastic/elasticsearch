@@ -34,7 +34,7 @@ public final class SFor extends AStatement {
     ANode initializer;
     AExpression condition;
     AExpression afterthought;
-    AStatement block;
+    final SBlock block;
 
     public SFor(Location location, int maxLoopCounter,
                 ANode initializer, AExpression condition, AExpression afterthought, SBlock block) {
@@ -48,14 +48,14 @@ public final class SFor extends AStatement {
     }
 
     @Override
-    AStatement analyze(Variables variables) {
+    void analyze(Variables variables) {
         variables.incrementScope();
 
         boolean continuous = false;
 
         if (initializer != null) {
             if (initializer instanceof AStatement) {
-                initializer = ((AStatement)initializer).analyze(variables);
+                ((AStatement)initializer).analyze(variables);
             } else if (initializer instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializer;
 
@@ -103,7 +103,7 @@ public final class SFor extends AStatement {
             block.beginLoop = true;
             block.inLoop = true;
 
-            block = block.analyze(variables);
+            block.analyze(variables);
 
             if (block.loopEscape && !block.anyContinue) {
                 throw createError(new IllegalArgumentException("Extraneous for loop."));
@@ -124,8 +124,6 @@ public final class SFor extends AStatement {
         }
 
         variables.decrementScope();
-
-        return this;
     }
 
     @Override

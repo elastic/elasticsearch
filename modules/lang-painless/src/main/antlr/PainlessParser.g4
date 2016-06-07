@@ -74,7 +74,7 @@ decltype
     ;
 
 funcref
-    : ( TYPE | ID ) REF ID
+    : TYPE REF ID
     ;
 
 declvar

@@ -31,7 +31,7 @@ import org.elasticsearch.painless.MethodWriter;
 public final class SIf extends AStatement {
 
     AExpression condition;
-    AStatement ifblock;
+    final SBlock ifblock;
 
     public SIf(Location location, AExpression condition, SBlock ifblock) {
         super(location);
@@ -41,7 +41,7 @@ public final class SIf extends AStatement {
     }
 
     @Override
-    AStatement analyze(Variables variables) {
+    void analyze(Variables variables) {
         condition.expected = Definition.BOOLEAN_TYPE;
         condition.analyze(variables);
         condition = condition.cast(variables);
@@ -59,14 +59,12 @@ public final class SIf extends AStatement {
         ifblock.lastLoop = lastLoop;
 
         variables.incrementScope();
-        ifblock = ifblock.analyze(variables);
+        ifblock.analyze(variables);
         variables.decrementScope();
 
         anyContinue = ifblock.anyContinue;
         anyBreak = ifblock.anyBreak;
         statementCount = ifblock.statementCount;
-
-        return this;
     }
 
     @Override

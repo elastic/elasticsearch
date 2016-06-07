@@ -31,7 +31,7 @@ import org.elasticsearch.painless.MethodWriter;
 public final class SDo extends AStatement {
 
     final int maxLoopCounter;
-    AStatement block;
+    final SBlock block;
     AExpression condition;
 
     public SDo(Location location, int maxLoopCounter, SBlock block, AExpression condition) {
@@ -43,7 +43,7 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    AStatement analyze(Variables variables) {
+    void analyze(Variables variables) {
         variables.incrementScope();
 
         if (block == null) {
@@ -53,7 +53,7 @@ public final class SDo extends AStatement {
         block.beginLoop = true;
         block.inLoop = true;
 
-        block = block.analyze(variables);
+        block.analyze(variables);
 
         if (block.loopEscape && !block.anyContinue) {
             throw createError(new IllegalArgumentException("Extraneous do while loop."));
@@ -83,8 +83,6 @@ public final class SDo extends AStatement {
         }
 
         variables.decrementScope();
-
-        return this;
     }
 
     @Override

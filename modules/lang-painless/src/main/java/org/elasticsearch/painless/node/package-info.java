@@ -63,7 +63,6 @@
  * {@link org.elasticsearch.painless.node.LStatic} - Represents a static type target.
  * {@link org.elasticsearch.painless.node.LString} - Represents a string constant.
  * {@link org.elasticsearch.painless.node.LVariable} - Represents a variable load/store.
- * {@link org.elasticsearch.painless.node.SArrayEach} - Represents a for each loop shortcut for arrays.  (Internal only.)
  * {@link org.elasticsearch.painless.node.SBlock} - Represents a set of statements as a branch of control-flow.
  * {@link org.elasticsearch.painless.node.SBreak} - Represents a break statement.
  * {@link org.elasticsearch.painless.node.SCatch} - Represents a catch block as part of a try-catch block.
@@ -92,8 +91,7 @@
  * <p>
  * Generally, statement nodes have member data that evaluate legal control-flow during the analysis phase.
  * The typical order for statement nodes is for each node to call analyze on it's children during the analysis phase
- * and write on it's children during the writing phase.  Upon analysis completion, a statement will return either
- * itself or another statement node depending on if a shortcut or def type was found.
+ * and write on it's children during the writing phase.
  * <p>
  * Generally, expression nodes have member data that evaluate static types.  The typical order for an expression node
  * during the analysis phase looks like the following:

@@ -31,8 +31,8 @@ import org.elasticsearch.painless.MethodWriter;
 public final class SIfElse extends AStatement {
 
     AExpression condition;
-    AStatement ifblock;
-    AStatement elseblock;
+    final SBlock ifblock;
+    final SBlock elseblock;
 
     public SIfElse(Location location, AExpression condition, SBlock ifblock, SBlock elseblock) {
         super(location);
@@ -43,7 +43,7 @@ public final class SIfElse extends AStatement {
     }
 
     @Override
-    AStatement analyze(Variables variables) {
+    void analyze(Variables variables) {
         condition.expected = Definition.BOOLEAN_TYPE;
         condition.analyze(variables);
         condition = condition.cast(variables);
@@ -61,7 +61,7 @@ public final class SIfElse extends AStatement {
         ifblock.lastLoop = lastLoop;
 
         variables.incrementScope();
-        ifblock = ifblock.analyze(variables);
+        ifblock.analyze(variables);
         variables.decrementScope();
 
         anyContinue = ifblock.anyContinue;
@@ -77,7 +77,7 @@ public final class SIfElse extends AStatement {
         elseblock.lastLoop = lastLoop;
 
         variables.incrementScope();
-        elseblock = elseblock.analyze(variables);
+        elseblock.analyze(variables);
         variables.decrementScope();
 
         methodEscape = ifblock.methodEscape && elseblock.methodEscape;
@@ -86,8 +86,6 @@ public final class SIfElse extends AStatement {
         anyContinue |= elseblock.anyContinue;
         anyBreak |= elseblock.anyBreak;
         statementCount = Math.max(ifblock.statementCount, elseblock.statementCount);
-
-        return this;
     }
 
     @Override

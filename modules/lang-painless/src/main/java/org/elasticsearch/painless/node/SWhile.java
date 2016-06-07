@@ -32,7 +32,7 @@ public final class SWhile extends AStatement {
 
     final int maxLoopCounter;
     AExpression condition;
-    AStatement block;
+    final SBlock block;
 
     public SWhile(Location location, int maxLoopCounter, AExpression condition, SBlock block) {
         super(location);
@@ -43,7 +43,7 @@ public final class SWhile extends AStatement {
     }
 
     @Override
-    AStatement analyze(Variables variables) {
+    void analyze(Variables variables) {
         variables.incrementScope();
 
         condition.expected = Definition.BOOLEAN_TYPE;
@@ -68,7 +68,7 @@ public final class SWhile extends AStatement {
             block.beginLoop = true;
             block.inLoop = true;
 
-            block = block.analyze(variables);
+            block.analyze(variables);
 
             if (block.loopEscape && !block.anyContinue) {
                 throw createError(new IllegalArgumentException("Extraneous while loop."));
@@ -89,8 +89,6 @@ public final class SWhile extends AStatement {
         }
 
         variables.decrementScope();
-
-        return this;
     }
 
     @Override

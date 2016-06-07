@@ -47,7 +47,7 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    AStatement analyze(Variables variables) {
+    void analyze(Variables variables) {
         final Type type;
 
         try {
@@ -63,8 +63,6 @@ public final class SDeclaration extends AStatement {
         }
 
         variable = variables.addVariable(location, type, name, false, false);
-
-        return this;
     }
 
     @Override

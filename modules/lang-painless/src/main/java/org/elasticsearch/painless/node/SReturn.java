@@ -38,7 +38,7 @@ public final class SReturn extends AStatement {
     }
 
     @Override
-    AStatement analyze(Variables variables) {
+    void analyze(Variables variables) {
         expression.expected = Definition.OBJECT_TYPE;
         expression.internal = true;
         expression.analyze(variables);
@@ -49,8 +49,6 @@ public final class SReturn extends AStatement {
         allEscape = true;
 
         statementCount = 1;
-
-        return this;
     }
 
     @Override

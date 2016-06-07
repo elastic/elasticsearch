@@ -33,7 +33,7 @@ public final class SBreak extends AStatement {
     }
 
     @Override
-    AStatement analyze(Variables variables) {
+    void analyze(Variables variables) {
         if (!inLoop) {
             throw createError(new IllegalArgumentException("Break statement outside of a loop."));
         }
@@ -42,8 +42,6 @@ public final class SBreak extends AStatement {
         allEscape = true;
         anyBreak = true;
         statementCount = 1;
-
-        return this;
     }
 
     @Override

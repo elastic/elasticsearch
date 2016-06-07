@@ -114,33 +114,11 @@ public abstract class AStatement extends ANode {
 
     /**
      * Checks for errors and collects data for the writing phase.
-     * @return The new child node for the parent node calling this method.
-     * Possibly returns a different {@link AStatement} node if a type is
-     * def or if a different specialization is used. Otherwise, returns itself.
      */
-    abstract AStatement analyze(Variables variables);
+    abstract void analyze(Variables variables);
 
     /**
      * Writes ASM based on the data collected during the analysis phase.
      */
     abstract void write(MethodWriter writer);
-
-    /**
-     * Used to copy statement data from one to another during analysis in the case of replacement.
-     */
-    final AStatement copy(AStatement statement) {
-        lastSource      = statement.lastSource;
-        beginLoop       = statement.beginLoop;
-        inLoop          = statement.inLoop;
-        lastLoop        = statement.lastLoop;
-        methodEscape    = statement.methodEscape;
-        loopEscape      = statement.loopEscape;
-        allEscape       = statement.allEscape;
-        anyContinue     = statement.anyContinue;
-        anyBreak        = statement.anyBreak;
-        loopCounterSlot = statement.loopCounterSlot;
-        statementCount  = statement.statementCount;
-
-        return this;
-    }
 }

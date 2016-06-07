@@ -23,6 +23,7 @@ import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -35,27 +36,29 @@ public final class SBlock extends AStatement {
     public SBlock(Location location, List<AStatement> statements) {
         super(location);
 
-        this.statements = statements;
+        this.statements = Collections.unmodifiableList(statements);
     }
 
     @Override
-    AStatement analyze(Variables variables) {
+    void analyze(Variables variables) {
         if (statements == null || statements.isEmpty()) {
             throw createError(new IllegalArgumentException("A block must contain at least one statement."));
         }
 
-        for (int index = 0; index < statements.size(); ++index) {
+        AStatement last = statements.get(statements.size() - 1);
+
+        for (AStatement statement : statements) {
+            // Note that we do not need to check after the last statement because
+            // there is no statement that can be unreachable after the last.
             if (allEscape) {
                 throw createError(new IllegalArgumentException("Unreachable statement."));
             }
 
-            AStatement statement = statements.get(index);
-
             statement.inLoop = inLoop;
-            statement.lastSource = lastSource && index == statements.size() - 1;
-            statement.lastLoop = (beginLoop || lastLoop) && index == statements.size() - 1;
+            statement.lastSource = lastSource && statement == last;
+            statement.lastLoop = (beginLoop || lastLoop) && statement == last;
 
-            statements.set(index, statement.analyze(variables));
+            statement.analyze(variables);
 
             methodEscape = statement.methodEscape;
             loopEscape = statement.loopEscape;
@@ -64,8 +67,6 @@ public final class SBlock extends AStatement {
             anyBreak |= statement.anyBreak;
             statementCount += statement.statementCount;
         }
-
-        return this;
     }
 
     @Override

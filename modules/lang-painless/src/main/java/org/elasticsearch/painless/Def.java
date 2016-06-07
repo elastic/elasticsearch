@@ -487,7 +487,6 @@ public final class Def {
         } else if (receiverClass.isArray()) {
             return ArrayIteratorHelper.newIterator(receiverClass);
         } else {
-            // TODO: arrays
             throw new IllegalArgumentException("Cannot iterate over [" + receiverClass.getCanonicalName() + "]");
         }
     }

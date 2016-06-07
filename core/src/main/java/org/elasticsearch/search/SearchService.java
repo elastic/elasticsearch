@@ -821,6 +821,15 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter());
             context.searchAfter(fieldDoc);
         }
+
+        if (source.slice() != null) {
+            if (context.scrollContext() == null) {
+                throw new SearchContextException(context, "`slice` cannot be used outside of a scroll context");
+            }
+            context.sliceFilter(source.slice().toFilter(queryShardContext,
+                context.shardTarget().getShardId().getId(),
+                queryShardContext.getIndexSettings().getNumberOfShards()));
+        }
     }
 
     private static final int[] EMPTY_DOC_IDS = new int[0];

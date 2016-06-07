@@ -30,6 +30,7 @@ import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
@@ -349,6 +350,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder searchAfter(Object[] values) {
         sourceBuilder().searchAfter(values);
+        return this;
+    }
+
+    public SearchRequestBuilder slice(SliceBuilder builder) {
+        sourceBuilder().slice(builder);
         return this;
     }
 

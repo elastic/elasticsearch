@@ -57,6 +57,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -109,7 +110,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new ThreadPool("ShardReplicationTests");
+        threadPool = new TestThreadPool("ShardReplicationTests");
     }
 
     @Override

@@ -98,6 +98,7 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -173,7 +174,7 @@ public class InternalEngineTests extends ESTestCase {
                 .put(IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
                         between(10, 10 * IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.get(Settings.EMPTY)))
                 .build()); // TODO randomize more settings
-        threadPool = new ThreadPool(getClass().getName());
+        threadPool = new TestThreadPool(getClass().getName());
         store = createStore();
         storeReplica = createStore();
         Lucene.cleanLuceneIndex(store.directory());

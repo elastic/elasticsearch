@@ -19,26 +19,13 @@
 
 package org.elasticsearch.threadpool;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
 
-public class ThreadPoolModule extends AbstractModule {
+public class TestThreadPool extends ThreadPool {
 
-    private final ThreadPool threadPool;
-
-    public ThreadPoolModule(final ThreadPool threadPool) {
-        this.threadPool = threadPool;
-    }
-
-    public void prepareSettings(SettingsModule settingsModule) {
-        for (final ExecutorBuilder<?> builder : threadPool.builders()) {
-            builder.getRegisteredSettings().forEach(settingsModule::registerSetting);
-        }
-    }
-
-    @Override
-    protected void configure() {
-        bind(ThreadPool.class).toInstance(threadPool);
+    public TestThreadPool(String name) {
+        super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).build());
     }
 
 }

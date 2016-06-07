@@ -38,6 +38,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -63,7 +64,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new ThreadPool("TransportBulkActionTookTests");
+        threadPool = new TestThreadPool("TransportBulkActionTookTests");
     }
 
     @AfterClass

@@ -29,6 +29,7 @@ import org.elasticsearch.http.netty.pipelining.OrderedDownstreamChannelEvent;
 import org.elasticsearch.http.netty.pipelining.OrderedUpstreamMessageEvent;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -73,7 +74,7 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Settings.EMPTY);
-        threadPool = new ThreadPool("test");
+        threadPool = new TestThreadPool("test");
         bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
     }
 

@@ -60,15 +60,18 @@ public class CheckpointsIT extends ESIntegTestCase {
                 logger.debug("seq_no stats for {}: {}", shardStats.getShardRouting(),
                     XContentHelper.toString(shardStats.getSeqNoStats(),
                         new ToXContent.MapParams(Collections.singletonMap("pretty", "false"))));
+                final Matcher<Long> localCheckpointRule;
                 final Matcher<Long> globalCheckpointRule;
                 if (shardStats.getShardRouting().primary()) {
+                    localCheckpointRule = equalTo(numDocs - 1L);
                     globalCheckpointRule = equalTo(numDocs - 1L);
                 } else {
-                    // nocommit: recovery doesn't transfer global checkpoints yet (we don't persist them in lucene).
+                    // nocommit: recovery doesn't transfer checkpoints yet (we don't persist them in lucene).
+                    localCheckpointRule = anyOf(equalTo(numDocs - 1L), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
                     globalCheckpointRule = anyOf(equalTo(numDocs - 1L), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
                 }
                 assertThat(shardStats.getShardRouting() + " local checkpoint mismatch",
-                    shardStats.getSeqNoStats().getLocalCheckpoint(), equalTo(numDocs - 1L));
+                    shardStats.getSeqNoStats().getLocalCheckpoint(), localCheckpointRule);
                 assertThat(shardStats.getShardRouting() + " global checkpoint mismatch",
                     shardStats.getSeqNoStats().getGlobalCheckpoint(), globalCheckpointRule);
                 assertThat(shardStats.getShardRouting() + " max seq no mismatch",

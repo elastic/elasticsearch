@@ -489,6 +489,8 @@ public class BootstrapCheckTests extends ESTestCase {
         final Runnable enableMightFork,
         final Consumer<RuntimeException> consumer) {
 
+        final String methodName = Thread.currentThread().getStackTrace()[2].getMethodName();
+
         // if seccomp is disabled, nothing should happen
         isSeccompInstalled.set(false);
         if (randomBoolean()) {
@@ -496,13 +498,13 @@ public class BootstrapCheckTests extends ESTestCase {
         } else {
             enableMightFork.run();
         }
-        BootstrapCheck.check(true, randomBoolean(), Collections.singletonList(check), "testMightFork");
+        BootstrapCheck.check(true, randomBoolean(), Collections.singletonList(check), methodName);
 
         // if seccomp is enabled, but we will not fork, nothing should
         // happen
         isSeccompInstalled.set(true);
         disableMightFork.run();
-        BootstrapCheck.check(true, randomBoolean(), Collections.singletonList(check), "testMightFork");
+        BootstrapCheck.check(true, randomBoolean(), Collections.singletonList(check), methodName);
 
         // if seccomp is enabled, and we might fork, the check should
         // be enforced, regardless of bootstrap checks being enabled or
@@ -512,7 +514,7 @@ public class BootstrapCheckTests extends ESTestCase {
 
         final RuntimeException e = expectThrows(
             RuntimeException.class,
-            () -> BootstrapCheck.check(randomBoolean(), randomBoolean(), Collections.singletonList(check), "testMightFork"));
+            () -> BootstrapCheck.check(randomBoolean(), randomBoolean(), Collections.singletonList(check), methodName));
         consumer.accept(e);
     }
 

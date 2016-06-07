@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.rest.action.admin.cluster.storedscripts;
+package org.elasticsearch.rest.action.search.template;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;

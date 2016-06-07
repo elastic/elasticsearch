@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.script;
 
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -54,11 +53,6 @@ public class StoredScriptsIT extends ESIntegTestCase {
                 .get().getStoredScript();
         assertNotNull(script);
         assertEquals("1", script);
-
-        RenderSearchTemplateResponse response = client().admin().cluster().prepareRenderSearchTemplate()
-                .template(new Template("/" + LANG + "/foobar", ScriptService.ScriptType.STORED, LANG, null, null))
-                .get();
-        assertEquals("1", response.source().toUtf8());
 
         assertAcked(client().admin().cluster().prepareDeleteStoredScript()
                 .setId("foobar")

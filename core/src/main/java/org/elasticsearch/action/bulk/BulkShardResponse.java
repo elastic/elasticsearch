@@ -19,7 +19,9 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.ReplicationResponse;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.support.WriteResponse;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -29,7 +31,7 @@ import java.io.IOException;
 /**
  *
  */
-public class BulkShardResponse extends ReplicationResponse {
+public class BulkShardResponse extends ReplicationResponse implements WriteResponse {
 
     private ShardId shardId;
     private BulkItemResponse[] responses;
@@ -48,6 +50,20 @@ public class BulkShardResponse extends ReplicationResponse {
 
     public BulkItemResponse[] getResponses() {
         return responses;
+    }
+
+    @Override
+    public void setForcedRefresh(boolean forcedRefresh) {
+        /*
+         * Each DocWriteResponse already has a location for whether or not it forced a refresh so we just set that information on the
+         * response.
+         */
+        for (BulkItemResponse response : responses) {
+            DocWriteResponse r = response.getResponse();
+            if (r != null) {
+                r.setForcedRefresh(forcedRefresh);
+            }
+        }
     }
 
     @Override

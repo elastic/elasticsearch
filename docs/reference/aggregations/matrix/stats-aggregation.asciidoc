@@ -1,4 +1,4 @@
-[[modules-matrix-aggregations-stats]]
+[[search-aggregations-matrix-stats-aggregation]]
 === Matrix Stats
 
 The `matrix_stats` aggregation is a numeric aggregation that computes the following statistics over a set of document fields:

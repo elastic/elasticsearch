@@ -113,11 +113,9 @@ is the same).
 [[delete-refresh]]
 === Refresh
 
-The `refresh` parameter can be set to `true` in order to refresh the relevant
-primary and replica shards after the delete operation has occurred and make it
-searchable. Setting it to `true` should be done after careful thought and
-verification that this does not cause a heavy load on the system (and slows
-down indexing).
+Control when the changes made by this request are visible to search. See
+<<docs-refresh>>.
+
 
 [float]
 [[delete-timeout]]

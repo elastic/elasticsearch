@@ -300,6 +300,10 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
         DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
         String mergeNode = discoveryNodes[0].getName();
+        // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
+        // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
+        // to the require._name below.
+        ensureGreen();
         // relocate all shards to one node such that we can merge it.
         client().admin().indices().prepareUpdateSettings("source")
             .setSettings(Settings.builder()
@@ -343,6 +347,10 @@ public class CreateIndexIT extends ESIntegTestCase {
         DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
         String spareNode = discoveryNodes[0].getName();
         String mergeNode = discoveryNodes[1].getName();
+        // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
+        // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
+        // to the require._name below.
+        ensureGreen();
         // relocate all shards to one node such that we can merge it.
         client().admin().indices().prepareUpdateSettings("source")
             .setSettings(Settings.builder().put("index.routing.allocation.require._name", mergeNode)

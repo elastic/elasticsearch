@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,11 +42,14 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -67,7 +71,6 @@ import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -75,6 +78,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  *
@@ -213,11 +218,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 logger.debug("[{}] cleaning index, no longer part of the metadata", index);
             }
             final IndexService idxService = indicesService.indexService(index);
+            final IndexSettings indexSettings;
             if (idxService != null) {
+                indexSettings = idxService.getIndexSettings();
                 deleteIndex(index, "index no longer part of the metadata");
             } else if (previousState.metaData().hasIndex(index.getName())) {
                 // The deleted index was part of the previous cluster state, but not loaded on the local node
                 final IndexMetaData metaData = previousState.metaData().index(index);
+                indexSettings = new IndexSettings(metaData, settings);
                 indicesService.deleteUnassignedIndex("deleted index was not assigned to local node", metaData, event.state());
             } else {
                 // The previous cluster state's metadata also does not contain the index,
@@ -227,7 +235,35 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // First, though, verify the precondition for applying this case by
                 // asserting that the previous cluster state is not initialized/recovered.
                 assert previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
-                indicesService.verifyIndexIsDeleted(index, event.state());
+                final IndexMetaData metaData = indicesService.verifyIndexIsDeleted(index, event.state());
+                if (metaData != null) {
+                    indexSettings = new IndexSettings(metaData, settings);
+                } else {
+                    indexSettings = null;
+                }
+            }
+            if (indexSettings != null) {
+                threadPool.generic().execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Throwable t) {
+                        logger.warn("[{}] failed to complete pending deletion for index", t, index);
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        try {
+                            // we are waiting until we can lock the index / all shards on the node and then we ack the delete of the store to the
+                            // master. If we can't acquire the locks here immediately there might be a shard of this index still holding on to the lock
+                            // due to a "currently canceled recovery" or so. The shard will delete itself BEFORE the lock is released so it's guaranteed to be
+                            // deleted by the time we get the lock
+                            indicesService.processPendingDeletes(index, indexSettings, new TimeValue(30, TimeUnit.MINUTES));
+                        } catch (LockObtainFailedException exc) {
+                            logger.warn("[{}] failed to lock all shards for index - timed out after 30 seconds", index);
+                        } catch (InterruptedException e) {
+                            logger.warn("[{}] failed to lock all shards for index - interrupted", index);
+                        }
+                    }
+                });
             }
         }
 

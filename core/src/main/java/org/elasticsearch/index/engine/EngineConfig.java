@@ -25,22 +25,21 @@ import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.shard.RefreshListeners;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.util.function.Function;
 
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
@@ -66,6 +65,8 @@ public final class EngineConfig {
     private final Engine.EventListener eventListener;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
+    @Nullable
+    private final RefreshListeners refreshListeners;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -99,7 +100,7 @@ public final class EngineConfig {
                         MergePolicy mergePolicy,Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                        TranslogConfig translogConfig, TimeValue flushMergesAfter) {
+                        TranslogConfig translogConfig, TimeValue flushMergesAfter, RefreshListeners refreshListeners) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
         }
@@ -125,6 +126,7 @@ public final class EngineConfig {
         this.translogConfig = translogConfig;
         this.flushMergesAfter = flushMergesAfter;
         this.openMode = openMode;
+        this.refreshListeners = refreshListeners;
     }
 
     /**
@@ -303,4 +305,10 @@ public final class EngineConfig {
         OPEN_INDEX_AND_TRANSLOG;
     }
 
+    /**
+     * {@linkplain RefreshListeners} instance to configure.
+     */
+    public RefreshListeners getRefreshListeners() {
+        return refreshListeners;
+    }
 }

@@ -20,20 +20,25 @@
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.SettingsModule;
 
-/**
- *
- */
 public class ThreadPoolModule extends AbstractModule {
 
     private final ThreadPool threadPool;
 
-    public ThreadPoolModule(ThreadPool threadPool) {
+    public ThreadPoolModule(final ThreadPool threadPool) {
         this.threadPool = threadPool;
+    }
+
+    public void prepareSettings(SettingsModule settingsModule) {
+        for (final ExecutorBuilder<?> builder : threadPool.builders()) {
+            builder.getRegisteredSettings().forEach(settingsModule::registerSetting);
+        }
     }
 
     @Override
     protected void configure() {
         bind(ThreadPool.class).toInstance(threadPool);
     }
+
 }

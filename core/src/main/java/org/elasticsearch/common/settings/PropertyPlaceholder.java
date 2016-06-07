@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.property;
+package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.Strings;
 
@@ -34,22 +34,11 @@ import java.util.Set;
  * Values for substitution can be supplied using a {@link Properties} instance or using a
  * {@link PlaceholderResolver}.
  */
-public class PropertyPlaceholder {
+class PropertyPlaceholder {
 
     private final String placeholderPrefix;
     private final String placeholderSuffix;
     private final boolean ignoreUnresolvablePlaceholders;
-
-    /**
-     * Creates a new <code>PropertyPlaceholderHelper</code> that uses the supplied prefix and suffix. Unresolvable
-     * placeholders are ignored.
-     *
-     * @param placeholderPrefix the prefix that denotes the start of a placeholder.
-     * @param placeholderSuffix the suffix that denotes the end of a placeholder.
-     */
-    public PropertyPlaceholder(String placeholderPrefix, String placeholderSuffix) {
-        this(placeholderPrefix, placeholderSuffix, true);
-    }
 
     /**
      * Creates a new <code>PropertyPlaceholderHelper</code> that uses the supplied prefix and suffix.
@@ -59,12 +48,10 @@ public class PropertyPlaceholder {
      * @param ignoreUnresolvablePlaceholders indicates whether unresolvable placeholders should be ignored
      *                                       (<code>true</code>) or cause an exception (<code>false</code>).
      */
-    public PropertyPlaceholder(String placeholderPrefix, String placeholderSuffix,
+    PropertyPlaceholder(String placeholderPrefix, String placeholderSuffix,
                                boolean ignoreUnresolvablePlaceholders) {
-        Objects.requireNonNull(placeholderPrefix, "Argument 'placeholderPrefix' must not be null.");
-        Objects.requireNonNull(placeholderSuffix, "Argument 'placeholderSuffix' must not be null.");
-        this.placeholderPrefix = placeholderPrefix;
-        this.placeholderSuffix = placeholderSuffix;
+        this.placeholderPrefix = Objects.requireNonNull(placeholderPrefix);
+        this.placeholderSuffix = Objects.requireNonNull(placeholderSuffix);
         this.ignoreUnresolvablePlaceholders = ignoreUnresolvablePlaceholders;
     }
 
@@ -75,15 +62,15 @@ public class PropertyPlaceholder {
      * @param value               the value containing the placeholders to be replaced.
      * @param placeholderResolver the <code>PlaceholderResolver</code> to use for replacement.
      * @return the supplied value with placeholders replaced inline.
+     * @throws NullPointerException if value is null
      */
-    public String replacePlaceholders(String key, String value, PlaceholderResolver placeholderResolver) {
-        Objects.requireNonNull(key);
-        Objects.requireNonNull(value, "value can not be null for [" + key + "]");
-        return parseStringValue(value, placeholderResolver, new HashSet<String>());
+    String replacePlaceholders(String value, PlaceholderResolver placeholderResolver) {
+        Objects.requireNonNull(value);
+        return parseStringValue(value, placeholderResolver, new HashSet<>());
     }
 
-    protected String parseStringValue(String strVal, PlaceholderResolver placeholderResolver,
-                                      Set<String> visitedPlaceholders) {
+    private String parseStringValue(String strVal, PlaceholderResolver placeholderResolver,
+                                    Set<String> visitedPlaceholders) {
         StringBuilder buf = new StringBuilder(strVal);
 
         int startIndex = strVal.indexOf(this.placeholderPrefix);
@@ -164,7 +151,7 @@ public class PropertyPlaceholder {
      *
      * @see PropertyPlaceholder
      */
-    public interface PlaceholderResolver {
+    interface PlaceholderResolver {
 
         /**
          * Resolves the supplied placeholder name into the replacement value.

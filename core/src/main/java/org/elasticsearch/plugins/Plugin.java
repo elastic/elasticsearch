@@ -23,9 +23,12 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * An extension point allowing to plug in custom functionality.
@@ -80,4 +83,15 @@ public abstract class Plugin {
      */
     @Deprecated
     public final void onModule(IndexModule indexModule) {}
+
+    /**
+     * Provides the list of this plugin's custom thread pools, empty if
+     * none.
+     *
+     * @param settings the current settings
+     * @return executors builders for this plugin's custom thread pools
+     */
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        return Collections.emptyList();
+    }
 }

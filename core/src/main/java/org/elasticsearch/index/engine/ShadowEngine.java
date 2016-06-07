@@ -30,7 +30,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
@@ -68,6 +67,9 @@ public class ShadowEngine extends Engine {
 
     public ShadowEngine(EngineConfig engineConfig)  {
         super(engineConfig);
+        if (engineConfig.getRefreshListeners() != null) {
+            throw new IllegalArgumentException("ShadowEngine doesn't support RefreshListeners");
+        }
         SearcherFactory searcherFactory = new EngineSearcherFactory(engineConfig);
         final long nonexistentRetryTime = engineConfig.getIndexSettings().getSettings()
                 .getAsTime(NONEXISTENT_INDEX_RETRY_WAIT, DEFAULT_NONEXISTENT_INDEX_RETRY_WAIT)

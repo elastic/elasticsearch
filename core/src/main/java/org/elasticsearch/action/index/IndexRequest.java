@@ -24,7 +24,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.TimestampParsingException;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -67,7 +67,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Requests#indexRequest(String)
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
-public class IndexRequest extends ReplicationRequest<IndexRequest> implements DocumentRequest<IndexRequest> {
+public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocumentRequest<IndexRequest> {
 
     /**
      * Operation type controls if the type of the index operation.
@@ -145,7 +145,6 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
 
     private OpType opType = OpType.INDEX;
 
-    private boolean refresh = false;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
 
@@ -543,20 +542,6 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     }
 
     /**
-     * Should a refresh be executed post this index operation causing the operation to
-     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
-    public IndexRequest refresh(boolean refresh) {
-        this.refresh = refresh;
-        return this;
-    }
-
-    public boolean refresh() {
-        return this.refresh;
-    }
-
-    /**
      * Sets the version, which will cause the index operation to only be performed if a matching
      * version exists and no changes happened on the doc since then.
      */
@@ -652,7 +637,6 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         source = in.readBytesReference();
 
         opType = OpType.fromId(in.readByte());
-        refresh = in.readBoolean();
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
         pipeline = in.readOptionalString();
@@ -674,7 +658,6 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         }
         out.writeBytesReference(source);
         out.writeByte(opType.id());
-        out.writeBoolean(refresh);
         out.writeLong(version);
         out.writeByte(versionType.getValue());
         out.writeOptionalString(pipeline);

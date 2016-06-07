@@ -190,7 +190,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
                     RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING,
                     RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING,
-                    ThreadPool.THREADPOOL_GROUP_SETTING,
                     ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING,
                     ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
                     ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
@@ -419,6 +418,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ResourceWatcherService.RELOAD_INTERVAL_HIGH,
                     ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
                     ResourceWatcherService.RELOAD_INTERVAL_LOW,
-                    SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING
+                    SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
+                    ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING
             )));
 }

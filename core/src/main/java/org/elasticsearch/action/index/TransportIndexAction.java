@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
-import org.elasticsearch.action.support.replication.TransportReplicationAction;
+import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -36,16 +36,14 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
@@ -62,7 +60,7 @@ import org.elasticsearch.transport.TransportService;
  * <li><b>allowIdGeneration</b>: If the id is set not, should it be generated. Defaults to <tt>true</tt>.
  * </ul>
  */
-public class TransportIndexAction extends TransportReplicationAction<IndexRequest, IndexRequest, IndexResponse> {
+public class TransportIndexAction extends TransportWriteAction<IndexRequest, IndexResponse> {
 
     private final AutoCreateIndex autoCreateIndex;
     private final boolean allowIdGeneration;
@@ -78,7 +76,7 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                 AutoCreateIndex autoCreateIndex) {
         super(settings, IndexAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction,
-            actionFilters, indexNameExpressionResolver, IndexRequest::new, IndexRequest::new, ThreadPool.Names.INDEX);
+            actionFilters, indexNameExpressionResolver, IndexRequest::new, ThreadPool.Names.INDEX);
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.createIndexAction = createIndexAction;
         this.autoCreateIndex = autoCreateIndex;
@@ -141,26 +139,13 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
     }
 
     @Override
-    protected Tuple<IndexResponse, IndexRequest> shardOperationOnPrimary(IndexRequest request) throws Exception {
-
-        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = indexService.getShard(request.shardId().id());
-
-        final WriteResult<IndexResponse> result = executeIndexRequestOnPrimary(request, indexShard, mappingUpdatedAction);
-
-        final IndexResponse response = result.response;
-        final Translog.Location location = result.location;
-        processAfterWrite(request.refresh(), indexShard, location);
-        return new Tuple<>(response, request);
+    protected WriteResult<IndexResponse> onPrimaryShard(IndexRequest request, IndexShard indexShard) throws Exception {
+        return executeIndexRequestOnPrimary(request, indexShard, mappingUpdatedAction);
     }
 
     @Override
-    protected void shardOperationOnReplica(IndexRequest request) {
-        final ShardId shardId = request.shardId();
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardId.id());
-        final Engine.Index operation = executeIndexRequestOnReplica(request, indexShard);
-        processAfterWrite(request.refresh(), indexShard, operation.getTranslogLocation());
+    protected Location onReplicaShard(IndexRequest request, IndexShard indexShard) {
+        return executeIndexRequestOnReplica(request, indexShard).getTranslogLocation();
     }
 
     /**
@@ -188,11 +173,8 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         return indexShard.prepareIndexOnPrimary(sourceToParse, request.version(), request.versionType());
     }
 
-    /**
-     * Execute the given {@link IndexRequest} on a primary shard, throwing a
-     * {@link ReplicationOperation.RetryOnPrimaryException} if the operation needs to be re-tried.
-     */
-    public static WriteResult<IndexResponse> executeIndexRequestOnPrimary(IndexRequest request, IndexShard indexShard, MappingUpdatedAction mappingUpdatedAction) throws Exception {
+    public static WriteResult<IndexResponse> executeIndexRequestOnPrimary(IndexRequest request, IndexShard indexShard,
+            MappingUpdatedAction mappingUpdatedAction) throws Exception {
         Engine.Index operation = prepareIndexOperationOnPrimary(request, indexShard);
         Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
         final ShardId shardId = indexShard.shardId();
@@ -214,8 +196,8 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
 
         assert request.versionType().validateVersionForWrites(request.version());
 
-        return new WriteResult<>(new IndexResponse(shardId, request.type(), request.id(), request.version(), created), operation.getTranslogLocation());
+        IndexResponse response = new IndexResponse(shardId, request.type(), request.id(), request.version(), created); 
+        return new WriteResult<>(response, operation.getTranslogLocation());
     }
-
 }
 

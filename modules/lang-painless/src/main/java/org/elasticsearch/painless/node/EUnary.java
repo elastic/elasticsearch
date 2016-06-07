@@ -167,6 +167,7 @@ public final class EUnary extends AExpression {
     @Override
     void write(MethodWriter writer) {
         writer.writeDebugInfo(location);
+
         if (operation == Operation.NOT) {
             if (tru == null && fals == null) {
                 Label localfals = new Label();

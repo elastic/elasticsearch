@@ -154,7 +154,6 @@ public class BasicStatementTests extends ScriptTestCase {
             " for (int[] j : i) total += j[0]; return total"));
     }
     
-    @AwaitsFix(bugUrl = "working on it")
     public void testArrayForEachStatementDef() {
         assertEquals(6, exec("def a = new int[3]; a[0] = 1; a[1] = 2; a[2] = 3; int total = 0;" +
             " for (int x : a) total += x; return total"));

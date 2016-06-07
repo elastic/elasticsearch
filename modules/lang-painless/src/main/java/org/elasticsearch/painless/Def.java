@@ -379,6 +379,103 @@ public final class Def {
                                            "[" + receiverClass.getCanonicalName() + "] as an array.");
     }
     
+    /** Helper class for isolating MethodHandles and methods to get iterators over arrays
+     * (to emulate "enhanced for loop" using MethodHandles). These cause boxing, and are not as efficient
+     * as they could be, but works.
+     */
+    @SuppressWarnings("unused") // iterator() methods are are actually used, javac just does not know :)
+    private static final class ArrayIteratorHelper {
+        private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+
+        private static final Map<Class<?>,MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
+            Stream.of(boolean[].class, byte[].class, short[].class, int[].class, long[].class,
+                char[].class, float[].class, double[].class, Object[].class)
+                .collect(Collectors.toMap(Function.identity(), type -> {
+                    try {
+                        return PRIV_LOOKUP.findStatic(PRIV_LOOKUP.lookupClass(), "iterator", MethodType.methodType(Iterator.class, type));
+                    } catch (ReflectiveOperationException e) {
+                        throw new AssertionError(e);
+                    }
+                }))
+        );
+
+        private static final MethodHandle OBJECT_ARRAY_MH = ARRAY_TYPE_MH_MAPPING.get(Object[].class);
+
+        static Iterator<Boolean> iterator(final boolean[] array) {
+            return new Iterator<Boolean>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Boolean next() { return array[index++]; }
+            };
+        }
+        static Iterator<Byte> iterator(final byte[] array) {
+            return new Iterator<Byte>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Byte next() { return array[index++]; }
+            };
+        }
+        static Iterator<Short> iterator(final short[] array) {
+            return new Iterator<Short>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Short next() { return array[index++]; }
+            };
+        }
+        static Iterator<Integer> iterator(final int[] array) {
+            return new Iterator<Integer>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Integer next() { return array[index++]; }
+            };
+        }
+        static Iterator<Long> iterator(final long[] array) {
+            return new Iterator<Long>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Long next() { return array[index++]; }
+            };
+        }
+        static Iterator<Character> iterator(final char[] array) {
+            return new Iterator<Character>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Character next() { return array[index++]; }
+            };
+        }
+        static Iterator<Float> iterator(final float[] array) {
+            return new Iterator<Float>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Float next() { return array[index++]; }
+            };
+        }
+        static Iterator<Double> iterator(final double[] array) {
+            return new Iterator<Double>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Double next() { return array[index++]; }
+            };
+        }
+        static Iterator<Object> iterator(final Object[] array) {
+            return new Iterator<Object>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Object next() { return array[index++]; }
+            };
+        }
+
+        static MethodHandle newIterator(Class<?> arrayType) {
+            if (!arrayType.isArray()) {
+                throw new IllegalArgumentException("type must be an array");
+            }
+            return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType)) ?
+                ARRAY_TYPE_MH_MAPPING.get(arrayType) :
+                OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
+        }
+
+        private ArrayIteratorHelper() {}
+    }
     /**
      * Returns a method handle to do iteration (for enhanced for loop)
      * @param receiverClass Class of the array to load the value from
@@ -387,6 +484,8 @@ public final class Def {
     static MethodHandle lookupIterator(Class<?> receiverClass) {
         if (Iterable.class.isAssignableFrom(receiverClass)) {
             return ITERATOR;
+        } else if (receiverClass.isArray()) {
+            return ArrayIteratorHelper.newIterator(receiverClass);
         } else {
             // TODO: arrays
             throw new IllegalArgumentException("Cannot iterate over [" + receiverClass.getCanonicalName() + "]");

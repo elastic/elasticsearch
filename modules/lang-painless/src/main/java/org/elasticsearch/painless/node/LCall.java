@@ -93,6 +93,7 @@ public final class LCall extends ALink {
     @Override
     void load(MethodWriter writer) {
         writer.writeDebugInfo(location);
+
         for (AExpression argument : arguments) {
             argument.write(writer);
         }

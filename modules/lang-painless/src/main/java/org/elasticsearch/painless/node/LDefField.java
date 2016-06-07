@@ -57,6 +57,7 @@ final class LDefField extends ALink implements IDefLink {
     @Override
     void load(MethodWriter writer) {
         writer.writeDebugInfo(location);
+
         String desc = Type.getMethodDescriptor(after.type, Definition.DEF_TYPE.type);
         writer.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.LOAD);
     }
@@ -64,6 +65,7 @@ final class LDefField extends ALink implements IDefLink {
     @Override
     void store(MethodWriter writer) {
         writer.writeDebugInfo(location);
+
         String desc = Type.getMethodDescriptor(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, after.type);
         writer.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.STORE);
     }

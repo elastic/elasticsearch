@@ -138,15 +138,15 @@ public final class Variables {
 
     public void decrementScope() {
         int remove = scopes.pop();
-        
+
         while (remove > 0) {
             Variable variable = variables.pop();
-            
+
             // TODO: is this working? the code reads backwards...
             if (variable.read) {
                 throw variable.location.createError(new IllegalArgumentException("Variable [" + variable.name + "] never used."));
             }
-            
+
             --remove;
         }
     }

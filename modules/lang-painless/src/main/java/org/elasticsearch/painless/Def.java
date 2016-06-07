@@ -27,6 +27,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -103,6 +104,8 @@ public final class Def {
     private static final MethodHandle LIST_GET;
     /** pointer to List.set(int,Object) */
     private static final MethodHandle LIST_SET;
+    /** pointer to Iterable.iterator() */
+    private static final MethodHandle ITERATOR;
     /** factory for arraylength MethodHandle (intrinsic) from Java 9 */
     private static final MethodHandle JAVA9_ARRAY_LENGTH_MH_FACTORY;
 
@@ -114,6 +117,7 @@ public final class Def {
             MAP_PUT  = lookup.findVirtual(Map.class , "put", MethodType.methodType(Object.class, Object.class, Object.class));
             LIST_GET = lookup.findVirtual(List.class, "get", MethodType.methodType(Object.class, int.class));
             LIST_SET = lookup.findVirtual(List.class, "set", MethodType.methodType(Object.class, int.class, Object.class));
+            ITERATOR = lookup.findVirtual(Iterable.class, "iterator", MethodType.methodType(Iterator.class));
         } catch (final ReflectiveOperationException roe) {
             throw new AssertionError(roe);
         }
@@ -373,6 +377,118 @@ public final class Def {
         }
         throw new IllegalArgumentException("Attempting to address a non-array type " +
                                            "[" + receiverClass.getCanonicalName() + "] as an array.");
+    }
+    
+    /** Helper class for isolating MethodHandles and methods to get iterators over arrays
+     * (to emulate "enhanced for loop" using MethodHandles). These cause boxing, and are not as efficient
+     * as they could be, but works.
+     */
+    @SuppressWarnings("unused") // iterator() methods are are actually used, javac just does not know :)
+    private static final class ArrayIteratorHelper {
+        private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+
+        private static final Map<Class<?>,MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
+            Stream.of(boolean[].class, byte[].class, short[].class, int[].class, long[].class,
+                char[].class, float[].class, double[].class, Object[].class)
+                .collect(Collectors.toMap(Function.identity(), type -> {
+                    try {
+                        return PRIV_LOOKUP.findStatic(PRIV_LOOKUP.lookupClass(), "iterator", MethodType.methodType(Iterator.class, type));
+                    } catch (ReflectiveOperationException e) {
+                        throw new AssertionError(e);
+                    }
+                }))
+        );
+
+        private static final MethodHandle OBJECT_ARRAY_MH = ARRAY_TYPE_MH_MAPPING.get(Object[].class);
+
+        static Iterator<Boolean> iterator(final boolean[] array) {
+            return new Iterator<Boolean>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Boolean next() { return array[index++]; }
+            };
+        }
+        static Iterator<Byte> iterator(final byte[] array) {
+            return new Iterator<Byte>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Byte next() { return array[index++]; }
+            };
+        }
+        static Iterator<Short> iterator(final short[] array) {
+            return new Iterator<Short>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Short next() { return array[index++]; }
+            };
+        }
+        static Iterator<Integer> iterator(final int[] array) {
+            return new Iterator<Integer>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Integer next() { return array[index++]; }
+            };
+        }
+        static Iterator<Long> iterator(final long[] array) {
+            return new Iterator<Long>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Long next() { return array[index++]; }
+            };
+        }
+        static Iterator<Character> iterator(final char[] array) {
+            return new Iterator<Character>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Character next() { return array[index++]; }
+            };
+        }
+        static Iterator<Float> iterator(final float[] array) {
+            return new Iterator<Float>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Float next() { return array[index++]; }
+            };
+        }
+        static Iterator<Double> iterator(final double[] array) {
+            return new Iterator<Double>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Double next() { return array[index++]; }
+            };
+        }
+        static Iterator<Object> iterator(final Object[] array) {
+            return new Iterator<Object>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Object next() { return array[index++]; }
+            };
+        }
+
+        static MethodHandle newIterator(Class<?> arrayType) {
+            if (!arrayType.isArray()) {
+                throw new IllegalArgumentException("type must be an array");
+            }
+            return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType)) ?
+                ARRAY_TYPE_MH_MAPPING.get(arrayType) :
+                OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
+        }
+
+        private ArrayIteratorHelper() {}
+    }
+    /**
+     * Returns a method handle to do iteration (for enhanced for loop)
+     * @param receiverClass Class of the array to load the value from
+     * @return a MethodHandle that accepts the receiver as first argument, returns iterator
+     */
+    static MethodHandle lookupIterator(Class<?> receiverClass) {
+        if (Iterable.class.isAssignableFrom(receiverClass)) {
+            return ITERATOR;
+        } else if (receiverClass.isArray()) {
+            return ArrayIteratorHelper.newIterator(receiverClass);
+        } else {
+            throw new IllegalArgumentException("Cannot iterate over [" + receiverClass.getCanonicalName() + "]");
+        }
     }
 
     // NOTE: Below methods are not cached, instead invoked directly because they are performant.

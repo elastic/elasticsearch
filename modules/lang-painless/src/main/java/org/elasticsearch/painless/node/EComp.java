@@ -401,6 +401,7 @@ public final class EComp extends AExpression {
     @Override
     void write(MethodWriter writer) {
         writer.writeDebugInfo(location);
+
         boolean branch = tru != null || fals != null;
         org.objectweb.asm.Type rtype = right.actual.type;
         Sort rsort = right.actual.sort;

@@ -68,13 +68,13 @@ public final class DefBootstrap {
         /** maximum number of types before we go megamorphic */
         static final int MAX_DEPTH = 5;
 
-        private final MethodHandles.Lookup lookup;
+        private final Lookup lookup;
         private final String name;
         private final int flavor;
         private final long recipe;
         int depth; // pkg-protected for testing
 
-        PIC(MethodHandles.Lookup lookup, String name, MethodType type, int flavor, long recipe) {
+        PIC(Lookup lookup, String name, MethodType type, int flavor, long recipe) {
             super(type);
             this.lookup = lookup;
             this.name = name;

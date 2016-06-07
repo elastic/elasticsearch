@@ -220,7 +220,8 @@ public final class Def {
      * @throws LambdaConversionException if a method reference cannot be converted to an functional interface
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      */
-     static MethodHandle lookupMethod(MethodHandles.Lookup lookup, Class<?> receiverClass, String name, Object args[], long recipe) throws LambdaConversionException {
+     static MethodHandle lookupMethod(Lookup lookup, Class<?> receiverClass, String name,
+             Object args[], long recipe) throws LambdaConversionException {
          Method method = lookupMethodInternal(receiverClass, name, args.length - 1);
          MethodHandle handle = method.handle;
 
@@ -241,7 +242,7 @@ public final class Def {
      /** Returns a method handle to an implementation of clazz, given method reference signature 
       * @throws LambdaConversionException if a method reference cannot be converted to an functional interface
       */
-     private static MethodHandle lookupReference(MethodHandles.Lookup lookup, Class<?> clazz, String signature) throws LambdaConversionException {
+     private static MethodHandle lookupReference(Lookup lookup, Class<?> clazz, String signature) throws LambdaConversionException {
          int separator = signature.indexOf('.');
          FunctionRef ref = new FunctionRef(clazz, signature.substring(0, separator), signature.substring(separator+1));
          final CallSite callSite;

@@ -11,7 +11,37 @@ The GeoIP processor can run with other geoip2 databases from Maxmind. The files 
 and the `database_file` option should be used to specify the filename of the custom database. The geoip config directory
 is located at `$ES_HOME/config/ingest/geoip` and holds the shipped databases too.
 
-[[geoip-options]]
+[[ingest-geoip-install]]
+[float]
+==== Installation
+
+This plugin can be installed using the plugin manager:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/elasticsearch-plugin install ingest-geoip
+----------------------------------------------------------------
+
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
+
+[[ingest-geoip-remove]]
+[float]
+==== Removal
+
+The plugin can be removed with the following command:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/elasticsearch-plugin remove ingest-geoip
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+[[using-ingest-geoip]]
+==== Using the Geoip Processor in a Pipeline
+
+[[ingest-geoip-options]]
 .Geoip options
 [options="header"]
 |======

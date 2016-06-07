@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -683,7 +684,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12621")
     public void testChaosSnapshot() throws Exception {
         final List<String> indices = new CopyOnWriteArrayList<>();
-        Settings settings = Settings.builder().put("action.write_consistency", "one").build();
+        Settings settings = Settings.builder().put(ReplicationOperation.WRITE_CONSISTENCY_LEVEL_SETTING.getKey(), "one").build();
         int initialNodes = between(1, 3);
         logger.info("--> start {} nodes", initialNodes);
         for (int i = 0; i < initialNodes; i++) {

@@ -73,6 +73,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.support.replication.ReplicationOperation.WRITE_CONSISTENCY_LEVEL_SETTING;
+
 /**
  * Base class for requests that should be executed on a primary copy followed by replica copies.
  * Subclasses can resolve the target shard and provide implementation for primary and replica operations.
@@ -119,7 +121,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
         this.transportOptions = transportOptions();
 
-        this.defaultWriteConsistencyLevel = WriteConsistencyLevel.fromString(settings.get("action.write_consistency", "quorum"));
+        this.defaultWriteConsistencyLevel = WRITE_CONSISTENCY_LEVEL_SETTING.get(settings);
 
         this.replicasProxy = new ReplicasProxy();
     }

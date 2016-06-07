@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexCreationResponseWaiter;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -41,13 +42,22 @@ import org.elasticsearch.transport.TransportService;
 public class TransportCreateIndexAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
 
     private final MetaDataCreateIndexService createIndexService;
+    private final IndexCreationResponseWaiter<CreateIndexResponse> responseWaiter;
 
     @Inject
     public TransportCreateIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, CreateIndexRequest::new);
+        super(settings, CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters,
+              indexNameExpressionResolver, CreateIndexRequest::new);
         this.createIndexService = createIndexService;
+        this.responseWaiter =
+            new IndexCreationResponseWaiter<CreateIndexResponse>(settings, clusterService, threadPool.getThreadContext()) {
+                @Override
+                protected CreateIndexResponse newResponse(boolean acknowledged, boolean writeConsistencyShardsAvailable) {
+                    return new CreateIndexResponse(acknowledged, writeConsistencyShardsAvailable);
+                }
+            };
     }
 
     @Override
@@ -67,14 +77,17 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     }
 
     @Override
-    protected void masterOperation(final CreateIndexRequest request, final ClusterState state, final ActionListener<CreateIndexResponse> listener) {
+    protected void masterOperation(final CreateIndexRequest request,
+                                   final ClusterState state,
+                                   final ActionListener<CreateIndexResponse> listener) {
         String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";
         }
 
         final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
-        final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(request, cause, indexName, request.updateAllTypes())
+        final CreateIndexClusterStateUpdateRequest updateRequest =
+            new CreateIndexClusterStateUpdateRequest(request, cause, indexName, request.updateAllTypes())
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .settings(request.settings()).mappings(request.mappings())
                 .aliases(request.aliases()).customs(request.customs());
@@ -83,7 +96,10 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
 
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new CreateIndexResponse(response.isAcknowledged()));
+                // the cluster state that includes the newly created index has been acknowledged,
+                // now wait for the write consistency number of shards to be allocated before returning,
+                // as that is when indexing operations can take place on the newly created index
+                responseWaiter.waitOnShards(indexName, response, listener, request.timeout());
             }
 
             @Override

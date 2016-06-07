@@ -41,17 +41,16 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Ignore;
 
 import java.util.HashMap;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
@@ -390,5 +389,24 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertTrue("expected shard size must be set but wasn't: " + expectedShardSize, expectedShardSize > 0);
         ensureGreen();
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+    }
+
+    public void testCreateIndexWaitForShardAllocation() throws Exception {
+        final int numDataNodes = randomIntBetween(1, 5);
+        final String indexName = "test-idx";
+        internalCluster().ensureAtLeastNumDataNodes(numDataNodes);
+        final Settings settings = Settings.builder()
+                                          .put(indexSettings())
+                                          .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(2, 7))
+                                          .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, numDataNodes - 1))
+                                          .build();
+        final CreateIndexResponse response = prepareCreate(indexName).setSettings(settings).setTimeout("10s").get();
+        assertTrue(response.isAcknowledged());
+        assertTrue(response.isWriteConsistencyShardsAvailable());
+        final int numDocs = 20;
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex(indexName, "type").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+        }
+        assertThat(client().prepareSearch("target").setSize(numDocs).get().getHits().getTotalHits(), equalTo(numDocs));
     }
 }

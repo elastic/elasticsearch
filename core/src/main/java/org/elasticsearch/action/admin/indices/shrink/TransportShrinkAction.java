@@ -31,30 +31,17 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexCreationResponseWaiter;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Predicate;
 
 /**
  * Main class to initiate shrinking an index into a new index with a single shard
@@ -63,6 +50,7 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
 
     private final MetaDataCreateIndexService createIndexService;
     private final Client client;
+    private final IndexCreationResponseWaiter<ShrinkResponse> responseWaiter;
 
     @Inject
     public TransportShrinkAction(Settings settings, TransportService transportService, ClusterService clusterService,
@@ -72,6 +60,12 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
             ShrinkRequest::new);
         this.createIndexService = createIndexService;
         this.client = client;
+        this.responseWaiter = new IndexCreationResponseWaiter<ShrinkResponse>(settings, clusterService, threadPool.getThreadContext()) {
+            @Override
+            protected ShrinkResponse newResponse(boolean acknowledged, boolean writeConsistencyShardsAvailable) {
+                return new ShrinkResponse(acknowledged, writeConsistencyShardsAvailable);
+            }
+        };
     }
 
     @Override
@@ -102,7 +96,8 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
                 createIndexService.createIndex(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
                     @Override
                     public void onResponse(ClusterStateUpdateResponse response) {
-                        listener.onResponse(new ShrinkResponse(response.isAcknowledged()));
+                        // wait for necessary shards to become available before returning the response
+                        responseWaiter.waitOnShards(updateRequest.index(), response, listener, shrinkRequest.timeout());
                     }
 
                     @Override

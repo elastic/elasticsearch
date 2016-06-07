@@ -30,22 +30,31 @@ import java.io.IOException;
  */
 public class CreateIndexResponse extends AcknowledgedResponse {
 
+    private boolean writeConsistencyShardsAvailable;
+
     protected CreateIndexResponse() {
     }
 
-    protected CreateIndexResponse(boolean acknowledged) {
+    protected CreateIndexResponse(boolean acknowledged, boolean writeConsistencyShardsAvailable) {
         super(acknowledged);
+        this.writeConsistencyShardsAvailable = writeConsistencyShardsAvailable;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         readAcknowledged(in);
+        writeConsistencyShardsAvailable = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeAcknowledged(out);
+        out.writeBoolean(writeConsistencyShardsAvailable);
+    }
+
+    public boolean isWriteConsistencyShardsAvailable() {
+        return writeConsistencyShardsAvailable;
     }
 }

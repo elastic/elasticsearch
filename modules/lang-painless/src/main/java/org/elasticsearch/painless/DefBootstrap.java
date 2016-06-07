@@ -68,13 +68,15 @@ public final class DefBootstrap {
         /** maximum number of types before we go megamorphic */
         static final int MAX_DEPTH = 5;
 
+        private final MethodHandles.Lookup lookup;
         private final String name;
         private final int flavor;
         private final long recipe;
         int depth; // pkg-protected for testing
 
-        PIC(String name, MethodType type, int flavor, long recipe) {
+        PIC(MethodHandles.Lookup lookup, String name, MethodType type, int flavor, long recipe) {
             super(type);
+            this.lookup = lookup;
             this.name = name;
             this.flavor = flavor;
             this.recipe = recipe;
@@ -99,10 +101,10 @@ public final class DefBootstrap {
         /**
          * Does a slow lookup against the whitelist.
          */
-        private static MethodHandle lookup(int flavor, Class<?> clazz, String name, Object[] args, long recipe) {
+        private MethodHandle lookup(int flavor, Class<?> clazz, String name, Object[] args, long recipe) {
             switch(flavor) {
                 case METHOD_CALL:
-                    return Def.lookupMethod(clazz, name, args, recipe);
+                    return Def.lookupMethod(lookup, clazz, name, args, recipe);
                 case LOAD:
                     return Def.lookupGetter(clazz, name);
                 case STORE:
@@ -169,7 +171,7 @@ public final class DefBootstrap {
      * see https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html#jvms-6.5.invokedynamic
      */
     public static CallSite bootstrap(Lookup lookup, String name, MethodType type, int flavor, long recipe) {
-        return new PIC(name, type, flavor, recipe);
+        return new PIC(lookup, name, type, flavor, recipe);
     }
 
 }

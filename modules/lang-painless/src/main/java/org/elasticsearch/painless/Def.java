@@ -219,7 +219,7 @@ public final class Def {
      * @return pointer to matching method to invoke. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      */
-     static MethodHandle lookupMethod(Class<?> receiverClass, String name, Object args[], long recipe) {
+     static MethodHandle lookupMethod(MethodHandles.Lookup lookup, Class<?> receiverClass, String name, Object args[], long recipe) {
          Method method = lookupMethodInternal(receiverClass, name, args.length - 1);
          MethodHandle handle = method.handle;
 
@@ -228,7 +228,7 @@ public final class Def {
              for (int i = 0; i < args.length; i++) {
                  // its a functional reference, replace the argument with an impl
                  if ((recipe & (1L << (i - 1))) != 0) {
-                     filters[i] = lookupReference(method.arguments.get(i - 1).clazz, (String) args[i]);
+                     filters[i] = lookupReference(lookup, method.arguments.get(i - 1).clazz, (String) args[i]);
                  }
              }
              handle = MethodHandles.filterArguments(handle, 0, filters);
@@ -238,10 +238,9 @@ public final class Def {
      }
      
      /** Returns a method handle to an implementation of clazz, given method reference signature */
-     private static MethodHandle lookupReference(Class<?> clazz, String signature) {
+     private static MethodHandle lookupReference(MethodHandles.Lookup lookup, Class<?> clazz, String signature) {
          int separator = signature.indexOf('.');
          FunctionRef ref = new FunctionRef(clazz, signature.substring(0, separator), signature.substring(separator+1));
-         MethodHandles.Lookup lookup = MethodHandles.lookup(); // XXX: no lookuping needed, we should pass this from DefBootstrap!
          final CallSite callSite;
          // XXX: clean all this up to use handles in FunctionRef, deal with ASM in EFunctionRef differently
          MethodType invokedType = MethodType.fromMethodDescriptorString(ref.invokedType.getDescriptor(), Def.class.getClassLoader());

@@ -101,7 +101,7 @@ public final class DefBootstrap {
         /**
          * Does a slow lookup against the whitelist.
          */
-        private MethodHandle lookup(int flavor, Class<?> clazz, String name, Object[] args, long recipe) {
+        private MethodHandle lookup(int flavor, Class<?> clazz, String name, Object[] args, long recipe) throws Throwable {
             switch(flavor) {
                 case METHOD_CALL:
                     return Def.lookupMethod(lookup, clazz, name, args, recipe);

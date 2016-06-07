@@ -217,9 +217,10 @@ public final class Def {
      * @param args args passed to callsite
      * @param recipe bitset marking functional parameters
      * @return pointer to matching method to invoke. never returns null.
+     * @throws LambdaConversionException if a method reference cannot be converted to an functional interface
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      */
-     static MethodHandle lookupMethod(MethodHandles.Lookup lookup, Class<?> receiverClass, String name, Object args[], long recipe) {
+     static MethodHandle lookupMethod(MethodHandles.Lookup lookup, Class<?> receiverClass, String name, Object args[], long recipe) throws LambdaConversionException {
          Method method = lookupMethodInternal(receiverClass, name, args.length - 1);
          MethodHandle handle = method.handle;
 
@@ -237,8 +238,10 @@ public final class Def {
          return handle;
      }
      
-     /** Returns a method handle to an implementation of clazz, given method reference signature */
-     private static MethodHandle lookupReference(MethodHandles.Lookup lookup, Class<?> clazz, String signature) {
+     /** Returns a method handle to an implementation of clazz, given method reference signature 
+      * @throws LambdaConversionException if a method reference cannot be converted to an functional interface
+      */
+     private static MethodHandle lookupReference(MethodHandles.Lookup lookup, Class<?> clazz, String signature) throws LambdaConversionException {
          int separator = signature.indexOf('.');
          FunctionRef ref = new FunctionRef(clazz, signature.substring(0, separator), signature.substring(separator+1));
          final CallSite callSite;
@@ -246,28 +249,24 @@ public final class Def {
          MethodType invokedType = MethodType.fromMethodDescriptorString(ref.invokedType.getDescriptor(), Def.class.getClassLoader());
          MethodType samMethodType = MethodType.fromMethodDescriptorString(ref.samMethodType.getDescriptor(), Def.class.getClassLoader());
          MethodType interfaceType = MethodType.fromMethodDescriptorString(ref.interfaceType.getDescriptor(), Def.class.getClassLoader());
-         try {
-             if (ref.interfaceType.equals(ref.samMethodType)) {
-                 callSite = LambdaMetafactory.altMetafactory(lookup, 
-                         ref.invokedName, 
-                         invokedType,
-                         samMethodType,
-                         ref.implMethodHandle,
-                         samMethodType,
-                         0);
-             } else {
-                 callSite = LambdaMetafactory.altMetafactory(lookup, 
-                         ref.invokedName, 
-                         invokedType,
-                         samMethodType,
-                         ref.implMethodHandle,
-                         samMethodType,
-                         LambdaMetafactory.FLAG_BRIDGES,
-                         1,
-                         interfaceType);
-             }
-         } catch (LambdaConversionException e) {
-             throw new RuntimeException(e);
+         if (ref.interfaceType.equals(ref.samMethodType)) {
+             callSite = LambdaMetafactory.altMetafactory(lookup, 
+                     ref.invokedName, 
+                     invokedType,
+                     samMethodType,
+                     ref.implMethodHandle,
+                     samMethodType,
+                     0);
+         } else {
+             callSite = LambdaMetafactory.altMetafactory(lookup, 
+                     ref.invokedName, 
+                     invokedType,
+                     samMethodType,
+                     ref.implMethodHandle,
+                     samMethodType,
+                     LambdaMetafactory.FLAG_BRIDGES,
+                     1,
+                     interfaceType);
          }
          // we could actually invoke and cache here (in non-capturing cases), but this is not a speedup.
          MethodHandle factory = callSite.dynamicInvoker().asType(MethodType.methodType(clazz));

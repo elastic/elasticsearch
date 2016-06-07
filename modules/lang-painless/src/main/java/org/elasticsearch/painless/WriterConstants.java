@@ -143,7 +143,7 @@ public final class WriterConstants {
 
     public final static Method CHECKEQUALS = getAsmMethod(boolean.class, "checkEquals", Object.class, Object.class);
 
-    private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
+    public static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());
     }
 

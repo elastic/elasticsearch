@@ -52,7 +52,7 @@ public class EFunctionRef extends AExpression {
             actual = Definition.getType("String");
         } else {
             try {
-                ref = new FunctionRef(expected.clazz, type, call);
+                ref = new FunctionRef(expected, type, call);
             } catch (IllegalArgumentException e) {
                 throw createError(e);
             }

@@ -19,14 +19,13 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.Definition.Method;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Modifier;
-import java.util.HashSet;
-import java.util.Set;
 
 /** 
  * computes "everything you need" to call LambdaMetaFactory, given an expected interface,
@@ -43,29 +42,33 @@ public class FunctionRef {
 
     public final MethodHandle implMethodHandle;
     
-    public FunctionRef(Class<?> expected, String type, String call) {
+    public FunctionRef(Definition.Type expected, String type, String call) {
         boolean isCtorReference = "new".equals(call);
         // check its really a functional interface
         // for e.g. Comparable
-        java.lang.reflect.Method method = getFunctionalMethod(type, call, expected);
+        Method method = expected.struct.getFunctionalMethod();
+        if (method == null) {
+            throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
+                                               "to [" + expected.name + "], not a functional interface");
+        }
         // e.g. compareTo
-        invokedName = method.getName();
+        invokedName = method.name;
         // e.g. (Object)Comparator
-        invokedType = Type.getMethodType(Type.getType(expected));
+        invokedType = Type.getMethodType(expected.type);
         // e.g. (Object,Object)int
-        interfaceType = Type.getMethodType(Type.getMethodDescriptor(method));
+        interfaceType = Type.getMethodType(method.method.getDescriptor());
         // lookup requested method
         Definition.Struct struct = Definition.getType(type).struct;
         final Definition.Method impl;
         // ctor ref
         if (isCtorReference) {
-            impl = struct.constructors.get(new Definition.MethodKey("<init>", method.getParameterCount()));
+            impl = struct.constructors.get(new Definition.MethodKey("<init>", method.arguments.size()));
         } else {
             // look for a static impl first
-            Definition.Method staticImpl = struct.staticMethods.get(new Definition.MethodKey(call, method.getParameterCount()));
+            Definition.Method staticImpl = struct.staticMethods.get(new Definition.MethodKey(call, method.arguments.size()));
             if (staticImpl == null) {
                 // otherwise a virtual impl
-                impl = struct.methods.get(new Definition.MethodKey(call, method.getParameterCount()-1));
+                impl = struct.methods.get(new Definition.MethodKey(call, method.arguments.size()-1));
             } else {
                 impl = staticImpl;
             }
@@ -96,31 +99,5 @@ public class FunctionRef {
             params[0] = struct.type;
             samMethodType = Type.getMethodType(impl.method.getReturnType(), params);
         }
-    }
-    
-    static final Set<Definition.MethodKey> OBJECT_METHODS = new HashSet<>();
-    static {
-        for (java.lang.reflect.Method m : Object.class.getMethods()) {
-            OBJECT_METHODS.add(new Definition.MethodKey(m.getName(), m.getParameterCount()));
-        }
-    }
-
-    // TODO: move all this crap out, to Definition to compute up front
-    java.lang.reflect.Method getFunctionalMethod(String type, String call, Class<?> clazz) {
-        if (!clazz.isInterface()) {
-            throw new IllegalArgumentException("Cannot convert function reference [" 
-                                               + type + "::" + call + "] to [" + clazz + "]");
-        }
-        for (java.lang.reflect.Method m : clazz.getMethods()) {
-            if (m.isDefault()) {
-                continue;
-            }
-            if (OBJECT_METHODS.contains(new Definition.MethodKey(m.getName(), m.getParameterCount()))) {
-                continue;
-            }
-            return m;
-        }
-        throw new IllegalArgumentException("Cannot convert function reference [" 
-                                           + type + "::" + call + "] to [" + clazz + "]");
     }
 }

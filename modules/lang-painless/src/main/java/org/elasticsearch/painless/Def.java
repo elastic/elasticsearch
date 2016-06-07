@@ -230,7 +230,7 @@ public final class Def {
              for (int i = 0; i < args.length; i++) {
                  // its a functional reference, replace the argument with an impl
                  if ((recipe & (1L << (i - 1))) != 0) {
-                     filters[i] = lookupReference(lookup, method.arguments.get(i - 1).clazz, (String) args[i]);
+                     filters[i] = lookupReference(lookup, method.arguments.get(i - 1), (String) args[i]);
                  }
              }
              handle = MethodHandles.filterArguments(handle, 0, filters);
@@ -242,7 +242,7 @@ public final class Def {
      /** Returns a method handle to an implementation of clazz, given method reference signature 
       * @throws LambdaConversionException if a method reference cannot be converted to an functional interface
       */
-     private static MethodHandle lookupReference(Lookup lookup, Class<?> clazz, String signature) throws LambdaConversionException {
+     private static MethodHandle lookupReference(Lookup lookup, Definition.Type clazz, String signature) throws LambdaConversionException {
          int separator = signature.indexOf('.');
          FunctionRef ref = new FunctionRef(clazz, signature.substring(0, separator), signature.substring(separator+1));
          final CallSite callSite;
@@ -270,7 +270,7 @@ public final class Def {
                      interfaceType);
          }
          // we could actually invoke and cache here (in non-capturing cases), but this is not a speedup.
-         MethodHandle factory = callSite.dynamicInvoker().asType(MethodType.methodType(clazz));
+         MethodHandle factory = callSite.dynamicInvoker().asType(MethodType.methodType(clazz.clazz));
          return MethodHandles.dropArguments(factory, 0, Object.class);
      }
      

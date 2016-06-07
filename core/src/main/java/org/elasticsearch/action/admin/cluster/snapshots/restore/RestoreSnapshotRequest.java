@@ -57,7 +57,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private String renamePattern;
     private String renameReplacement;
     private boolean waitForCompletion;
-    private boolean includeGlobalState = true;
+    private boolean includeGlobalState = false;
     private boolean partial = false;
     private boolean includeAliases = true;
     private Settings settings = EMPTY_SETTINGS;

@@ -277,3 +277,8 @@ should be used instead.
 
 The setting `bootstrap.mlockall` has been renamed to
 `bootstrap.memory_lock`.
+
+==== Snapshot settings
+
+The default setting `include_global_state` for taking and restoring snapshots
+has been changed from `true` to `false`.

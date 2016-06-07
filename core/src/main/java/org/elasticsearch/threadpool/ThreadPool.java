@@ -26,6 +26,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -149,6 +150,9 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         return Collections.unmodifiableCollection(builders.values());
     }
 
+    public static Setting<TimeValue> ESTIMATED_TIME_INTERVAL_SETTING =
+        Setting.timeSetting("thread_pool.estimated_time_interval", TimeValue.timeValueMillis(200), Setting.Property.NodeScope);
+
     public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
         super(settings);
 
@@ -204,7 +208,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         this.scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
         this.scheduler.setRemoveOnCancelPolicy(true);
 
-        TimeValue estimatedTimeInterval = settings.getAsTime("thread_pool.estimated_time_interval", TimeValue.timeValueMillis(200));
+        TimeValue estimatedTimeInterval = ESTIMATED_TIME_INTERVAL_SETTING.get(settings);
         this.estimatedTimeThread = new EstimatedTimeThread(EsExecutors.threadName(settings, "[timer]"), estimatedTimeInterval.millis());
         this.estimatedTimeThread.start();
     }

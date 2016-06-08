@@ -40,48 +40,48 @@ public class SnifferBuilderTests extends LuceneTestCase {
         for (int i = 0; i < numNodes; i++) {
             hosts[i] = new HttpHost("localhost", 9200 + i);
         }
-        try (RestClient client = RestClient.builder().setHosts(hosts).build()) {
+        try (RestClient client = RestClient.builder(hosts).build()) {
 
             try {
                 Sniffer.builder(client).setScheme(null);
                 fail("should have failed");
             } catch(NullPointerException e) {
-                assertEquals(e.getMessage(), "scheme cannot be null");
+                assertEquals("scheme cannot be null", e.getMessage());
             }
 
             try {
                 Sniffer.builder(client).setScheme("whatever");
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
-                assertEquals(e.getMessage(), "scheme must be either http or https");
+                assertEquals("scheme must be either http or https", e.getMessage());
             }
 
             try {
                 Sniffer.builder(client).setSniffInterval(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
-                assertEquals(e.getMessage(), "sniffInterval must be greater than 0");
+                assertEquals("sniffInterval must be greater than 0", e.getMessage());
             }
 
             try {
                 Sniffer.builder(client).setSniffRequestTimeout(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
-                assertEquals(e.getMessage(), "sniffRequestTimeout must be greater than 0");
+                assertEquals("sniffRequestTimeout must be greater than 0", e.getMessage());
             }
 
             try {
                 Sniffer.builder(client).setSniffAfterFailureDelay(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
-                assertEquals(e.getMessage(), "sniffAfterFailureDelay must be greater than 0");
+                assertEquals("sniffAfterFailureDelay must be greater than 0", e.getMessage());
             }
 
             try {
                 Sniffer.builder(null).build();
                 fail("should have failed");
             } catch(NullPointerException e) {
-                assertEquals(e.getMessage(), "restClient cannot be null");
+                assertEquals("restClient cannot be null", e.getMessage());
             }
 
             try (Sniffer sniffer = Sniffer.builder(client).build()) {

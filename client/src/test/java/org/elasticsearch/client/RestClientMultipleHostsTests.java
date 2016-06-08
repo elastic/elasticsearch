@@ -87,7 +87,7 @@ public class RestClientMultipleHostsTests extends LuceneTestCase {
         for (int i = 0; i < numHosts; i++) {
             httpHosts[i] = new HttpHost("localhost", 9200 + i);
         }
-        restClient = RestClient.builder().setHosts(httpHosts).setHttpClient(httpClient).build();
+        restClient = RestClient.builder(httpHosts).setHttpClient(httpClient).build();
         failureListener = new TrackingFailureListener();
         restClient.setFailureListener(failureListener);
     }

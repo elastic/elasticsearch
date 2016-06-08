@@ -350,8 +350,8 @@ public final class RestClient implements Closeable {
     /**
      * Returns a new {@link Builder} to help with {@link RestClient} creation.
      */
-    public static Builder builder() {
-        return new Builder();
+    public static Builder builder(HttpHost... hosts) {
+        return new Builder(hosts);
     }
 
     /**
@@ -365,13 +365,19 @@ public final class RestClient implements Closeable {
 
         private static final Header[] EMPTY_HEADERS = new Header[0];
 
+        private final HttpHost[] hosts;
         private CloseableHttpClient httpClient;
         private int maxRetryTimeout = DEFAULT_MAX_RETRY_TIMEOUT;
-        private HttpHost[] hosts;
         private Header[] defaultHeaders = EMPTY_HEADERS;
 
-        private Builder() {
-
+        /**
+         * Creates a new builder instance and sets the hosts that the client will send requests to.
+         */
+        private Builder(HttpHost... hosts) {
+            if (hosts == null || hosts.length == 0) {
+                throw new IllegalArgumentException("no hosts provided");
+            }
+            this.hosts = hosts;
         }
 
         /**
@@ -400,17 +406,6 @@ public final class RestClient implements Closeable {
         }
 
         /**
-         * Sets the hosts that the client will send requests to.
-         */
-        public Builder setHosts(HttpHost... hosts) {
-            if (hosts == null || hosts.length == 0) {
-                throw new IllegalArgumentException("no hosts provided");
-            }
-            this.hosts = hosts;
-            return this;
-        }
-
-        /**
          * Sets the default request headers, to be used when creating the default http client instance.
          * In case the http client is set through {@link #setHttpClient(CloseableHttpClient)}, the default headers need to be
          * set to it externally during http client construction.
@@ -430,9 +425,6 @@ public final class RestClient implements Closeable {
         public RestClient build() {
             if (httpClient == null) {
                 httpClient = createDefaultHttpClient(null);
-            }
-            if (hosts == null || hosts.length == 0) {
-                throw new IllegalArgumentException("no hosts provided");
             }
             return new RestClient(httpClient, maxRetryTimeout, defaultHeaders, hosts);
         }

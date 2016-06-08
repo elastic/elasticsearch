@@ -305,7 +305,7 @@ public class RestTestClient implements Closeable {
             hosts[i] = new HttpHost(url.getHost(), url.getPort(), protocol);
         }
 
-        RestClient.Builder builder = RestClient.builder().setHttpClient(httpClient).setHosts(hosts);
+        RestClient.Builder builder = RestClient.builder(hosts).setHttpClient(httpClient);
         try (ThreadContext threadContext = new ThreadContext(settings)) {
             Header[] defaultHeaders = new Header[threadContext.getHeaders().size()];
             int i = 0;

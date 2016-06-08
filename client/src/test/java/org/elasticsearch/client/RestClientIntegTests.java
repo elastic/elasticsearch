@@ -77,8 +77,8 @@ public class RestClientIntegTests extends LuceneTestCase {
             String headerValue = RandomStrings.randomAsciiOfLengthBetween(random(), 3, 10);
             defaultHeaders[i] = new BasicHeader(headerName, headerValue);
         }
-        restClient = RestClient.builder().setDefaultHeaders(defaultHeaders)
-                .setHosts(new HttpHost(httpServer.getAddress().getHostName(), httpServer.getAddress().getPort())).build();
+        restClient = RestClient.builder(new HttpHost(httpServer.getAddress().getHostName(), httpServer.getAddress().getPort()))
+                .setDefaultHeaders(defaultHeaders).build();
     }
 
     private static void createStatusCodeContext(HttpServer httpServer, final int statusCode) {

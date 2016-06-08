@@ -122,7 +122,7 @@ public class RestClientSingleHostTests extends LuceneTestCase {
             defaultHeaders[i] = new BasicHeader(headerName, headerValue);
         }
         httpHost = new HttpHost("localhost", 9200);
-        restClient = RestClient.builder().setHosts(httpHost).setHttpClient(httpClient).setDefaultHeaders(defaultHeaders).build();
+        restClient = RestClient.builder(httpHost).setHttpClient(httpClient).setDefaultHeaders(defaultHeaders).build();
         failureListener = new TrackingFailureListener();
         restClient.setFailureListener(failureListener);
     }

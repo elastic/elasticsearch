@@ -82,7 +82,7 @@ public class HostsSnifferTests extends LuceneTestCase {
 
     public void testSniffNodes() throws IOException, URISyntaxException {
         HttpHost httpHost = new HttpHost(httpServer.getAddress().getHostName(), httpServer.getAddress().getPort());
-        try (RestClient restClient = RestClient.builder().setHosts(httpHost).build()) {
+        try (RestClient restClient = RestClient.builder(httpHost).build()) {
             HostsSniffer sniffer = new HostsSniffer(restClient, sniffRequestTimeout, scheme);
             try {
                 List<HttpHost> sniffedHosts = sniffer.sniffHosts();

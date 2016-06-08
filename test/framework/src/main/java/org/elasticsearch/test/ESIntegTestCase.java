@@ -2068,7 +2068,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 hosts.add(new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), protocol));
             }
         }
-        RestClient.Builder builder = RestClient.builder().setHosts(hosts.toArray(new HttpHost[hosts.size()]));
+        RestClient.Builder builder = RestClient.builder(hosts.toArray(new HttpHost[hosts.size()]));
         if (httpClient != null) {
             builder.setHttpClient(httpClient);
         }

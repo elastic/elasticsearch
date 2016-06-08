@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTimeField;
 import org.joda.time.DateTimeZone;
+import org.joda.time.IllegalInstantException;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -218,7 +219,19 @@ public abstract class TimeZoneRounding extends Rounding {
         public long roundKey(long utcMillis) {
             long timeLocal = timeZone.convertUTCToLocal(utcMillis);
             long rounded = Rounding.Interval.roundValue(Rounding.Interval.roundKey(timeLocal, interval), interval);
-            return timeZone.convertLocalToUTC(rounded, false, utcMillis);
+            try {
+                return timeZone.convertLocalToUTC(rounded, true, utcMillis);
+            } catch (IllegalInstantException e) {
+                /*
+                 * The rounded local time is illegal and landed in a DST gap. In
+                 * this case, we choose 1ms tick after the transition date. We
+                 * don't want the transition date itself because those dates,
+                 * when rounded themselves, fall into the previous interval.
+                 * This would violate the invariant that the rounding operation
+                 * should be idempotent.
+                 */
+                return timeZone.previousTransition(utcMillis) + 1;
+            }
         }
 
         @Override

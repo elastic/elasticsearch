@@ -27,12 +27,68 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class TransportRolloverActionTests extends ESTestCase {
+
+    public void testEvaluateConditions() throws Exception {
+        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
+        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
+        long matchMaxDocs = randomIntBetween(100, 1000);
+        long notMatchMaxDocs = randomIntBetween(0, 99);
+        final Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        final IndexMetaData metaData = IndexMetaData.builder(randomAsciiOfLength(10))
+            .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
+            .settings(settings)
+            .build();
+        final HashSet<Condition> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition);
+        Set<Condition.Result> results = evaluateConditions(conditions, new DocsStats(matchMaxDocs, 0L), metaData);
+        assertThat(results.size(), equalTo(2));
+        for (Condition.Result result : results) {
+            assertThat(result.matched, equalTo(true));
+        }
+        results = evaluateConditions(conditions, new DocsStats(notMatchMaxDocs, 0), metaData);
+        assertThat(results.size(), equalTo(2));
+        for (Condition.Result result : results) {
+            if (result.condition instanceof MaxAgeCondition) {
+                assertThat(result.matched, equalTo(true));
+            } else if (result.condition instanceof MaxDocsCondition) {
+                assertThat(result.matched, equalTo(false));
+            } else {
+                fail("unknown condition result found " + result.condition);
+            }
+        }
+        results = evaluateConditions(conditions, null, metaData);
+        assertThat(results.size(), equalTo(2));
+        for (Condition.Result result : results) {
+            if (result.condition instanceof MaxAgeCondition) {
+                assertThat(result.matched, equalTo(true));
+            } else if (result.condition instanceof MaxDocsCondition) {
+                assertThat(result.matched, equalTo(false));
+            } else {
+                fail("unknown condition result found " + result.condition);
+            }
+        }
+    }
+
 
     public void testCreateUpdateAliasRequest() throws Exception {
         String sourceAlias = randomAsciiOfLength(10);
@@ -94,17 +150,15 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testGenerateRolloverIndexName() throws Exception {
-        String indexNotEndingInNumbers = randomAsciiOfLength(10) + "A";
-        assertThat(TransportRolloverAction.generateRolloverIndexName(indexNotEndingInNumbers),
-            not(equalTo(indexNotEndingInNumbers)));
-        assertThat(TransportRolloverAction.generateRolloverIndexName(indexNotEndingInNumbers),
-            equalTo(indexNotEndingInNumbers + "-1"));
+        String invalidIndexName = randomAsciiOfLength(10) + "A";
+        expectThrows(IllegalArgumentException.class, () ->
+            TransportRolloverAction.generateRolloverIndexName(invalidIndexName));
         int num = randomIntBetween(0, 100);
         final String indexPrefix = randomAsciiOfLength(10);
         String indexEndingInNumbers = indexPrefix + "-" + num;
         assertThat(TransportRolloverAction.generateRolloverIndexName(indexEndingInNumbers),
             equalTo(indexPrefix + "-" + (num + 1)));
         assertThat(TransportRolloverAction.generateRolloverIndexName("index-name-1"), equalTo("index-name-2"));
-        assertThat(TransportRolloverAction.generateRolloverIndexName("index-name"), equalTo("index-name-1"));
+        assertThat(TransportRolloverAction.generateRolloverIndexName("index-name-2"), equalTo("index-name-3"));
     }
 }

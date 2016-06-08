@@ -98,7 +98,7 @@ public class RolloverIT extends ESIntegTestCase {
         assertThat(response.isRolloverIndexCreated(), equalTo(false));
         assertThat(response.getConditionStatus().size(), equalTo(1));
         final Map.Entry<String, Boolean> conditionEntry = response.getConditionStatus().iterator().next();
-        assertThat(conditionEntry.getKey(), equalTo(new Condition.MaxAge(TimeValue.timeValueHours(4)).toString()));
+        assertThat(conditionEntry.getKey(), equalTo(new MaxAgeCondition(TimeValue.timeValueHours(4)).toString()));
         assertThat(conditionEntry.getValue(), equalTo(false));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index");

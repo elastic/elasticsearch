@@ -115,11 +115,11 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     public void addMaxIndexAgeCondition(TimeValue age) {
-        this.conditions.add(new Condition.MaxAge(age));
+        this.conditions.add(new MaxAgeCondition(age));
     }
 
     public void addMaxIndexDocsCondition(long docs) {
-        this.conditions.add(new Condition.MaxDocs(docs));
+        this.conditions.add(new MaxDocsCondition(docs));
     }
 
     public boolean isSimulate() {

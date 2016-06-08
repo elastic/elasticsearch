@@ -27,15 +27,30 @@ import static org.hamcrest.Matchers.equalTo;
 public class ConditionTests extends ESTestCase {
 
     public void testMaxAge() throws Exception {
-        final Condition.MaxAge maxAge = new Condition.MaxAge(TimeValue.timeValueMillis(10));
-        assertThat(maxAge.matches(TimeValue.timeValueMillis(randomIntBetween(0, 9))), equalTo(false));
-        assertThat(maxAge.matches(TimeValue.timeValueMillis(randomIntBetween(10, 100))), equalTo(true));
+        final MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(1));
+
+        long indexCreatedMatch = System.currentTimeMillis() - TimeValue.timeValueMinutes(61).getMillis();
+        Condition.Result evaluate = maxAgeCondition.evaluate(new Condition.Stats(0, indexCreatedMatch));
+        assertThat(evaluate.condition, equalTo(maxAgeCondition));
+        assertThat(evaluate.matched, equalTo(true));
+
+        long indexCreatedNotMatch = System.currentTimeMillis() - TimeValue.timeValueMinutes(59).getMillis();
+        evaluate = maxAgeCondition.evaluate(new Condition.Stats(0, indexCreatedNotMatch));
+        assertThat(evaluate.condition, equalTo(maxAgeCondition));
+        assertThat(evaluate.matched, equalTo(false));
     }
 
     public void testMaxDocs() throws Exception {
-        final Condition.MaxDocs maxDocs = new Condition.MaxDocs(10L);
-        assertThat(maxDocs.matches((long) randomIntBetween(0, 9)), equalTo(false));
-        assertThat(maxDocs.matches((long) randomIntBetween(10, 100)), equalTo(true));
+        final MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
 
+        long maxDocsMatch = randomIntBetween(100, 1000);
+        Condition.Result evaluate = maxDocsCondition.evaluate(new Condition.Stats(maxDocsMatch, 0));
+        assertThat(evaluate.condition, equalTo(maxDocsCondition));
+        assertThat(evaluate.matched, equalTo(true));
+
+        long maxDocsNotMatch = randomIntBetween(0, 99);
+        evaluate = maxDocsCondition.evaluate(new Condition.Stats(0, maxDocsNotMatch));
+        assertThat(evaluate.condition, equalTo(maxDocsCondition));
+        assertThat(evaluate.matched, equalTo(false));
     }
 }

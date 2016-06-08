@@ -22,12 +22,9 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 
-import java.io.IOException;
 import java.util.Set;
 
 public abstract class Condition<T> implements NamedWriteable {
@@ -35,67 +32,9 @@ public abstract class Condition<T> implements NamedWriteable {
         new ObjectParser<>("conditions", null);
     static {
         PARSER.declareString((conditions, s) ->
-            conditions.add(new MaxAge(TimeValue.parseTimeValue(s, MaxAge.NAME))), new ParseField(MaxAge.NAME));
+            conditions.add(new MaxAgeCondition(TimeValue.parseTimeValue(s, MaxAgeCondition.NAME))), new ParseField(MaxAgeCondition.NAME));
         PARSER.declareLong((conditions, value) ->
-            conditions.add(new MaxDocs(value)), new ParseField(MaxDocs.NAME));
-    }
-
-    public static class MaxAge extends Condition<TimeValue> {
-        public final static String NAME = "max_age";
-
-        public MaxAge(TimeValue value) {
-            super(NAME);
-            this.value = value;
-        }
-
-        public MaxAge(StreamInput in) throws IOException {
-            super(NAME);
-            this.value = TimeValue.timeValueMillis(in.readLong());
-        }
-
-        @Override
-        public boolean matches(TimeValue value) {
-            return this.value.getMillis() <= value.getMillis();
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(value.getMillis());
-        }
-    }
-
-    public static class MaxDocs extends Condition<Long> {
-        public final static String NAME = "max_docs";
-
-        public MaxDocs(Long value) {
-            super(NAME);
-            this.value = value;
-        }
-
-        public MaxDocs(StreamInput in) throws IOException {
-            super(NAME);
-            this.value = in.readLong();
-        }
-
-        @Override
-        public boolean matches(Long value) {
-            return this.value <= value;
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(value);
-        }
+            conditions.add(new MaxDocsCondition(value)), new ParseField(MaxDocsCondition.NAME));
     }
 
     protected T value;
@@ -105,10 +44,30 @@ public abstract class Condition<T> implements NamedWriteable {
         this.name = name;
     }
 
-    public abstract boolean matches(T value);
+    public abstract Result evaluate(final Stats stats);
 
     @Override
     public final String toString() {
         return "[" + name + ": " + value + "]";
+    }
+
+    public static class Stats {
+        public final long numDocs;
+        public final long indexCreated;
+
+        public Stats(long numDocs, long indexCreated) {
+            this.numDocs = numDocs;
+            this.indexCreated = indexCreated;
+        }
+    }
+
+    public static class Result {
+        public final Condition condition;
+        public final boolean matched;
+
+        protected Result(Condition condition, boolean matched) {
+            this.condition = condition;
+            this.matched = matched;
+        }
     }
 }

@@ -41,16 +41,12 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.AbstractMap;
-import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -104,27 +100,20 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         client.admin().indices().prepareStats(sourceIndexName).clear().setDocs(true).execute(
             new ActionListener<IndicesStatsResponse>() {
                 @Override
-                public void onResponse(IndicesStatsResponse indicesStatsResponse) {
-                    final IndexMetaData sourceIndex = metaData.index(sourceIndexName);
-                    DocsStats docsStats = indicesStatsResponse.getTotal().getDocs();
-                    long docCount = docsStats == null ? 0 : docsStats.getCount();
-                    long indexAge = System.currentTimeMillis() - sourceIndex.getCreationDate();
-                    final Set<Map.Entry<Condition, Boolean>> evaluatedConditions =
-                        evaluateConditions(rolloverRequest.getConditions(), docCount, indexAge);
-                    final Set<Map.Entry<String, Boolean>> conditionStatus = evaluatedConditions.stream()
-                        .map(entry -> new AbstractMap.SimpleEntry<>(entry.getKey().toString(), entry.getValue()))
-                        .collect(Collectors.toSet());
+                public void onResponse(IndicesStatsResponse statsResponse) {
+                    final Set<Condition.Result> conditionResults = evaluateConditions(rolloverRequest.getConditions(),
+                        statsResponse.getTotal().getDocs(), metaData.index(sourceIndexName));
                     final String rolloverIndexName = generateRolloverIndexName(sourceIndexName);
-                    final boolean createRolloverIndex = metaData.index(rolloverIndexName) == null;
                     if (rolloverRequest.isSimulate()) {
                         listener.onResponse(
-                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionStatus, true, false,
+                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, true, false,
                                 false));
                         return;
                     }
-                    if (conditionStatus.stream().allMatch(Map.Entry::getValue)) {
+                    if (conditionResults.stream().anyMatch(result -> result.matched)) {
+                        boolean createRolloverIndex = metaData.index(rolloverIndexName) == null;
                         final RolloverResponse rolloverResponse =
-                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionStatus, false, true,
+                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, false, true,
                                 createRolloverIndex);
                         if (createRolloverIndex) {
                             CreateIndexClusterStateUpdateRequest updateRequest =
@@ -139,11 +128,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
                                 @Override
                                 public void onFailure(Throwable t) {
-                                    if (t instanceof IndexAlreadyExistsException) {
-                                        logger.trace("[{}] failed to create rollover index", t, updateRequest.index());
-                                    } else {
-                                        logger.debug("[{}] failed to create rollover index", t, updateRequest.index());
-                                    }
                                     listener.onFailure(t);
                                 }
                             });
@@ -155,7 +139,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     } else {
                         // conditions not met
                         listener.onResponse(
-                            new RolloverResponse(sourceIndexName, sourceIndexName, conditionStatus, false, false,
+                            new RolloverResponse(sourceIndexName, sourceIndexName, conditionResults, false, false,
                                 false)
                         );
                     }
@@ -167,8 +151,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 }
             }
         );
-
     }
+
+
 
     private static final class IndicesAliasesListener implements ActionListener<ClusterStateUpdateResponse> {
 
@@ -203,36 +188,26 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         return updateRequest;
     }
 
+    static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-(\\d)+$");
+
     static String generateRolloverIndexName(String sourceIndexName) {
-        int numberIndex = sourceIndexName.lastIndexOf("-");
-        int counter = 1;
-        String indexPrefix = sourceIndexName;
-        if (numberIndex != -1) {
-            try {
-                counter = Integer.parseInt(sourceIndexName.substring(numberIndex + 1));
-                counter++;
-                indexPrefix = sourceIndexName.substring(0, numberIndex);
-            } catch (NumberFormatException ignored) {
-            }
+        if (INDEX_NAME_PATTERN.matcher(sourceIndexName).matches()) {
+            int numberIndex = sourceIndexName.lastIndexOf("-");
+            assert numberIndex != -1 : "no separator '-' found";
+            int counter = Integer.parseInt(sourceIndexName.substring(numberIndex + 1));
+            return String.join("-", sourceIndexName.substring(0, numberIndex), String.valueOf(++counter));
+        } else {
+            throw new IllegalArgumentException("index name [" + sourceIndexName + "] does not match pattern '^.*-(\\d)+$'");
         }
-        return String.join("-", indexPrefix, String.valueOf(counter));
     }
 
-    static Set<Map.Entry<Condition, Boolean>> evaluateConditions(Set<Condition> conditions, long docCount, long indexAge) {
-        Set<Map.Entry<Condition, Boolean>> result = new HashSet<>(conditions.size());
-        for (Condition condition: conditions) {
-            if (condition instanceof Condition.MaxAge) {
-                Condition.MaxAge maxAge = (Condition.MaxAge) condition;
-                final TimeValue age = TimeValue.timeValueMillis(indexAge);
-                result.add(new AbstractMap.SimpleEntry<>(condition, maxAge.matches(age)));
-            } else if (condition instanceof Condition.MaxDocs) {
-                final Condition.MaxDocs maxDocs = (Condition.MaxDocs) condition;
-                result.add(new AbstractMap.SimpleEntry<>(condition, maxDocs.matches(docCount)));
-            } else {
-                throw new IllegalArgumentException("unknown condition [" + condition.getClass().getSimpleName() + "]");
-            }
-        }
-        return result;
+    static Set<Condition.Result> evaluateConditions(final Set<Condition> conditions,
+                                                    final DocsStats docsStats, final IndexMetaData metaData) {
+        final long numDocs = docsStats == null ? 0 : docsStats.getCount();
+        final Condition.Stats stats = new Condition.Stats(numDocs, metaData.getCreationDate());
+        return conditions.stream()
+            .map(condition -> condition.evaluate(stats))
+            .collect(Collectors.toSet());
     }
 
     static void validate(MetaData metaData, RolloverRequest request) {

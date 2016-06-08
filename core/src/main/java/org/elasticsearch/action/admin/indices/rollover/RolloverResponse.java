@@ -44,14 +44,16 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
     RolloverResponse() {
     }
 
-    RolloverResponse(String oldIndex, String newIndex, Set<Map.Entry<String, Boolean>> conditionStatus,
+    RolloverResponse(String oldIndex, String newIndex, Set<Condition.Result> conditionResults,
                      boolean simulate, boolean rolledOver, boolean rolloverIndexCreated) {
         this.oldIndex = oldIndex;
         this.newIndex = newIndex;
         this.simulate = simulate;
         this.rolledOver = rolledOver;
         this.rolloverIndexCreated = rolloverIndexCreated;
-        this.conditionStatus = conditionStatus;
+        this.conditionStatus = conditionResults.stream()
+            .map(result -> new AbstractMap.SimpleEntry<>(result.condition.toString(), result.matched))
+            .collect(Collectors.toSet());
     }
 
     public String getOldIndex() {

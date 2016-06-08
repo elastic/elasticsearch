@@ -25,9 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
 
-/**
- * TODO: Documentation
- */
 public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<RolloverRequest, RolloverResponse,
     RolloverRequestBuilder> {
     public RolloverRequestBuilder(ElasticsearchClient client, RolloverAction action) {

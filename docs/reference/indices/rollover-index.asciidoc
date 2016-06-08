@@ -1,0 +1,84 @@
+[[indices-rollover-index]]
+== Rollover Index
+
+The rollover index API allows to switch the index pointed to by an alias given some predicates.
+In order to rollover an index, the provided alias has to point to a single index. Upon satisfying
+any of the predicates, the alias is switched to point to a new index, creating the index if it
+does not exist. The rollover API requires the old concrete index name to have `{index_prefix}-{num}`
+format, as rollover index name is generated following `{index_prefix}-{num+1}` format.
+
+This API is syntactic sugar for changing the index pointed to by an alias given some predicate.
+
+The rollover API must be used against an alias that points to a single index:
+
+[source,js]
+--------------------------------------------------
+$ curl -XPUT 'http://localhost:9200/index-1/' -d '{
+    "aliases" : {
+        "index_alias": {}
+    }
+}'
+--------------------------------------------------
+
+To rollover `index_alias` to point to a new index:
+
+[source,js]
+--------------------------------------------------
+$ curl -XPOST 'http://localhost:9200/index_alias/_rollover' -d '{
+    "conditions" : {
+        "max_age": "7d", <1>
+        "max_docs": 1000 <2>
+    }
+}'
+--------------------------------------------------
+<1> Sets a condition that the index has to be at least 7 days old
+<2> Sets a condition that the index has to have at least a 1000 documents
+
+The API call above switches the index pointed to by `index_alias` from `index-1` to `index-2`, if any
+of the conditions are met. If `index-2` does not exist, it is created (using matching <<indices-templates>>
+if available). The API call returns immediately if none of the conditions are met.
+
+The `_rollover` API is similar to <<indices-create-index>> and accepts `settings`, `mappings` and `aliases`
+to override the index create request for a non-existent rolled over index.
+
+[source,js]
+--------------------------------------------------
+$ curl -XPOST 'http://localhost:9200/index_alias/_rollover' -d '{
+    "conditions" : {
+        "max_age": "7d",
+        "max_docs": 1000
+    },
+    "settings": { <1>
+        "index.number_of_shards": 2
+    }
+}'
+--------------------------------------------------
+<1> Set settings to override matching index template, `mappings` and `aliases` can also be provided.
+
+Using the http `GET` method for the API runs the rollover in simulated mode, where request conditions can be
+checked without performing the actual rollover. Setting `simulate=true` as a request parameter also runs
+the request in simulated mode.
+
+An example response for the index rollover API:
+
+[source,js]
+--------------------------------------------------
+{
+	"old_index": "index-1", <1>
+	"new_index": "index-2", <2>
+	"rolled_over": true, <3>
+	"simulated": false, <4>
+	"rollover_index_created": true, <5>
+	"conditions": { <6>
+	    "[max_age: 7d]": true,
+	    "[max_docs: 1000]": true
+	}
+}
+--------------------------------------------------
+<1> name of the index the alias was pointing to
+<2> name of the index the alias currently points to
+<3> whether the alias switch was successful
+<4> whether the rollover was dry run
+<5> whether the rolled over index had to be explicitly created
+<6> status of the evaluated request conditions
+

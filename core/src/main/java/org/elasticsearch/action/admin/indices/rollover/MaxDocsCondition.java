@@ -24,6 +24,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Condition for maximum index docs. Evaluates to <code>true</code>
+ * when the index has at least {@link #value} docs
+ */
 public class MaxDocsCondition extends Condition<Long> {
     public final static String NAME = "max_docs";
 

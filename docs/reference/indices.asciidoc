@@ -16,6 +16,7 @@ index settings, aliases, mappings, and index templates.
 * <<indices-exists>>
 * <<indices-open-close>>
 * <<indices-shrink-index>>
+* <<indices-rollover-index>>
 
 [float]
 [[mapping-management]]

@@ -51,7 +51,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * Main class to swap the index pointed to by an alias, given some predicates
+ * Main class to swap the index pointed to by an alias, given some conditions
  */
 public class TransportRolloverAction extends TransportMasterNodeAction<RolloverRequest, RolloverResponse> {
 

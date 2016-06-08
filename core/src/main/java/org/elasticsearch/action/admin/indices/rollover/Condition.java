@@ -27,12 +27,17 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 
 import java.util.Set;
 
+/**
+ * Base class for rollover request conditions
+ */
 public abstract class Condition<T> implements NamedWriteable {
+
     public static ObjectParser<Set<Condition>, ParseFieldMatcherSupplier> PARSER =
         new ObjectParser<>("conditions", null);
     static {
         PARSER.declareString((conditions, s) ->
-            conditions.add(new MaxAgeCondition(TimeValue.parseTimeValue(s, MaxAgeCondition.NAME))), new ParseField(MaxAgeCondition.NAME));
+            conditions.add(new MaxAgeCondition(TimeValue.parseTimeValue(s, MaxAgeCondition.NAME))),
+            new ParseField(MaxAgeCondition.NAME));
         PARSER.declareLong((conditions, value) ->
             conditions.add(new MaxDocsCondition(value)), new ParseField(MaxDocsCondition.NAME));
     }
@@ -51,6 +56,9 @@ public abstract class Condition<T> implements NamedWriteable {
         return "[" + name + ": " + value + "]";
     }
 
+    /**
+     * Holder for index stats used to evaluate conditions
+     */
     public static class Stats {
         public final long numDocs;
         public final long indexCreated;
@@ -61,6 +69,9 @@ public abstract class Condition<T> implements NamedWriteable {
         }
     }
 
+    /**
+     * Holder for evaluated condition result
+     */
     public static class Result {
         public final Condition condition;
         public final boolean matched;

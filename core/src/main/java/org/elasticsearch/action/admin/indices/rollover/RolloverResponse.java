@@ -56,26 +56,44 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
             .collect(Collectors.toSet());
     }
 
+    /**
+     * Returns the name of the index that the request alias was pointing to
+     */
     public String getOldIndex() {
         return oldIndex;
     }
 
+    /**
+     * Returns the name of the index that the request alias currently points to
+     */
     public String getNewIndex() {
         return newIndex;
     }
 
+    /**
+     * Returns the statuses of all the request conditions
+     */
     public Set<Map.Entry<String, Boolean>> getConditionStatus() {
         return conditionStatus;
     }
 
+    /**
+     * Returns if the rollover execution was skipped even when conditions were met
+     */
     public boolean isSimulate() {
         return simulate;
     }
 
+    /**
+     * Returns if the rollover was not simulated and the conditions were met
+     */
     public boolean isRolledOver() {
         return rolledOver;
     }
 
+    /**
+     * Returns if the rollover index had to be explicitly created
+     */
     public boolean isRolloverIndexCreated() {
         return rolloverIndexCreated;
     }

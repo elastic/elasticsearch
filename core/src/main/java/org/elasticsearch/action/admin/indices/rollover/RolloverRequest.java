@@ -45,24 +45,18 @@ import java.util.Set;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * Request class to swap index under an alias given some predicates
- * TODO: documentation
+ * Request class to swap index under an alias upon satisfying conditions
  */
 public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest {
-
-    private String alias;
-    private boolean simulate;
-    private Set<Condition> conditions = new HashSet<>(2);
-    private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
     public static ObjectParser<RolloverRequest, ParseFieldMatcherSupplier> PARSER =
         new ObjectParser<>("conditions", null);
     static {
         PARSER.declareField((parser, request, parseFieldMatcherSupplier) ->
-            Condition.PARSER.parse(parser, request.conditions, parseFieldMatcherSupplier),
+                Condition.PARSER.parse(parser, request.conditions, parseFieldMatcherSupplier),
             new ParseField("conditions"), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, parseFieldMatcherSupplier) ->
-            request.createIndexRequest.settings(parser.map()),
+                request.createIndexRequest.settings(parser.map()),
             new ParseField("settings"), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, parseFieldMatcherSupplier) -> {
             for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
@@ -71,9 +65,14 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             }
         }, new ParseField("mappings"), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, parseFieldMatcherSupplier) ->
-            request.createIndexRequest.aliases(parser.map()),
+                request.createIndexRequest.aliases(parser.map()),
             new ParseField("aliases"), ObjectParser.ValueType.OBJECT);
     }
+
+    private String alias;
+    private boolean simulate;
+    private Set<Condition> conditions = new HashSet<>(2);
+    private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
     RolloverRequest() {}
 
@@ -128,40 +127,56 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
+    /**
+     * Sets the alias to rollover to another index
+     */
     public void setAlias(String alias) {
         this.alias = alias;
     }
 
+    /**
+     * Sets if the rollover should not be executed when conditions are met
+     */
     public void simulate(boolean simulate) {
         this.simulate = simulate;
     }
 
+    /**
+     * Adds condition to check if the index is at least <code>age</code> old
+     */
     public void addMaxIndexAgeCondition(TimeValue age) {
         this.conditions.add(new MaxAgeCondition(age));
     }
 
-    public void addMaxIndexDocsCondition(long docs) {
-        this.conditions.add(new MaxDocsCondition(docs));
+    /**
+     * Adds condition to check if the index has at least <code>numDocs</code>
+     */
+    public void addMaxIndexDocsCondition(long numDocs) {
+        this.conditions.add(new MaxDocsCondition(numDocs));
     }
 
-    public boolean isSimulate() {
+    /**
+     * Sets rollover index creation request to override index settings when
+     * the rolled over index has to be created
+     */
+    public void setCreateIndexRequest(CreateIndexRequest createIndexRequest) {
+        this.createIndexRequest = Objects.requireNonNull(createIndexRequest, "create index request must not be null");;
+    }
+
+    boolean isSimulate() {
         return simulate;
     }
 
-    public Set<Condition> getConditions() {
+    Set<Condition> getConditions() {
         return conditions;
     }
 
-    public String getAlias() {
+    String getAlias() {
         return alias;
     }
 
-    public CreateIndexRequest getCreateIndexRequest() {
+    CreateIndexRequest getCreateIndexRequest() {
         return createIndexRequest;
-    }
-
-    public void setCreateIndexRequest(CreateIndexRequest createIndexRequest) {
-        this.createIndexRequest = Objects.requireNonNull(createIndexRequest, "create index request must not be null");;
     }
 
     public void source(BytesReference source) {

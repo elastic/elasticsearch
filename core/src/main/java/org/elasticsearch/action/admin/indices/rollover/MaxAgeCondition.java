@@ -25,6 +25,10 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
+/**
+ * Condition for index maximum age. Evaluates to <code>true</code>
+ * when the index is at least {@link #value} old
+ */
 public class MaxAgeCondition extends Condition<TimeValue> {
     public final static String NAME = "max_age";
 

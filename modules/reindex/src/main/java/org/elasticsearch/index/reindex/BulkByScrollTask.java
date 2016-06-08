@@ -408,23 +408,8 @@ public class BulkByScrollTask extends CancellableTask {
         // Synchronize so we are less likely to schedule the same request twice.
         synchronized (delayedPrepareBulkRequestReference) {
             TimeValue delay = throttleWaitTime(lastBatchStartTime, lastBatchSize);
-            AbstractRunnable oneTime = new AbstractRunnable() {
-                private final AtomicBoolean hasRun = new AtomicBoolean(false);
-
-                @Override
-                protected void doRun() throws Exception {
-                    // Paranoia to prevent furiously rethrottling from running the command multiple times. Without this we totally can.
-                    if (hasRun.compareAndSet(false, true)) {
-                        prepareBulkRequestRunnable.run();
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable t) {
-                    prepareBulkRequestRunnable.onFailure(t);
-                }
-            };
-            delayedPrepareBulkRequestReference.set(new DelayedPrepareBulkRequest(threadPool, getRequestsPerSecond(), delay, oneTime));
+            delayedPrepareBulkRequestReference.set(new DelayedPrepareBulkRequest(threadPool, getRequestsPerSecond(),
+                    delay, new RunOnce(prepareBulkRequestRunnable)));
         }
     }
 
@@ -538,6 +523,31 @@ public class BulkByScrollTask extends CancellableTask {
                 return timeValueNanos(0);
             }
             return timeValueNanos(round(remainingDelay * requestsPerSecond / newRequestsPerSecond));
+        }
+    }
+
+    /**
+     * Runnable that can only be run one time. This is paranoia to prevent furiously rethrottling from running the command multiple times.
+     * Without it the command would be run multiple times.
+     */
+    private static class RunOnce extends AbstractRunnable {
+        private final AtomicBoolean hasRun = new AtomicBoolean(false);
+        private final AbstractRunnable delegate;
+
+        public RunOnce(AbstractRunnable delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            if (hasRun.compareAndSet(false, true)) {
+                delegate.run();
+            }
+        }
+
+        @Override
+        public void onFailure(Throwable t) {
+            delegate.onFailure(t);
         }
     }
 }

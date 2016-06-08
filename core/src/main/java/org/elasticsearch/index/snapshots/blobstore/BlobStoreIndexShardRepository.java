@@ -23,6 +23,8 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -49,7 +51,6 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
@@ -458,7 +459,9 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             }
             if (latest >= 0) {
                 try {
-                    return new Tuple<>(indexShardSnapshotsFormat.read(blobContainer, Integer.toString(latest)), latest);
+                    final BlobStoreIndexShardSnapshots shardSnapshots =
+                        indexShardSnapshotsFormat.read(blobContainer, Integer.toString(latest));
+                    return new Tuple<>(shardSnapshots, latest);
                 } catch (IOException e) {
                     logger.warn("failed to read index file  [{}]", e, SNAPSHOT_INDEX_PREFIX + latest);
                 }
@@ -503,10 +506,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         public SnapshotContext(SnapshotId snapshotId, ShardId shardId, IndexShardSnapshotStatus snapshotStatus) {
             super(snapshotId, Version.CURRENT, shardId);
-            IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-            store = indexService.getShardOrNull(shardId.id()).store();
             this.snapshotStatus = snapshotStatus;
-
+            store = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id()).store();
         }
 
         /**
@@ -788,8 +789,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         public RestoreContext(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
             super(snapshotId, version, shardId, snapshotShardId);
-            store = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id()).store();
             this.recoveryState = recoveryState;
+            store = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id()).store();
         }
 
         /**
@@ -800,6 +801,25 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             try {
                 logger.debug("[{}] [{}] restoring to [{}] ...", snapshotId, repositoryName, shardId);
                 BlobStoreIndexShardSnapshot snapshot = loadSnapshot();
+
+                if (snapshot.indexFiles().size() == 1
+                    && snapshot.indexFiles().get(0).physicalName().startsWith("segments_")
+                    && snapshot.indexFiles().get(0).metadata().checksum().equals(StoreFileMetaData.UNKNOWN_CHECKSUM)) {
+                    // If the shard has no documents, it will only contain a single segments_N file for the
+                    // shard's snapshot.  If we are restoring a snapshot created by a previous supported version,
+                    // it is still possible that in that version, an empty shard has a segments_N file with an unsupported
+                    // version (and no checksum), because we don't know the Lucene version to assign segments_N until we
+                    // have written some data.  Since the segments_N for an empty shard could have an incompatible Lucene
+                    // version number and no checksum, even though the index itself is perfectly fine to restore, this
+                    // empty shard would cause exceptions to be thrown.  Since there is no data to restore from an empty
+                    // shard anyway, we just create the empty shard here and then exit.
+                    IndexWriter writer = new IndexWriter(store.directory(), new IndexWriterConfig(null)
+                                                                                .setOpenMode(IndexWriterConfig.OpenMode.CREATE)
+                                                                                .setCommitOnClose(true));
+                    writer.close();
+                    return;
+                }
+
                 SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
                 final Store.MetadataSnapshot recoveryTargetMetadata;
                 try {

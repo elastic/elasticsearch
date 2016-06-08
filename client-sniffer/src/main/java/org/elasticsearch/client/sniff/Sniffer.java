@@ -22,8 +22,6 @@ package org.elasticsearch.client.sniff;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpHost;
-import org.apache.http.config.Registry;
-import org.apache.http.impl.client.CloseableHttpClient;
 import org.elasticsearch.client.RestClient;
 
 import java.io.Closeable;
@@ -145,8 +143,8 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
     /**
      * Returns a new {@link Builder} to help with {@link Sniffer} creation.
      */
-    public static Builder builder() {
-        return new Builder();
+    public static Builder builder(RestClient restClient) {
+        return new Builder(restClient);
     }
 
     /**
@@ -157,15 +155,19 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
         public static final long DEFAULT_SNIFF_AFTER_FAILURE_DELAY = TimeUnit.MINUTES.toMillis(1);
         public static final long DEFAULT_SNIFF_REQUEST_TIMEOUT = TimeUnit.SECONDS.toMillis(1);
 
+        private final RestClient restClient;
         private long sniffRequestTimeout = DEFAULT_SNIFF_REQUEST_TIMEOUT;
         private long sniffInterval = DEFAULT_SNIFF_INTERVAL;
         private boolean sniffOnFailure = true;
         private long sniffAfterFailureDelay = DEFAULT_SNIFF_AFTER_FAILURE_DELAY;
         private String scheme = "http";
-        private RestClient restClient;
 
-        private Builder() {
-
+        /**
+         * Creates a new builder instance and sets the {@link RestClient} that will be used to communicate with elasticsearch.
+         */
+        private Builder(RestClient restClient) {
+            Objects.requireNonNull(restClient, "restClient cannot be null");
+            this.restClient = restClient;
         }
 
         /**
@@ -202,23 +204,12 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
         }
 
         /**
-         * Sets the http client. Mandatory argument. Best practice is to use the same client used
-         * within {@link org.elasticsearch.client.RestClient} which can be created manually or
-         * through {@link RestClient.Builder#createDefaultHttpClient(Registry)}.
-         * @see CloseableHttpClient
-         */
-        public Builder setRestClient(RestClient restClient) {
-            this.restClient = restClient;
-            return this;
-        }
-
-        /**
          * Sets the sniff request timeout to be passed in as a query string parameter to elasticsearch.
          * Allows to halt the request without any failure, as only the nodes that have responded
          * within this timeout will be returned.
          */
         public Builder setSniffRequestTimeout(int sniffRequestTimeout) {
-            if (sniffRequestTimeout <=0) {
+            if (sniffRequestTimeout <= 0) {
                 throw new IllegalArgumentException("sniffRequestTimeout must be greater than 0");
             }
             this.sniffRequestTimeout = sniffRequestTimeout;
@@ -242,7 +233,6 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
          * Creates the {@link Sniffer} based on the provided configuration.
          */
         public Sniffer build() {
-            Objects.requireNonNull(restClient, "restClient cannot be null");
             return new Sniffer(restClient, sniffRequestTimeout, scheme, sniffInterval, sniffOnFailure, sniffAfterFailureDelay);
         }
     }

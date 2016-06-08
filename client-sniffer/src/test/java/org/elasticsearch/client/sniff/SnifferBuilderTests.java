@@ -35,63 +35,60 @@ public class SnifferBuilderTests extends LuceneTestCase {
     }
 
     public void testBuild() throws Exception {
-
-        try {
-            Sniffer.builder().setScheme(null);
-            fail("should have failed");
-        } catch(NullPointerException e) {
-            assertEquals(e.getMessage(), "scheme cannot be null");
-        }
-
-        try {
-            Sniffer.builder().setScheme("whatever");
-            fail("should have failed");
-        } catch(IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "scheme must be either http or https");
-        }
-
-        try {
-            Sniffer.builder().setSniffInterval(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
-            fail("should have failed");
-        } catch(IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "sniffInterval must be greater than 0");
-        }
-
-        try {
-            Sniffer.builder().setSniffRequestTimeout(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
-            fail("should have failed");
-        } catch(IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "sniffRequestTimeout must be greater than 0");
-        }
-
-        try {
-            Sniffer.builder().setSniffAfterFailureDelay(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
-            fail("should have failed");
-        } catch(IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "sniffAfterFailureDelay must be greater than 0");
-        }
-
-        try {
-            Sniffer.builder().build();
-            fail("should have failed");
-        } catch(NullPointerException e) {
-            assertEquals(e.getMessage(), "restClient cannot be null");
-        }
-
         int numNodes = RandomInts.randomIntBetween(random(), 1, 5);
         HttpHost[] hosts = new HttpHost[numNodes];
         for (int i = 0; i < numNodes; i++) {
             hosts[i] = new HttpHost("localhost", 9200 + i);
         }
-
         try (RestClient client = RestClient.builder().setHosts(hosts).build()) {
-            try (Sniffer sniffer = Sniffer.builder().setRestClient(client).build()) {
+
+            try {
+                Sniffer.builder(client).setScheme(null);
+                fail("should have failed");
+            } catch(NullPointerException e) {
+                assertEquals(e.getMessage(), "scheme cannot be null");
+            }
+
+            try {
+                Sniffer.builder(client).setScheme("whatever");
+                fail("should have failed");
+            } catch(IllegalArgumentException e) {
+                assertEquals(e.getMessage(), "scheme must be either http or https");
+            }
+
+            try {
+                Sniffer.builder(client).setSniffInterval(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
+                fail("should have failed");
+            } catch(IllegalArgumentException e) {
+                assertEquals(e.getMessage(), "sniffInterval must be greater than 0");
+            }
+
+            try {
+                Sniffer.builder(client).setSniffRequestTimeout(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
+                fail("should have failed");
+            } catch(IllegalArgumentException e) {
+                assertEquals(e.getMessage(), "sniffRequestTimeout must be greater than 0");
+            }
+
+            try {
+                Sniffer.builder(client).setSniffAfterFailureDelay(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
+                fail("should have failed");
+            } catch(IllegalArgumentException e) {
+                assertEquals(e.getMessage(), "sniffAfterFailureDelay must be greater than 0");
+            }
+
+            try {
+                Sniffer.builder(null).build();
+                fail("should have failed");
+            } catch(NullPointerException e) {
+                assertEquals(e.getMessage(), "restClient cannot be null");
+            }
+
+            try (Sniffer sniffer = Sniffer.builder(client).build()) {
                 assertNotNull(sniffer);
             }
-        }
 
-        try (RestClient client = RestClient.builder().setHosts(hosts).build()) {
-            Sniffer.Builder builder = Sniffer.builder().setRestClient(client);
+            Sniffer.Builder builder = Sniffer.builder(client);
             if (random().nextBoolean()) {
                 builder.setScheme(RandomPicks.randomFrom(random(), Arrays.asList("http", "https")));
             }

@@ -22,6 +22,7 @@ package org.elasticsearch.ingest.core;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -99,7 +100,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
         Processor processor = mock(Processor.class);
         ProcessorsRegistry.Builder builder = new ProcessorsRegistry.Builder();
         builder.registerProcessor("test_processor", (registry) -> config -> processor);
-        ProcessorsRegistry registry = builder.build(TestTemplateService.instance(), null);
+        ProcessorsRegistry registry = builder.build(mock(ScriptService.class));
 
 
         List<Map<String, Map<String, Object>>> config = new ArrayList<>();

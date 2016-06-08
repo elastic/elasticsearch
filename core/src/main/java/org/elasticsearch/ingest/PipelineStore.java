@@ -66,10 +66,8 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
         super(settings);
     }
 
-    public void buildProcessorFactoryRegistry(ProcessorsRegistry.Builder processorsRegistryBuilder, ScriptService scriptService,
-                                              ClusterService clusterService) {
-        TemplateService templateService = new InternalTemplateService(scriptService);
-        this.processorRegistry = processorsRegistryBuilder.build(templateService, clusterService);
+    public void buildProcessorFactoryRegistry(ProcessorsRegistry.Builder processorsRegistryBuilder, ScriptService scriptService) {
+        this.processorRegistry = processorsRegistryBuilder.build(scriptService);
     }
 
     @Override

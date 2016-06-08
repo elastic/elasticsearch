@@ -87,7 +87,7 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.version = version;
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
-        this.ingestService = new IngestService(settings, threadPool, processorsRegistryBuilder, clusterService);
+        this.ingestService = new IngestService(settings, threadPool, processorsRegistryBuilder);
         this.settingsFilter = settingsFilter;
         clusterService.add(ingestService.getPipelineStore());
         clusterService.add(ingestService.getPipelineExecutionService());

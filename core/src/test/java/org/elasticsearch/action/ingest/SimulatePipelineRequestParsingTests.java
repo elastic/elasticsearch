@@ -27,6 +27,7 @@ import org.elasticsearch.ingest.core.CompoundProcessor;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Pipeline;
 import org.elasticsearch.ingest.core.Processor;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -59,7 +60,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         Pipeline pipeline = new Pipeline(SIMULATED_PIPELINE_ID, null, pipelineCompoundProcessor);
         ProcessorsRegistry.Builder processorRegistryBuilder = new ProcessorsRegistry.Builder();
         processorRegistryBuilder.registerProcessor("mock_processor", ((registry) -> mock(Processor.Factory.class)));
-        ProcessorsRegistry processorRegistry = processorRegistryBuilder.build(TestTemplateService.instance(), null);
+        ProcessorsRegistry processorRegistry = processorRegistryBuilder.build(mock(ScriptService.class));
         store = mock(PipelineStore.class);
         when(store.get(SIMULATED_PIPELINE_ID)).thenReturn(pipeline);
         when(store.getProcessorRegistry()).thenReturn(processorRegistry);

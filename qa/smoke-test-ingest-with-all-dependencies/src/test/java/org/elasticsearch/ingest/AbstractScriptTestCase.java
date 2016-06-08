@@ -38,6 +38,7 @@ import java.util.Collections;
 public abstract class AbstractScriptTestCase extends ESTestCase {
 
     protected TemplateService templateService;
+    protected ScriptService scriptService;
 
     @Before
     public void init() throws Exception {
@@ -54,7 +55,7 @@ public abstract class AbstractScriptTestCase extends ESTestCase {
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
 
-        ScriptService scriptService = new ScriptService(settings, new Environment(settings), Sets.newSet(mustache, painless), null,
+        scriptService = new ScriptService(settings, new Environment(settings), Sets.newSet(mustache, painless), null,
                 scriptEngineRegistry, scriptContextRegistry, scriptSettings);
         templateService = new InternalTemplateService(scriptService);
     }

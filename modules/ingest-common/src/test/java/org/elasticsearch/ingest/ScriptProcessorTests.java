@@ -19,14 +19,9 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.ingest.core.IngestDocument;
-import org.elasticsearch.ingest.core.Processor;
-import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -43,8 +38,6 @@ public class ScriptProcessorTests extends ESTestCase {
 
     public void testScripting() throws Exception {
         int randomInt = randomInt();
-        ClusterService clusterService = mock(ClusterService.class);
-
         ScriptService scriptService = mock(ScriptService.class);
         CompiledScript compiledScript = mock(CompiledScript.class);
         when(scriptService.compile(any(), any(), any(), any())).thenReturn(compiledScript);
@@ -52,8 +45,8 @@ public class ScriptProcessorTests extends ESTestCase {
         when(scriptService.executable(any(), any())).thenReturn(executableScript);
         when(executableScript.run()).thenReturn(randomInt);
 
-        ScriptProcessor processor = new ScriptProcessor(randomAsciiOfLength(10), mock(Script.class),
-            scriptService, clusterService, "bytes_total");
+        ScriptProcessor processor = new ScriptProcessor(randomAsciiOfLength(10), compiledScript,
+            scriptService, "bytes_total");
 
         Map<String, Object> document = new HashMap<>();
         document.put("bytes_in", 1234);

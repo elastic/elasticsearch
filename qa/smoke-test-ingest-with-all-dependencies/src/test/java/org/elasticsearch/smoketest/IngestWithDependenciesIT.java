@@ -27,9 +27,9 @@ import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
 
-public class IngestWithMustacheIT extends ESRestTestCase {
+public class IngestWithDependenciesIT extends ESRestTestCase {
 
-    public IngestWithMustacheIT(@Name("yaml") RestTestCandidate testCandidate) {
+    public IngestWithDependenciesIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);
     }
 

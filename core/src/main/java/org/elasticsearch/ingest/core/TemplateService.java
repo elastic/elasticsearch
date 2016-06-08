@@ -30,7 +30,6 @@ import java.util.Map;
 public interface TemplateService {
 
     Template compile(String template);
-    ScriptService getScriptService();
 
     interface Template {
 

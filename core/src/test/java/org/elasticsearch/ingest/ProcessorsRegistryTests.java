@@ -19,10 +19,12 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 public class ProcessorsRegistryTests extends ESTestCase {
 
@@ -40,7 +42,7 @@ public class ProcessorsRegistryTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("Processor factory already registered for name [1]"));
         }
 
-        ProcessorsRegistry registry = builder.build(TestTemplateService.instance(), null);
+        ProcessorsRegistry registry = builder.build(mock(ScriptService.class));
         assertThat(registry.getProcessorFactories().size(), equalTo(2));
         assertThat(registry.getProcessorFactory("1"), sameInstance(factory1));
         assertThat(registry.getProcessorFactory("2"), sameInstance(factory2));

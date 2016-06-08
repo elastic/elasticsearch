@@ -36,6 +36,7 @@ import org.elasticsearch.ingest.core.IngestInfo;
 import org.elasticsearch.ingest.core.Pipeline;
 import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.ingest.core.ProcessorInfo;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -51,6 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class PipelineStoreTests extends ESTestCase {
 
@@ -99,7 +101,7 @@ public class PipelineStoreTests extends ESTestCase {
                 }
             };
         });
-        store.buildProcessorFactoryRegistry(registryBuilder, null, null);
+        store.buildProcessorFactoryRegistry(registryBuilder, mock(ScriptService.class));
     }
 
     public void testUpdatePipelines() {

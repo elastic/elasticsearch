@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -36,6 +37,7 @@ import java.util.Map;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class PipelineFactoryTests extends ESTestCase {
 
@@ -156,6 +158,6 @@ public class PipelineFactoryTests extends ESTestCase {
         for (Map.Entry<String, Processor.Factory> entry : processorRegistry.entrySet()) {
             builder.registerProcessor(entry.getKey(), ((registry) -> entry.getValue()));
         }
-        return builder.build(TestTemplateService.instance(), null);
+        return builder.build(mock(ScriptService.class));
     }
 }

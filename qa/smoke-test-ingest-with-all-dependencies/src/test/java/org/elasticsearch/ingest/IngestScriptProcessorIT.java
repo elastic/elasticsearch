@@ -31,31 +31,30 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IngestScriptProcessorIT extends AbstractScriptTestCase {
 
-    public void testMustache() throws Exception {
-        Processor processor = createScriptProcessor("_value {{field}}", "mustache");
+    public void testInlineMustache() throws Exception {
+        Processor processor = createScriptProcessor("_value {{field}}", "mustache", "inline");
         IngestDocument ingestDocument = createIngestDocument(Collections.singletonMap("field", "value"));
         processor.execute(ingestDocument);
     }
 
-    public void testPainless() throws Exception {
-        Processor processor = createScriptProcessor("input.get(\"ctx\").put(\"field\",\"wow\"); return \"returned_val\";", "painless");
+    public void testInlinePainless() throws Exception {
+        Processor processor = createScriptProcessor("ctx.put(\"field\",\"wow\"); return \"returned_val\";", "painless", "inline");
         IngestDocument ingestDocument = createIngestDocument(Collections.singletonMap("field", "cool"));
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("returned", String.class), equalTo("returned_val"));
         assertThat(ingestDocument.getFieldValue("field", String.class), equalTo("wow"));
     }
 
-    private ScriptProcessor createScriptProcessor(String script, String scriptLang) throws Exception {
-        ScriptProcessor.Factory factory = new ScriptProcessor.Factory(templateService.getScriptService(), null);
+    private ScriptProcessor createScriptProcessor(String script, String scriptLang, String type) throws Exception {
+        ScriptProcessor.Factory factory = new ScriptProcessor.Factory(scriptService);
         Map<String, Object> config = new HashMap<>();
-        config.put("script", script);
+        config.put(type, script);
         config.put("lang", scriptLang);
-        config.put("return_field", "returned");
+        config.put("field", "returned");
         return factory.create(config);
     }
 
     private IngestDocument createIngestDocument(Map<String, Object> source) {
         return new IngestDocument("_index", "_type", "_id", null, null, null, null, source);
     }
-
 }

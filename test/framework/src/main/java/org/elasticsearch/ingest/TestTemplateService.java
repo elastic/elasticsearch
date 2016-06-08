@@ -19,16 +19,9 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.core.TemplateService;
-import org.elasticsearch.script.*;
 
-import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
-
-import static org.apache.lucene.util.LuceneTestCase.createTempDir;
 
 public class TestTemplateService implements TemplateService {
 
@@ -42,25 +35,6 @@ public class TestTemplateService implements TemplateService {
     @Override
     public Template compile(String template) {
         return new MockTemplate(template);
-    }
-
-    @Override
-    public ScriptService getScriptService() {
-        Settings settings = Settings.builder()
-            .put("path.home", createTempDir())
-            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
-            .build();
-        ScriptEngineService mustache = new MockScriptEngine();
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(
-            new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.NAME, true)));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        try {
-            return new ScriptService(settings, new Environment(settings), Collections.singleton(mustache), null,
-                scriptEngineRegistry, scriptContextRegistry, scriptSettings);
-        } catch (IOException e) {
-            return null;
-        }
     }
 
     public static class MockTemplate implements TemplateService.Template {

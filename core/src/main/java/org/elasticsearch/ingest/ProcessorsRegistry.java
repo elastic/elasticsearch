@@ -20,9 +20,7 @@
 package org.elasticsearch.ingest;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.ingest.core.Processor;
-import org.elasticsearch.ingest.core.ProcessorInfo;
 import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.script.ScriptService;
 
@@ -33,32 +31,31 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public final class ProcessorsRegistry implements Closeable {
 
     private final Map<String, Processor.Factory> processorFactories;
     private final TemplateService templateService;
-    private final ClusterService clusterService;
+    private final ScriptService scriptService;
 
-    private ProcessorsRegistry(TemplateService templateService, ClusterService clusterService,
+    private ProcessorsRegistry(ScriptService scriptService,
                                Map<String, Function<ProcessorsRegistry, Processor.Factory<?>>> providers) {
+        this.templateService = new InternalTemplateService(scriptService);
+        this.scriptService = scriptService;
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
         for (Map.Entry<String, Function<ProcessorsRegistry, Processor.Factory<?>>> entry : providers.entrySet()) {
             processorFactories.put(entry.getKey(), entry.getValue().apply(this));
         }
         this.processorFactories = Collections.unmodifiableMap(processorFactories);
-        this.templateService = templateService;
-        this.clusterService = clusterService;
     }
 
     public TemplateService getTemplateService() {
         return templateService;
     }
 
-    public ClusterService getClusterService() {
-        return clusterService;
+    public ScriptService getScriptService() {
+        return scriptService;
     }
 
     public Processor.Factory getProcessorFactory(String name) {
@@ -95,8 +92,8 @@ public final class ProcessorsRegistry implements Closeable {
             }
         }
 
-        public ProcessorsRegistry build(TemplateService templateService, ClusterService clusterService) {
-            return new ProcessorsRegistry(templateService, clusterService, providers);
+        public ProcessorsRegistry build(ScriptService scriptService) {
+            return new ProcessorsRegistry(scriptService, providers);
         }
 
     }

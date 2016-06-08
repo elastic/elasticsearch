@@ -50,16 +50,14 @@ public final class ScriptProcessor extends AbstractProcessor {
 
     public static final String TYPE = "script";
 
-    private final Script script;
+    private final CompiledScript compiledScript;
     private final ScriptService scriptService;
-    private final ClusterService clusterService;
     private final String field;
 
-    ScriptProcessor(String tag, Script script, ScriptService scriptService, ClusterService clusterService, String field)  {
+    ScriptProcessor(String tag, CompiledScript compiledScript, ScriptService scriptService, String field)  {
         super(tag);
-        this.script = script;
+        this.compiledScript = compiledScript;
         this.scriptService = scriptService;
-        this.clusterService = clusterService;
         this.field = field;
     }
 
@@ -67,7 +65,6 @@ public final class ScriptProcessor extends AbstractProcessor {
     public void execute(IngestDocument document) {
         Map<String, Object> vars = new HashMap<>();
         vars.put("ctx", document.getSourceAndMetadata());
-        CompiledScript compiledScript = scriptService.compile(script, ScriptContext.Standard.INGEST, emptyMap(), clusterService.state());
         ExecutableScript executableScript = scriptService.executable(compiledScript, vars);
         Object value = executableScript.run();
         if (field != null) {
@@ -83,11 +80,9 @@ public final class ScriptProcessor extends AbstractProcessor {
     public static final class Factory extends AbstractProcessorFactory<ScriptProcessor> {
 
         private final ScriptService scriptService;
-        private final ClusterService clusterService;
 
-        public Factory(ScriptService scriptService, ClusterService clusterService) {
+        public Factory(ScriptService scriptService) {
             this.scriptService = scriptService;
-            this.clusterService = clusterService;
         }
 
         @Override
@@ -96,17 +91,15 @@ public final class ScriptProcessor extends AbstractProcessor {
             String lang = readStringProperty(TYPE, processorTag, config, "lang");
             String inline = readOptionalStringProperty(TYPE, processorTag, config, "inline");
             String file = readOptionalStringProperty(TYPE, processorTag, config, "file");
-            String id = readOptionalStringProperty(TYPE, processorTag, config, "id");
 
-            boolean containsNoScript = !hasLength(file) && !hasLength(id) && !hasLength(inline);
+            boolean containsNoScript = !hasLength(file) && !hasLength(inline);
             if (containsNoScript) {
-                throw newConfigurationException(TYPE, processorTag, null, "Need [file], [id] or [inline] parameter to refer to scripts");
+                throw newConfigurationException(TYPE, processorTag, null, "Need [file] or [inline] parameter to refer to scripts");
             }
 
-            boolean moreThanOneConfigured = (Strings.hasLength(file) && Strings.hasLength(id)) ||
-                (Strings.hasLength(file) && Strings.hasLength(inline)) || (Strings.hasLength(id) && Strings.hasLength(inline));
+            boolean moreThanOneConfigured = Strings.hasLength(file) && Strings.hasLength(inline);
             if (moreThanOneConfigured) {
-                throw newConfigurationException(TYPE, processorTag, null, "Only one of [file], [id] or [inline] may be configured");
+                throw newConfigurationException(TYPE, processorTag, null, "Only [file] or [inline] may be configured");
             }
 
             final Script script;
@@ -114,13 +107,13 @@ public final class ScriptProcessor extends AbstractProcessor {
                 script = new Script(file, FILE, lang, emptyMap());
             } else if (Strings.hasLength(inline)) {
                 script = new Script(inline, INLINE, lang, emptyMap());
-            } else if (Strings.hasLength(id)) {
-                script = new Script(id, STORED, lang, emptyMap());
             } else {
                 throw newConfigurationException(TYPE, processorTag, null, "Could not initialize script");
             }
 
-            return new ScriptProcessor(processorTag, script, scriptService, clusterService, field);
+            CompiledScript compiledScript = scriptService.compile(script, ScriptContext.Standard.INGEST, emptyMap(), null);
+
+            return new ScriptProcessor(processorTag, compiledScript, scriptService, field);
         }
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -27,6 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class ScriptProcessorFactoryTests extends ESTestCase {
 
@@ -34,16 +36,16 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
 
     @Before
     public void init() {
-        factory = new ScriptProcessor.Factory(TestTemplateService.instance().getScriptService(), null);
+        factory = new ScriptProcessor.Factory(mock(ScriptService.class));
     }
 
 
     public void testFactoryValidationForMultipleScriptingTypes() throws Exception {
         Map<String, Object> configMap = new HashMap<>();
-        String randomType = randomFrom("id", "inline", "file");
-        String otherRandomType = randomFrom("id", "inline", "file");
+        String randomType = randomFrom("inline", "file");
+        String otherRandomType = randomFrom("inline", "file");
         while (randomType.equals(otherRandomType)) {
-            otherRandomType = randomFrom("id", "inline", "file");
+            otherRandomType = randomFrom("inline", "file");
         }
 
         configMap.put(randomType, "foo");
@@ -54,7 +56,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
             () -> factory.doCreate(randomAsciiOfLength(10), configMap));
 
-        assertThat(exception.getMessage(), is("[null] Only one of [file], [id] or [inline] may be configured"));
+        assertThat(exception.getMessage(), is("[null] Only [file] or [inline] may be configured"));
     }
 
     public void testFactoryValidationAtLeastOneScriptingType() throws Exception {
@@ -65,6 +67,6 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
             () -> factory.doCreate(randomAsciiOfLength(10), configMap));
 
-        assertThat(exception.getMessage(), is("[null] Need [file], [id] or [inline] parameter to refer to scripts"));
+        assertThat(exception.getMessage(), is("[null] Need [file] or [inline] parameter to refer to scripts"));
     }
 }

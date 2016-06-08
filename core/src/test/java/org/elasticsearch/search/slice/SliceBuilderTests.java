@@ -90,7 +90,6 @@ public class SliceBuilderTests extends ESTestCase {
 
     private final SliceBuilder randomSliceBuilder() throws IOException {
         int max = randomIntBetween(2, MAX_SLICE);
-        if (max == 0) max++;
         int id = randomInt(max - 1);
         String field = randomAsciiOfLengthBetween(5, 20);
         return new SliceBuilder(field, id, max);
@@ -279,8 +278,8 @@ public class SliceBuilderTests extends ESTestCase {
             assertThat(total, equalTo(numSlices));
 
             // numShards > numSlices
-            numShards = randomIntBetween(3, 100);
-            numSlices = randomInt(numShards-1);
+            numShards = randomIntBetween(4, 100);
+            numSlices = randomIntBetween(2, numShards-1);
             List<Integer> targetShards = new ArrayList<>();
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {

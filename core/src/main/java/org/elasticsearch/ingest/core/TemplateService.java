@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.ingest.core;
 
-import org.elasticsearch.script.ScriptService;
-
 import java.util.Map;
 
 /**

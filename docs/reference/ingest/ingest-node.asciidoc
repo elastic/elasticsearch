@@ -1271,9 +1271,20 @@ Script Processor allows inline and stored scripts to be executed within Ingest P
 | `field`                | yes       | -       | The field to set
 | `lang`                 | no        | -       | The scripting language
 | `file`                 | no        | -       | The script file to refer to
-| `id`                   | no        | -       | The script id to load a script from the cluster state
 | `inline`               | no        | -       | An inline script to be executed
 |======
+
+[source,js]
+--------------------------------------------------
+{
+  "script": {
+    "field": "field_32",
+    "lang": "painless",
+    "inline": "return 32"
+  }
+}
+--------------------------------------------------
+
 
 [[set-processor]]
 === Set Processor

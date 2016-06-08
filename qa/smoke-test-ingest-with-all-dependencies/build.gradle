@@ -31,6 +31,6 @@ integTest {
     cluster {
         plugin 'ingest-geoip', project(':plugins:ingest-geoip')
         setting 'script.inline', 'true'
-        setting 'script.stored', 'true'
+        setting 'path.scripts', "${project.buildDir}/resources/test/scripts"
     }
 }

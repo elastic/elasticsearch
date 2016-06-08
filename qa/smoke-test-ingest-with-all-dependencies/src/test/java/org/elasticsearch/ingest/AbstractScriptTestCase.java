@@ -22,7 +22,6 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.core.TemplateService;
-import org.elasticsearch.painless.PainlessScriptEngineService;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
@@ -38,7 +37,6 @@ import java.util.Collections;
 public abstract class AbstractScriptTestCase extends ESTestCase {
 
     protected TemplateService templateService;
-    protected ScriptService scriptService;
 
     @Before
     public void init() throws Exception {
@@ -47,15 +45,13 @@ public abstract class AbstractScriptTestCase extends ESTestCase {
             .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
             .build();
         MustacheScriptEngineService mustache = new MustacheScriptEngineService(settings);
-        PainlessScriptEngineService painless = new PainlessScriptEngineService(settings);
 
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(
-            new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.NAME, true),
-            new ScriptEngineRegistry.ScriptEngineRegistration(PainlessScriptEngineService.class, PainlessScriptEngineService.NAME, true)));
+            new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.NAME, true)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
 
-        scriptService = new ScriptService(settings, new Environment(settings), Sets.newSet(mustache, painless), null,
+        ScriptService scriptService = new ScriptService(settings, new Environment(settings), Sets.newSet(mustache), null,
                 scriptEngineRegistry, scriptContextRegistry, scriptSettings);
         templateService = new InternalTemplateService(scriptService);
     }

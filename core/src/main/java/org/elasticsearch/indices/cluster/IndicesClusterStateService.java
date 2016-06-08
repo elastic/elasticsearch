@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.cluster;
 
-import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Predicate;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -33,9 +32,12 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
@@ -49,7 +51,12 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardRecoveryException;
+import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.shard.StoreRecoveryService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -58,9 +65,13 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -244,7 +255,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         if (routingNode == null) {
             return;
         }
-        IntHashSet newShardIds = new IntHashSet();
+
+        HashMap<String, Set<Integer>> shardsByIndex = new HashMap<>();
+        for (ShardRouting shard : routingNode) {
+            Set<Integer> set = shardsByIndex.get(shard.index());
+            if (set == null) {
+                set = new HashSet<>();
+                shardsByIndex.put(shard.index(), set);
+            }
+            set.add(shard.id());
+        }
+
         for (IndexService indexService : indicesService) {
             String index = indexService.index().name();
             IndexMetaData indexMetaData = event.state().metaData().index(index);
@@ -252,11 +273,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 continue;
             }
             // now, go over and delete shards that needs to get deleted
-            newShardIds.clear();
-            for (ShardRouting shard : routingNode) {
-                if (shard.index().equals(index)) {
-                    newShardIds.add(shard.id());
-                }
+            Set<Integer> newShardIds = shardsByIndex.get(index);
+            if (newShardIds == null) {
+                newShardIds = Collections.emptySet();
             }
             for (Integer existingShardId : indexService.shardIds()) {
                 if (!newShardIds.contains(existingShardId)) {

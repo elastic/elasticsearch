@@ -131,16 +131,7 @@ final class StoreRecovery {
     }
 
     final void addIndices(RecoveryState.Index indexRecoveryStats, Directory target, Directory... sources) throws IOException {
-        /*
-         * TODO: once we upgraded to Lucene 6.1 use HardlinkCopyDirectoryWrapper to enable hardlinks if possible and enable it
-         * in the security.policy:
-         *
-         * grant codeBase "${codebase.lucene-misc-6.1.0.jar}" {
-         *  // needed to allow shard shrinking to use hard-links if possible via lucenes HardlinkCopyDirectoryWrapper
-         *  permission java.nio.file.LinkPermission "hard";
-         * };
-         * target = new org.apache.lucene.store.HardlinkCopyDirectoryWrapper(target);
-         */
+        target = new org.apache.lucene.store.HardlinkCopyDirectoryWrapper(target);
         try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(target, indexRecoveryStats),
             new IndexWriterConfig(null)
                 .setCommitOnClose(false)

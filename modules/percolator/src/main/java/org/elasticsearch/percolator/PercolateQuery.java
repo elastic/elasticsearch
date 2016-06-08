@@ -243,7 +243,7 @@ public final class PercolateQuery extends Query implements Accountable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (sameClassAs(o) == false) return false;
 
         PercolateQuery that = (PercolateQuery) o;
 
@@ -254,7 +254,7 @@ public final class PercolateQuery extends Query implements Accountable {
 
     @Override
     public int hashCode() {
-        int result = super.hashCode();
+        int result = classHash();
         result = 31 * result + documentType.hashCode();
         result = 31 * result + documentSource.hashCode();
         return result;

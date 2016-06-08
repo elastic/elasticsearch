@@ -355,7 +355,7 @@ public class FiltersFunctionScoreQuery extends Query {
         if (this == o) {
             return true;
         }
-        if (super.equals(o) == false) {
+        if (sameClassAs(o) == false) {
             return false;
         }
         FiltersFunctionScoreQuery other = (FiltersFunctionScoreQuery) o;
@@ -367,6 +367,6 @@ public class FiltersFunctionScoreQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), subQuery, maxBoost, combineFunction, minScore, scoreMode, Arrays.hashCode(filterFunctions));
+        return Objects.hash(classHash(), subQuery, maxBoost, combineFunction, minScore, scoreMode, Arrays.hashCode(filterFunctions));
     }
 }

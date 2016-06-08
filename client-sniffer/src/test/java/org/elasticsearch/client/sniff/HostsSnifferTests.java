@@ -97,8 +97,7 @@ public class HostsSnifferTests extends LuceneTestCase {
             } catch(ElasticsearchResponseException e) {
                 ElasticsearchResponse response = e.getElasticsearchResponse();
                 if (sniffResponse.isFailure) {
-                    assertThat(e.getMessage(), containsString("GET http://localhost:" + httpServer.getAddress().getPort() +
-                            "/_nodes/http?timeout=" + sniffRequestTimeout));
+                    assertThat(e.getMessage(), containsString("GET " + httpHost + "/_nodes/http?timeout=" + sniffRequestTimeout + "ms"));
                     assertThat(e.getMessage(), containsString(Integer.toString(sniffResponse.nodesInfoResponseCode)));
                     assertThat(response.getHost(), equalTo(httpHost));
                     assertThat(response.getStatusLine().getStatusCode(), equalTo(sniffResponse.nodesInfoResponseCode));
@@ -185,20 +184,22 @@ public class HostsSnifferTests extends LuceneTestCase {
                 }
                 generator.writeEndObject();
             }
-            String[] roles = {"master", "data", "ingest"};
-            int numRoles = RandomInts.randomIntBetween(random(), 0, 3);
-            Set<String> nodeRoles = new HashSet<>(numRoles);
-            for (int j = 0; j < numRoles; j++) {
-                String role;
-                do {
-                    role = RandomPicks.randomFrom(random(), roles);
-                } while(nodeRoles.add(role) == false);
+            if (random().nextBoolean()) {
+                String[] roles = {"master", "data", "ingest"};
+                int numRoles = RandomInts.randomIntBetween(random(), 0, 3);
+                Set<String> nodeRoles = new HashSet<>(numRoles);
+                for (int j = 0; j < numRoles; j++) {
+                    String role;
+                    do {
+                        role = RandomPicks.randomFrom(random(), roles);
+                    } while(nodeRoles.add(role) == false);
+                }
+                generator.writeArrayFieldStart("roles");
+                for (String nodeRole : nodeRoles) {
+                    generator.writeString(nodeRole);
+                }
+                generator.writeEndArray();
             }
-            generator.writeArrayFieldStart("roles");
-            for (String nodeRole : nodeRoles) {
-                generator.writeString(nodeRole);
-            }
-            generator.writeEndArray();
             int numAttributes = RandomInts.randomIntBetween(random(), 0, 3);
             Map<String, String> attributes = new HashMap<>(numAttributes);
             for (int j = 0; j < numAttributes; j++) {

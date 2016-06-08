@@ -38,9 +38,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Class responsible for sniffing the http hosts from elasticsearch through the nodes info api and returning them back
+ * Class responsible for sniffing the http hosts from elasticsearch through the nodes info api and returning them back.
+ * Compatible with elasticsearch 5.x and 2.x.
  */
-//TODO This could potentially be using _cat/nodes which wouldn't require jackson as a dependency, but we'd have bw comp problems with 2.x
 public class HostsSniffer {
 
     private static final Log logger = LogFactory.getLog(HostsSniffer.class);

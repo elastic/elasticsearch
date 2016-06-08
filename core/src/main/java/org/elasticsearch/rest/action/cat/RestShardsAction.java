@@ -301,7 +301,7 @@ public class RestShardsAction extends AbstractCatAction {
 
             table.addCell(shardStats == null || shardStats.getSeqNoStats() == null ? null : shardStats.getSeqNoStats().getMaxSeqNo());
             table.addCell(shardStats == null || shardStats.getSeqNoStats() == null ? null : shardStats.getSeqNoStats().getLocalCheckpoint());
-            table.addCell(commitStats == null || shardStats.getSeqNoStats() == null ? null : shardStats.getSeqNoStats().getMaxSeqNo());
+            table.addCell(commitStats == null || shardStats.getSeqNoStats() == null ? null : shardStats.getSeqNoStats().getGlobalCheckpoint());
 
             table.addCell(commonStats == null ? null : commonStats.getWarmer().current());
             table.addCell(commonStats == null ? null : commonStats.getWarmer().total());

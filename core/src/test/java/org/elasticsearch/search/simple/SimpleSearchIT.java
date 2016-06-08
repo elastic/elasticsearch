@@ -443,6 +443,6 @@ public class SimpleSearchIT extends ESIntegTestCase {
         assertThat(e.toString(), containsString("Rescore window [" + windowSize + "] is too large. It must "
                 + "be less than [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY)));
         assertThat(e.toString(), containsString(
-                "This limit can be set by chaining the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey() + "] index level setting."));
+                "This limit can be set by changing the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey() + "] index level setting."));
     }
 }

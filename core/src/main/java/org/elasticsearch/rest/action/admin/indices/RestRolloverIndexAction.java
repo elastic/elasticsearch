@@ -37,16 +37,14 @@ public class RestRolloverIndexAction extends BaseRestHandler {
     @Inject
     public RestRolloverIndexAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
-        controller.registerHandler(RestRequest.Method.POST, "/{alias}/_rollover", this);
-        controller.registerHandler(RestRequest.Method.GET, "/{alias}/_rollover", this);
+        controller.registerHandler(RestRequest.Method.POST, "/{index}/_rollover", this);
+        controller.registerHandler(RestRequest.Method.GET, "/{index}/_rollover", this);
     }
 
+    @SuppressWarnings({"unchecked"})
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
-        if (request.param("alias") == null) {
-            throw new IllegalArgumentException("no alias");
-        }
-        RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("alias"));
+        RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("index"));
         if (request.hasContent()) {
             rolloverIndexRequest.source(request.content());
         }

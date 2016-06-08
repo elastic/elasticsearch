@@ -96,7 +96,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                    final ActionListener<RolloverResponse> listener) {
         final MetaData metaData = state.metaData();
         validate(metaData, rolloverRequest);
-        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(rolloverRequest.getSourceAlias());
+        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(rolloverRequest.getAlias());
         final IndexMetaData indexMetaData = aliasOrIndex.getIndices().get(0);
         final String sourceIndexName = indexMetaData.getIndex().getName();
         client.admin().indices().prepareStats(sourceIndexName).clear().setDocs(true).execute(
@@ -173,8 +173,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             .ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout());
         AliasAction[] actions = new AliasAction[2];
-        actions[0] = new AliasAction(AliasAction.Type.ADD, newIndex, request.getSourceAlias());
-        actions[1] = new AliasAction(AliasAction.Type.REMOVE, oldIndex, request.getSourceAlias());
+        actions[0] = new AliasAction(AliasAction.Type.ADD, newIndex, request.getAlias());
+        actions[1] = new AliasAction(AliasAction.Type.REMOVE, oldIndex, request.getAlias());
         updateRequest.actions(actions);
         return updateRequest;
     }
@@ -201,7 +201,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     }
 
     static void validate(MetaData metaData, RolloverRequest request) {
-        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(request.getSourceAlias());
+        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(request.getAlias());
         if (aliasOrIndex == null) {
             throw new IllegalArgumentException("source alias does not exist");
         }

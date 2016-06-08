@@ -50,7 +50,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest {
 
-    private String sourceAlias;
+    private String alias;
     private boolean simulate;
     private Set<Condition> conditions = new HashSet<>(2);
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
@@ -77,15 +77,15 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     RolloverRequest() {}
 
-    public RolloverRequest(String sourceAlias) {
-        this.sourceAlias = sourceAlias;
+    public RolloverRequest(String alias) {
+        this.alias = alias;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = createIndexRequest == null ? null : createIndexRequest.validate();
-        if (sourceAlias == null) {
-            validationException = addValidationError("source alias is missing", validationException);
+        if (alias == null) {
+            validationException = addValidationError("index alias is missing", validationException);
         }
         if (createIndexRequest == null) {
             validationException = addValidationError("create index request is missing", validationException);
@@ -96,7 +96,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        sourceAlias = in.readString();
+        alias = in.readString();
         simulate = in.readBoolean();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -109,7 +109,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(sourceAlias);
+        out.writeString(alias);
         out.writeBoolean(simulate);
         out.writeVInt(conditions.size());
         for (Condition condition : conditions) {
@@ -120,7 +120,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     @Override
     public String[] indices() {
-        return new String[] {sourceAlias};
+        return new String[] {alias};
     }
 
     @Override
@@ -128,8 +128,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
-    public void setSourceAlias(String sourceAlias) {
-        this.sourceAlias = sourceAlias;
+    public void setAlias(String alias) {
+        this.alias = alias;
     }
 
     public void simulate(boolean simulate) {
@@ -152,8 +152,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return conditions;
     }
 
-    public String getSourceAlias() {
-        return sourceAlias;
+    public String getAlias() {
+        return alias;
     }
 
     public CreateIndexRequest getCreateIndexRequest() {

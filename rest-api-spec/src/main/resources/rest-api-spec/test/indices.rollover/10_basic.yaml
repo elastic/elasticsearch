@@ -3,10 +3,8 @@
   # create index with alias
   - do:
       indices.create:
-        index: logs
+        index: logs-1
         body:
-          settings:
-            number_of_replicas: "0"
           aliases:
             logs_index: {}
             logs_search: {}
@@ -14,7 +12,7 @@
   # index document
   - do:
       index:
-        index: logs
+        index: logs-1
         type:  test
         id:    "1"
         body:  { "foo": "hello world" }
@@ -25,7 +23,7 @@
         type:  test
         id:    "1"
 
-  - match: { _index:   logs }
+  - match: { _index:   logs-1 }
   - match: { _type:    test   }
   - match: { _id:      "1"     }
   - match: { _source:  { foo: "hello world" } }
@@ -33,37 +31,46 @@
   # perform alias rollover
   - do:
     indices.rollover:
-      alias: "logs_search"
+      index: "logs_search"
       body:
-        condition.max_docs: 1
+        conditions:
+          max_docs: 1
 
-  - match: { old_index: logs }
-  - match: { new_index: logs-1 }
+  - match: { old_index: logs-1 }
+  - match: { new_index: logs-2 }
+  - match: { rolled_over: true }
+  - match: { rollover_index_created: true }
+  - match: { simulated: false }
+  - match: { conditions: { "[max_docs: 1]": true } }
 
   # ensure new index is created
   - do:
       indices.exists:
-        index: logs-1
+        index: logs-2
 
   - is_true: ''
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
 
   # index into new index
   - do:
       index:
-        index: logs-1
+        index: logs-2
         type:  test
         id:    "2"
         body:  { "foo": "hello world" }
 
+  - do:
+      indices.refresh: {}
+
   # check alias points to the new index
   - do:
-      get:
+      search:
         index: logs_search
         type:  test
-        id:    "2"
 
-  - match: { _index:   logs-1 }
-  - match: { _type:    test   }
-  - match: { _id:      "2"     }
-  - match: { _source:  { foo: "hello world" } }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._index: "logs-2"}
 

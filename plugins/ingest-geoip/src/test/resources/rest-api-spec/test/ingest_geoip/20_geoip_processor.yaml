@@ -98,7 +98,7 @@
               {
                 "geoip" : {
                   "field" : "field1",
-                  "database_file" : "GeoLite2-Country.mmdb"
+                  "database_file" : "GeoLite2-Country.mmdb.gz"
                 }
               }
             ]

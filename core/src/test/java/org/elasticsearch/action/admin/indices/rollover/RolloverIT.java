@@ -34,65 +34,65 @@ import static org.hamcrest.Matchers.equalTo;
 public class RolloverIT extends ESIntegTestCase {
 
     public void testRolloverOnEmptyIndex() throws Exception {
-        assertAcked(prepareCreate("test_index").addAlias(new Alias("test_alias")).get());
+        assertAcked(prepareCreate("test_index-1").addAlias(new Alias("test_alias")).get());
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
-        assertThat(response.getOldIndex(), equalTo("test_index"));
-        assertThat(response.getNewIndex(), equalTo("test_index-1"));
+        assertThat(response.getOldIndex(), equalTo("test_index-1"));
+        assertThat(response.getNewIndex(), equalTo("test_index-2"));
         assertThat(response.isSimulate(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.isRolloverIndexCreated(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final IndexMetaData oldIndex = state.metaData().index("test_index");
+        final IndexMetaData oldIndex = state.metaData().index("test_index-1");
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));
-        final IndexMetaData newIndex = state.metaData().index("test_index-1");
+        final IndexMetaData newIndex = state.metaData().index("test_index-2");
         assertTrue(newIndex.getAliases().containsKey("test_alias"));
     }
 
     public void testRollover() throws Exception {
-        assertAcked(prepareCreate("test_index").addAlias(new Alias("test_alias")).get());
-        index("test_index", "type1", "1", "field", "value");
-        flush("test_index");
+        assertAcked(prepareCreate("test_index-2").addAlias(new Alias("test_alias")).get());
+        index("test_index-2", "type1", "1", "field", "value");
+        flush("test_index-2");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
-        assertThat(response.getOldIndex(), equalTo("test_index"));
-        assertThat(response.getNewIndex(), equalTo("test_index-1"));
+        assertThat(response.getOldIndex(), equalTo("test_index-2"));
+        assertThat(response.getNewIndex(), equalTo("test_index-3"));
         assertThat(response.isSimulate(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.isRolloverIndexCreated(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final IndexMetaData oldIndex = state.metaData().index("test_index");
+        final IndexMetaData oldIndex = state.metaData().index("test_index-2");
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));
-        final IndexMetaData newIndex = state.metaData().index("test_index-1");
+        final IndexMetaData newIndex = state.metaData().index("test_index-3");
         assertTrue(newIndex.getAliases().containsKey("test_alias"));
     }
 
     public void testRolloverSimulate() throws Exception {
-        assertAcked(prepareCreate("test_index").addAlias(new Alias("test_alias")).get());
-        index("test_index", "type1", "1", "field", "value");
-        flush("test_index");
+        assertAcked(prepareCreate("test_index-1").addAlias(new Alias("test_alias")).get());
+        index("test_index-1", "type1", "1", "field", "value");
+        flush("test_index-1");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").simulate(true).get();
-        assertThat(response.getOldIndex(), equalTo("test_index"));
-        assertThat(response.getNewIndex(), equalTo("test_index-1"));
+        assertThat(response.getOldIndex(), equalTo("test_index-1"));
+        assertThat(response.getNewIndex(), equalTo("test_index-2"));
         assertThat(response.isSimulate(), equalTo(true));
         assertThat(response.isRolledOver(), equalTo(false));
         assertThat(response.isRolloverIndexCreated(), equalTo(false));
         assertThat(response.getConditionStatus().size(), equalTo(0));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final IndexMetaData oldIndex = state.metaData().index("test_index");
+        final IndexMetaData oldIndex = state.metaData().index("test_index-1");
         assertTrue(oldIndex.getAliases().containsKey("test_alias"));
-        final IndexMetaData newIndex = state.metaData().index("test_index-1");
+        final IndexMetaData newIndex = state.metaData().index("test_index-2");
         assertNull(newIndex);
     }
 
     public void testRolloverConditionsNotMet() throws Exception {
-        assertAcked(prepareCreate("test_index").addAlias(new Alias("test_alias")).get());
-        index("test_index", "type1", "1", "field", "value");
-        flush("test_index");
+        assertAcked(prepareCreate("test_index-0").addAlias(new Alias("test_alias")).get());
+        index("test_index-0", "type1", "1", "field", "value");
+        flush("test_index-0");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
             .addMaxIndexAgeCondition(TimeValue.timeValueHours(4)).get();
-        assertThat(response.getOldIndex(), equalTo("test_index"));
-        assertThat(response.getNewIndex(), equalTo("test_index"));
+        assertThat(response.getOldIndex(), equalTo("test_index-0"));
+        assertThat(response.getNewIndex(), equalTo("test_index-0"));
         assertThat(response.isSimulate(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(false));
         assertThat(response.isRolloverIndexCreated(), equalTo(false));
@@ -101,26 +101,26 @@ public class RolloverIT extends ESIntegTestCase {
         assertThat(conditionEntry.getKey(), equalTo(new MaxAgeCondition(TimeValue.timeValueHours(4)).toString()));
         assertThat(conditionEntry.getValue(), equalTo(false));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final IndexMetaData oldIndex = state.metaData().index("test_index");
+        final IndexMetaData oldIndex = state.metaData().index("test_index-0");
         assertTrue(oldIndex.getAliases().containsKey("test_alias"));
         final IndexMetaData newIndex = state.metaData().index("test_index-1");
         assertNull(newIndex);
     }
 
     public void testRolloverOnExistingIndex() throws Exception {
-        assertAcked(prepareCreate("test_index").addAlias(new Alias("test_alias")).get());
-        index("test_index", "type1", "1", "field", "value");
+        assertAcked(prepareCreate("test_index-0").addAlias(new Alias("test_alias")).get());
+        index("test_index-0", "type1", "1", "field", "value");
         assertAcked(prepareCreate("test_index-1").get());
         index("test_index-1", "type1", "1", "field", "value");
-        flush("test_index", "test_index-1");
+        flush("test_index-0", "test_index-1");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
-        assertThat(response.getOldIndex(), equalTo("test_index"));
+        assertThat(response.getOldIndex(), equalTo("test_index-0"));
         assertThat(response.getNewIndex(), equalTo("test_index-1"));
         assertThat(response.isSimulate(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.isRolloverIndexCreated(), equalTo(false));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final IndexMetaData oldIndex = state.metaData().index("test_index");
+        final IndexMetaData oldIndex = state.metaData().index("test_index-0");
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));
         final IndexMetaData newIndex = state.metaData().index("test_index-1");
         assertTrue(newIndex.getAliases().containsKey("test_alias"));

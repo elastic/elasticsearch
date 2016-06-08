@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
  */
 public class TransportRolloverAction extends TransportMasterNodeAction<RolloverRequest, RolloverResponse> {
 
+    private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-(\\d)+$");
     private final MetaDataCreateIndexService createIndexService;
     private final MetaDataIndexAliasesService indexAliasesService;
     private final Client client;
@@ -110,7 +111,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                 false));
                         return;
                     }
-                    if (conditionResults.stream().anyMatch(result -> result.matched)) {
+                    if (conditionResults.size() == 0 || conditionResults.stream().anyMatch(result -> result.matched)) {
                         boolean createRolloverIndex = metaData.index(rolloverIndexName) == null;
                         final RolloverResponse rolloverResponse =
                             new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, false, true,
@@ -118,23 +119,20 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                         if (createRolloverIndex) {
                             CreateIndexClusterStateUpdateRequest updateRequest =
                                 prepareCreateIndexRequest(rolloverIndexName, rolloverRequest);
-                            createIndexService.createIndex(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
-                                @Override
-                                public void onResponse(ClusterStateUpdateResponse response) {
-                                    indexAliasesService.indicesAliases(
-                                        prepareIndicesAliasesRequest(sourceIndexName, rolloverIndexName, rolloverRequest),
-                                        new IndicesAliasesListener(rolloverResponse, listener));
-                                }
+                            createIndexService.createIndex(updateRequest,
+                                new ActionListener<ClusterStateUpdateResponse>() {
+                                    @Override
+                                    public void onResponse(ClusterStateUpdateResponse response) {
+                                        rollover(rolloverRequest, rolloverResponse, listener);
+                                    }
 
-                                @Override
-                                public void onFailure(Throwable t) {
-                                    listener.onFailure(t);
-                                }
-                            });
+                                    @Override
+                                    public void onFailure(Throwable t) {
+                                        listener.onFailure(t);
+                                    }
+                                });
                         } else {
-                            indexAliasesService.indicesAliases(
-                                prepareIndicesAliasesRequest(sourceIndexName, rolloverIndexName, rolloverRequest),
-                                new IndicesAliasesListener(rolloverResponse, listener));
+                            rollover(rolloverRequest, rolloverResponse, listener);
                         }
                     } else {
                         // conditions not met
@@ -153,42 +151,35 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         );
     }
 
+    private void rollover(final RolloverRequest request, final RolloverResponse response,
+                          ActionListener<RolloverResponse> listener) {
+        indexAliasesService.indicesAliases(
+            prepareRolloverAliasesUpdateRequest(response.getOldIndex(), response.getNewIndex(), request),
+            new ActionListener<ClusterStateUpdateResponse>() {
+                @Override
+                public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+                    listener.onResponse(response);
+                }
 
-
-    private static final class IndicesAliasesListener implements ActionListener<ClusterStateUpdateResponse> {
-
-        private final ActionListener<RolloverResponse> listener;
-        private final RolloverResponse response;
-
-        public IndicesAliasesListener(RolloverResponse response, ActionListener<RolloverResponse> listener) {
-            this.response = response;
-            this.listener = listener;
-        }
-
-        @Override
-        public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
-            listener.onResponse(response);
-        }
-
-        @Override
-        public void onFailure(Throwable e) {
-            listener.onFailure(e);
-        }
+                @Override
+                public void onFailure(Throwable e) {
+                    listener.onFailure(e);
+                }
+            });
     }
 
-    static IndicesAliasesClusterStateUpdateRequest prepareIndicesAliasesRequest(String concreteSourceIndex, String targetIndex,
-                                                                                RolloverRequest request) {
+    static IndicesAliasesClusterStateUpdateRequest prepareRolloverAliasesUpdateRequest(String oldIndex, String newIndex,
+                                                                                       RolloverRequest request) {
         final IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest()
             .ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout());
         AliasAction[] actions = new AliasAction[2];
-        actions[0] = new AliasAction(AliasAction.Type.ADD, targetIndex, request.getSourceAlias());
-        actions[1] = new AliasAction(AliasAction.Type.REMOVE, concreteSourceIndex, request.getSourceAlias());
+        actions[0] = new AliasAction(AliasAction.Type.ADD, newIndex, request.getSourceAlias());
+        actions[1] = new AliasAction(AliasAction.Type.REMOVE, oldIndex, request.getSourceAlias());
         updateRequest.actions(actions);
         return updateRequest;
     }
 
-    static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-(\\d)+$");
 
     static String generateRolloverIndexName(String sourceIndexName) {
         if (INDEX_NAME_PATTERN.matcher(sourceIndexName).matches()) {

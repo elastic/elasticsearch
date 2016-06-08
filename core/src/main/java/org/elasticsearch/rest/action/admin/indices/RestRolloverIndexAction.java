@@ -44,7 +44,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         if (request.param("alias") == null) {
-            throw new IllegalArgumentException("no source alias");
+            throw new IllegalArgumentException("no alias");
         }
         RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("alias"));
         if (request.hasContent()) {

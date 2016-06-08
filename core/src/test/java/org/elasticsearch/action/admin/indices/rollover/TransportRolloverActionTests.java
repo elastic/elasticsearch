@@ -32,10 +32,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
@@ -96,7 +93,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         String targetIndex = randomAsciiOfLength(10);
         final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias);
         final IndicesAliasesClusterStateUpdateRequest updateRequest =
-            TransportRolloverAction.prepareIndicesAliasesRequest(sourceIndex, targetIndex, rolloverRequest);
+            TransportRolloverAction.prepareRolloverAliasesUpdateRequest(sourceIndex, targetIndex, rolloverRequest);
 
         final AliasAction[] actions = updateRequest.actions();
         assertThat(actions.length, equalTo(2));

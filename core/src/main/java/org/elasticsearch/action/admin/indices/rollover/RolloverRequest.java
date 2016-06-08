@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
@@ -37,6 +38,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -50,13 +53,26 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private String sourceAlias;
     private boolean simulate;
     private Set<Condition> conditions = new HashSet<>(2);
+    private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
-    public static ObjectParser<Set<Condition>, ParseFieldMatcherSupplier> TLP_PARSER =
+    public static ObjectParser<RolloverRequest, ParseFieldMatcherSupplier> PARSER =
         new ObjectParser<>("conditions", null);
     static {
-        TLP_PARSER.declareField((parser, conditions, parseFieldMatcherSupplier) ->
-        Condition.PARSER.parse(parser, conditions,  () -> ParseFieldMatcher.EMPTY),
+        PARSER.declareField((parser, request, parseFieldMatcherSupplier) ->
+            Condition.PARSER.parse(parser, request.conditions, parseFieldMatcherSupplier),
             new ParseField("conditions"), ObjectParser.ValueType.OBJECT);
+        PARSER.declareField((parser, request, parseFieldMatcherSupplier) ->
+            request.createIndexRequest.settings(parser.map()),
+            new ParseField("settings"), ObjectParser.ValueType.OBJECT);
+        PARSER.declareField((parser, request, parseFieldMatcherSupplier) -> {
+            for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
+                request.createIndexRequest.mapping(mappingsEntry.getKey(),
+                    (Map<String, Object>) mappingsEntry.getValue());
+            }
+        }, new ParseField("mappings"), ObjectParser.ValueType.OBJECT);
+        PARSER.declareField((parser, request, parseFieldMatcherSupplier) ->
+            request.createIndexRequest.aliases(parser.map()),
+            new ParseField("aliases"), ObjectParser.ValueType.OBJECT);
     }
 
     RolloverRequest() {}
@@ -67,9 +83,12 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
+        ActionRequestValidationException validationException = createIndexRequest == null ? null : createIndexRequest.validate();
         if (sourceAlias == null) {
             validationException = addValidationError("source alias is missing", validationException);
+        }
+        if (createIndexRequest == null) {
+            validationException = addValidationError("create index request is missing", validationException);
         }
         return validationException;
     }
@@ -83,6 +102,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         for (int i = 0; i < size; i++) {
             this.conditions.add(in.readNamedWriteable(Condition.class));
         }
+        createIndexRequest = new CreateIndexRequest();
+        createIndexRequest.readFrom(in);
     }
 
     @Override
@@ -94,6 +115,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         for (Condition condition : conditions) {
             out.writeNamedWriteable(condition);
         }
+        createIndexRequest.writeTo(out);
     }
 
     @Override
@@ -134,11 +156,19 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return sourceAlias;
     }
 
+    public CreateIndexRequest getCreateIndexRequest() {
+        return createIndexRequest;
+    }
+
+    public void setCreateIndexRequest(CreateIndexRequest createIndexRequest) {
+        this.createIndexRequest = Objects.requireNonNull(createIndexRequest, "create index request must not be null");;
+    }
+
     public void source(BytesReference source) {
         XContentType xContentType = XContentFactory.xContentType(source);
         if (xContentType != null) {
             try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(source)) {
-                TLP_PARSER.parse(parser, this.conditions, () -> ParseFieldMatcher.EMPTY);
+                PARSER.parse(parser, this, () -> ParseFieldMatcher.EMPTY);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to parse source for rollover index", e);
             }

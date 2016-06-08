@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -117,9 +118,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                             new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, false, true,
                                 createRolloverIndex);
                         if (createRolloverIndex) {
-                            CreateIndexClusterStateUpdateRequest updateRequest =
-                                prepareCreateIndexRequest(rolloverIndexName, rolloverRequest);
-                            createIndexService.createIndex(updateRequest,
+                            createIndexService.createIndex(prepareCreateIndexRequest(rolloverIndexName, rolloverRequest),
                                 new ActionListener<ClusterStateUpdateResponse>() {
                                     @Override
                                     public void onResponse(ClusterStateUpdateResponse response) {
@@ -216,10 +215,18 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(final String targetIndexName,
                                                                           final RolloverRequest rolloverRequest) {
-        return new CreateIndexClusterStateUpdateRequest(rolloverRequest,
+
+        final CreateIndexRequest createIndexRequest = rolloverRequest.getCreateIndexRequest();
+        createIndexRequest.cause("rollover_index");
+        createIndexRequest.index(targetIndexName);
+        return new CreateIndexClusterStateUpdateRequest(createIndexRequest,
             "rollover_index", targetIndexName, true)
-            .ackTimeout(rolloverRequest.timeout())
-            .masterNodeTimeout(rolloverRequest.masterNodeTimeout());
+            .ackTimeout(createIndexRequest.timeout())
+            .masterNodeTimeout(createIndexRequest.masterNodeTimeout())
+            .settings(createIndexRequest.settings())
+            .aliases(createIndexRequest.aliases())
+            .customs(createIndexRequest.customs())
+            .mappings(createIndexRequest.mappings());
     }
 
 }

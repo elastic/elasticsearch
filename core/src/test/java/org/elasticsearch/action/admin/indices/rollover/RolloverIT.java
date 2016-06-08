@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -65,6 +66,32 @@ public class RolloverIT extends ESIntegTestCase {
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));
         final IndexMetaData newIndex = state.metaData().index("test_index-3");
         assertTrue(newIndex.getAliases().containsKey("test_alias"));
+    }
+
+    public void testRolloverWithIndexSettings() throws Exception {
+        assertAcked(prepareCreate("test_index-2").addAlias(new Alias("test_alias")).get());
+        index("test_index-2", "type1", "1", "field", "value");
+        flush("test_index-2");
+        final Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
+            .settings(settings).alias(new Alias("extra_alias")).get();
+        assertThat(response.getOldIndex(), equalTo("test_index-2"));
+        assertThat(response.getNewIndex(), equalTo("test_index-3"));
+        assertThat(response.isSimulate(), equalTo(false));
+        assertThat(response.isRolledOver(), equalTo(true));
+        assertThat(response.isRolloverIndexCreated(), equalTo(true));
+        assertThat(response.getConditionStatus().size(), equalTo(0));
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final IndexMetaData oldIndex = state.metaData().index("test_index-2");
+        assertFalse(oldIndex.getAliases().containsKey("test_alias"));
+        final IndexMetaData newIndex = state.metaData().index("test_index-3");
+        assertThat(newIndex.getNumberOfShards(), equalTo(1));
+        assertThat(newIndex.getNumberOfReplicas(), equalTo(0));
+        assertTrue(newIndex.getAliases().containsKey("test_alias"));
+        assertTrue(newIndex.getAliases().containsKey("extra_alias"));
     }
 
     public void testRolloverSimulate() throws Exception {

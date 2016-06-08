@@ -18,8 +18,10 @@
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
 
@@ -49,6 +51,21 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
 
     public RolloverRequestBuilder simulate(boolean simulate) {
         this.request.simulate(simulate);
+        return this;
+    }
+
+    public RolloverRequestBuilder settings(Settings settings) {
+        this.request.getCreateIndexRequest().settings(settings);
+        return this;
+    }
+
+    public RolloverRequestBuilder alias(Alias alias) {
+        this.request.getCreateIndexRequest().alias(alias);
+        return this;
+    }
+
+    public RolloverRequestBuilder mapping(String type, String source) {
+        this.request.getCreateIndexRequest().mapping(type, source);
         return this;
     }
 }

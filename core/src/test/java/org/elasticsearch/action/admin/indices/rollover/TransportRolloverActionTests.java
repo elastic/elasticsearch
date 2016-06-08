@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -85,7 +86,6 @@ public class TransportRolloverActionTests extends ESTestCase {
             }
         }
     }
-
 
     public void testCreateUpdateAliasRequest() throws Exception {
         String sourceAlias = randomAsciiOfLength(10);
@@ -157,5 +157,23 @@ public class TransportRolloverActionTests extends ESTestCase {
             equalTo(indexPrefix + "-" + (num + 1)));
         assertThat(TransportRolloverAction.generateRolloverIndexName("index-name-1"), equalTo("index-name-2"));
         assertThat(TransportRolloverAction.generateRolloverIndexName("index-name-2"), equalTo("index-name-3"));
+    }
+
+    public void testCreateIndexRequest() throws Exception {
+        String alias = randomAsciiOfLength(10);
+        String rolloverIndex = randomAsciiOfLength(10);
+        final RolloverRequest rolloverRequest = new RolloverRequest(alias);
+        final Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        rolloverRequest.getCreateIndexRequest().settings(settings);
+        final CreateIndexClusterStateUpdateRequest createIndexRequest =
+            TransportRolloverAction.prepareCreateIndexRequest(rolloverIndex, rolloverRequest);
+        assertThat(createIndexRequest.settings(), equalTo(settings));
+        assertThat(createIndexRequest.index(), equalTo(rolloverIndex));
+        assertThat(createIndexRequest.cause(), equalTo("rollover_index"));
     }
 }

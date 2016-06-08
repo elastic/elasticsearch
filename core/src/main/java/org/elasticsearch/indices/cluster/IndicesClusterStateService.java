@@ -71,7 +71,10 @@ import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -79,7 +82,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
  *
@@ -285,19 +288,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         if (routingNode == null) {
             return;
         }
-        Set<String> newShardAllocationIds = new HashSet<>();
+
+        final Map<Index, Set<String>> shardsByIndex = new HashMap<>();
+        for (ShardRouting shard : routingNode) {
+            shardsByIndex.computeIfAbsent(shard.index(), k -> new HashSet<>()).add(shard.allocationId().getId());
+        }
+
         for (IndexService indexService : indicesService) {
             Index index = indexService.index();
             IndexMetaData indexMetaData = event.state().metaData().index(index);
             assert indexMetaData != null : "local index doesn't have metadata, should have been cleaned up by applyDeletedIndices: " + index;
             // now, go over and delete shards that needs to get deleted
-            newShardAllocationIds.clear();
-            for (ShardRouting shard : routingNode) {
-                if (shard.index().equals(index)) {
-                    // use the allocation id and not object so we won't be influence by relocation targets
-                    newShardAllocationIds.add(shard.allocationId().getId());
-                }
-            }
+            Set<String> newShardAllocationIds = shardsByIndex.getOrDefault(index, Collections.emptySet());
             for (IndexShard existingShard : indexService) {
                 if (newShardAllocationIds.contains(existingShard.routingEntry().allocationId().getId()) == false) {
                     if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {

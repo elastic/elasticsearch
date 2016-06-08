@@ -289,9 +289,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             return;
         }
 
-        final Map<Index, List<ShardRouting>> shardsByIndex = new HashMap<>();
+        final Map<Index, Set<String>> shardsByIndex = new HashMap<>();
         for (ShardRouting shard : routingNode) {
-            shardsByIndex.computeIfAbsent(shard.index(), k -> new ArrayList<>()).add(shard);
+            shardsByIndex.computeIfAbsent(shard.index(), k -> new HashSet<>()).add(shard.allocationId().getId());
         }
 
         for (IndexService indexService : indicesService) {
@@ -299,12 +299,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             IndexMetaData indexMetaData = event.state().metaData().index(index);
             assert indexMetaData != null : "local index doesn't have metadata, should have been cleaned up by applyDeletedIndices: " + index;
             // now, go over and delete shards that needs to get deleted
-            Set<String> newShardAllocationIds =
-                shardsByIndex
-                    .getOrDefault(index, Collections.emptyList())
-                    .stream()
-                    .map(shard -> shard.allocationId().getId())
-                    .collect(Collectors.toSet());
+            Set<String> newShardAllocationIds = shardsByIndex.getOrDefault(index, Collections.emptySet());
             for (IndexShard existingShard : indexService) {
                 if (newShardAllocationIds.contains(existingShard.routingEntry().allocationId().getId()) == false) {
                     if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {

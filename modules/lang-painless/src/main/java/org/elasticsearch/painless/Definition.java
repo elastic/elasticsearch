@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless;
 
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 
 import java.io.InputStream;
@@ -28,6 +29,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -864,6 +866,9 @@ public final class Definition {
                         // ok
                     } else if (child.clazz == Spliterator.OfPrimitive.class || child.clazz == PrimitiveIterator.class) {
                         // ok, we rely on generics erasure for these (its guaranteed in the javadocs though!!!!)
+                    } else if (Constants.JRE_IS_MINIMUM_JAVA9 && owner.clazz == LocalDate.class) {
+                        // ok, java 9 added covariant override for LocalDate.getEra() to return IsoEra:
+                        // https://bugs.openjdk.java.net/browse/JDK-8072746
                     } else {
                         try {
                             Class<?> arguments[] = new Class<?>[method.arguments.size()];

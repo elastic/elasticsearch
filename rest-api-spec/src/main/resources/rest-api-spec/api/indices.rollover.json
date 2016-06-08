@@ -4,7 +4,7 @@
     "methods": ["PUT", "POST"],
     "url": {
       "path": "/{alias}/_rollover",
-      "paths": ["/{alias}/_rollover", "/{alias}/_rollover/{target_alias}"],
+      "paths": ["/{alias}/_rollover"],
       "parts": {
         "alias": {
           "type" : "string",

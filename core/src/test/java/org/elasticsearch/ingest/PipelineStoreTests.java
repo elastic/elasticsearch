@@ -60,7 +60,7 @@ public class PipelineStoreTests extends ESTestCase {
     public void init() throws Exception {
         store = new PipelineStore(Settings.EMPTY);
         ProcessorsRegistry.Builder registryBuilder = new ProcessorsRegistry.Builder();
-        registryBuilder.registerProcessor("set", (templateService, registry) -> config -> {
+        registryBuilder.registerProcessor("set", (registry) -> config -> {
             String field = (String) config.remove("field");
             String value = (String) config.remove("value");
             return new Processor() {
@@ -80,7 +80,7 @@ public class PipelineStoreTests extends ESTestCase {
                 }
             };
         });
-        registryBuilder.registerProcessor("remove", (templateService, registry) -> config -> {
+        registryBuilder.registerProcessor("remove", (registry) -> config -> {
             String field = (String) config.remove("field");
             return new Processor() {
                 @Override
@@ -99,7 +99,7 @@ public class PipelineStoreTests extends ESTestCase {
                 }
             };
         });
-        store.buildProcessorFactoryRegistry(registryBuilder, null);
+        store.buildProcessorFactoryRegistry(registryBuilder, null, null);
     }
 
     public void testUpdatePipelines() {

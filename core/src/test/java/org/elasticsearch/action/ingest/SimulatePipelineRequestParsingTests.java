@@ -58,8 +58,8 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         CompoundProcessor pipelineCompoundProcessor = new CompoundProcessor(processor);
         Pipeline pipeline = new Pipeline(SIMULATED_PIPELINE_ID, null, pipelineCompoundProcessor);
         ProcessorsRegistry.Builder processorRegistryBuilder = new ProcessorsRegistry.Builder();
-        processorRegistryBuilder.registerProcessor("mock_processor", ((templateService, registry) -> mock(Processor.Factory.class)));
-        ProcessorsRegistry processorRegistry = processorRegistryBuilder.build(TestTemplateService.instance());
+        processorRegistryBuilder.registerProcessor("mock_processor", ((registry) -> mock(Processor.Factory.class)));
+        ProcessorsRegistry processorRegistry = processorRegistryBuilder.build(TestTemplateService.instance(), null);
         store = mock(PipelineStore.class);
         when(store.get(SIMULATED_PIPELINE_ID)).thenReturn(pipeline);
         when(store.getProcessorRegistry()).thenReturn(processorRegistry);

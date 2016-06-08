@@ -22,8 +22,6 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Processor;
-import org.elasticsearch.ingest.processor.ScriptProcessor;
-import org.hamcrest.Matcher;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,7 +38,7 @@ public class IngestScriptProcessorIT extends AbstractScriptTestCase {
     }
 
     public void testPainless() throws Exception {
-        Processor processor = createScriptProcessor("input.get(\"doc\").put(\"field\",\"wow\"); return \"returned_val\";", "painless");
+        Processor processor = createScriptProcessor("input.get(\"ctx\").put(\"field\",\"wow\"); return \"returned_val\";", "painless");
         IngestDocument ingestDocument = createIngestDocument(Collections.singletonMap("field", "cool"));
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("returned", String.class), equalTo("returned_val"));
@@ -48,7 +46,7 @@ public class IngestScriptProcessorIT extends AbstractScriptTestCase {
     }
 
     private ScriptProcessor createScriptProcessor(String script, String scriptLang) throws Exception {
-        ScriptProcessor.Factory factory = new ScriptProcessor.Factory(templateService);
+        ScriptProcessor.Factory factory = new ScriptProcessor.Factory(templateService.getScriptService(), null);
         Map<String, Object> config = new HashMap<>();
         config.put("script", script);
         config.put("lang", scriptLang);

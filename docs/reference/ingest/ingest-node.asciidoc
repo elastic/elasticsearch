@@ -1258,6 +1258,23 @@ Renames an existing field. If the field doesn't exist or the new name is already
 }
 --------------------------------------------------
 
+[[script-processor]]
+=== Script Processor
+
+Script Processor allows inline and stored scripts to be executed within Ingest Pipelines
+
+[[script-options]]
+.Script Options
+[options="header"]
+|======
+| Name                   | Required  | Default | Description
+| `field`                | yes       | -       | The field to set
+| `lang`                 | no        | -       | The scripting language
+| `file`                 | no        | -       | The script file to refer to
+| `id`                   | no        | -       | The script id to load a script from the cluster state
+| `inline`               | no        | -       | An inline script to be executed
+|======
+
 [[set-processor]]
 === Set Processor
 Sets one field and associates it with the specified value. If the field already exists,

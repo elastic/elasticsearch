@@ -32,8 +32,8 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         ProcessorsRegistry.Builder builder = new ProcessorsRegistry.Builder();
         Processor processor = new TestProcessor(ingestDocument -> {});
-        builder.registerProcessor("_name", (templateService, registry) -> config -> processor);
-        ProcessorsRegistry registry = builder.build(TestTemplateService.instance());
+        builder.registerProcessor("_name", (registry) -> config -> processor);
+        ProcessorsRegistry registry = builder.build(TestTemplateService.instance(), null);
         ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(registry);
 
         Map<String, Object> config = new HashMap<>();

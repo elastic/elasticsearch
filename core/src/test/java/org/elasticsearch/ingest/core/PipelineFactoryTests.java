@@ -23,7 +23,9 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -152,8 +154,8 @@ public class PipelineFactoryTests extends ESTestCase {
     private ProcessorsRegistry createProcessorRegistry(Map<String, Processor.Factory> processorRegistry) {
         ProcessorsRegistry.Builder builder = new ProcessorsRegistry.Builder();
         for (Map.Entry<String, Processor.Factory> entry : processorRegistry.entrySet()) {
-            builder.registerProcessor(entry.getKey(), ((templateService, registry) -> entry.getValue()));
+            builder.registerProcessor(entry.getKey(), ((registry) -> entry.getValue()));
         }
-        return builder.build(TestTemplateService.instance());
+        return builder.build(TestTemplateService.instance(), null);
     }
 }

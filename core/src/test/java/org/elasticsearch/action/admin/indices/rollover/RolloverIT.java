@@ -39,7 +39,7 @@ public class RolloverIT extends ESIntegTestCase {
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.getOldIndex(), equalTo("test_index-1"));
         assertThat(response.getNewIndex(), equalTo("test_index-2"));
-        assertThat(response.isSimulate(), equalTo(false));
+        assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.isRolloverIndexCreated(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
@@ -57,7 +57,7 @@ public class RolloverIT extends ESIntegTestCase {
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.getOldIndex(), equalTo("test_index-2"));
         assertThat(response.getNewIndex(), equalTo("test_index-3"));
-        assertThat(response.isSimulate(), equalTo(false));
+        assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.isRolloverIndexCreated(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
@@ -80,7 +80,7 @@ public class RolloverIT extends ESIntegTestCase {
             .settings(settings).alias(new Alias("extra_alias")).get();
         assertThat(response.getOldIndex(), equalTo("test_index-2"));
         assertThat(response.getNewIndex(), equalTo("test_index-3"));
-        assertThat(response.isSimulate(), equalTo(false));
+        assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.isRolloverIndexCreated(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
@@ -94,14 +94,14 @@ public class RolloverIT extends ESIntegTestCase {
         assertTrue(newIndex.getAliases().containsKey("extra_alias"));
     }
 
-    public void testRolloverSimulate() throws Exception {
+    public void testRolloverDryRun() throws Exception {
         assertAcked(prepareCreate("test_index-1").addAlias(new Alias("test_alias")).get());
         index("test_index-1", "type1", "1", "field", "value");
         flush("test_index-1");
-        final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").simulate(true).get();
+        final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").dryRun(true).get();
         assertThat(response.getOldIndex(), equalTo("test_index-1"));
         assertThat(response.getNewIndex(), equalTo("test_index-2"));
-        assertThat(response.isSimulate(), equalTo(true));
+        assertThat(response.isDryRun(), equalTo(true));
         assertThat(response.isRolledOver(), equalTo(false));
         assertThat(response.isRolloverIndexCreated(), equalTo(false));
         assertThat(response.getConditionStatus().size(), equalTo(0));
@@ -120,7 +120,7 @@ public class RolloverIT extends ESIntegTestCase {
             .addMaxIndexAgeCondition(TimeValue.timeValueHours(4)).get();
         assertThat(response.getOldIndex(), equalTo("test_index-0"));
         assertThat(response.getNewIndex(), equalTo("test_index-0"));
-        assertThat(response.isSimulate(), equalTo(false));
+        assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(false));
         assertThat(response.isRolloverIndexCreated(), equalTo(false));
         assertThat(response.getConditionStatus().size(), equalTo(1));
@@ -143,7 +143,7 @@ public class RolloverIT extends ESIntegTestCase {
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.getOldIndex(), equalTo("test_index-0"));
         assertThat(response.getNewIndex(), equalTo("test_index-1"));
-        assertThat(response.isSimulate(), equalTo(false));
+        assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.isRolloverIndexCreated(), equalTo(false));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();

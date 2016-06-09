@@ -46,8 +46,8 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         return this;
     }
 
-    public RolloverRequestBuilder simulate(boolean simulate) {
-        this.request.simulate(simulate);
+    public RolloverRequestBuilder dryRun(boolean dryRun) {
+        this.request.dryRun(dryRun);
         return this;
     }
 

@@ -70,7 +70,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     private String alias;
-    private boolean simulate;
+    private boolean dryRun;
     private Set<Condition> conditions = new HashSet<>(2);
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
@@ -96,7 +96,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         alias = in.readString();
-        simulate = in.readBoolean();
+        dryRun = in.readBoolean();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             this.conditions.add(in.readNamedWriteable(Condition.class));
@@ -109,7 +109,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(alias);
-        out.writeBoolean(simulate);
+        out.writeBoolean(dryRun);
         out.writeVInt(conditions.size());
         for (Condition condition : conditions) {
             out.writeNamedWriteable(condition);
@@ -137,8 +137,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     /**
      * Sets if the rollover should not be executed when conditions are met
      */
-    public void simulate(boolean simulate) {
-        this.simulate = simulate;
+    public void dryRun(boolean dryRun) {
+        this.dryRun = dryRun;
     }
 
     /**
@@ -163,8 +163,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         this.createIndexRequest = Objects.requireNonNull(createIndexRequest, "create index request must not be null");;
     }
 
-    boolean isSimulate() {
-        return simulate;
+    boolean isDryRun() {
+        return dryRun;
     }
 
     Set<Condition> getConditions() {

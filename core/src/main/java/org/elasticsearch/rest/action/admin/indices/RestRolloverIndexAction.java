@@ -38,7 +38,6 @@ public class RestRolloverIndexAction extends BaseRestHandler {
     public RestRolloverIndexAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_rollover", this);
-        controller.registerHandler(RestRequest.Method.GET, "/{index}/_rollover", this);
     }
 
     @SuppressWarnings({"unchecked"})
@@ -48,7 +47,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         if (request.hasContent()) {
             rolloverIndexRequest.source(request.content());
         }
-        rolloverIndexRequest.simulate(request.method() == RestRequest.Method.GET || request.paramAsBoolean("simulate", false));
+        rolloverIndexRequest.dryRun(request.paramAsBoolean("dry_run", false));
         rolloverIndexRequest.timeout(request.paramAsTime("timeout", rolloverIndexRequest.timeout()));
         rolloverIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", rolloverIndexRequest.masterNodeTimeout()));
         client.admin().indices().rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));

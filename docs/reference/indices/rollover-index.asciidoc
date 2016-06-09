@@ -55,9 +55,8 @@ $ curl -XPOST 'http://localhost:9200/index_alias/_rollover' -d '{
 --------------------------------------------------
 <1> Set settings to override matching index template, `mappings` and `aliases` can also be provided.
 
-Using the http `GET` method for the API runs the rollover in simulated mode, where request conditions can be
-checked without performing the actual rollover. Setting `simulate=true` as a request parameter also runs
-the request in simulated mode.
+The rollover API supports `dry_run` mode, where request conditions can be checked without performing the
+actual rollover. The `dry_run` mode can be enabled by setting `dry_run=true` as a request parameter.
 
 An example response for the index rollover API:
 
@@ -67,7 +66,7 @@ An example response for the index rollover API:
 	"old_index": "index-1", <1>
 	"new_index": "index-2", <2>
 	"rolled_over": true, <3>
-	"simulated": false, <4>
+	"dry_run": false, <4>
 	"rollover_index_created": true, <5>
 	"conditions": { <6>
 	    "[max_age: 7d]": true,

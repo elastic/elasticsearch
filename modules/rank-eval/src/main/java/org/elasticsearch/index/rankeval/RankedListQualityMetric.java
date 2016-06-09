@@ -17,9 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.action.quality;
+package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.bench.Evaluator;
 import org.elasticsearch.search.SearchHit;
 
 /**
@@ -37,13 +36,5 @@ public interface RankedListQualityMetric extends Evaluator {
      * @param hits the result hits as returned by some search
      * @return some metric representing the quality of the result hit list wrt. to relevant doc ids.
      * */
-    public IntentQuality evaluate(SearchHit[] hits);
-
-    /**
-     * Adds state to a ranked quality metric by initialising it with a search intent to compare against.
-     * @param intent the search intent to compare results against
-     * @return ready to use search metric
-     * */
-    public RankedListQualityMetric initialize(Intent intent);
-
+    public EvalQueryQuality evaluate(SearchHit[] hits, RatedQuery intent);
 }

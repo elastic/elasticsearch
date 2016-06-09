@@ -17,19 +17,8 @@
  * under the License.
  */
 
-esplugin {
-  description 'The Rank Eval module adds APIs to evaluate ranking quality.'
-  classname 'org.elasticsearch.index.rankeval.RankEvalPlugin'
-}
+package org.elasticsearch.index.rankeval;
 
-dependencies {
-  compile "com.github.spullara.mustache.java:compiler:0.9.1"
-  compile project(':modules:lang-mustache')
-}
+public class RestRankEvalAction {
 
-integTest {
-  cluster {
-    setting 'script.inline', 'true'
-    setting 'script.stored', 'true'
-  }
 }

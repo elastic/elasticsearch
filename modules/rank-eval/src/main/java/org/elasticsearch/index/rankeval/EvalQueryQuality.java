@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.action.quality;
+package org.elasticsearch.index.rankeval;
 
 import java.util.Collection;
 
 /** Returned for each search intent and search specification combination. Summarises the document ids found that were not
  * annotated and the average precision of result sets in each particular combination based on the annotations given. 
  * */
-public class IntentQuality {
+public class EvalQueryQuality {
     private double qualityLevel;
         
     private Collection<String> unknownDocs;
 
-    public IntentQuality (double qualityLevel, Collection<String> unknownDocs) {
+    public EvalQueryQuality (double qualityLevel, Collection<String> unknownDocs) {
        this.qualityLevel = qualityLevel;
        this.unknownDocs = unknownDocs;
     }

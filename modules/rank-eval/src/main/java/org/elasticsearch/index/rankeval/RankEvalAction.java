@@ -17,14 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.action.bench;
+package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
-public interface Evaluator extends Streamable {
-    
-    public Object evaluate(SearchHit[] hits);
-    
-    public Evaluator getInstance();
+/** 
+ * Action used to start precision at qa evaluations. 
+ **/
+public class RankEvalAction extends Action<RankEvalRequest, RankEvalResponse, RankEvalRequestBuilder> {
+
+    public static final RankEvalAction INSTANCE = new RankEvalAction();
+    public static final String NAME = "indices:data/read/quality";
+
+    private RankEvalAction() {
+        super(NAME);
+    }
+
+    @Override
+    public RankEvalRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new RankEvalRequestBuilder(client, this, new RankEvalRequest());
+    }
+
+    @Override
+    public RankEvalResponse newResponse() {
+        return new RankEvalResponse();
+    }
+
 }

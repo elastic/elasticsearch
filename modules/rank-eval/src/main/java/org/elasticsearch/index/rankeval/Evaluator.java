@@ -17,31 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.action.quality;
+package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.ClientAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.search.SearchHit;
 
-/** 
- * Action used to start precision at qa evaluations. 
- **/
-public class QualityAction extends ClientAction<QualityRequest, QualityResponse, QualityRequestBuilder> {
-
-    public static final QualityAction INSTANCE = new QualityAction();
-    public static final String NAME = "indices:data/read/quality";
-
-    private QualityAction() {
-        super(NAME);
-    }
-
-    @Override
-    public QualityRequestBuilder newRequestBuilder(Client client) {
-        return new QualityRequestBuilder(client);
-    }
-
-    @Override
-    public QualityResponse newResponse() {
-        return new QualityResponse();
-    }
-
+public interface Evaluator extends NamedWriteable {
+    
+    public Object evaluate(SearchHit[] hits, RatedQuery intent);
 }

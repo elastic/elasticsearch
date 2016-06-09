@@ -17,10 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.action.quality;
+package org.elasticsearch.index.rankeval;
 
-import com.google.common.base.Joiner;
-import com.google.common.base.MoreObjects;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,45 +38,38 @@ import java.util.Map;
  * by the search are not taken into consideration when computing precision at n - they are ignored.
  * 
  **/
-public class QualityResponse extends ActionResponse {
+public class RankEvalResponse extends ActionResponse {
 
-    private Collection<QualityResult> qualityResults = new ArrayList<QualityResult>();
-    
-    public void addQualityResult(int specId, double quality, Map<Integer, Collection<String>> unknownDocs) {
-        QualityResult result = new QualityResult();
-        result.setSpecId(specId);
-        result.setQualityLevel(quality);
-        result.setUnknownDocs(unknownDocs);
-        this.qualityResults.add(result);
-    }
-    
-    public Collection<QualityResult> getPrecision() {
-        return qualityResults;
+    private Collection<RankEvalResult> qualityResults = new ArrayList<>();
+
+    public RankEvalResponse() {
+        
     }
 
+    public RankEvalResponse(StreamInput in) throws IOException {
+        int size = in.readInt();
+        qualityResults = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            qualityResults.add(new RankEvalResult(in));
+        }
+    }
+    
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeInt(qualityResults.size());
-        for (QualityResult result : qualityResults) {
+        for (RankEvalResult result : qualityResults) {
             result.writeTo(out);
         }
     }    
+ 
+    public void addRankEvalResult(int specId, double quality, Map<Integer, Collection<String>> unknownDocs) {
+        RankEvalResult result = new RankEvalResult(specId, quality, unknownDocs);
+        this.qualityResults.add(result);
+    }
     
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        qualityResults = new ArrayList<QualityResult>();
-        int resultSize = in.readInt();
-        for (int i = 0; i < resultSize; i++) {
-            QualityResult result = new QualityResult();
-            result.readFrom(in);
-            qualityResults.add(result);
-        }
+    public Collection<RankEvalResult> getRankEvalResults() {
+        return qualityResults;
     }
 
-    @Override
-    public String toString() {
-        return MoreObjects.toStringHelper(this).add("QualityResults", Joiner.on(':').join(qualityResults)).toString();
-    }
 }

@@ -17,25 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.action.quality;
+package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.client.ElasticsearchClient;
 
-import java.io.IOException;
+public class RankEvalRequestBuilder extends ActionRequestBuilder<RankEvalRequest, RankEvalResponse, RankEvalRequestBuilder> {
+    
+    public RankEvalRequestBuilder(ElasticsearchClient client, Action<RankEvalRequest, RankEvalResponse, RankEvalRequestBuilder> action,
+            RankEvalRequest request) {
+        super(client, action, request);
+    }
 
-/**
- * Implementations of this interface provide a means to retrieve a configured quality metric that can be used to
- * judge a set of documents given a query based on pre-annotated documents of said query.
- * */
-public interface QualityContext {
+    public RankEvalRequest request() {
+        return request;
+    }
     
-    /**
-     * Returns the quality metric to be used for judging search results.
-     * */
-    RankedListQualityMetric getMetric();
+    public void setRankEvalSpec(RankEvalSpec spec) {
+        this.request.setRankEvalSpec(spec);
+    }
     
-    void write(StreamOutput out) throws IOException;
-    
-    void read (StreamInput in) throws IOException;
+    public RankEvalSpec getRankEvalSpec() {
+        return this.request.getRankEvalSpec();
+    }
 }

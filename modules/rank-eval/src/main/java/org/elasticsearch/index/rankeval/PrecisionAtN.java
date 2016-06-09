@@ -17,11 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.action.quality;
+package org.elasticsearch.index.rankeval;
 
-import com.google.common.base.Predicate;
-import com.google.common.collect.Maps;
-import org.elasticsearch.action.bench.Evaluator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
@@ -44,9 +41,22 @@ public class PrecisionAtN implements RankedListQualityMetric {
     /** Number of results to check against a given set of relevant results. */
     private int n;
     
-    /** Search results to compare against */
-    private Intent intent;
-    
+    private static final String NAME = "precisionatn";
+
+    public PrecisionAtN(StreamInput in) throws IOException {
+        n = in.readInt();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeInt(n);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
     /**
      * Initialises n with 10
      * */
@@ -59,22 +69,6 @@ public class PrecisionAtN implements RankedListQualityMetric {
      * */
     public PrecisionAtN(int n) {
         this.n= n;
-    }
-
-    @Override
-    public Evaluator getInstance() {
-        return new PrecisionAtN(0);
-    }
-
-    public void setN(int n) {
-        this.n = n;
-    }
-
-    @Override
-    public RankedListQualityMetric initialize(Intent intent) {
-        PrecisionAtN result = new PrecisionAtN(n);
-        result.intent = intent;
-        return result;
     }
 
     /**
@@ -90,21 +84,22 @@ public class PrecisionAtN implements RankedListQualityMetric {
      * @return precision at n for above {@link SearchResult} list.
      **/
     @Override
-    public IntentQuality evaluate(SearchHit[] hits) {
+    public EvalQueryQuality evaluate(SearchHit[] hits, RatedQuery intent) {
         Map<String, Integer> ratedDocIds = intent.getRatedDocuments();
-        Collection<String> relevantDocIds = Maps.filterEntries(ratedDocIds, new Predicate<Entry<String, Integer>> () {
-            @Override
-            public boolean apply(Entry<String, Integer> input) {
-                return Rating.RELEVANT.equals(RatingMapping.mapTo(input.getValue()));
-            }
-        }).keySet();
         
-        Collection<String> irrelevantDocIds = Maps.filterEntries(ratedDocIds, new Predicate<Entry<String, Integer>> () {
-            @Override
-            public boolean apply(Entry<String, Integer> input) {
-                return Rating.IRRELEVANT.equals(RatingMapping.mapTo(input.getValue()));
+        Collection<String> relevantDocIds = new ArrayList<>(); 
+        for (Entry<String, Integer> entry : ratedDocIds.entrySet()) {
+            if (Rating.RELEVANT.equals(RatingMapping.mapTo(entry.getValue()))) {
+                relevantDocIds.add(entry.getKey());
             }
-        }).keySet();
+        }
+        
+        Collection<String> irrelevantDocIds = new ArrayList<>(); 
+        for (Entry<String, Integer> entry : ratedDocIds.entrySet()) {
+            if (Rating.IRRELEVANT.equals(RatingMapping.mapTo(entry.getValue()))) {
+                irrelevantDocIds.add(entry.getKey());
+            }
+        }
 
         int good = 0;
         int bad = 0;
@@ -122,7 +117,7 @@ public class PrecisionAtN implements RankedListQualityMetric {
 
         double precision = (double) good / (good + bad);
 
-        return new IntentQuality(precision, unknownDocIds);
+        return new EvalQueryQuality(precision, unknownDocIds);
     }
     
     public enum Rating {
@@ -146,14 +141,6 @@ public class PrecisionAtN implements RankedListQualityMetric {
             }
             return Rating.IRRELEVANT;
         }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
     }
 
 }

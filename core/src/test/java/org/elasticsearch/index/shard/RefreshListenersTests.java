@@ -155,10 +155,12 @@ public class RefreshListenersTests extends ESTestCase {
         DummyRefreshListener forcingListener = new DummyRefreshListener();
         listeners.addOrNotify(index.getTranslogLocation(), forcingListener);
         assertTrue("Forced listener wasn't forced?", forcingListener.forcedRefresh.get());
+        forcingListener.assertNoError();
 
         // That forces all the listeners through. It would be on the listener ThreadPool but we've made all of those execute immediately.
         for (DummyRefreshListener listener : nonForcedListeners) {
             assertEquals("Expected listener called with unforced refresh!", Boolean.FALSE, listener.forcedRefresh.get());
+            listener.assertNoError();
         }
         assertFalse(listeners.refreshNeeded());
     }
@@ -176,6 +178,7 @@ public class RefreshListenersTests extends ESTestCase {
         DummyRefreshListener listener = new DummyRefreshListener();
         listeners.addOrNotify(index.getTranslogLocation(), listener);
         assertFalse(listener.forcedRefresh.get());
+        listener.assertNoError();
     }
 
     /**
@@ -199,6 +202,7 @@ public class RefreshListenersTests extends ESTestCase {
                 listeners.addOrNotify(index.getTranslogLocation(), listener);
                 assertBusy(() -> assertNotNull(listener.forcedRefresh.get()));
                 assertFalse(listener.forcedRefresh.get());
+                listener.assertNoError();
             }
         } finally {
             run.set(false);
@@ -234,6 +238,7 @@ public class RefreshListenersTests extends ESTestCase {
                         if (threadCount < maxListeners) {
                             assertFalse(listener.forcedRefresh.get());
                         }
+                        listener.assertNoError();
 
                         Engine.Get get = new Engine.Get(false, index.uid());
                         try (Engine.GetResult getResult = engine.get(get)) {
@@ -281,13 +286,24 @@ public class RefreshListenersTests extends ESTestCase {
         /**
          * When the listener is called this captures it's only argument.
          */
-        private AtomicReference<Boolean> forcedRefresh = new AtomicReference<>();
+        AtomicReference<Boolean> forcedRefresh = new AtomicReference<>();
+        private volatile Throwable error;
 
         @Override
         public void accept(Boolean forcedRefresh) {
-            assertNotNull(forcedRefresh);
-            Boolean oldValue = this.forcedRefresh.getAndSet(forcedRefresh);
-            assertNull("Listener called twice", oldValue);
+            try {
+                assertNotNull(forcedRefresh);
+                Boolean oldValue = this.forcedRefresh.getAndSet(forcedRefresh);
+                assertNull("Listener called twice", oldValue);
+            } catch (Throwable e) {
+                error = e;
+            }
+        }
+
+        public void assertNoError() {
+            if (error != null) {
+                throw new RuntimeException(error);
+            }
         }
     }
 }

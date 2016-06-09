@@ -149,6 +149,7 @@ class CollationElementIterator -> java.text.CollationElementIterator extends Obj
 }
 
 class CollationKey -> java.text.CollationKey extends Comparable,Object {
+  int compareTo(CollationKey)
   String getSourceString()
   byte[] toByteArray()
 }

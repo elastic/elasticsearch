@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -64,7 +65,7 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
                 assertEquals(value.get(), get.getSource().get("test"));
                 value.set(randomSimpleString(random()));
                 IndexRequestBuilder index = client().prepareIndex("test", "test", "test").setSource("test", value.get())
-                        .setRefresh(true);
+                        .setRefreshPolicy(IMMEDIATE);
                 /*
                  * Update by query increments the version number so concurrent
                  * indexes might get version conflict exceptions so we just

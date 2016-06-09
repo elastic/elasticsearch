@@ -83,13 +83,9 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     @Override
     protected void doAssertLuceneQuery(NestedQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         QueryBuilder innerQueryBuilder = queryBuilder.query();
-        if (innerQueryBuilder instanceof EmptyQueryBuilder) {
-            assertNull(query);
-        } else {
-            assertThat(query, instanceOf(ToParentBlockJoinQuery.class));
-            ToParentBlockJoinQuery parentBlockJoinQuery = (ToParentBlockJoinQuery) query;
-            //TODO how to assert this?
-        }
+        assertThat(query, instanceOf(ToParentBlockJoinQuery.class));
+        ToParentBlockJoinQuery parentBlockJoinQuery = (ToParentBlockJoinQuery) query;
+        // TODO how to assert this?
         if (queryBuilder.innerHit() != null) {
             SearchContext searchContext = SearchContext.current();
             assertNotNull(searchContext);

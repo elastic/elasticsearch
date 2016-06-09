@@ -46,6 +46,7 @@ import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.apache.lucene.spatial.util.GeoEncodingUtils.TOLERANCE;
 
@@ -391,7 +392,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         builder.endObject();
     }
 
-    public static GeoDistanceRangeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<GeoDistanceRangeQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token;
@@ -603,7 +604,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             queryBuilder.setValidationMethod(GeoValidationMethod.infer(coerce, ignoreMalformed));
         }
         queryBuilder.ignoreUnmapped(ignoreUnmapped);
-        return queryBuilder;
+        return Optional.of(queryBuilder);
     }
 
     @Override

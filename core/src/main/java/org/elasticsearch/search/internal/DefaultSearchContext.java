@@ -115,6 +115,9 @@ public class DefaultSearchContext extends SearchContext {
     private Float minimumScore;
     private boolean trackScores = false; // when sorting, track scores as well...
     private FieldDoc searchAfter;
+    // filter for sliced scroll
+    private Query sliceFilter;
+
     /**
      * The original query as sent by the user without the types and aliases
      * applied. Putting things in here leaks them into highlighting so don't add
@@ -122,8 +125,7 @@ public class DefaultSearchContext extends SearchContext {
      */
     private ParsedQuery originalQuery;
     /**
-     * Just like originalQuery but with the filters from types and aliases
-     * applied.
+     * Just like originalQuery but with the filters from types, aliases and slice applied.
      */
     private ParsedQuery filteredQuery;
     /**
@@ -210,7 +212,7 @@ public class DefaultSearchContext extends SearchContext {
                 if (rescoreContext.window() > maxWindow) {
                     throw new QueryPhaseExecutionException(this, "Rescore window [" + rescoreContext.window() + "] is too large. It must "
                             + "be less than [" + maxWindow + "]. This prevents allocating massive heaps for storing the results to be "
-                            + "rescored. This limit can be set by chaning the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey()
+                            + "rescored. This limit can be set by chaining the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey()
                             + "] index level setting.");
 
                 }
@@ -254,7 +256,17 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     @Nullable
     public Query searchFilter(String[] types) {
-        return createSearchFilter(types, aliasFilter, mapperService().hasNested());
+        Query typesFilter = createSearchFilter(types, aliasFilter, mapperService().hasNested());
+        if (sliceFilter == null) {
+            return typesFilter;
+        }
+        if (typesFilter == null) {
+            return sliceFilter;
+        }
+        return new BooleanQuery.Builder()
+            .add(typesFilter, Occur.FILTER)
+            .add(sliceFilter, Occur.FILTER)
+            .build();
     }
 
     // extracted to static helper method to make writing unit tests easier:
@@ -548,6 +560,11 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public FieldDoc searchAfter() {
         return searchAfter;
+    }
+
+    public SearchContext sliceFilter(Query filter) {
+        this.sliceFilter = filter;
+        return this;
     }
 
     @Override

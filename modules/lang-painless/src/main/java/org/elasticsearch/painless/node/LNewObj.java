@@ -20,7 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Constructor;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Variables;
@@ -29,17 +30,17 @@ import org.elasticsearch.painless.MethodWriter;
 import java.util.List;
 
 /**
- * Respresents and object instantiation.
+ * Represents and object instantiation.
  */
 public final class LNewObj extends ALink {
 
     final String type;
     final List<AExpression> arguments;
 
-    Constructor constructor;
+    Method constructor;
 
-    public LNewObj(int line, int offset, String location, String type, List<AExpression> arguments) {
-        super(line, offset, location, -1);
+    public LNewObj(Location location, String type, List<AExpression> arguments) {
+        super(location, -1);
 
         this.type = type;
         this.arguments = arguments;
@@ -48,9 +49,9 @@ public final class LNewObj extends ALink {
     @Override
     ALink analyze(Variables variables) {
         if (before != null) {
-            throw new IllegalArgumentException(error("Illegal new call with a target already defined."));
+            throw createError(new IllegalArgumentException("Illegal new call with a target already defined."));
         } else if (store) {
-            throw new IllegalArgumentException(error("Cannot assign a value to a new call."));
+            throw createError(new IllegalArgumentException("Cannot assign a value to a new call."));
         }
 
         final Type type;
@@ -58,18 +59,18 @@ public final class LNewObj extends ALink {
         try {
             type = Definition.getType(this.type);
         } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
+            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
         Struct struct = type.struct;
-        constructor = struct.constructors.get(new Definition.MethodKey("new", arguments.size()));
+        constructor = struct.constructors.get(new Definition.MethodKey("<init>", arguments.size()));
 
         if (constructor != null) {
             Type[] types = new Type[constructor.arguments.size()];
             constructor.arguments.toArray(types);
 
             if (constructor.arguments.size() != arguments.size()) {
-                throw new IllegalArgumentException(error("When calling constructor on type [" + struct.name + "]" +
+                throw createError(new IllegalArgumentException("When calling constructor on type [" + struct.name + "]" +
                     " expected [" + constructor.arguments.size() + "] arguments, but found [" + arguments.size() + "]."));
             }
 
@@ -85,7 +86,7 @@ public final class LNewObj extends ALink {
             statement = true;
             after = type;
         } else {
-            throw new IllegalArgumentException(error("Unknown new call on type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException("Unknown new call on type [" + struct.name + "]."));
         }
 
         return this;
@@ -98,7 +99,7 @@ public final class LNewObj extends ALink {
 
     @Override
     void load(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+        writer.writeDebugInfo(location);
         writer.newInstance(after.type);
 
         if (load) {
@@ -114,6 +115,6 @@ public final class LNewObj extends ALink {
 
     @Override
     void store(MethodWriter writer) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

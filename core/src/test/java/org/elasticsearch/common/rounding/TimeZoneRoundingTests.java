@@ -259,6 +259,57 @@ public class TimeZoneRoundingTests extends ESTestCase {
     }
 
     /**
+     * test DST end with interval rounding
+     * CET: 25 October 2015, 03:00:00 clocks were turned backward 1 hour to 25 October 2015, 02:00:00 local standard time
+     */
+    public void testTimeIntervalCET_DST_End() {
+        long interval = TimeUnit.MINUTES.toMillis(20);
+        TimeZoneRounding rounding = new TimeIntervalRounding(interval, DateTimeZone.forID("CET"));
+
+        assertThat(rounding.round(time("2015-10-25T01:55:00+02:00")), equalTo(time("2015-10-25T01:40:00+02:00")));
+        assertThat(rounding.round(time("2015-10-25T02:15:00+02:00")), equalTo(time("2015-10-25T02:00:00+02:00")));
+        assertThat(rounding.round(time("2015-10-25T02:35:00+02:00")), equalTo(time("2015-10-25T02:20:00+02:00")));
+        assertThat(rounding.round(time("2015-10-25T02:55:00+02:00")), equalTo(time("2015-10-25T02:40:00+02:00")));
+        // after DST shift
+        assertThat(rounding.round(time("2015-10-25T02:15:00+01:00")), equalTo(time("2015-10-25T02:00:00+01:00")));
+        assertThat(rounding.round(time("2015-10-25T02:35:00+01:00")), equalTo(time("2015-10-25T02:20:00+01:00")));
+        assertThat(rounding.round(time("2015-10-25T02:55:00+01:00")), equalTo(time("2015-10-25T02:40:00+01:00")));
+        assertThat(rounding.round(time("2015-10-25T03:15:00+01:00")), equalTo(time("2015-10-25T03:00:00+01:00")));
+    }
+
+    /**
+     * test DST start with interval rounding
+     * CET: 27 March 2016, 02:00:00 clocks were turned forward 1 hour to 27 March 2016, 03:00:00 local daylight time
+     */
+    public void testTimeIntervalCET_DST_Start() {
+        long interval = TimeUnit.MINUTES.toMillis(20);
+        TimeZoneRounding rounding = new TimeIntervalRounding(interval, DateTimeZone.forID("CET"));
+        // test DST start
+        assertThat(rounding.round(time("2016-03-27T01:55:00+01:00")), equalTo(time("2016-03-27T01:40:00+01:00")));
+        assertThat(rounding.round(time("2016-03-27T02:00:00+01:00")), equalTo(time("2016-03-27T03:00:00+02:00")));
+        assertThat(rounding.round(time("2016-03-27T03:15:00+02:00")), equalTo(time("2016-03-27T03:00:00+02:00")));
+        assertThat(rounding.round(time("2016-03-27T03:35:00+02:00")), equalTo(time("2016-03-27T03:20:00+02:00")));
+    }
+
+    /**
+     * test DST start with offset not fitting interval, e.g. Asia/Kathmandu
+     * adding 15min on 1986-01-01T00:00:00 the interval from
+     * 1986-01-01T00:15:00+05:45 to 1986-01-01T00:20:00+05:45 to only be 5min
+     * long
+     */
+    public void testTimeInterval_Kathmandu_DST_Start() {
+        long interval = TimeUnit.MINUTES.toMillis(20);
+        TimeZoneRounding rounding = new TimeIntervalRounding(interval, DateTimeZone.forID("Asia/Kathmandu"));
+        assertThat(rounding.round(time("1985-12-31T23:55:00+05:30")), equalTo(time("1985-12-31T23:40:00+05:30")));
+        assertThat(rounding.round(time("1986-01-01T00:16:00+05:45")), equalTo(time("1986-01-01T00:15:00+05:45")));
+        assertThat(time("1986-01-01T00:15:00+05:45") - time("1985-12-31T23:40:00+05:30"), equalTo(TimeUnit.MINUTES.toMillis(20)));
+        assertThat(rounding.round(time("1986-01-01T00:26:00+05:45")), equalTo(time("1986-01-01T00:20:00+05:45")));
+        assertThat(time("1986-01-01T00:20:00+05:45") - time("1986-01-01T00:15:00+05:45"), equalTo(TimeUnit.MINUTES.toMillis(5)));
+        assertThat(rounding.round(time("1986-01-01T00:46:00+05:45")), equalTo(time("1986-01-01T00:40:00+05:45")));
+        assertThat(time("1986-01-01T00:40:00+05:45") - time("1986-01-01T00:20:00+05:45"), equalTo(TimeUnit.MINUTES.toMillis(20)));
+    }
+
+    /**
      * randomized test on {@link TimeIntervalRounding} with random interval and time zone offsets
      */
     public void testIntervalRoundingRandom() {

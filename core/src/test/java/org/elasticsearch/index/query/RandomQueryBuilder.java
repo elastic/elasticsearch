@@ -38,7 +38,7 @@ public class RandomQueryBuilder {
      * @return a random {@link QueryBuilder}
      */
     public static QueryBuilder createQuery(Random r) {
-        switch (RandomInts.randomIntBetween(r, 0, 4)) {
+        switch (RandomInts.randomIntBetween(r, 0, 3)) {
             case 0:
                 return new MatchAllQueryBuilderTests().createTestQueryBuilder();
             case 1:
@@ -47,8 +47,6 @@ public class RandomQueryBuilder {
                 return new IdsQueryBuilderTests().createTestQueryBuilder();
             case 3:
                 return createMultiTermQuery(r);
-            case 4:
-                return new EmptyQueryBuilder();
             default:
                 throw new UnsupportedOperationException();
         }

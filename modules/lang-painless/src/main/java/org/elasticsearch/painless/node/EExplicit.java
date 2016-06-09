@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -31,8 +32,8 @@ public final class EExplicit extends AExpression {
     final String type;
     AExpression child;
 
-    public EExplicit(int line, int offset, String location, String type, AExpression child) {
-        super(line, offset, location);
+    public EExplicit(Location location, String type, AExpression child) {
+        super(location);
 
         this.type = type;
         this.child = child;
@@ -43,7 +44,7 @@ public final class EExplicit extends AExpression {
         try {
             actual = Definition.getType(this.type);
         } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
+            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
         child.expected = actual;
@@ -54,7 +55,7 @@ public final class EExplicit extends AExpression {
 
     @Override
     void write(MethodWriter writer) {
-        throw new IllegalArgumentException(error("Illegal tree structure."));
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
     AExpression cast(Variables variables) {

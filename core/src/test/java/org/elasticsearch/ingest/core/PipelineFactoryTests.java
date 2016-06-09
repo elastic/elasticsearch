@@ -23,8 +23,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.ingest.TestTemplateService;
-import org.elasticsearch.ingest.processor.FailProcessor;
-import org.elasticsearch.ingest.processor.SetProcessor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -32,7 +30,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.prefs.PreferencesFactory;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;

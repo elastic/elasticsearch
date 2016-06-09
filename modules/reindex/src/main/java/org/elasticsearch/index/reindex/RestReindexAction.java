@@ -115,7 +115,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         if (false == request.hasContent()) {
             throw new ElasticsearchException("_reindex requires a request body");
         }
-        handleRequest(request, channel, true, true, false);
+        handleRequest(request, channel, true, true);
     }
 
     @Override

@@ -75,8 +75,8 @@ public class AnalysisModuleTests extends ModuleTestCase {
        return new AnalysisRegistry(null, new Environment(settings),
                 Collections.emptyMap(), Collections.singletonMap("myfilter", MyFilterTokenFilterFactory::new), Collections.emptyMap(), Collections.emptyMap());
     }
-
-    private Settings loadFromClasspath(String path) {
+    
+    private Settings loadFromClasspath(String path) throws IOException {
         return Settings.builder().loadFromStream(path, getClass().getResourceAsStream(path))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())

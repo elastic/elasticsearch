@@ -40,9 +40,9 @@ public class ParserTests extends ScriptTestCase {
 
     private SourceContext buildAntlrTree(String source) {
         ANTLRInputStream stream = new ANTLRInputStream(source);
-        PainlessLexer lexer = new ErrorHandlingLexer(stream);
+        PainlessLexer lexer = new ErrorHandlingLexer(stream, "testing");
         PainlessParser parser = new PainlessParser(new CommonTokenStream(lexer));
-        ParserErrorStrategy strategy = new ParserErrorStrategy();
+        ParserErrorStrategy strategy = new ParserErrorStrategy("testing");
 
         lexer.removeErrorListeners();
         parser.removeErrorListeners();

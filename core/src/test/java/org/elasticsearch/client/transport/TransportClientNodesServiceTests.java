@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
@@ -63,7 +64,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
         TestIteration() {
             ClusterName clusterName = new ClusterName("test");
-            threadPool = new ThreadPool("transport-client-nodes-service-tests");
+            threadPool = new TestThreadPool("transport-client-nodes-service-tests");
             transport = new FailAndRetryMockTransport<TestResponse>(random(), clusterName) {
                 @Override
                 public List<String> getLocalAddresses() {

@@ -48,6 +48,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -920,7 +921,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .endObject()
                 .endArray()
                 .endObject())
-        .setRefresh(true)
+        .setRefreshPolicy(IMMEDIATE)
         .get();
 
         response = client().prepareSearch("index2")

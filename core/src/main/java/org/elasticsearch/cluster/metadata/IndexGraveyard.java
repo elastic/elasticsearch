@@ -219,8 +219,10 @@ final public class IndexGraveyard implements MetaData.Custom {
         /**
          * Add a set of deleted indexes to the list of tombstones in the cluster state.
          */
-        public Builder addTombstones(final Set<Index> indices) {
-            indices.stream().forEach(this::addTombstone);
+        public Builder addTombstones(final Index[] indices) {
+            for (Index index : indices) {
+                addTombstone(index);
+            }
             return this;
         }
 

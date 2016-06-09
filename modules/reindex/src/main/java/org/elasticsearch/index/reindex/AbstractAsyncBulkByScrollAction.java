@@ -55,7 +55,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -66,7 +65,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.bulk.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
@@ -85,7 +83,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     private final AtomicLong startTime = new AtomicLong(-1);
     private final AtomicReference<String> scroll = new AtomicReference<>();
-    private final AtomicLong lastBatchStartTime = new AtomicLong(-1);
     private final Set<String> destinationIndices = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final ESLogger logger;
@@ -147,16 +144,17 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
         searchWithRetry(listener -> client.search(firstSearchRequest, listener), (SearchResponse response) -> {
             logger.debug("[{}] documents match query", response.getHits().getTotalHits());
-            onScrollResponse(timeValueSeconds(0), response);
+            onScrollResponse(timeValueNanos(System.nanoTime()), 0, response);
         });
     }
 
     /**
      * Process a scroll response.
-     * @param delay how long to delay processesing the response. This delay is how throttling is applied to the action.
+     * @param lastBatchStartTime the time when the last batch started. Used to calculate the throttling delay.
+     * @param lastBatchSize the size of the last batch. Used to calculate the throttling delay.
      * @param searchResponse the scroll response to process
      */
-    void onScrollResponse(TimeValue delay, SearchResponse searchResponse) {
+    void onScrollResponse(TimeValue lastBatchStartTime, int lastBatchSize, SearchResponse searchResponse) {
         if (task.isCancelled()) {
             finishHim(null);
             return;
@@ -179,7 +177,11 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         AbstractRunnable prepareBulkRequestRunnable = new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
-                prepareBulkRequest(searchResponse);
+                /*
+                 * It is important that the batch start time be calculated from here, scroll response to scroll response. That way the time
+                 * waiting on the scroll doesn't count against this batch in the throttle.
+                 */
+                prepareBulkRequest(timeValueNanos(System.nanoTime()), searchResponse);
             }
 
             @Override
@@ -188,7 +190,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             }
         };
         prepareBulkRequestRunnable = (AbstractRunnable) threadPool.getThreadContext().preserveContext(prepareBulkRequestRunnable);
-        task.delayPrepareBulkRequest(threadPool, delay, prepareBulkRequestRunnable);
+        task.delayPrepareBulkRequest(threadPool, lastBatchStartTime, lastBatchSize, prepareBulkRequestRunnable);
     }
 
     /**
@@ -196,12 +198,11 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * delay has been slept. Uses the generic thread pool because reindex is rare enough not to need its own thread pool and because the
      * thread may be blocked by the user script.
      */
-    void prepareBulkRequest(SearchResponse searchResponse) {
+    void prepareBulkRequest(TimeValue thisBatchStartTime, SearchResponse searchResponse) {
         if (task.isCancelled()) {
             finishHim(null);
             return;
         }
-        lastBatchStartTime.set(System.nanoTime());
         SearchHit[] docs = searchResponse.getHits().getHits();
         logger.debug("scroll returned [{}] documents with a scroll id of [{}]", docs.length, searchResponse.getScrollId());
         if (docs.length == 0) {
@@ -222,7 +223,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             /*
              * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
              */
-            startNextScroll(0);
+            startNextScroll(thisBatchStartTime, 0);
             return;
         }
         request.timeout(mainRequest.getTimeout());
@@ -231,13 +232,13 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
                     new ByteSizeValue(request.estimatedSizeInBytes()));
         }
-        sendBulkRequest(request);
+        sendBulkRequest(thisBatchStartTime, request);
     }
 
     /**
      * Send a bulk request, handling retries.
      */
-    void sendBulkRequest(BulkRequest request) {
+    void sendBulkRequest(TimeValue thisBatchStartTime, BulkRequest request) {
         if (task.isCancelled()) {
             finishHim(null);
             return;
@@ -245,7 +246,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         bulkRetry.withAsyncBackoff(client, request, new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse response) {
-                onBulkResponse(response);
+                onBulkResponse(thisBatchStartTime, response);
             }
 
             @Override
@@ -258,7 +259,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     /**
      * Processes bulk responses, accounting for failures.
      */
-    void onBulkResponse(BulkResponse response) {
+    void onBulkResponse(TimeValue thisBatchStartTime, BulkResponse response) {
         try {
             List<Failure> failures = new ArrayList<Failure>();
             Set<String> destinationIndicesThisBatch = new HashSet<>();
@@ -306,7 +307,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 return;
             }
 
-            startNextScroll(response.getItems().length);
+            startNextScroll(thisBatchStartTime, response.getItems().length);
         } catch (Throwable t) {
             finishHim(t);
         }
@@ -318,34 +319,18 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * @param lastBatchSize the number of requests sent in the last batch. This is used to calculate the throttling values which are applied
      *        when the scroll returns
      */
-    void startNextScroll(int lastBatchSize) {
+    void startNextScroll(TimeValue lastBatchStartTime, int lastBatchSize) {
         if (task.isCancelled()) {
             finishHim(null);
             return;
         }
-        long earliestNextBatchStartTime = lastBatchStartTime.get() + (long) perfectlyThrottledBatchTime(lastBatchSize);
-        long waitTime = max(0, earliestNextBatchStartTime - System.nanoTime());
         SearchScrollRequest request = new SearchScrollRequest();
         // Add the wait time into the scroll timeout so it won't timeout while we wait for throttling
-        request.scrollId(scroll.get()).scroll(timeValueNanos(firstSearchRequest.scroll().keepAlive().nanos() + waitTime));
+        request.scrollId(scroll.get()).scroll(timeValueNanos(
+                firstSearchRequest.scroll().keepAlive().nanos() + task.throttleWaitTime(lastBatchStartTime, lastBatchSize).nanos()));
         searchWithRetry(listener -> client.searchScroll(request, listener), (SearchResponse response) -> {
-            onScrollResponse(timeValueNanos(max(0, earliestNextBatchStartTime - System.nanoTime())), response);
+            onScrollResponse(lastBatchStartTime, lastBatchSize, response);
         });
-    }
-
-    /**
-     * How many nanoseconds should a batch of lastBatchSize have taken if it were perfectly throttled? Package private for testing.
-     */
-    float perfectlyThrottledBatchTime(int lastBatchSize) {
-        if (task.getRequestsPerSecond() == Float.POSITIVE_INFINITY) {
-            return 0;
-        }
-        //       requests
-        // ------------------- == seconds
-        // request per seconds
-        float targetBatchTimeInSeconds = lastBatchSize / task.getRequestsPerSecond();
-        // nanoseconds per seconds * seconds == nanoseconds
-        return TimeUnit.SECONDS.toNanos(1) * targetBatchTimeInSeconds;
     }
 
     private void recordFailure(Failure failure, List<Failure> failures) {
@@ -451,20 +436,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      */
     void setScroll(String scroll) {
         this.scroll.set(scroll);
-    }
-
-    /**
-     * Set the last batch's start time. Exists entirely for testing.
-     */
-    void setLastBatchStartTime(long newValue) {
-        lastBatchStartTime.set(newValue);
-    }
-
-    /**
-     * Get the last batch's start time. Exists entirely for testing.
-     */
-    long getLastBatchStartTime() {
-        return lastBatchStartTime.get();
     }
 
     /**

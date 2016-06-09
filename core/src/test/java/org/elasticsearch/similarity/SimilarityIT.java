@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,7 +62,7 @@ public class SimilarityIT extends ESIntegTestCase {
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumped over the lazy dog",
                                                             "field2", "the quick brown fox jumped over the lazy dog")
-                .setRefresh(true).execute().actionGet();
+                .setRefreshPolicy(IMMEDIATE).execute().actionGet();
 
         SearchResponse bm25SearchResponse = client().prepareSearch().setQuery(matchQuery("field1", "quick brown fox")).execute().actionGet();
         assertThat(bm25SearchResponse.getHits().totalHits(), equalTo(1L));

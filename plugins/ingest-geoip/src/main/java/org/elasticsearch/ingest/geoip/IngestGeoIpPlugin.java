@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.stream.Stream;
+import java.util.zip.GZIPInputStream;
 
 public class IngestGeoIpPlugin extends Plugin {
 
@@ -60,13 +61,13 @@ public class IngestGeoIpPlugin extends Plugin {
 
         Map<String, DatabaseReader> databaseReaders = new HashMap<>();
         try (Stream<Path> databaseFiles = Files.list(geoIpConfigDirectory)) {
-            PathMatcher pathMatcher = geoIpConfigDirectory.getFileSystem().getPathMatcher("glob:**.mmdb");
+            PathMatcher pathMatcher = geoIpConfigDirectory.getFileSystem().getPathMatcher("glob:**.mmdb.gz");
             // Use iterator instead of forEach otherwise IOException needs to be caught twice...
             Iterator<Path> iterator = databaseFiles.iterator();
             while (iterator.hasNext()) {
                 Path databasePath = iterator.next();
                 if (Files.isRegularFile(databasePath) && pathMatcher.matches(databasePath)) {
-                    try (InputStream inputStream = Files.newInputStream(databasePath, StandardOpenOption.READ)) {
+                    try (InputStream inputStream = new GZIPInputStream(Files.newInputStream(databasePath, StandardOpenOption.READ))) {
                         databaseReaders.put(databasePath.getFileName().toString(), new DatabaseReader.Builder(inputStream).build());
                     }
                 }

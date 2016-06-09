@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Collections;
@@ -32,8 +33,8 @@ public final class SBlock extends AStatement {
 
     final List<AStatement> statements;
 
-    public SBlock(int line, int offset, String location, List<AStatement> statements) {
-        super(line, offset, location);
+    public SBlock(Location location, List<AStatement> statements) {
+        super(location);
 
         this.statements = Collections.unmodifiableList(statements);
     }
@@ -41,14 +42,16 @@ public final class SBlock extends AStatement {
     @Override
     void analyze(Variables variables) {
         if (statements == null || statements.isEmpty()) {
-            throw new IllegalArgumentException(error("A block must contain at least one statement."));
+            throw createError(new IllegalArgumentException("A block must contain at least one statement."));
         }
 
-        final AStatement last = statements.get(statements.size() - 1);
+        AStatement last = statements.get(statements.size() - 1);
 
         for (AStatement statement : statements) {
+            // Note that we do not need to check after the last statement because
+            // there is no statement that can be unreachable after the last.
             if (allEscape) {
-                throw new IllegalArgumentException(error("Unreachable statement."));
+                throw createError(new IllegalArgumentException("Unreachable statement."));
             }
 
             statement.inLoop = inLoop;

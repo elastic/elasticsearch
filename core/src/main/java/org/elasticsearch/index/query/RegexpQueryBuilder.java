@@ -37,6 +37,7 @@ import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A Query that does fuzzy matching for a specific value.
@@ -179,7 +180,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         builder.endObject();
     }
 
-    public static RegexpQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<RegexpQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = parser.currentName();
@@ -237,12 +238,12 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         if (value == null) {
             throw new ParsingException(parser.getTokenLocation(), "No value specified for regexp query");
         }
-        return new RegexpQueryBuilder(fieldName, value)
+        return Optional.of(new RegexpQueryBuilder(fieldName, value)
                 .flags(flagsValue)
                 .maxDeterminizedStates(maxDeterminizedStates)
                 .rewrite(rewrite)
                 .boost(boost)
-                .queryName(queryName);
+                .queryName(queryName));
     }
 
     @Override

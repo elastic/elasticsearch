@@ -24,7 +24,7 @@ import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cloud.azure.blobstore.AzureBlobStore;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -166,7 +166,7 @@ public class AzureRepository extends BlobStoreRepository {
             super.initializeSnapshot(snapshotId, indices, metaData);
         } catch (StorageException | URISyntaxException e) {
             logger.warn("can not initialize container [{}]: [{}]", blobStore.container(), e.getMessage());
-            throw new SnapshotCreationException(snapshotId, e);
+            throw new SnapshotCreationException(repositoryName, snapshotId, e);
         }
     }
 

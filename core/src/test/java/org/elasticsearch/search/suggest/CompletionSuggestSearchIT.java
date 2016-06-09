@@ -64,6 +64,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
@@ -622,7 +623,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject()
                 .endObject();
         assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
-        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
+        client().prepareIndex(INDEX, TYPE, "1").setRefreshPolicy(IMMEDIATE)
+                .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
         ensureGreen(INDEX);
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
@@ -643,7 +645,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         ).execute().actionGet();
         assertSuggestions(searchResponse, "suggs");
 
-        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
+        client().prepareIndex(INDEX, TYPE, "1").setRefreshPolicy(IMMEDIATE)
+                .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
         ensureGreen(INDEX);
 
         SearchResponse afterReindexingResponse = client().prepareSearch(INDEX).suggest(
@@ -1089,7 +1092,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .startObject().startObject(FIELD)
                 .startArray("input").value(longString).endArray()
                 .endObject().endObject()
-        ).setRefresh(true).get();
+        ).setRefreshPolicy(IMMEDIATE).get();
 
     }
 
@@ -1111,7 +1114,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                     .startArray("input").value(string).endArray()
                     .field("output", "foobar")
                     .endObject().endObject()
-            ).setRefresh(true).get();
+            ).get();
             fail("Expected MapperParsingException");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), containsString("failed to parse"));
@@ -1133,7 +1136,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                         .startObject()
                         .field(FIELD, string)
                         .endObject()
-        ).setRefresh(true).get();
+        ).setRefreshPolicy(IMMEDIATE).get();
 
         try {
             client().prepareSearch(INDEX).addAggregation(AggregationBuilders.terms("suggest_agg").field(FIELD)
@@ -1163,11 +1166,10 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         ensureGreen();
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "strings make me happy", FIELD + "_1", "nulls make me sad")
-                .setRefresh(true).get();
+                .setRefreshPolicy(IMMEDIATE).get();
 
         try {
-            client().prepareIndex(INDEX, TYPE, "2").setSource(FIELD, null, FIELD + "_1", "nulls make me sad")
-                    .setRefresh(true).get();
+            client().prepareIndex(INDEX, TYPE, "2").setSource(FIELD, null, FIELD + "_1", "nulls make me sad").get();
             fail("Expected MapperParsingException for null value");
         } catch (MapperParsingException e) {
             // make sure that the exception has the name of the field causing the error

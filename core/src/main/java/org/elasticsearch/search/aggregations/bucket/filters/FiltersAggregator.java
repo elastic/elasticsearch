@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -69,11 +68,7 @@ public class FiltersAggregator extends BucketsAggregator {
                 throw new IllegalArgumentException("[filter] must not be null");
             }
             this.key = key;
-            if (filter instanceof EmptyQueryBuilder) {
-                this.filter = new MatchAllQueryBuilder();
-            } else {
-                this.filter = filter;
-            }
+            this.filter = filter;
         }
 
         /**

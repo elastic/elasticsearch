@@ -239,25 +239,25 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     public void testNumeric() throws IOException {
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new int[]{1, 3, 4});
-            TermsQueryBuilder copy = assertSerialization(builder);
+            TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1, 3, 4), values);
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new double[]{1, 3, 4});
-            TermsQueryBuilder copy = assertSerialization(builder);
+            TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1d, 3d, 4d), values);
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new float[]{1, 3, 4});
-            TermsQueryBuilder copy = assertSerialization(builder);
+            TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1f, 3f, 4f), values);
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new long[]{1, 3, 4});
-            TermsQueryBuilder copy = assertSerialization(builder);
+            TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1L, 3L, 4L), values);
         }

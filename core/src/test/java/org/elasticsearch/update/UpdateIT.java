@@ -63,6 +63,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -694,7 +695,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         // check TTL is kept after an update without TTL
-        client().prepareIndex("test", "type1", "2").setSource("field", 1).setTTL(86400000L).setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource("field", 1).setTTL(86400000L).setRefreshPolicy(IMMEDIATE).get();
         GetResponse getResponse = client().prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
         long ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
@@ -713,7 +714,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(ttl, lessThanOrEqualTo(3600000L));
 
         // check timestamp update
-        client().prepareIndex("test", "type1", "3").setSource("field", 1).setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "3").setSource("field", 1).setRefreshPolicy(IMMEDIATE).get();
         client().prepareUpdate(indexOrAlias(), "type1", "3")
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values", Collections.singletonMap("_ctx", Collections.singletonMap("_timestamp", "2009-11-15T14:12:12")))).execute()
                 .actionGet();

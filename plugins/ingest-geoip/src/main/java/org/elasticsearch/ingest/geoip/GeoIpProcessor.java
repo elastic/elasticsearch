@@ -233,7 +233,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         public GeoIpProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String ipField = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");
-            String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
+            String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb.gz");
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
 
             DatabaseReader databaseReader = databaseReaders.get(databaseFile);

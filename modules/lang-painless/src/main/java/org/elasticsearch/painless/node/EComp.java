@@ -22,6 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Variables;
@@ -46,8 +47,8 @@ public final class EComp extends AExpression {
     AExpression left;
     AExpression right;
 
-    public EComp(int line, int offset, String location, Operation operation, AExpression left, AExpression right) {
-        super(line, offset, location);
+    public EComp(Location location, Operation operation, AExpression left, AExpression right) {
+        super(location);
 
         this.operation = operation;
         this.left = left;
@@ -73,7 +74,7 @@ public final class EComp extends AExpression {
         } else if (operation == Operation.LT) {
             analyzeLT(variables);
         } else {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
@@ -84,7 +85,7 @@ public final class EComp extends AExpression {
         Type promote = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
         if (promote == null) {
-            throw new ClassCastException(error("Cannot apply equals [==] to types " +
+            throw createError(new ClassCastException("Cannot apply equals [==] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
@@ -95,7 +96,7 @@ public final class EComp extends AExpression {
         right = right.cast(variables);
 
         if (left.isNull && right.isNull) {
-            throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
+            throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
         }
 
         if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
@@ -116,7 +117,7 @@ public final class EComp extends AExpression {
             } else if (!right.isNull) {
                 constant = right.constant.equals(null);
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
@@ -130,7 +131,7 @@ public final class EComp extends AExpression {
         Type promote = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
         if (promote == null) {
-            throw new ClassCastException(error("Cannot apply reference equals [===] to types " +
+            throw createError(new ClassCastException("Cannot apply reference equals [===] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
@@ -141,7 +142,7 @@ public final class EComp extends AExpression {
         right = right.cast(variables);
 
         if (left.isNull && right.isNull) {
-            throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
+            throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
         }
 
         if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
@@ -172,7 +173,7 @@ public final class EComp extends AExpression {
         Type promote = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
         if (promote == null) {
-            throw new ClassCastException(error("Cannot apply not equals [!=] to types " +
+            throw createError(new ClassCastException("Cannot apply not equals [!=] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
@@ -183,7 +184,7 @@ public final class EComp extends AExpression {
         right = right.cast(variables);
 
         if (left.isNull && right.isNull) {
-            throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
+            throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
         }
 
         if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
@@ -204,7 +205,7 @@ public final class EComp extends AExpression {
             } else if (!right.isNull) {
                 constant = !right.constant.equals(null);
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
@@ -218,7 +219,7 @@ public final class EComp extends AExpression {
         Type promote = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
         if (promote == null) {
-            throw new ClassCastException(error("Cannot apply reference not equals [!==] to types " +
+            throw createError(new ClassCastException("Cannot apply reference not equals [!==] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
@@ -229,7 +230,7 @@ public final class EComp extends AExpression {
         right = right.cast(variables);
 
         if (left.isNull && right.isNull) {
-            throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
+            throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
         }
 
         if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
@@ -260,7 +261,7 @@ public final class EComp extends AExpression {
         Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
-            throw new ClassCastException(error("Cannot apply greater than or equals [>=] to types " +
+            throw createError(new ClassCastException("Cannot apply greater than or equals [>=] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
@@ -282,7 +283,7 @@ public final class EComp extends AExpression {
             } else if (sort == Sort.DOUBLE) {
                 constant = (double)left.constant >= (double)right.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
@@ -296,7 +297,7 @@ public final class EComp extends AExpression {
         Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
-            throw new ClassCastException(error("Cannot apply greater than [>] to types " +
+            throw createError(new ClassCastException("Cannot apply greater than [>] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
@@ -318,7 +319,7 @@ public final class EComp extends AExpression {
             } else if (sort == Sort.DOUBLE) {
                 constant = (double)left.constant > (double)right.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
@@ -332,7 +333,7 @@ public final class EComp extends AExpression {
         Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
-            throw new ClassCastException(error("Cannot apply less than or equals [<=] to types " +
+            throw createError(new ClassCastException("Cannot apply less than or equals [<=] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
@@ -354,7 +355,7 @@ public final class EComp extends AExpression {
             } else if (sort == Sort.DOUBLE) {
                 constant = (double)left.constant <= (double)right.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
@@ -368,7 +369,7 @@ public final class EComp extends AExpression {
         Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
-            throw new ClassCastException(error("Cannot apply less than [>=] to types " +
+            throw createError(new ClassCastException("Cannot apply less than [>=] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
@@ -390,7 +391,7 @@ public final class EComp extends AExpression {
             } else if (sort == Sort.DOUBLE) {
                 constant = (double)left.constant < (double)right.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
@@ -399,7 +400,8 @@ public final class EComp extends AExpression {
 
     @Override
     void write(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+        writer.writeDebugInfo(location);
+
         boolean branch = tru != null || fals != null;
         org.objectweb.asm.Type rtype = right.actual.type;
         Sort rsort = right.actual.sort;
@@ -429,12 +431,12 @@ public final class EComp extends AExpression {
             case BYTE:
             case SHORT:
             case CHAR:
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             case BOOL:
                 if      (eq) writer.ifZCmp(MethodWriter.EQ, jump);
                 else if (ne) writer.ifZCmp(MethodWriter.NE, jump);
                 else {
-                    throw new IllegalStateException(error("Illegal tree structure."));
+                    throw createError(new IllegalStateException("Illegal tree structure."));
                 }
 
                 break;
@@ -449,7 +451,7 @@ public final class EComp extends AExpression {
                 else if (gt)  writer.ifCmp(rtype, MethodWriter.GT, jump);
                 else if (gte) writer.ifCmp(rtype, MethodWriter.GE, jump);
                 else {
-                    throw new IllegalStateException(error("Illegal tree structure."));
+                    throw createError(new IllegalStateException("Illegal tree structure."));
                 }
 
                 break;
@@ -485,7 +487,7 @@ public final class EComp extends AExpression {
                     writer.invokeStatic(DEF_UTIL_TYPE, DEF_GTE_CALL);
                     writejump = false;
                 } else {
-                    throw new IllegalStateException(error("Illegal tree structure."));
+                    throw createError(new IllegalStateException("Illegal tree structure."));
                 }
 
                 if (branch && !writejump) {
@@ -518,7 +520,7 @@ public final class EComp extends AExpression {
                         writer.ifCmp(rtype, MethodWriter.NE, jump);
                     }
                 } else {
-                    throw new IllegalStateException(error("Illegal tree structure."));
+                    throw createError(new IllegalStateException("Illegal tree structure."));
                 }
         }
 

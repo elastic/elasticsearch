@@ -154,6 +154,10 @@ public class InternalEngine extends Engine {
             this.versionMap.setManager(searcherManager);
             // don't allow commits until we are done with recovering
             allowCommits.compareAndSet(true, openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
+            if (engineConfig.getRefreshListeners() != null) {
+                searcherManager.addListener(engineConfig.getRefreshListeners());
+                engineConfig.getRefreshListeners().setTranslog(translog);
+            }
             success = true;
         } finally {
             if (success == false) {

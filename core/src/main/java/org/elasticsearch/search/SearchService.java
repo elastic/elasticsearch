@@ -546,14 +546,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 indexShard, scriptService, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
                 defaultSearchTimeout, fetchPhase);
         SearchContext.setCurrent(context);
-        request.rewrite(context.getQueryShardContext());
-        // reset that we have used nowInMillis from the context since it may
-        // have been rewritten so its no longer in the query and the request can
-        // be cached. If it is still present in the request (e.g. in a range
-        // aggregation) it will still be caught when the aggregation is
-        // evaluated.
-        context.resetNowInMillisUsed();
         try {
+            request.rewrite(context.getQueryShardContext());
+            // reset that we have used nowInMillis from the context since it may
+            // have been rewritten so its no longer in the query and the request can
+            // be cached. If it is still present in the request (e.g. in a range
+            // aggregation) it will still be caught when the aggregation is
+            // evaluated.
+            context.resetNowInMillisUsed();
             if (request.scroll() != null) {
                 context.scrollContext(new ScrollContext());
                 context.scrollContext().scroll = request.scroll();
@@ -820,6 +820,15 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             }
             FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter());
             context.searchAfter(fieldDoc);
+        }
+
+        if (source.slice() != null) {
+            if (context.scrollContext() == null) {
+                throw new SearchContextException(context, "`slice` cannot be used outside of a scroll context");
+            }
+            context.sliceFilter(source.slice().toFilter(queryShardContext,
+                context.shardTarget().getShardId().getId(),
+                queryShardContext.getIndexSettings().getNumberOfShards()));
         }
     }
 

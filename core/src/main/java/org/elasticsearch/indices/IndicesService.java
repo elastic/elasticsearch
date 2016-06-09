@@ -112,6 +112,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -141,6 +142,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final CircuitBreakerService circuitBreakerService;
     private volatile Map<String, IndexService> indices = emptyMap();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
+    private final AtomicInteger numUncompletedDeletes = new AtomicInteger();
     private final OldShardsStats oldShardsStats = new OldShardsStats();
     private final IndexStoreConfig indexStoreConfig;
     private final MapperRegistry mapperRegistry;
@@ -782,6 +784,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 pendingDeletes.put(index, list);
             }
             list.add(pendingDelete);
+            numUncompletedDeletes.incrementAndGet();
         }
     }
 
@@ -840,6 +843,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         logger.debug("{} processing pending deletes", index);
         final long startTimeNS = System.nanoTime();
         final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, timeout.millis());
+        int numRemoved = 0;
         try {
             Map<ShardId, ShardLock> locks = new HashMap<>();
             for (ShardLock lock : shardLocks) {
@@ -850,6 +854,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                  remove = pendingDeletes.remove(index);
             }
             if (remove != null && remove.isEmpty() == false) {
+                numRemoved = remove.size();
                 CollectionUtil.timSort(remove); // make sure we delete indices first
                 final long maxSleepTimeMs = 10 * 1000; // ensure we retry after 10 sec
                 long sleepTime = 10;
@@ -896,6 +901,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             }
         } finally {
             IOUtils.close(shardLocks);
+            if (numRemoved > 0) {
+                int remainingUncompletedDeletes = numUncompletedDeletes.addAndGet(-numRemoved);
+                assert remainingUncompletedDeletes >= 0;
+            }
         }
     }
 
@@ -907,6 +916,14 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             }
             return deleteList.size();
         }
+    }
+
+    /**
+     * Checks if all pending deletes have completed. Used by tests to ensure we don't check directory contents while deletion still ongoing.
+     * The reason is that, on Windows, browsing the directory contents can interfere with the deletion process and delay it unnecessarily.
+     */
+    public boolean hasUncompletedPendingDeletes() {
+        return numUncompletedDeletes.get() > 0;
     }
 
     /**

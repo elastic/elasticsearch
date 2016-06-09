@@ -124,11 +124,11 @@ public class DivisionTests extends ScriptTestCase {
     }
 
     public void testDivideByZeroConst() throws Exception {
-        expectThrows(ArithmeticException.class, () -> {
+        expectScriptThrows(ArithmeticException.class, () -> {
             exec("return 1/0;");
         });
 
-        expectThrows(ArithmeticException.class, () -> {
+        expectScriptThrows(ArithmeticException.class, () -> {
             exec("return 1L/0L;");
         });
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
@@ -87,55 +88,55 @@ import static org.elasticsearch.painless.WriterConstants.UTILITY_TYPE;
  * shared by the nodes of the Painless tree.
  */
 public final class MethodWriter extends GeneratorAdapter {
+    private final ClassWriter parent;
     private final BitSet statements;
 
     private final Deque<List<org.objectweb.asm.Type>> stringConcatArgs = (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ?
             null : new ArrayDeque<>();
 
-    MethodWriter(int access, Method method, org.objectweb.asm.Type[] exceptions, ClassVisitor cv, BitSet statements) {
-        super(Opcodes.ASM5, cv.visitMethod(access, method.getName(), method.getDescriptor(), null, getInternalNames(exceptions)),
+    MethodWriter(int access, Method method, ClassWriter cw, BitSet statements) {
+        super(Opcodes.ASM5, cw.visitMethod(access, method.getName(), method.getDescriptor(), null, null),
                 access, method.getName(), method.getDescriptor());
+
+        this.parent = cw;
         this.statements = statements;
     }
 
-    private static String[] getInternalNames(final org.objectweb.asm.Type[] types) {
-        if (types == null) {
-            return null;
-        }
-        String[] names = new String[types.length];
-        for (int i = 0; i < names.length; ++i) {
-            names[i] = types[i].getInternalName();
-        }
-        return names;
+    /**
+     * @return A new {@link MethodWriter} with the specified access and signature.
+     */
+    MethodWriter newMethodWriter(int access, Method method) {
+        return new MethodWriter(access, method, parent, statements);
     }
 
-    /** 
-     * Marks a new statement boundary. 
+    /**
+     * Marks a new statement boundary.
      * <p>
      * This is invoked for each statement boundary (leaf {@code S*} nodes).
      */
-    public void writeStatementOffset(int offset) {
+    public void writeStatementOffset(Location location) {
+        int offset = location.getOffset();
         // ensure we don't have duplicate stuff going in here. can catch bugs
         // (e.g. nodes get assigned wrong offsets by antlr walker)
         assert statements.get(offset) == false;
         statements.set(offset);
     }
 
-    /** 
+    /**
      * Encodes the offset into the line number table as {@code offset + 1}.
      * <p>
      * This is invoked before instructions that can hit exceptions.
      */
-    public void writeDebugInfo(int offset) {
+    public void writeDebugInfo(Location location) {
         // TODO: maybe track these in bitsets too? this is trickier...
         Label label = new Label();
         visitLabel(label);
-        visitLineNumber(offset + 1, label);
+        visitLineNumber(location.getOffset() + 1, label);
     }
 
-    public void writeLoopCounter(int slot, int count, int offset) {
+    public void writeLoopCounter(int slot, int count, Location location) {
         if (slot > -1) {
-            writeDebugInfo(offset);
+            writeDebugInfo(location);
             final Label end = new Label();
 
             iinc(slot, -count);
@@ -281,14 +282,14 @@ public final class MethodWriter extends GeneratorAdapter {
         }
     }
 
-    public void writeBinaryInstruction(final String location, final Type type, final Operation operation) {
+    public void writeBinaryInstruction(Location location, Type type, Operation operation) {
         final Sort sort = type.sort;
 
         if ((sort == Sort.FLOAT || sort == Sort.DOUBLE) &&
                 (operation == Operation.LSH || operation == Operation.USH ||
                 operation == Operation.RSH || operation == Operation.BWAND ||
                 operation == Operation.XOR || operation == Operation.BWOR)) {
-            throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
+            throw location.createError(new IllegalStateException("Illegal tree structure."));
         }
 
         if (sort == Sort.DEF) {
@@ -305,7 +306,7 @@ public final class MethodWriter extends GeneratorAdapter {
                 case XOR:   invokeStatic(DEF_UTIL_TYPE, DEF_XOR_CALL); break;
                 case BWOR:  invokeStatic(DEF_UTIL_TYPE, DEF_OR_CALL);  break;
                 default:
-                    throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
+                    throw location.createError(new IllegalStateException("Illegal tree structure."));
             }
         } else {
             switch (operation) {
@@ -321,7 +322,7 @@ public final class MethodWriter extends GeneratorAdapter {
                 case XOR:   math(GeneratorAdapter.XOR,  type.type); break;
                 case BWOR:  math(GeneratorAdapter.OR,   type.type); break;
                 default:
-                    throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
+                    throw location.createError(new IllegalStateException("Illegal tree structure."));
             }
         }
     }

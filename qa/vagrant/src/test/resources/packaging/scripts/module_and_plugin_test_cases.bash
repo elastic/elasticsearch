@@ -228,8 +228,8 @@ fi
     install_and_check_plugin ingest geoip geoip2-*.jar jackson-annotations-*.jar jackson-databind-*.jar maxmind-db-*.jar
 }
 
-@test "[$GROUP] check ingest-grok module" {
-    check_module ingest-grok jcodings-*.jar joni-*.jar
+@test "[$GROUP] check ingest-common module" {
+    check_module ingest-common jcodings-*.jar joni-*.jar
 }
 
 @test "[$GROUP] check lang-expression module" {

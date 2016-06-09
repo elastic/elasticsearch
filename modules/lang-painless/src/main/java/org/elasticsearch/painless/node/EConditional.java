@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
@@ -35,8 +36,8 @@ public final class EConditional extends AExpression {
     AExpression left;
     AExpression right;
 
-    public EConditional(int line, int offset, String location, AExpression condition, AExpression left, AExpression right) {
-        super(line, offset, location);
+    public EConditional(Location location, AExpression condition, AExpression left, AExpression right) {
+        super(location);
 
         this.condition = condition;
         this.left = left;
@@ -50,7 +51,7 @@ public final class EConditional extends AExpression {
         condition = condition.cast(variables);
 
         if (condition.constant != null) {
-            throw new IllegalArgumentException(error("Extraneous conditional statement."));
+            throw createError(new IllegalArgumentException("Extraneous conditional statement."));
         }
 
         left.expected = expected;
@@ -78,7 +79,8 @@ public final class EConditional extends AExpression {
 
     @Override
     void write(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+        writer.writeDebugInfo(location);
+
         Label localfals = new Label();
         Label end = new Label();
 

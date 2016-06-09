@@ -88,7 +88,7 @@ public class CompoundAnalysisTests extends ESTestCase {
         return terms;
     }
 
-    private Settings getJsonSettings() {
+    private Settings getJsonSettings() throws IOException {
         String json = "/org/elasticsearch/index/analysis/test1.json";
         return Settings.builder()
                 .loadFromStream(json, getClass().getResourceAsStream(json))
@@ -97,7 +97,7 @@ public class CompoundAnalysisTests extends ESTestCase {
                 .build();
     }
 
-    private Settings getYamlSettings() {
+    private Settings getYamlSettings() throws IOException {
         String yaml = "/org/elasticsearch/index/analysis/test1.yml";
         return Settings.builder()
                 .loadFromStream(yaml, getClass().getResourceAsStream(yaml))

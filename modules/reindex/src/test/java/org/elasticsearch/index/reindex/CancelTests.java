@@ -31,6 +31,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.ingest.IngestTestPlugin;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
@@ -68,6 +69,7 @@ public class CancelTests extends ReindexTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         Collection<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(IngestTestPlugin.class);
         plugins.add(ReindexCancellationPlugin.class);
         return plugins;
     }
@@ -80,10 +82,7 @@ public class CancelTests extends ReindexTestCase {
     /**
      * Executes the cancellation test
      */
-    private void testCancel(String action,
-                            AbstractBulkByScrollRequestBuilder<?, ? extends BulkIndexByScrollResponse, ?> builder,
-                            CancelAssertion assertion) throws Exception {
-
+    private void testCancel(String action, AbstractBulkByScrollRequestBuilder<?, ?> builder, CancelAssertion assertion) throws Exception {
         createIndex(INDEX);
 
         // Total number of documents created for this test (~10 per primary shard)
@@ -160,19 +159,16 @@ public class CancelTests extends ReindexTestCase {
 
     public void testUpdateByQueryCancel() throws Exception {
         BytesReference pipeline = new BytesArray("{\n" +
-                "  \"description\" : \"sets updated to true\",\n" +
+                "  \"description\" : \"sets processed to true\",\n" +
                 "  \"processors\" : [ {\n" +
-                "      \"set\" : {\n" +
-                "        \"field\": \"updated\",\n" +
-                "        \"value\": true" +
-                "      }\n" +
+                "      \"test\" : {}\n" +
                 "  } ]\n" +
                 "}");
         assertAcked(client().admin().cluster().preparePutPipeline("set-foo", pipeline).get());
 
         testCancel(UpdateByQueryAction.NAME, updateByQuery().setPipeline("set-foo").source(INDEX), (response, total, modified) -> {
             assertThat(response, matcher().updated(modified).reasonCancelled(equalTo("by user request")));
-            assertHitCount(client().prepareSearch(INDEX).setSize(0).setQuery(termQuery("updated", true)).get(), modified);
+            assertHitCount(client().prepareSearch(INDEX).setSize(0).setQuery(termQuery("processed", true)).get(), modified);
         });
 
         assertAcked(client().admin().cluster().deletePipeline(new DeletePipelineRequest("set-foo")).get());

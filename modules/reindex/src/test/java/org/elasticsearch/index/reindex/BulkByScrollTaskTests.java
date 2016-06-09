@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
@@ -41,8 +42,10 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -164,11 +167,12 @@ public class BulkByScrollTaskTests extends ESTestCase {
          * We never end up waiting this long because the test rethrottles over and over again, ratcheting down the delay a random amount
          * each time.
          */
-        float originalRequestsPerSecond = (float) randomDoubleBetween(0, 10000, true);
+        float originalRequestsPerSecond = (float) randomDoubleBetween(1, 10000, true);
         task.rethrottle(originalRequestsPerSecond);
         TimeValue maxDelay = timeValueSeconds(between(1, 5));
         assertThat(maxDelay.nanos(), greaterThanOrEqualTo(0L));
-        ThreadPool threadPool = new ThreadPool(getTestName()) {
+        int batchSizeForMaxDelay = (int) (maxDelay.seconds() * originalRequestsPerSecond);
+        ThreadPool threadPool = new TestThreadPool(getTestName()) {
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
                 assertThat(delay.nanos(), both(greaterThanOrEqualTo(0L)).and(lessThanOrEqualTo(maxDelay.nanos())));
@@ -176,7 +180,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
             }
         };
         try {
-            task.delayPrepareBulkRequest(threadPool, maxDelay, new AbstractRunnable() {
+            task.delayPrepareBulkRequest(threadPool, timeValueNanos(System.nanoTime()), batchSizeForMaxDelay, new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
                     boolean oldValue = done.getAndSet(true);
@@ -220,7 +224,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
 
     public void testDelayNeverNegative() throws IOException {
         // Thread pool that returns a ScheduledFuture that claims to have a negative delay
-        ThreadPool threadPool = new ThreadPool("test") {
+        ThreadPool threadPool = new TestThreadPool("test") {
             public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
                 return new ScheduledFuture<Void>() {
                     @Override
@@ -262,7 +266,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
         };
         try {
             // Have the task use the thread pool to delay a task that does nothing
-            task.delayPrepareBulkRequest(threadPool, timeValueSeconds(0), new AbstractRunnable() {
+            task.delayPrepareBulkRequest(threadPool, timeValueSeconds(0), 1, new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
                 }
@@ -282,5 +286,15 @@ public class BulkByScrollTaskTests extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder();
         task.getStatus().toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(builder.string(), containsString("\"requests_per_second\":\"unlimited\""));
+    }
+
+    public void testPerfectlyThrottledBatchTime() {
+        task.rethrottle(Float.POSITIVE_INFINITY);
+        assertThat((double) task.perfectlyThrottledBatchTime(randomInt()), closeTo(0f, 0f));
+
+        int total = between(0, 1000000);
+        task.rethrottle(1);
+        assertThat((double) task.perfectlyThrottledBatchTime(total),
+                closeTo(TimeUnit.SECONDS.toNanos(total), TimeUnit.SECONDS.toNanos(1)));
     }
 }

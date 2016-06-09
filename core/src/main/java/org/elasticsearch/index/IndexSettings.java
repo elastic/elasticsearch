@@ -115,6 +115,11 @@ public final class IndexSettings {
     public static final Setting<TimeValue> INDEX_GC_DELETES_SETTING =
         Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MILLISECONDS), Property.Dynamic,
             Property.IndexScope);
+    /**
+     * The maximum number of refresh listeners allows on this shard.
+     */
+    public static final Setting<Integer> MAX_REFRESH_LISTENERS_PER_SHARD = Setting.intSetting("index.max_refresh_listeners", 1000, 0,
+            Property.Dynamic, Property.IndexScope);
 
     private final Index index;
     private final Version version;
@@ -145,6 +150,10 @@ public final class IndexSettings {
     private volatile int maxResultWindow;
     private volatile int maxRescoreWindow;
     private volatile boolean TTLPurgeDisabled;
+    /**
+     * The maximum number of refresh listeners allows on this shard.
+     */
+    private volatile int maxRefreshListeners;
 
     /**
      * Returns the default search field for this index.
@@ -229,6 +238,7 @@ public final class IndexSettings {
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         maxRescoreWindow = scopedSettings.get(MAX_RESCORE_WINDOW_SETTING);
         TTLPurgeDisabled = scopedSettings.get(INDEX_TTL_DISABLE_PURGE_SETTING);
+        maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         assert indexNameMatcher.test(indexMetaData.getIndex().getName());
 
@@ -251,6 +261,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
+        scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
     }
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {
@@ -499,6 +510,16 @@ public final class IndexSettings {
         return scopedSettings.get(setting);
     }
 
+    /**
+     * The maximum number of refresh listeners allows on this shard.
+     */
+    public int getMaxRefreshListeners() {
+        return maxRefreshListeners;
+    }
+
+    private void setMaxRefreshListeners(int maxRefreshListeners) {
+        this.maxRefreshListeners = maxRefreshListeners;
+    }
 
     IndexScopedSettings getScopedSettings() { return scopedSettings;}
 }

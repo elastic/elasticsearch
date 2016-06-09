@@ -25,7 +25,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.property.PropertyPlaceholder;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -920,27 +919,21 @@ public final class Settings implements ToXContent {
          * Loads settings from a url that represents them using the
          * {@link SettingsLoaderFactory#loaderFromSource(String)}.
          */
-        public Builder loadFromPath(Path path) throws SettingsException {
-            try {
-                return loadFromStream(path.getFileName().toString(), Files.newInputStream(path));
-            } catch (IOException e) {
-                throw new SettingsException("Failed to open stream for url [" + path + "]", e);
-            }
+        public Builder loadFromPath(Path path) throws IOException {
+            // NOTE: loadFromStream will close the input stream
+            return loadFromStream(path.getFileName().toString(), Files.newInputStream(path));
         }
 
         /**
          * Loads settings from a stream that represents them using the
          * {@link SettingsLoaderFactory#loaderFromSource(String)}.
          */
-        public Builder loadFromStream(String resourceName, InputStream is) throws SettingsException {
+        public Builder loadFromStream(String resourceName, InputStream is) throws IOException {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromResource(resourceName);
-            try {
-                Map<String, String> loadedSettings = settingsLoader
-                        .load(Streams.copyToString(new InputStreamReader(is, StandardCharsets.UTF_8)));
-                put(loadedSettings);
-            } catch (Exception e) {
-                throw new SettingsException("Failed to load settings from [" + resourceName + "]", e);
-            }
+            // NOTE: copyToString will close the input stream
+            Map<String, String> loadedSettings =
+                settingsLoader.load(Streams.copyToString(new InputStreamReader(is, StandardCharsets.UTF_8)));
+            put(loadedSettings);
             return this;
         }
 
@@ -992,14 +985,21 @@ public final class Settings implements ToXContent {
                     return true;
                 }
             };
-            for (Map.Entry<String, String> entry : new HashMap<>(map).entrySet()) {
-                String value = propertyPlaceholder.replacePlaceholders(entry.getKey(), entry.getValue(), placeholderResolver);
+
+            Iterator<Map.Entry<String, String>> entryItr = map.entrySet().iterator();
+            while (entryItr.hasNext()) {
+                Map.Entry<String, String> entry = entryItr.next();
+                if (entry.getValue() == null) {
+                    // a null value obviously can't be replaced
+                    continue;
+                }
+                String value = propertyPlaceholder.replacePlaceholders(entry.getValue(), placeholderResolver);
                 // if the values exists and has length, we should maintain it  in the map
                 // otherwise, the replace process resolved into removing it
                 if (Strings.hasLength(value)) {
-                    map.put(entry.getKey(), value);
+                    entry.setValue(value);
                 } else {
-                    map.remove(entry.getKey());
+                    entryItr.remove();
                 }
             }
             return this;

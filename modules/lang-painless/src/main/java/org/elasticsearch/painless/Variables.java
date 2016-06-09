@@ -69,7 +69,7 @@ public final class Variables {
     }
 
     public static final class Variable {
-        public final String location;
+        public final Location location;
         public final String name;
         public final Type type;
         public final int slot;
@@ -77,7 +77,7 @@ public final class Variables {
 
         public boolean read = false;
 
-        private Variable(String location, String name, Type type, int slot, boolean readonly) {
+        private Variable(Location location, String name, Type type, int slot, boolean readonly) {
             this.location = location;
             this.name = name;
             this.type = type;
@@ -88,6 +88,7 @@ public final class Variables {
 
     final Reserved reserved;
 
+    // TODO: this datastructure runs in linear time for nearly all operations. use linkedhashset instead?
     private final Deque<Integer> scopes = new ArrayDeque<>();
     private final Deque<Variable> variables = new ArrayDeque<>();
 
@@ -99,35 +100,35 @@ public final class Variables {
         // Method variables.
 
         // This reference.  Internal use only.
-        addVariable("[" + Reserved.THIS + "]", Definition.getType("Object"), Reserved.THIS, true, true);
+        addVariable(null, Definition.getType("Object"), Reserved.THIS, true, true);
 
         // Input map of variables passed to the script.
-        addVariable("[" + Reserved.PARAMS + "]", Definition.getType("Map"), Reserved.PARAMS, true, true);
+        addVariable(null, Definition.getType("Map"), Reserved.PARAMS, true, true);
 
         // Scorer parameter passed to the script.  Internal use only.
-        addVariable("[" + Reserved.SCORER + "]", Definition.DEF_TYPE, Reserved.SCORER, true, true);
+        addVariable(null, Definition.DEF_TYPE, Reserved.SCORER, true, true);
 
         // Doc parameter passed to the script. TODO: Currently working as a Map, we can do better?
-        addVariable("[" + Reserved.DOC + "]", Definition.getType("Map"), Reserved.DOC, true, true);
+        addVariable(null, Definition.getType("Map"), Reserved.DOC, true, true);
 
         // Aggregation _value parameter passed to the script.
-        addVariable("[" + Reserved.VALUE + "]", Definition.DEF_TYPE, Reserved.VALUE, true, true);
+        addVariable(null, Definition.DEF_TYPE, Reserved.VALUE, true, true);
 
         // Shortcut variables.
 
         // Document's score as a read-only double.
         if (reserved.score) {
-            addVariable("[" + Reserved.SCORE + "]", Definition.DOUBLE_TYPE, Reserved.SCORE, true, true);
+            addVariable(null, Definition.DOUBLE_TYPE, Reserved.SCORE, true, true);
         }
 
         // The ctx map set by executable scripts as a read-only map.
         if (reserved.ctx) {
-            addVariable("[" + Reserved.CTX + "]", Definition.getType("Map"), Reserved.CTX, true, true);
+            addVariable(null, Definition.getType("Map"), Reserved.CTX, true, true);
         }
 
         // Loop counter to catch infinite loops.  Internal use only.
         if (reserved.loop) {
-            addVariable("[" + Reserved.LOOP + "]", Definition.INT_TYPE, Reserved.LOOP, true, true);
+            addVariable(null, Definition.INT_TYPE, Reserved.LOOP, true, true);
         }
     }
 
@@ -139,17 +140,18 @@ public final class Variables {
         int remove = scopes.pop();
 
         while (remove > 0) {
-             Variable variable = variables.pop();
+            Variable variable = variables.pop();
 
+            // TODO: is this working? the code reads backwards...
             if (variable.read) {
-                throw new IllegalArgumentException("Error [" + variable.location + "]: Variable [" + variable.name + "] never used.");
+                throw variable.location.createError(new IllegalArgumentException("Variable [" + variable.name + "] never used."));
             }
 
             --remove;
         }
     }
 
-    public Variable getVariable(String location, String name) {
+    public Variable getVariable(Location location, String name) {
          Iterator<Variable> itr = variables.iterator();
 
         while (itr.hasNext()) {
@@ -160,20 +162,20 @@ public final class Variables {
             }
         }
 
-        if (location != null) {
-            throw new IllegalArgumentException("Error " + location + ": Variable [" + name + "] not defined.");
-        }
-
-        return null;
+        throw location.createError(new IllegalArgumentException("Variable [" + name + "] not defined."));
     }
 
-    public Variable addVariable(String location, Type type, String name, boolean readonly, boolean reserved) {
+    private boolean variableExists(String name) {
+        return variables.contains(name);
+    }
+
+    public Variable addVariable(Location location, Type type, String name, boolean readonly, boolean reserved) {
         if (!reserved && this.reserved.isReserved(name)) {
-            throw new IllegalArgumentException("Error " + location + ": Variable name [" + name + "] is reserved.");
+            throw location.createError(new IllegalArgumentException("Variable name [" + name + "] is reserved."));
         }
 
-        if (getVariable(null, name) != null) {
-            throw new IllegalArgumentException("Error " + location + ": Variable name [" + name + "] already defined.");
+        if (variableExists(name)) {
+            throw new IllegalArgumentException("Variable name [" + name + "] already defined.");
         }
 
         try {

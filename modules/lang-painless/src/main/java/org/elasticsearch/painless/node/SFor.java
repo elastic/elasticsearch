@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
@@ -35,15 +36,15 @@ public final class SFor extends AStatement {
     AExpression afterthought;
     final SBlock block;
 
-    public SFor(int line, int offset, String location, int maxLoopCounter,
+    public SFor(Location location, int maxLoopCounter,
                 ANode initializer, AExpression condition, AExpression afterthought, SBlock block) {
-        super(line, offset, location);
+        super(location);
 
+        this.maxLoopCounter = maxLoopCounter;
         this.initializer = initializer;
         this.condition = condition;
         this.afterthought = afterthought;
         this.block = block;
-        this.maxLoopCounter = maxLoopCounter;
     }
 
     @Override
@@ -53,8 +54,8 @@ public final class SFor extends AStatement {
         boolean continuous = false;
 
         if (initializer != null) {
-            if (initializer instanceof SDeclBlock) {
-                ((SDeclBlock)initializer).analyze(variables);
+            if (initializer instanceof AStatement) {
+                ((AStatement)initializer).analyze(variables);
             } else if (initializer instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializer;
 
@@ -62,10 +63,10 @@ public final class SFor extends AStatement {
                 initializer.analyze(variables);
 
                 if (!initializer.statement) {
-                    throw new IllegalArgumentException(initializer.error("Not a statement."));
+                    throw createError(new IllegalArgumentException("Not a statement."));
                 }
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
@@ -78,11 +79,11 @@ public final class SFor extends AStatement {
                 continuous = (boolean)condition.constant;
 
                 if (!continuous) {
-                    throw new IllegalArgumentException(error("Extraneous for loop."));
+                    throw createError(new IllegalArgumentException("Extraneous for loop."));
                 }
 
                 if (block == null) {
-                    throw new IllegalArgumentException(error("For loop has no escape."));
+                    throw createError(new IllegalArgumentException("For loop has no escape."));
                 }
             }
         } else {
@@ -94,7 +95,7 @@ public final class SFor extends AStatement {
             afterthought.analyze(variables);
 
             if (!afterthought.statement) {
-                throw new IllegalArgumentException(afterthought.error("Not a statement."));
+                throw createError(new IllegalArgumentException("Not a statement."));
             }
         }
 
@@ -105,7 +106,7 @@ public final class SFor extends AStatement {
             block.analyze(variables);
 
             if (block.loopEscape && !block.anyContinue) {
-                throw new IllegalArgumentException(error("Extraneous for loop."));
+                throw createError(new IllegalArgumentException("Extraneous for loop."));
             }
 
             if (continuous && !block.anyBreak) {
@@ -127,7 +128,8 @@ public final class SFor extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writer.writeStatementOffset(offset);
+        writer.writeStatementOffset(location);
+
         Label start = new Label();
         Label begin = afterthought == null ? start : new Label();
         Label end = new Label();
@@ -159,10 +161,10 @@ public final class SFor extends AStatement {
                 ++statementCount;
             }
 
-            writer.writeLoopCounter(loopCounterSlot, statementCount, offset);
+            writer.writeLoopCounter(loopCounterSlot, statementCount, location);
             block.write(writer);
         } else {
-            writer.writeLoopCounter(loopCounterSlot, 1, offset);
+            writer.writeLoopCounter(loopCounterSlot, 1, location);
         }
 
         if (afterthought != null) {

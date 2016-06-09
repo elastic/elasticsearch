@@ -171,31 +171,33 @@ public final class RestClient implements Closeable {
                 RequestLogger.log(logger, "request succeeded", request, host, httpResponse);
                 onSuccess(host);
                 return response;
-            } else {
-                RequestLogger.log(logger, "request failed", request, host, httpResponse);
-                String responseBody;
-                try {
-                    if (response.getEntity() == null) {
-                        responseBody = null;
-                    } else {
-                        responseBody = EntityUtils.toString(response.getEntity());
-                    }
-                } finally {
-                    response.close();
-                }
-                ResponseException responseException = new ResponseException(
-                        response, responseBody);
-                lastSeenException = addSuppressedException(lastSeenException, responseException);
-                //clients don't retry on 500 because elasticsearch still misuses it instead of 400 in some places
-                if (statusCode == 502 || statusCode == 503 || statusCode == 504) {
-                    onFailure(host);
+            }
+            RequestLogger.log(logger, "request failed", request, host, httpResponse);
+            String responseBody;
+            try {
+                if (response.getEntity() == null) {
+                    responseBody = null;
                 } else {
-                    //don't retry and call onSuccess as the error should be a request problem, the node is alive
-                    onSuccess(host);
-                    break;
+                    responseBody = EntityUtils.toString(response.getEntity());
                 }
+            } finally {
+                response.close();
+            }
+            lastSeenException = addSuppressedException(lastSeenException, new ResponseException(response, responseBody));
+            switch(statusCode) {
+                case 502:
+                case 503:
+                case 504:
+                    //mark host dead and retry against next one
+                    onFailure(host);
+                    break;
+                default:
+                    //mark host alive and don't retry, as the error should be a request problem
+                    onSuccess(host);
+                    throw lastSeenException;
             }
         }
+        //we get here only when we tried all nodes and they all failed
         assert lastSeenException != null;
         throw lastSeenException;
     }

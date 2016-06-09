@@ -53,7 +53,7 @@ public class HostsSnifferBuilderTests extends LuceneTestCase {
                 HostsSniffer.builder(client).setSniffRequestTimeoutMillis(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
-                assertEquals(e.getMessage(), "sniffRequestTimeout must be greater than 0");
+                assertEquals(e.getMessage(), "sniffRequestTimeoutMillis must be greater than 0");
             }
 
             HostsSniffer.Builder builder = HostsSniffer.builder(client);

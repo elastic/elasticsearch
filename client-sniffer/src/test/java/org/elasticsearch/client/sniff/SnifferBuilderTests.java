@@ -58,14 +58,14 @@ public class SnifferBuilderTests extends LuceneTestCase {
                 Sniffer.builder(client, hostsSniffer).setSniffIntervalMillis(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
-                assertEquals("sniffInterval must be greater than 0", e.getMessage());
+                assertEquals("sniffIntervalMillis must be greater than 0", e.getMessage());
             }
 
             try {
                 Sniffer.builder(client, hostsSniffer).setSniffAfterFailureDelayMillis(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
-                assertEquals("sniffAfterFailureDelay must be greater than 0", e.getMessage());
+                assertEquals("sniffAfterFailureDelayMillis must be greater than 0", e.getMessage());
             }
 
             try (Sniffer sniffer = Sniffer.builder(client, hostsSniffer).build()) {

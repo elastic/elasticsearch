@@ -56,6 +56,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
  * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.
  * Works against a real http server, one single host.
  */
+@SuppressForbidden(reason = "uses sun HttpServer")
 public class RestClientIntegTests extends LuceneTestCase {
 
     private static HttpServer httpServer;

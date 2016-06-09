@@ -53,10 +53,11 @@ forbiddenApisMain {
 //excludes don't seem to work though and we don't want to have our own @SuppressForbidden
 forbiddenApisTest.enabled=false
 
-//forbiddenApisTest {
+forbiddenApisTest {
   //client does not depend on core, so only jdk signatures should be checked
-  //signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
-//}
+  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+  suppressAnnotations = ['**.SuppressForbidden']
+}
 
 //JarHell is part of es core, which we don't want to pull in
 jarHell.enabled=false

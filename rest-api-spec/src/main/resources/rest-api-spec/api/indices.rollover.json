@@ -3,13 +3,18 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-rollover-index.html",
     "methods": ["POST"],
     "url": {
-      "path": "/{alias}/_rollover",
-      "paths": ["/{alias}/_rollover"],
+      "path": "/{alias}/_rollover}",
+      "paths": ["/{alias}/_rollover", "/{alias}/_rollover/{new_index}"],
       "parts": {
         "alias": {
           "type" : "string",
           "required" : true,
           "description" : "The name of the alias to rollover"
+        },
+        "new_index": {
+          "type" : "string",
+          "required" : false,
+          "description" : "The name of the rollover index"
         }
       },
       "params": {

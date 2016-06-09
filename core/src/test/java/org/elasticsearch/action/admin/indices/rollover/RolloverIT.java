@@ -130,6 +130,24 @@ public class RolloverIT extends ESIntegTestCase {
         assertNull(newIndex);
     }
 
+    public void testRolloverWithNewIndexName() throws Exception {
+        assertAcked(prepareCreate("test_index").addAlias(new Alias("test_alias")).get());
+        index("test_index", "type1", "1", "field", "value");
+        flush("test_index");
+        final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
+            .setNewIndexName("test_new_index").get();
+        assertThat(response.getOldIndex(), equalTo("test_index"));
+        assertThat(response.getNewIndex(), equalTo("test_new_index"));
+        assertThat(response.isDryRun(), equalTo(false));
+        assertThat(response.isRolledOver(), equalTo(true));
+        assertThat(response.getConditionStatus().size(), equalTo(0));
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final IndexMetaData oldIndex = state.metaData().index("test_index");
+        assertFalse(oldIndex.getAliases().containsKey("test_alias"));
+        final IndexMetaData newIndex = state.metaData().index("test_new_index");
+        assertTrue(newIndex.getAliases().containsKey("test_alias"));
+    }
+
     public void testRolloverOnExistingIndex() throws Exception {
         assertAcked(prepareCreate("test_index-0").addAlias(new Alias("test_alias")).get());
         index("test_index-0", "type1", "1", "field", "value");

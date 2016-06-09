@@ -106,7 +106,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 public void onResponse(IndicesStatsResponse statsResponse) {
                     final Set<Condition.Result> conditionResults = evaluateConditions(rolloverRequest.getConditions(),
                         statsResponse.getTotal().getDocs(), metaData.index(sourceIndexName));
-                    final String rolloverIndexName = generateRolloverIndexName(sourceIndexName);
+                    final String rolloverIndexName = (rolloverRequest.getNewIndexName() != null)
+                        ? rolloverRequest.getNewIndexName()
+                        : generateRolloverIndexName(sourceIndexName);
                     if (rolloverRequest.isDryRun()) {
                         listener.onResponse(
                             new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, true, false));

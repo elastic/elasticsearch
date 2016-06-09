@@ -70,14 +70,16 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     private String alias;
+    private String newIndexName;
     private boolean dryRun;
     private Set<Condition> conditions = new HashSet<>(2);
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
     RolloverRequest() {}
 
-    public RolloverRequest(String alias) {
+    public RolloverRequest(String alias, String newIndexName) {
         this.alias = alias;
+        this.newIndexName = newIndexName;
     }
 
     @Override
@@ -96,6 +98,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         alias = in.readString();
+        newIndexName = in.readOptionalString();
         dryRun = in.readBoolean();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -109,6 +112,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(alias);
+        out.writeOptionalString(newIndexName);
         out.writeBoolean(dryRun);
         out.writeVInt(conditions.size());
         for (Condition condition : conditions) {
@@ -134,6 +138,12 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         this.alias = alias;
     }
 
+    /**
+     * Sets the alias to rollover to another index
+     */
+    public void setNewIndexName(String newIndexName) {
+        this.newIndexName = newIndexName;
+    }
     /**
      * Sets if the rollover should not be executed when conditions are met
      */
@@ -173,6 +183,10 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     String getAlias() {
         return alias;
+    }
+
+    String getNewIndexName() {
+        return newIndexName;
     }
 
     CreateIndexRequest getCreateIndexRequest() {

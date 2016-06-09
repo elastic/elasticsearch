@@ -38,12 +38,13 @@ public class RestRolloverIndexAction extends BaseRestHandler {
     public RestRolloverIndexAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_rollover", this);
+        controller.registerHandler(RestRequest.Method.POST, "/{index}/_rollover/{new_index}", this);
     }
 
     @SuppressWarnings({"unchecked"})
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
-        RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("index"));
+        RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("index"), request.param("new_index"));
         if (request.hasContent()) {
             rolloverIndexRequest.source(request.content());
         }

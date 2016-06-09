@@ -91,7 +91,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         String sourceAlias = randomAsciiOfLength(10);
         String sourceIndex = randomAsciiOfLength(10);
         String targetIndex = randomAsciiOfLength(10);
-        final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias);
+        final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias, targetIndex);
         final IndicesAliasesClusterStateUpdateRequest updateRequest =
             TransportRolloverAction.prepareRolloverAliasesUpdateRequest(sourceIndex, targetIndex, rolloverRequest);
 
@@ -137,13 +137,16 @@ public class TransportRolloverActionTests extends ESTestCase {
             ).build();
 
         expectThrows(IllegalArgumentException.class, () ->
-            TransportRolloverAction.validate(metaData, new RolloverRequest(aliasWithMultipleIndices)));
+            TransportRolloverAction.validate(metaData, new RolloverRequest(aliasWithMultipleIndices,
+                randomAsciiOfLength(10))));
         expectThrows(IllegalArgumentException.class, () ->
-            TransportRolloverAction.validate(metaData, new RolloverRequest(randomFrom(index1, index2))));
+            TransportRolloverAction.validate(metaData, new RolloverRequest(randomFrom(index1, index2),
+                randomAsciiOfLength(10))));
         expectThrows(IllegalArgumentException.class, () ->
-            TransportRolloverAction.validate(metaData, new RolloverRequest(randomAsciiOfLength(5)))
+            TransportRolloverAction.validate(metaData, new RolloverRequest(randomAsciiOfLength(5),
+                randomAsciiOfLength(10)))
         );
-        TransportRolloverAction.validate(metaData, new RolloverRequest(alias));
+        TransportRolloverAction.validate(metaData, new RolloverRequest(alias, randomAsciiOfLength(10)));
     }
 
     public void testGenerateRolloverIndexName() throws Exception {
@@ -162,7 +165,7 @@ public class TransportRolloverActionTests extends ESTestCase {
     public void testCreateIndexRequest() throws Exception {
         String alias = randomAsciiOfLength(10);
         String rolloverIndex = randomAsciiOfLength(10);
-        final RolloverRequest rolloverRequest = new RolloverRequest(alias);
+        final RolloverRequest rolloverRequest = new RolloverRequest(alias, randomAsciiOfLength(10));
         final Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())

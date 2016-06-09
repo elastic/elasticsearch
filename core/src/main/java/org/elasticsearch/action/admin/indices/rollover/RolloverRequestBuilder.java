@@ -31,8 +31,13 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         super(client, action, new RolloverRequest());
     }
 
-    public RolloverRequestBuilder setAlias(String sourceAlias) {
-        this.request.setAlias(sourceAlias);
+    public RolloverRequestBuilder setAlias(String alias) {
+        this.request.setAlias(alias);
+        return this;
+    }
+
+    public RolloverRequestBuilder setNewIndexName(String newIndexName) {
+        this.request.setNewIndexName(newIndexName);
         return this;
     }
 

@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -108,36 +109,42 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     final String rolloverIndexName = generateRolloverIndexName(sourceIndexName);
                     if (rolloverRequest.isDryRun()) {
                         listener.onResponse(
-                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, true, false,
-                                false));
+                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, true, false));
                         return;
                     }
                     if (conditionResults.size() == 0 || conditionResults.stream().anyMatch(result -> result.matched)) {
-                        boolean createRolloverIndex = metaData.index(rolloverIndexName) == null;
-                        final RolloverResponse rolloverResponse =
-                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, false, true,
-                                createRolloverIndex);
-                        if (createRolloverIndex) {
-                            createIndexService.createIndex(prepareCreateIndexRequest(rolloverIndexName, rolloverRequest),
-                                new ActionListener<ClusterStateUpdateResponse>() {
-                                    @Override
-                                    public void onResponse(ClusterStateUpdateResponse response) {
-                                        rollover(rolloverRequest, rolloverResponse, listener);
-                                    }
+                        createIndexService.createIndex(prepareCreateIndexRequest(rolloverIndexName, rolloverRequest),
+                            new ActionListener<ClusterStateUpdateResponse>() {
+                                @Override
+                                public void onResponse(ClusterStateUpdateResponse response) {
+                                    // switch the alias to point to the newly created index
+                                    indexAliasesService.indicesAliases(
+                                        prepareRolloverAliasesUpdateRequest(sourceIndexName, rolloverIndexName,
+                                            rolloverRequest),
+                                        new ActionListener<ClusterStateUpdateResponse>() {
+                                            @Override
+                                            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+                                                listener.onResponse(
+                                                    new RolloverResponse(sourceIndexName, rolloverIndexName,
+                                                        conditionResults, false, true));
+                                            }
 
-                                    @Override
-                                    public void onFailure(Throwable t) {
-                                        listener.onFailure(t);
-                                    }
-                                });
-                        } else {
-                            rollover(rolloverRequest, rolloverResponse, listener);
-                        }
+                                            @Override
+                                            public void onFailure(Throwable e) {
+                                                listener.onFailure(e);
+                                            }
+                                        });
+                                }
+
+                                @Override
+                                public void onFailure(Throwable t) {
+                                    listener.onFailure(t);
+                                }
+                            });
                     } else {
                         // conditions not met
                         listener.onResponse(
-                            new RolloverResponse(sourceIndexName, sourceIndexName, conditionResults, false, false,
-                                false)
+                            new RolloverResponse(sourceIndexName, sourceIndexName, conditionResults, false, false)
                         );
                     }
                 }
@@ -148,23 +155,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 }
             }
         );
-    }
-
-    private void rollover(final RolloverRequest request, final RolloverResponse response,
-                          ActionListener<RolloverResponse> listener) {
-        indexAliasesService.indicesAliases(
-            prepareRolloverAliasesUpdateRequest(response.getOldIndex(), response.getNewIndex(), request),
-            new ActionListener<ClusterStateUpdateResponse>() {
-                @Override
-                public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
-                    listener.onResponse(response);
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    listener.onFailure(e);
-                }
-            });
     }
 
     static IndicesAliasesClusterStateUpdateRequest prepareRolloverAliasesUpdateRequest(String oldIndex, String newIndex,

@@ -39,8 +39,7 @@
   - match: { old_index: logs-1 }
   - match: { new_index: logs-2 }
   - match: { rolled_over: true }
-  - match: { rollover_index_created: true }
-  - match: { simulated: false }
+  - match: { dry_run: false }
   - match: { conditions: { "[max_docs: 1]": true } }
 
   # ensure new index is created

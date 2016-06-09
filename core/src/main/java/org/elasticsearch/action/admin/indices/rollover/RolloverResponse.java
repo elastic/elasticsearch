@@ -39,18 +39,16 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
     private Set<Map.Entry<String, Boolean>> conditionStatus;
     private boolean dryRun;
     private boolean rolledOver;
-    private boolean rolloverIndexCreated;
 
     RolloverResponse() {
     }
 
     RolloverResponse(String oldIndex, String newIndex, Set<Condition.Result> conditionResults,
-                     boolean dryRun, boolean rolledOver, boolean rolloverIndexCreated) {
+                     boolean dryRun, boolean rolledOver) {
         this.oldIndex = oldIndex;
         this.newIndex = newIndex;
         this.dryRun = dryRun;
         this.rolledOver = rolledOver;
-        this.rolloverIndexCreated = rolloverIndexCreated;
         this.conditionStatus = conditionResults.stream()
             .map(result -> new AbstractMap.SimpleEntry<>(result.condition.toString(), result.matched))
             .collect(Collectors.toSet());
@@ -91,13 +89,6 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
         return rolledOver;
     }
 
-    /**
-     * Returns if the rollover index had to be explicitly created
-     */
-    public boolean isRolloverIndexCreated() {
-        return rolloverIndexCreated;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -113,7 +104,6 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
         conditionStatus = conditions;
         dryRun = in.readBoolean();
         rolledOver = in.readBoolean();
-        rolloverIndexCreated = in.readBoolean();
     }
 
     @Override
@@ -128,7 +118,6 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
         }
         out.writeBoolean(dryRun);
         out.writeBoolean(rolledOver);
-        out.writeBoolean(rolloverIndexCreated);
     }
 
     @Override
@@ -137,7 +126,6 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
         builder.field(Fields.NEW_INDEX, newIndex);
         builder.field(Fields.ROLLED_OVER, rolledOver);
         builder.field(Fields.DRY_RUN, dryRun);
-        builder.field(Fields.ROLLOVER_INDEX_CREATED, rolloverIndexCreated);
         builder.startObject(Fields.CONDITIONS);
         for (Map.Entry<String, Boolean> entry : conditionStatus) {
             builder.field(entry.getKey(), entry.getValue());
@@ -151,7 +139,6 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
         static final String OLD_INDEX = "old_index";
         static final String DRY_RUN = "dry_run";
         static final String ROLLED_OVER = "rolled_over";
-        static final String ROLLOVER_INDEX_CREATED = "rollover_index_created";
         static final String CONDITIONS = "conditions";
     }
 }

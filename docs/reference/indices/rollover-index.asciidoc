@@ -3,9 +3,10 @@
 
 The rollover index API allows to switch the index pointed to by an alias given some predicates.
 In order to rollover an index, the provided alias has to point to a single index. Upon satisfying
-any of the predicates, the alias is switched to point to a new index, creating the index if it
-does not exist. The rollover API requires the old concrete index name to have `{index_prefix}-{num}`
-format, as rollover index name is generated following `{index_prefix}-{num+1}` format.
+any of the predicates, the alias is switched to point to the rollover index, if the rollover index
+already exists, the rollover fails. The rollover API requires the old concrete index name to have
+`{index_prefix}-{num}` format, as rollover index name is generated following `{index_prefix}-{num+1}`
+format.
 
 This API is syntactic sugar for changing the index pointed to by an alias given some predicate.
 
@@ -35,11 +36,11 @@ $ curl -XPOST 'http://localhost:9200/index_alias/_rollover' -d '{
 <2> Sets a condition that the index has to have at least a 1000 documents
 
 The API call above switches the index pointed to by `index_alias` from `index-1` to `index-2`, if any
-of the conditions are met. If `index-2` does not exist, it is created (using matching <<indices-templates>>
-if available). The API call returns immediately if none of the conditions are met.
+of the conditions are met. `index-2` is created (using matching <<indices-templates>> if available).
+The API call returns immediately if none of the conditions are met.
 
-The `_rollover` API is similar to <<indices-create-index>> and accepts `settings`, `mappings` and `aliases`
-to override the index create request for a non-existent rolled over index.
+The `_rollover` API is similar to <<indices-create-index>> and accepts `settings`, `mappings` and
+`aliases` to override the index create request for the rollover index.
 
 [source,js]
 --------------------------------------------------
@@ -67,8 +68,7 @@ An example response for the index rollover API:
 	"new_index": "index-2", <2>
 	"rolled_over": true, <3>
 	"dry_run": false, <4>
-	"rollover_index_created": true, <5>
-	"conditions": { <6>
+	"conditions": { <5>
 	    "[max_age: 7d]": true,
 	    "[max_docs: 1000]": true
 	}
@@ -78,6 +78,5 @@ An example response for the index rollover API:
 <2> name of the index the alias currently points to
 <3> whether the alias switch was successful
 <4> whether the rollover was dry run
-<5> whether the rolled over index had to be explicitly created
-<6> status of the evaluated request conditions
+<5> status of the evaluated request conditions
 

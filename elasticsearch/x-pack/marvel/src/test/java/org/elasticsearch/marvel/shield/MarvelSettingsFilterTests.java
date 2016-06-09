@@ -7,7 +7,7 @@ package org.elasticsearch.marvel.shield;
 
 import org.apache.http.Header;
 import org.apache.http.message.BasicHeader;
-import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -52,7 +52,7 @@ public class MarvelSettingsFilterTests extends MarvelIntegTestCase {
         } else {
             headers = new Header[0];
         }
-        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/_nodes/settings",
+        try (Response response = getRestClient().performRequest("GET", "/_nodes/settings",
                 Collections.emptyMap(), null, headers)) {
             Map<String, Object> responseMap = JsonXContent.jsonXContent.createParser(response.getEntity().getContent()).map();
             @SuppressWarnings("unchecked")

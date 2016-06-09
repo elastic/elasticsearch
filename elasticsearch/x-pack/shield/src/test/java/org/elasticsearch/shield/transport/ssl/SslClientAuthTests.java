@@ -12,7 +12,7 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
@@ -83,7 +83,7 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
         CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(socketFactory).build();
 
         try (RestClient restClient = createRestClient(client, "https")) {
-            try (ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null,
+            try (Response response = restClient.performRequest("GET", "/", Collections.emptyMap(), null,
                     new BasicHeader("Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword())))) {
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
                 assertThat(EntityUtils.toString(response.getEntity()), containsString("You Know, for Search"));

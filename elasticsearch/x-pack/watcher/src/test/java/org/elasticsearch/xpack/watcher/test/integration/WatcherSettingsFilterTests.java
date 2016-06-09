@@ -9,7 +9,7 @@ import org.apache.http.Header;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicHeader;
-import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -61,7 +61,7 @@ public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCa
         } else {
             headers = new Header[0];
         }
-        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/_nodes/settings",
+        try (Response response = getRestClient().performRequest("GET", "/_nodes/settings",
                 Collections.emptyMap(), null, headers)) {
             Map<String, Object> responseMap = JsonXContent.jsonXContent.createParser(response.getEntity().getContent()).map();
             Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes");

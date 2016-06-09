@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -56,7 +56,7 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
     public void startWatcher() throws Exception {
         try {
             getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
-        } catch(ElasticsearchResponseException e) {
+        } catch(ResponseException e) {
             //TODO ignore for now, needs to be fixed though
         }
     }
@@ -65,7 +65,7 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
     public void stopWatcher() throws Exception {
         try {
             getAdminExecutionContext().callApi("xpack.watcher.stop", emptyMap(), emptyList(), emptyMap());
-        } catch(ElasticsearchResponseException e) {
+        } catch(ResponseException e) {
             //TODO ignore for now, needs to be fixed though
         }
     }

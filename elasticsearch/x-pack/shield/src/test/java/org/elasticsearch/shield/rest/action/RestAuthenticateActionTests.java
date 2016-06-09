@@ -7,8 +7,8 @@ package org.elasticsearch.shield.rest.action;
 
 import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -51,7 +51,7 @@ public class RestAuthenticateActionTests extends ShieldIntegTestCase {
     }
 
     public void testAuthenticateApi() throws Exception {
-        try (ElasticsearchResponse response = getRestClient().performRequest(
+        try (Response response = getRestClient().performRequest(
                 "GET", "/_xpack/security/_authenticate", Collections.emptyMap(), null,
                 new BasicHeader("Authorization", basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
                         new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
@@ -66,7 +66,7 @@ public class RestAuthenticateActionTests extends ShieldIntegTestCase {
     }
 
     public void testAuthenticateApiWithoutAuthentication() throws Exception {
-        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/_xpack/security/_authenticate",
+        try (Response response = getRestClient().performRequest("GET", "/_xpack/security/_authenticate",
                 Collections.emptyMap(), null)) {
             if (anonymousEnabled) {
                 assertThat(response.getStatusLine().getStatusCode(), is(200));
@@ -79,11 +79,11 @@ public class RestAuthenticateActionTests extends ShieldIntegTestCase {
             } else {
                 fail("request should have failed");
             }
-        } catch(ElasticsearchResponseException e) {
+        } catch(ResponseException e) {
             if (anonymousEnabled) {
                 fail("request should have succeeded");
             } else {
-                assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(401));
+                assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
             }
         }
     }

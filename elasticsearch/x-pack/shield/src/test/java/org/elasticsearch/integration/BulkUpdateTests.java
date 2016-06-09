@@ -12,7 +12,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -80,11 +80,11 @@ public class BulkUpdateTests extends ShieldIntegTestCase {
                         new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())));
 
         StringEntity body = new StringEntity("{\"test\":\"test\"}", RestClient.JSON_CONTENT_TYPE);
-        try (ElasticsearchResponse response = getRestClient().performRequest("PUT", path, Collections.emptyMap(), body, basicAuthHeader)) {
+        try (Response response = getRestClient().performRequest("PUT", path, Collections.emptyMap(), body, basicAuthHeader)) {
             assertThat(response.getStatusLine().getStatusCode(), equalTo(201));
         }
 
-        try (ElasticsearchResponse response = getRestClient().performRequest("GET", path, Collections.emptyMap(), null, basicAuthHeader)) {
+        try (Response response = getRestClient().performRequest("GET", path, Collections.emptyMap(), null, basicAuthHeader)) {
             assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
             assertThat(EntityUtils.toString(response.getEntity()), containsString("\"test\":\"test\""));
         }
@@ -95,12 +95,12 @@ public class BulkUpdateTests extends ShieldIntegTestCase {
 
         //update with new field
         body = new StringEntity("{\"doc\": {\"not test\": \"not test\"}}", RestClient.JSON_CONTENT_TYPE);
-        try (ElasticsearchResponse response = getRestClient().performRequest("POST", path + "/_update",
+        try (Response response = getRestClient().performRequest("POST", path + "/_update",
                 Collections.emptyMap(), body, basicAuthHeader)) {
             assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         }
 
-        try (ElasticsearchResponse response = getRestClient().performRequest("GET", path, Collections.emptyMap(), null, basicAuthHeader)) {
+        try (Response response = getRestClient().performRequest("GET", path, Collections.emptyMap(), null, basicAuthHeader)) {
             assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
             String responseBody = EntityUtils.toString(response.getEntity());
             assertThat(responseBody, containsString("\"test\":\"test\""));
@@ -113,12 +113,12 @@ public class BulkUpdateTests extends ShieldIntegTestCase {
 
         body = new StringEntity("{\"update\": {\"_index\": \"index1\", \"_type\": \"type\", \"_id\": \"1\"}}\n" +
                 "{\"doc\": {\"bulk updated\":\"bulk updated\"}}\n", RestClient.JSON_CONTENT_TYPE);
-        try (ElasticsearchResponse response = getRestClient().performRequest("POST", "/_bulk",
+        try (Response response = getRestClient().performRequest("POST", "/_bulk",
                 Collections.emptyMap(), body, basicAuthHeader)) {
             assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         }
 
-        try (ElasticsearchResponse response = getRestClient().performRequest("GET", path, Collections.emptyMap(), null, basicAuthHeader)) {
+        try (Response response = getRestClient().performRequest("GET", path, Collections.emptyMap(), null, basicAuthHeader)) {
             String responseBody = EntityUtils.toString(response.getEntity());
             assertThat(responseBody, containsString("\"test\":\"test\""));
             assertThat(responseBody, containsString("\"not test\":\"not test\""));

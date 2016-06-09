@@ -14,8 +14,8 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -196,7 +196,7 @@ public class LicensingTests extends ShieldIntegTestCase {
     }
 
     public void testRestAuthenticationByLicenseType() throws Exception {
-        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null)) {
+        try (Response response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null)) {
             // the default of the licensing tests is basic
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
@@ -207,8 +207,8 @@ public class LicensingTests extends ShieldIntegTestCase {
         try {
             getRestClient().performRequest("GET", "/", Collections.emptyMap(), null);
             fail("request should have failed");
-        } catch(ElasticsearchResponseException e) {
-            assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(401));
+        } catch(ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
         }
     }
 

@@ -9,8 +9,8 @@ import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
@@ -49,8 +49,8 @@ public class CustomRealmIT extends ESIntegTestCase {
         try {
             getRestClient().performRequest("GET", "/", Collections.emptyMap(), null);
             fail("request should have failed");
-        } catch(ElasticsearchResponseException e) {
-            ElasticsearchResponse response = e.getElasticsearchResponse();
+        } catch(ResponseException e) {
+            Response response = e.getResponse();
             assertThat(response.getStatusLine().getStatusCode(), is(401));
             String value = response.getHeader("WWW-Authenticate");
             assertThat(value, is("custom-challenge"));
@@ -58,7 +58,7 @@ public class CustomRealmIT extends ESIntegTestCase {
     }
 
     public void testHttpAuthentication() throws Exception {
-        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
+        try (Response response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
                 new BasicHeader(CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER),
                 new BasicHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW))) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));

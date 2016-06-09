@@ -9,7 +9,7 @@ import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -136,7 +136,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
             } else {
                 path = "/_xpack/security/role/" + Strings.arrayToCommaDelimitedString(rolesToClear) + "/_clear_cache";
             }
-            try (ElasticsearchResponse response = getRestClient().performRequest("POST", path, Collections.emptyMap(), null,
+            try (Response response = getRestClient().performRequest("POST", path, Collections.emptyMap(), null,
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
                                     new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {

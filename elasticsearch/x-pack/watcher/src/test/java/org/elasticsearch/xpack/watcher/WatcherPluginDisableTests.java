@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
@@ -70,8 +70,8 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
         try {
             getRestClient().performRequest("GET", "/_xpack/watcher", Collections.emptyMap(), null);
             fail("request should have failed");
-        } catch(ElasticsearchResponseException e) {
-            assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(HttpStatus.SC_BAD_REQUEST));
+        } catch(ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(HttpStatus.SC_BAD_REQUEST));
         }
     }
 

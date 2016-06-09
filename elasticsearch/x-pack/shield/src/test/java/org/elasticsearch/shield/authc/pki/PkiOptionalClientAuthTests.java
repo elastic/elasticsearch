@@ -8,8 +8,8 @@ package org.elasticsearch.shield.authc.pki;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicHeader;
-import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
@@ -85,11 +85,11 @@ public class PkiOptionalClientAuthTests extends ShieldIntegTestCase {
             try {
                 restClient.performRequest("GET", "_nodes", Collections.emptyMap(), null);
                 fail("request should have failed");
-            } catch(ElasticsearchResponseException e) {
-                assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(401));
+            } catch(ResponseException e) {
+                assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
             }
 
-            try (ElasticsearchResponse response = restClient.performRequest("GET", "_nodes", Collections.emptyMap(), null,
+            try (Response response = restClient.performRequest("GET", "_nodes", Collections.emptyMap(), null,
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
                                     new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {

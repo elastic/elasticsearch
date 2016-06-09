@@ -6,7 +6,7 @@
 package org.elasticsearch.integration;
 
 import org.apache.http.message.BasicHeader;
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -309,8 +309,8 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue("idonotexist", new SecuredString("passwd".toCharArray()))));
             fail("request should have failed");
-        } catch(ElasticsearchResponseException e) {
-            assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(401));
+        } catch(ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
         }
     }
 

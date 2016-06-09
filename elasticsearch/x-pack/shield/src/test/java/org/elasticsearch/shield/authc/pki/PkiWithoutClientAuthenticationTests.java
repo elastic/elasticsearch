@@ -10,7 +10,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -81,7 +81,7 @@ public class PkiWithoutClientAuthenticationTests extends ShieldIntegTestCase {
         sc.init(null, trustAllCerts, new SecureRandom());
         CloseableHttpClient httpClient = HttpClients.custom().setSSLContext(sc).build();
         try (RestClient restClient =  createRestClient(httpClient, "https")) {
-            try (ElasticsearchResponse response = restClient.performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+            try (Response response = restClient.performRequest("GET", "/_nodes", Collections.emptyMap(), null,
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
                                     new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {

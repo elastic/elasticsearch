@@ -10,8 +10,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -124,8 +124,8 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
                                     SecuredStringTests.build(ShieldSettingsSource.DEFAULT_PASSWORD))),
                     new BasicHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, ShieldSettingsSource.DEFAULT_USER_NAME));
             fail("request should have failed");
-        } catch(ElasticsearchResponseException e) {
-            assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(403));
+        } catch(ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
         }
 
         try {
@@ -135,12 +135,12 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
                             UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
                                     SecuredStringTests.build(ShieldSettingsSource.DEFAULT_PASSWORD))));
             fail("request should have failed");
-        } catch(ElasticsearchResponseException e) {
-            assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(403));
+        } catch(ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
         }
 
         // but when running as a different user it should work
-        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+        try (Response response = getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                         UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
                                 SecuredStringTests.build(ShieldSettingsSource.DEFAULT_PASSWORD))),
@@ -179,8 +179,8 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
                             SecuredStringTests.build(ShieldSettingsSource.DEFAULT_PASSWORD))),
                     new BasicHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, ""));
             fail("request should have failed");
-        } catch(ElasticsearchResponseException e) {
-            assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(401));
+        } catch(ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
         }
     }
 
@@ -214,8 +214,8 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
                             SecuredStringTests.build(ShieldSettingsSource.DEFAULT_PASSWORD))),
                     new BasicHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, "idontexist"));
             fail("request should have failed");
-        } catch (ElasticsearchResponseException e) {
-            assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(403));
+        } catch (ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
         }
     }
 

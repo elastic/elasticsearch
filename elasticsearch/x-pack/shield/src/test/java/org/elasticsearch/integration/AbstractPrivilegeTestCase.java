@@ -10,8 +10,8 @@ import org.apache.http.StatusLine;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -36,7 +36,7 @@ public abstract class AbstractPrivilegeTestCase extends ShieldIntegTestCase {
 
     protected void assertAccessIsAllowed(String user, String method, String uri, String body,
                                          Map<String, String> params) throws IOException {
-        try (ElasticsearchResponse response = getRestClient().performRequest(method, uri, params, entityOrNull(body),
+        try (Response response = getRestClient().performRequest(method, uri, params, entityOrNull(body),
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                         UsernamePasswordToken.basicAuthHeaderValue(user, new SecuredString("passwd".toCharArray()))))) {
             StatusLine statusLine = response.getStatusLine();
@@ -69,8 +69,8 @@ public abstract class AbstractPrivilegeTestCase extends ShieldIntegTestCase {
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(user, new SecuredString("passwd".toCharArray()))));
             fail("request should have failed");
-        } catch(ElasticsearchResponseException e) {
-            StatusLine statusLine = e.getElasticsearchResponse().getStatusLine();
+        } catch(ResponseException e) {
+            StatusLine statusLine = e.getResponse().getStatusLine();
             String message = String.format(Locale.ROOT, "%s %s body %s: Expected 403, got %s %s with body %s", method, uri, body,
                     statusLine.getStatusCode(), statusLine.getReasonPhrase(), e.getResponseBody());
             assertThat(message, statusLine.getStatusCode(), is(403));

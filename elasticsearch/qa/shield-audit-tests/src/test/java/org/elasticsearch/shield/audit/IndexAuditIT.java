@@ -10,7 +10,7 @@ import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -37,7 +37,7 @@ public class IndexAuditIT extends ESIntegTestCase {
     private static final String PASS = "changeme";
 
     public void testShieldIndexAuditTrailWorking() throws Exception {
-        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/_cluster/health", Collections.emptyMap(), null,
+        try (Response response = getRestClient().performRequest("GET", "/_cluster/health", Collections.emptyMap(), null,
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                         UsernamePasswordToken.basicAuthHeaderValue(USER, new SecuredString(PASS.toCharArray()))))) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));

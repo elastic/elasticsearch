@@ -804,7 +804,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
                 if (snapshot.indexFiles().size() == 1
                     && snapshot.indexFiles().get(0).physicalName().startsWith("segments_")
-                    && snapshot.indexFiles().get(0).metadata().checksum().equals(StoreFileMetaData.UNKNOWN_CHECKSUM)) {
+                    && snapshot.indexFiles().get(0).hasUnknownChecksum()) {
                     // If the shard has no documents, it will only contain a single segments_N file for the
                     // shard's snapshot.  If we are restoring a snapshot created by a previous supported version,
                     // it is still possible that in that version, an empty shard has a segments_N file with an unsupported

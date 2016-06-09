@@ -49,6 +49,8 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
      * Information about snapshotted file
      */
     public static class FileInfo {
+        private static final String UNKNOWN_CHECKSUM = "_na_";
+
         private final String name;
         private final ByteSizeValue partSize;
         private final long partBytes;
@@ -227,6 +229,14 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
             return metadata.isSame(fileInfo.metadata);
         }
 
+        /**
+         * Checks if the checksum for the file is unknown. This only is possible on an empty shard's
+         * segments_N file which was created in older Lucene versions.
+         */
+        public boolean hasUnknownChecksum() {
+            return metadata.checksum().equals(UNKNOWN_CHECKSUM);
+        }
+
         static final String NAME = "name";
         static final String PHYSICAL_NAME = "physical_name";
         static final String LENGTH = "length";
@@ -247,7 +257,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
             builder.field(NAME, file.name);
             builder.field(PHYSICAL_NAME, file.metadata.name());
             builder.field(LENGTH, file.metadata.length());
-            if (file.metadata.checksum().equals(StoreFileMetaData.UNKNOWN_CHECKSUM) == false) {
+            if (file.metadata.checksum().equals(UNKNOWN_CHECKSUM) == false) {
                 builder.field(CHECKSUM, file.metadata.checksum());
             }
             if (file.partSize != null) {
@@ -322,16 +332,17 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
                 throw new ElasticsearchParseException("missing or invalid physical file name [" + physicalName + "]");
             } else if (length < 0) {
                 throw new ElasticsearchParseException("missing or invalid file length");
+            } else if (writtenBy == null) {
+                throw new ElasticsearchParseException("missing or invalid written_by [" + writtenByStr + "]");
             } else if (checksum == null) {
-                if (physicalName.startsWith("segments_")) {
+                if (physicalName.startsWith("segments_")
+                        && writtenBy.onOrAfter(StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION) == false) {
                     // its possible the checksum is null for segments_N files that belong to a shard with no data,
                     // so we will assign it _na_ for now and try to get the checksum from the file itself later
-                    checksum = StoreFileMetaData.UNKNOWN_CHECKSUM;
+                    checksum = UNKNOWN_CHECKSUM;
                 } else {
                     throw new ElasticsearchParseException("missing checksum for name [" + name + "]");
                 }
-            } else if (writtenBy == null) {
-                throw new ElasticsearchParseException("missing or invalid written_by [" + writtenByStr + "]");
             }
             return new FileInfo(name, new StoreFileMetaData(physicalName, length, checksum, writtenBy, metaHash), partSize);
         }
@@ -344,7 +355,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
                        ", partBytes: " + partBytes +
                        ", metadata: " + metadata + "]";
         }
-
     }
 
     private final String snapshot;

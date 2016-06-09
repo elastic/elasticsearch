@@ -649,17 +649,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // different in the diff. That's why we have to double check here again if the rest of it matches.
 
                     // all is fine this file is just part of a commit or a segment that is different
-                    final boolean same = local.isSame(remote);
-
-                    // this check ensures that the two files are consistent ie. if we don't have checksums only the rest needs to match we are just
-                    // verifying that we are consistent on both ends source and target
-                    final boolean hashAndLengthEqual = (
-                            local.checksum().equals(StoreFileMetaData.UNKNOWN_CHECKSUM)
-                                    && remote.checksum().equals(StoreFileMetaData.UNKNOWN_CHECKSUM)
-                                    && local.hash().equals(remote.hash())
-                                    && local.length() == remote.length());
-                    final boolean consistent = hashAndLengthEqual || same;
-                    if (consistent == false) {
+                    if (local.isSame(remote) == false) {
                         logger.debug("Files are different on the recovery target: {} ", recoveryDiff);
                         throw new IllegalStateException("local version: " + local + " is different from remote version after recovery: " + remote, null);
                     }

@@ -36,8 +36,6 @@ public class StoreFileMetaData implements Writeable {
 
     public static final Version FIRST_LUCENE_CHECKSUM_VERSION = Version.LUCENE_5_0_0;
 
-    public static final String UNKNOWN_CHECKSUM = "_na_";
-
     private final String name;
 
     // the actual file size on "disk", if compressed, the compressed size

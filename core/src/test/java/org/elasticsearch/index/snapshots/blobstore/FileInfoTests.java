@@ -105,7 +105,7 @@ public class FileInfoTests extends ESTestCase {
 
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.startObject();
-            builder.field(BlobStoreIndexShardSnapshot.FileInfo.NAME, name);
+            builder.field(FileInfo.NAME, name);
             builder.field(FileInfo.PHYSICAL_NAME, physicalName);
             builder.field(FileInfo.LENGTH, length);
             builder.field(FileInfo.WRITTEN_BY, Version.LATEST.toString());

@@ -140,12 +140,12 @@ public final class Locals {
         }
     }
 
-    public static final class Argument {
+    public static final class Parameter {
         public final Location location;
         public final String name;
         public final Type type;
 
-        private Argument(Location location, String name, Type type) {
+        public Parameter(Location location, String name, Type type) {
             this.location = location;
             this.name = name;
             this.type = type;
@@ -202,15 +202,15 @@ public final class Locals {
         }
     }
 
-    public Locals(FunctionReserved reserved, Map<MethodKey, Method> methods, Type rtnType, List<Argument> arguments) {
+    public Locals(FunctionReserved reserved, Locals locals, Type rtnType, List<Parameter> parameters) {
         this.reserved = reserved;
-        this.methods = methods;
+        this.methods = locals.methods;
         this.rtnType = rtnType;
 
         incrementScope();
 
-        for (Argument argument : arguments) {
-            addVariable(argument.location, argument.type, argument.name, false, false);
+        for (Parameter parameter : parameters) {
+            addVariable(parameter.location, parameter.type, parameter.name, false, false);
         }
 
         // Loop counter to catch infinite loops.  Internal use only.

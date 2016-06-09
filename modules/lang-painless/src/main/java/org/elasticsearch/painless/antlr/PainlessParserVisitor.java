@@ -17,6 +17,18 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitSource(PainlessParser.SourceContext ctx);
   /**
+   * Visit a parse tree produced by {@link PainlessParser#function}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFunction(PainlessParser.FunctionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#parameters}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitParameters(PainlessParser.ParametersContext ctx);
+  /**
    * Visit a parse tree produced by the {@code if}
    * labeled alternative in {@link PainlessParser#statement}.
    * @param ctx the parse tree
@@ -320,6 +332,13 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitVariable(PainlessParser.VariableContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code calllocal}
+   * labeled alternative in {@link PainlessParser#primary}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitCalllocal(PainlessParser.CalllocalContext ctx);
   /**
    * Visit a parse tree produced by the {@code newobject}
    * labeled alternative in {@link PainlessParser#primary}.

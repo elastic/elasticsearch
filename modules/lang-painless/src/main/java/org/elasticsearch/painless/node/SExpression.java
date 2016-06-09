@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Locals;
@@ -40,16 +41,19 @@ public final class SExpression extends AStatement {
 
     @Override
     void analyze(Locals locals) {
-        expression.read = lastSource;
+        Type rtnType = locals.getReturnType();
+        boolean isVoid = rtnType.sort == Sort.VOID;
+
+        expression.read = lastSource && !isVoid;
         expression.analyze(locals);
 
         if (!lastSource && !expression.statement) {
             throw createError(new IllegalArgumentException("Not a statement."));
         }
 
-        final boolean rtn = lastSource && expression.actual.sort != Sort.VOID;
+        boolean rtn = lastSource && !isVoid && expression.actual.sort != Sort.VOID;
 
-        expression.expected = rtn ? Definition.OBJECT_TYPE : expression.actual;
+        expression.expected = rtn ? rtnType : expression.actual;
         expression.internal = rtn;
         expression = expression.cast(locals);
 

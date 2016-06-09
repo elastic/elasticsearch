@@ -22,7 +22,15 @@ parser grammar PainlessParser;
 options { tokenVocab=PainlessLexer; }
 
 source
-    : statement* EOF
+    : function* statement* EOF
+    ;
+
+function
+    : decltype ID parameters block
+    ;
+
+parameters
+    : LP ( decltype ID ( COMMA decltype ID )* )? RP
     ;
 
 // Note we use a predicate on the if/else case here to prevent the
@@ -143,6 +151,7 @@ primary[boolean c] returns [boolean s = true]
     | { $c }?  LP unary[true] RP                   # chainprec
     |          STRING                              # string
     |          ID                                  # variable
+    |          ID arguments                        # calllocal
     |          NEW TYPE arguments                  # newobject
     ;
 

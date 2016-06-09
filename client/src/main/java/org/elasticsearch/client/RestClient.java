@@ -53,7 +53,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -142,10 +141,7 @@ public final class RestClient implements Closeable {
         long retryTimeout = Math.round(this.maxRetryTimeoutMillis / (float)100 * 98);
         IOException lastSeenException = null;
         long startTime = System.nanoTime();
-        Iterator<HttpHost> hostIterator = nextHost();
-        while (hostIterator.hasNext()) {
-            HttpHost host = hostIterator.next();
-
+        for (HttpHost host : nextHost()) {
             if (lastSeenException != null) {
                 long timeElapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
                 long timeout = retryTimeout - timeElapsed;
@@ -221,7 +217,7 @@ public final class RestClient implements Closeable {
      * The iterator returned will never be empty, rather an {@link IllegalStateException} in case there are no hosts.
      * In case there are no healthy hosts available, or dead ones to be be retried, one dead host gets returned.
      */
-    private Iterator<HttpHost> nextHost() {
+    private Iterable<HttpHost> nextHost() {
         Set<HttpHost> filteredHosts = new HashSet<>(hosts);
         for (Map.Entry<HttpHost, DeadHostState> entry : blacklist.entrySet()) {
             if (System.nanoTime() - entry.getValue().getDeadUntilNanos() < 0) {
@@ -240,13 +236,13 @@ public final class RestClient implements Closeable {
             });
             HttpHost deadHost = sortedHosts.get(0).getKey();
             logger.trace("resurrecting host [" + deadHost + "]");
-            return Collections.singleton(deadHost).iterator();
+            return Collections.singleton(deadHost);
         }
 
         List<HttpHost> rotatedHosts = new ArrayList<>(filteredHosts);
         //TODO is it possible to make this O(1)? (rotate is O(n))
         Collections.rotate(rotatedHosts, rotatedHosts.size() - lastHostIndex.getAndIncrement());
-        return rotatedHosts.iterator();
+        return rotatedHosts;
     }
 
     /**

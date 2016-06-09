@@ -284,7 +284,7 @@ public final class Locals {
         }
 
         if (isVariable(name)) {
-            throw new IllegalArgumentException("Variable [" + name + "] is already defined.");
+            throw location.createError(new IllegalArgumentException("Variable [" + name + "] is already defined."));
         }
 
         Variable previous = variables.peekFirst();

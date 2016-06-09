@@ -94,11 +94,11 @@ public class SEach extends AStatement {
         } else if (expression.actual.sort == Sort.DEF || Iterable.class.isAssignableFrom(expression.actual.clazz)) {
             analyzeIterable(locals, type);
         } else {
-            throw location.createError(new IllegalArgumentException("Illegal for each type [" + expression.actual.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal for each type [" + expression.actual.name + "]."));
         }
 
         if (block == null) {
-            throw location.createError(new IllegalArgumentException("Extraneous for each loop."));
+            throw createError(new IllegalArgumentException("Extraneous for each loop."));
         }
 
         block.beginLoop = true;
@@ -139,7 +139,7 @@ public class SEach extends AStatement {
             method = expression.actual.struct.methods.get(new MethodKey("iterator", 0));
 
             if (method == null) {
-                throw location.createError(new IllegalArgumentException(
+                throw createError(new IllegalArgumentException(
                     "Unable to create iterator for the type [" + expression.actual.name + "]."));
             }
         }
@@ -156,7 +156,7 @@ public class SEach extends AStatement {
         } else if (iterator != null) {
             writeIterable(writer);
         } else {
-            throw location.createError(new IllegalStateException("Illegal tree structure."));
+            throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 

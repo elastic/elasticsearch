@@ -69,12 +69,11 @@ public class SFunction extends AStatement {
         try {
             rtnType = Definition.getType(rtnTypeStr);
         } catch (IllegalArgumentException exception) {
-            throw location.createError(new IllegalArgumentException(
-                "Illegal return type [" + rtnTypeStr + "] for function [" + name + "]."));
+            throw createError(new IllegalArgumentException("Illegal return type [" + rtnTypeStr + "] for function [" + name + "]."));
         }
 
         if (paramTypeStrs.size() != paramNameStrs.size()) {
-            throw location.createError(new IllegalStateException("Illegal tree structure."));
+            throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
         Class<?>[] paramClasses = new Class<?>[this.paramTypeStrs.size()];
@@ -88,7 +87,7 @@ public class SFunction extends AStatement {
                 paramTypes.add(paramType);
                 parameters.add(new Parameter(location, paramNameStrs.get(param), paramType));
             } catch (IllegalArgumentException exception) {
-                throw location.createError(new IllegalArgumentException(
+                throw createError(new IllegalArgumentException(
                     "Illegal parameter type [" + this.paramTypeStrs.get(param) + "] for function [" + name + "]."));
             }
         }
@@ -100,6 +99,10 @@ public class SFunction extends AStatement {
 
     @Override
     void analyze(Locals locals) {
+        if (statements == null || statements.isEmpty()) {
+            throw createError(new IllegalArgumentException("Cannot generate an empty function [" + name + "]."));
+        }
+
         this.locals = new Locals(reserved, locals, rtnType, parameters);
         locals = this.locals;
 
@@ -123,7 +126,7 @@ public class SFunction extends AStatement {
         }
 
         if (!methodEscape && rtnType.sort != Sort.VOID) {
-            throw location.createError(new IllegalArgumentException("Not all paths provide a return value for method [" + name + "]."));
+            throw createError(new IllegalArgumentException("Not all paths provide a return value for method [" + name + "]."));
         }
 
         locals.decrementScope();
@@ -151,7 +154,7 @@ public class SFunction extends AStatement {
             if (rtnType.sort == Sort.VOID) {
                 function.returnValue();
             } else {
-                throw location.createError(new IllegalStateException("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 

@@ -77,7 +77,10 @@ public final class SSource extends AStatement {
             function.generate();
 
             MethodKey key = new MethodKey(function.name, function.parameters.size());
-            methods.put(key, function.method);
+
+            if (methods.put(key, function.method) != null) {
+                throw createError(new IllegalArgumentException("Duplicate functions with name [" + function.name + "]."));
+            }
         }
 
         locals = new Locals(reserved, methods);

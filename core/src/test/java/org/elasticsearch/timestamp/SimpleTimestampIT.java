@@ -29,6 +29,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Locale;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,7 +49,7 @@ public class SimpleTimestampIT extends ESIntegTestCase {
 
         logger.info("--> check with automatic timestamp");
         long now1 = System.currentTimeMillis();
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
         long now2 = System.currentTimeMillis();
 
         // we check both realtime get and non realtime get
@@ -70,7 +71,7 @@ public class SimpleTimestampIT extends ESIntegTestCase {
         assertThat(((Number) getResponse.getField("_timestamp").getValue()).longValue(), equalTo(timestamp));
 
         logger.info("--> check with custom timestamp (numeric)");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimestamp("10").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimestamp("10").setRefreshPolicy(IMMEDIATE).get();
 
         getResponse = client().prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
         timestamp = ((Number) getResponse.getField("_timestamp").getValue()).longValue();
@@ -80,7 +81,8 @@ public class SimpleTimestampIT extends ESIntegTestCase {
         assertThat(((Number) getResponse.getField("_timestamp").getValue()).longValue(), equalTo(timestamp));
 
         logger.info("--> check with custom timestamp (string)");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimestamp("1970-01-01T00:00:00.020").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimestamp("1970-01-01T00:00:00.020")
+                .setRefreshPolicy(IMMEDIATE).get();
 
         getResponse = client().prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
         timestamp = ((Number) getResponse.getField("_timestamp").getValue()).longValue();

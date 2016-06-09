@@ -70,7 +70,6 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -586,8 +585,8 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         logger.info("--> deleting index " + IDX);
         assertAcked(client().admin().indices().prepareDelete(IDX));
-
-        // assertBusy(() -> assertPathHasBeenCleared(dataPath), 1, TimeUnit.MINUTES);
+        assertAllIndicesRemovedAndDeletionCompleted(internalCluster().getInstances(IndicesService.class));
+        assertPathHasBeenCleared(dataPath);
         //norelease
         //TODO: uncomment the test below when https://github.com/elastic/elasticsearch/issues/17695 is resolved.
         //assertIndicesDirsDeleted(nodes);
@@ -647,8 +646,8 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertHitCount(resp, docCount);
 
         assertAcked(client().admin().indices().prepareDelete(IDX));
-
-        // assertBusy(() -> assertPathHasBeenCleared(dataPath), 1, TimeUnit.MINUTES);
+        assertAllIndicesRemovedAndDeletionCompleted(internalCluster().getInstances(IndicesService.class));
+        assertPathHasBeenCleared(dataPath);
         //norelease
         //TODO: uncomment the test below when https://github.com/elastic/elasticsearch/issues/17695 is resolved.
         //assertIndicesDirsDeleted(nodes);
@@ -839,8 +838,8 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         logger.info("--> deleting closed index");
         client().admin().indices().prepareDelete(IDX).get();
-
-        assertBusy(() -> assertPathHasBeenCleared(dataPath), 1, TimeUnit.MINUTES);
+        assertAllIndicesRemovedAndDeletionCompleted(internalCluster().getInstances(IndicesService.class));
+        assertPathHasBeenCleared(dataPath);
         assertIndicesDirsDeleted(nodes);
     }
 

@@ -22,11 +22,15 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.RuntimeClass;
 
+import java.lang.invoke.CallSite;
+import java.lang.invoke.LambdaConversionException;
+import java.lang.invoke.LambdaMetafactory;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -53,7 +57,7 @@ public final class Def {
 
     /** Helper class for isolating MethodHandles and methods to get the length of arrays
      * (to emulate a "arraystore" bytecode using MethodHandles).
-     * This should really be a method in {@link MethodHandles} class!
+     * See: https://bugs.openjdk.java.net/browse/JDK-8156915
      */
     @SuppressWarnings("unused") // getArrayLength() methods are are actually used, javac just does not know :)
     private static final class ArrayLengthHelper {
@@ -103,6 +107,10 @@ public final class Def {
     private static final MethodHandle LIST_GET;
     /** pointer to List.set(int,Object) */
     private static final MethodHandle LIST_SET;
+    /** pointer to Iterable.iterator() */
+    private static final MethodHandle ITERATOR;
+    /** factory for arraylength MethodHandle (intrinsic) from Java 9 */
+    private static final MethodHandle JAVA9_ARRAY_LENGTH_MH_FACTORY;
 
     static {
         final Lookup lookup = MethodHandles.publicLookup();
@@ -112,18 +120,90 @@ public final class Def {
             MAP_PUT  = lookup.findVirtual(Map.class , "put", MethodType.methodType(Object.class, Object.class, Object.class));
             LIST_GET = lookup.findVirtual(List.class, "get", MethodType.methodType(Object.class, int.class));
             LIST_SET = lookup.findVirtual(List.class, "set", MethodType.methodType(Object.class, int.class, Object.class));
+            ITERATOR = lookup.findVirtual(Iterable.class, "iterator", MethodType.methodType(Iterator.class));
         } catch (final ReflectiveOperationException roe) {
             throw new AssertionError(roe);
         }
+        
+        // lookup up the factory for arraylength MethodHandle (intrinsic) from Java 9:
+        // https://bugs.openjdk.java.net/browse/JDK-8156915
+        MethodHandle arrayLengthMHFactory;
+        try {
+            arrayLengthMHFactory = lookup.findStatic(MethodHandles.class, "arrayLength",
+                MethodType.methodType(MethodHandle.class, Class.class));
+        } catch (final ReflectiveOperationException roe) {
+            arrayLengthMHFactory = null;
+        }
+        JAVA9_ARRAY_LENGTH_MH_FACTORY = arrayLengthMHFactory;
     }
 
+    /** Hack to rethrow unknown Exceptions from {@link MethodHandle#invokeExact}: */
+    @SuppressWarnings("unchecked")
+    private static <T extends Throwable> void rethrow(Throwable t) throws T {
+        throw (T) t;
+    }
+    
     /** Returns an array length getter MethodHandle for the given array type */
     static MethodHandle arrayLengthGetter(Class<?> arrayType) {
-        return ArrayLengthHelper.arrayLengthGetter(arrayType);
+        if (JAVA9_ARRAY_LENGTH_MH_FACTORY != null) {
+            try {
+                return (MethodHandle) JAVA9_ARRAY_LENGTH_MH_FACTORY.invokeExact(arrayType);
+            } catch (Throwable t) {
+                rethrow(t);
+                throw new AssertionError(t);
+            }
+        } else {
+            return ArrayLengthHelper.arrayLengthGetter(arrayType);
+        }
     }
 
     /**
-     * Looks up handle for a dynamic method call.
+     * Looks up method entry for a dynamic method call.
+     * <p>
+     * A dynamic method call for variable {@code x} of type {@code def} looks like:
+     * {@code x.method(args...)}
+     * <p>
+     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
+     * until it finds a matching whitelisted method. If one is not found, it throws an exception.
+     * Otherwise it returns the matching method.
+     * <p>
+     * @param receiverClass Class of the object to invoke the method on.
+     * @param name Name of the method.
+     * @param arity arity of method
+     * @return matching method to invoke. never returns null.
+     * @throws IllegalArgumentException if no matching whitelisted method was found.
+     */
+    static Method lookupMethodInternal(Class<?> receiverClass, String name, int arity) {
+        Definition.MethodKey key = new Definition.MethodKey(name, arity);
+        // check whitelist for matching method
+        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
+            RuntimeClass struct = Definition.getRuntimeClass(clazz);
+
+            if (struct != null) {
+                Method method = struct.methods.get(key);
+                if (method != null) {
+                    return method;
+                }
+            }
+
+            for (Class<?> iface : clazz.getInterfaces()) {
+                struct = Definition.getRuntimeClass(iface);
+
+                if (struct != null) {
+                    Method method = struct.methods.get(key);
+                    if (method != null) {
+                        return method;
+                    }
+                }
+            }
+        }
+        
+        throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] with [" + arity + "] arguments " +
+                                           "for class [" + receiverClass.getCanonicalName() + "].");
+    }
+
+    /**
+     * Looks up handle for a dynamic method call, with lambda replacement
      * <p>
      * A dynamic method call for variable {@code x} of type {@code def} looks like:
      * {@code x.method(args...)}
@@ -134,41 +214,62 @@ public final class Def {
      * <p>
      * @param receiverClass Class of the object to invoke the method on.
      * @param name Name of the method.
-     * @param type Callsite signature. Need not match exactly, except the number of parameters.
+     * @param args args passed to callsite
+     * @param recipe bitset marking functional parameters
      * @return pointer to matching method to invoke. never returns null.
+     * @throws LambdaConversionException if a method reference cannot be converted to an functional interface
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      */
-     static MethodHandle lookupMethod(Class<?> receiverClass, String name, MethodType type) {
-         // we don't consider receiver an argument/counting towards arity
-         type = type.dropParameterTypes(0, 1);
-         Definition.MethodKey key = new Definition.MethodKey(name, type.parameterCount());
-         // check whitelist for matching method
-         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-             RuntimeClass struct = Definition.getRuntimeClass(clazz);
+     static MethodHandle lookupMethod(Lookup lookup, Class<?> receiverClass, String name,
+             Object args[], long recipe) throws LambdaConversionException {
+         Method method = lookupMethodInternal(receiverClass, name, args.length - 1);
+         MethodHandle handle = method.handle;
 
-             if (struct != null) {
-                 Method method = struct.methods.get(key);
-                 if (method != null) {
-                     return method.handle;
+         if (recipe != 0) {
+             MethodHandle filters[] = new MethodHandle[args.length];
+             for (int i = 0; i < args.length; i++) {
+                 // its a functional reference, replace the argument with an impl
+                 if ((recipe & (1L << (i - 1))) != 0) {
+                     filters[i] = lookupReference(lookup, method.arguments.get(i - 1), (String) args[i]);
                  }
              }
-
-             for (final Class<?> iface : clazz.getInterfaces()) {
-                 struct = Definition.getRuntimeClass(iface);
-
-                 if (struct != null) {
-                     Method method = struct.methods.get(key);
-                     if (method != null) {
-                         return method.handle;
-                     }
-                 }
-             }
+             handle = MethodHandles.filterArguments(handle, 0, filters);
          }
-
-         // no matching methods in whitelist found
-         throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] with signature [" + type + "] " +
-                 "for class [" + receiverClass.getCanonicalName() + "].");
-    }
+         
+         return handle;
+     }
+     
+     /** Returns a method handle to an implementation of clazz, given method reference signature 
+      * @throws LambdaConversionException if a method reference cannot be converted to an functional interface
+      */
+     private static MethodHandle lookupReference(Lookup lookup, Definition.Type clazz, String signature) throws LambdaConversionException {
+         int separator = signature.indexOf('.');
+         FunctionRef ref = new FunctionRef(clazz, signature.substring(0, separator), signature.substring(separator+1));
+         final CallSite callSite;
+         if (ref.needsBridges()) {
+             callSite = LambdaMetafactory.altMetafactory(lookup, 
+                     ref.invokedName, 
+                     ref.invokedType,
+                     ref.samMethodType,
+                     ref.implMethod,
+                     ref.samMethodType,
+                     LambdaMetafactory.FLAG_BRIDGES,
+                     1,
+                     ref.interfaceMethodType);
+         } else {
+             callSite = LambdaMetafactory.altMetafactory(lookup, 
+                     ref.invokedName, 
+                     ref.invokedType,
+                     ref.samMethodType,
+                     ref.implMethod,
+                     ref.samMethodType,
+                     0);
+         }
+         // we could actually invoke and cache here (in non-capturing cases), but this is not a speedup.
+         MethodHandle factory = callSite.dynamicInvoker().asType(MethodType.methodType(clazz.clazz));
+         return MethodHandles.dropArguments(factory, 0, Object.class);
+     }
+     
 
     /**
      * Looks up handle for a dynamic field getter (field load)
@@ -345,6 +446,118 @@ public final class Def {
         }
         throw new IllegalArgumentException("Attempting to address a non-array type " +
                                            "[" + receiverClass.getCanonicalName() + "] as an array.");
+    }
+    
+    /** Helper class for isolating MethodHandles and methods to get iterators over arrays
+     * (to emulate "enhanced for loop" using MethodHandles). These cause boxing, and are not as efficient
+     * as they could be, but works.
+     */
+    @SuppressWarnings("unused") // iterator() methods are are actually used, javac just does not know :)
+    private static final class ArrayIteratorHelper {
+        private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+
+        private static final Map<Class<?>,MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
+            Stream.of(boolean[].class, byte[].class, short[].class, int[].class, long[].class,
+                char[].class, float[].class, double[].class, Object[].class)
+                .collect(Collectors.toMap(Function.identity(), type -> {
+                    try {
+                        return PRIV_LOOKUP.findStatic(PRIV_LOOKUP.lookupClass(), "iterator", MethodType.methodType(Iterator.class, type));
+                    } catch (ReflectiveOperationException e) {
+                        throw new AssertionError(e);
+                    }
+                }))
+        );
+
+        private static final MethodHandle OBJECT_ARRAY_MH = ARRAY_TYPE_MH_MAPPING.get(Object[].class);
+
+        static Iterator<Boolean> iterator(final boolean[] array) {
+            return new Iterator<Boolean>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Boolean next() { return array[index++]; }
+            };
+        }
+        static Iterator<Byte> iterator(final byte[] array) {
+            return new Iterator<Byte>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Byte next() { return array[index++]; }
+            };
+        }
+        static Iterator<Short> iterator(final short[] array) {
+            return new Iterator<Short>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Short next() { return array[index++]; }
+            };
+        }
+        static Iterator<Integer> iterator(final int[] array) {
+            return new Iterator<Integer>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Integer next() { return array[index++]; }
+            };
+        }
+        static Iterator<Long> iterator(final long[] array) {
+            return new Iterator<Long>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Long next() { return array[index++]; }
+            };
+        }
+        static Iterator<Character> iterator(final char[] array) {
+            return new Iterator<Character>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Character next() { return array[index++]; }
+            };
+        }
+        static Iterator<Float> iterator(final float[] array) {
+            return new Iterator<Float>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Float next() { return array[index++]; }
+            };
+        }
+        static Iterator<Double> iterator(final double[] array) {
+            return new Iterator<Double>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Double next() { return array[index++]; }
+            };
+        }
+        static Iterator<Object> iterator(final Object[] array) {
+            return new Iterator<Object>() {
+                int index = 0;
+                @Override public boolean hasNext() { return index < array.length; }
+                @Override public Object next() { return array[index++]; }
+            };
+        }
+
+        static MethodHandle newIterator(Class<?> arrayType) {
+            if (!arrayType.isArray()) {
+                throw new IllegalArgumentException("type must be an array");
+            }
+            return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType)) ?
+                ARRAY_TYPE_MH_MAPPING.get(arrayType) :
+                OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
+        }
+
+        private ArrayIteratorHelper() {}
+    }
+    /**
+     * Returns a method handle to do iteration (for enhanced for loop)
+     * @param receiverClass Class of the array to load the value from
+     * @return a MethodHandle that accepts the receiver as first argument, returns iterator
+     */
+    static MethodHandle lookupIterator(Class<?> receiverClass) {
+        if (Iterable.class.isAssignableFrom(receiverClass)) {
+            return ITERATOR;
+        } else if (receiverClass.isArray()) {
+            return ArrayIteratorHelper.newIterator(receiverClass);
+        } else {
+            throw new IllegalArgumentException("Cannot iterate over [" + receiverClass.getCanonicalName() + "]");
+        }
     }
 
     // NOTE: Below methods are not cached, instead invoked directly because they are performant.

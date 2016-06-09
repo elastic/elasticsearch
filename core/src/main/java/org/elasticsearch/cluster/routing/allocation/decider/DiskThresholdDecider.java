@@ -46,6 +46,7 @@ import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Set;
 
@@ -653,10 +654,14 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (metaData.getMergeSourceIndex() != null && shard.allocatedPostIndexCreate(metaData) == false) {
             // in the shrink index case we sum up the source index shards since we basically make a copy of the shard in
             // the worst case
-            Index mergeSourceIndex = metaData.getMergeSourceIndex();
             long targetShardSize = 0;
+            final Index mergeSourceIndex = metaData.getMergeSourceIndex();
+            final IndexMetaData sourceIndexMeta = allocation.metaData().getIndexSafe(metaData.getMergeSourceIndex());
+            final Set<ShardId> shardIds = IndexMetaData.selectShrinkShards(shard.id(), sourceIndexMeta, metaData.getNumberOfShards());
             for (IndexShardRoutingTable shardRoutingTable : allocation.routingTable().index(mergeSourceIndex.getName())) {
-                targetShardSize += info.getShardSize(shardRoutingTable.primaryShard(), 0);
+                if (shardIds.contains(shardRoutingTable.shardId())) {
+                    targetShardSize += info.getShardSize(shardRoutingTable.primaryShard(), 0);
+                }
             }
             return targetShardSize == 0 ? defaultValue : targetShardSize;
         } else {

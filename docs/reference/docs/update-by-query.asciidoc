@@ -23,6 +23,7 @@ That will return something like this:
   "took" : 147,
   "timed_out": false,
   "updated": 120,
+  "deleted": 0,
   "batches": 1,
   "version_conflicts": 0,
   "noops": 0,
@@ -115,11 +116,24 @@ POST twitter/_update_by_query
 // CONSOLE
 // TEST[setup:twitter]
 
-Just as in <<docs-update,Update API>> you can set `ctx.op = "noop"` if
-your script decides that it doesn't have to make any changes. That will cause
-`_update_by_query` to omit that document from its updates. Setting `ctx.op` to
-anything else is an error. If you want to delete by a query you can use the
-<<docs-delete-by-query,Delete By Query API>> instead. Setting any
+Just as in <<docs-update,Update API>> you can set `ctx.op` to change the
+operation that is executed:
+
+
+`noop`::
+
+Set `ctx.op = "noop"` if your script decides that it doesn't have to make any
+changes. That will cause `_update_by_query` to omit that document from its updates.
+ This no operation will be reported in the `noop` counter in the
+<<docs-update-by-query-response-body, response body>>.
+
+`delete`::
+
+Set `ctx.op = "delete"` if your script decides that the document must be
+ deleted. The deletion will be reported in the `deleted` counter in the
+<<docs-update-by-query-response-body, response body>>.
+
+Setting `ctx.op` to anything else is an error. Setting any
 other field in `ctx` is an error.
 
 Note that we stopped specifying `conflicts=proceed`. In this case we want a
@@ -212,6 +226,7 @@ starting the next set. This is "bursty" instead of "smooth". The default is
 `unlimited` which is also the only non-number value that it accepts.
 
 [float]
+[[docs-update-by-query-response-body]]
 === Response body
 
 The JSON response looks like this:

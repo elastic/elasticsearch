@@ -23,6 +23,7 @@ import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
@@ -87,30 +88,29 @@ import static org.elasticsearch.painless.WriterConstants.UTILITY_TYPE;
  * shared by the nodes of the Painless tree.
  */
 public final class MethodWriter extends GeneratorAdapter {
+    private final ClassWriter parent;
     private final BitSet statements;
 
     private final Deque<List<org.objectweb.asm.Type>> stringConcatArgs = (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ?
             null : new ArrayDeque<>();
 
-    MethodWriter(int access, Method method, org.objectweb.asm.Type[] exceptions, ClassVisitor cv, BitSet statements) {
-        super(Opcodes.ASM5, cv.visitMethod(access, method.getName(), method.getDescriptor(), null, getInternalNames(exceptions)),
+    MethodWriter(int access, Method method, ClassWriter cw, BitSet statements) {
+        super(Opcodes.ASM5, cw.visitMethod(access, method.getName(), method.getDescriptor(), null, null),
                 access, method.getName(), method.getDescriptor());
+
+        this.parent = cw;
         this.statements = statements;
     }
 
-    private static String[] getInternalNames(final org.objectweb.asm.Type[] types) {
-        if (types == null) {
-            return null;
-        }
-        String[] names = new String[types.length];
-        for (int i = 0; i < names.length; ++i) {
-            names[i] = types[i].getInternalName();
-        }
-        return names;
+    /**
+     * @return A new {@link MethodWriter} with the specified access and signature.
+     */
+    MethodWriter newMethodWriter(int access, Method method) {
+        return new MethodWriter(access, method, parent, statements);
     }
 
-    /** 
-     * Marks a new statement boundary. 
+    /**
+     * Marks a new statement boundary.
      * <p>
      * This is invoked for each statement boundary (leaf {@code S*} nodes).
      */
@@ -122,7 +122,7 @@ public final class MethodWriter extends GeneratorAdapter {
         statements.set(offset);
     }
 
-    /** 
+    /**
      * Encodes the offset into the line number table as {@code offset + 1}.
      * <p>
      * This is invoked before instructions that can hit exceptions.

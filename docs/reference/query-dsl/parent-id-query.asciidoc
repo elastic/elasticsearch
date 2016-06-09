@@ -29,7 +29,6 @@ PUT /my_index
     }
 }
 
-GET /_cluster/health?wait_for_status=yellow
 ------------------------------------------
 // CONSOLE
 // TESTSETUP

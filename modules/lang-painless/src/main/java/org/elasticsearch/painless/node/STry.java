@@ -35,11 +35,11 @@ public final class STry extends AStatement {
     final SBlock block;
     final List<SCatch> catches;
 
-    public STry(Location location, SBlock block, List<SCatch> traps) {
+    public STry(Location location, SBlock block, List<SCatch> catches) {
         super(location);
 
         this.block = block;
-        this.catches = Collections.unmodifiableList(traps);
+        this.catches = Collections.unmodifiableList(catches);
     }
 
     @Override
@@ -88,6 +88,7 @@ public final class STry extends AStatement {
     @Override
     void write(MethodWriter writer) {
         writer.writeStatementOffset(location);
+
         Label begin = new Label();
         Label end = new Label();
         Label exception = new Label();

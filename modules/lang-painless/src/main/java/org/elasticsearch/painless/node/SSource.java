@@ -48,15 +48,17 @@ public final class SSource extends AStatement {
 
         variables.incrementScope();
 
-        final AStatement last = statements.get(statements.size() - 1);
+        AStatement last = statements.get(statements.size() - 1);
 
         for (AStatement statement : statements) {
-            // TODO: why are we checking only statements 0..n-1 (this effectively checks only the previous statement)
+            // Note that we do not need to check after the last statement because
+            // there is no statement that can be unreachable after the last.
             if (allEscape) {
                 throw createError(new IllegalArgumentException("Unreachable statement."));
             }
 
             statement.lastSource = statement == last;
+
             statement.analyze(variables);
 
             methodEscape = statement.methodEscape;

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.all;
 
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -87,7 +88,7 @@ public class AllFieldMapperPositionIncrementGapTests extends ESSingleNodeTestCas
     private static void testGap(Client client, String indexName,
                                 String type, int positionIncrementGap) throws IOException {
         client.prepareIndex(indexName, type, "position_gap_test")
-            .setSource("string1", "one", "string2", "two three").setRefresh(true).get();
+            .setSource("string1", "one", "string2", "two three").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         // Baseline - phrase query finds matches in the same field value
         assertHitCount(client.prepareSearch(indexName)

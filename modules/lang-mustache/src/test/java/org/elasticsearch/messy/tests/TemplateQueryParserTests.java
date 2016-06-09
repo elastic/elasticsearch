@@ -108,10 +108,11 @@ public class TemplateQueryParserTests extends ESTestCase {
         // TODO: make this use a mock engine instead of mustache and it will no longer be messy!
         scriptModule.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.NAME, true));
         settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
+        final ThreadPool threadPool = new ThreadPool(settings);
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 settingsModule,
-                new ThreadPoolModule(new ThreadPool(settings)),
+                new ThreadPoolModule(threadPool),
                 new SearchModule(settings, new NamedWriteableRegistry()) {
                     @Override
                     protected void configureSearch() {

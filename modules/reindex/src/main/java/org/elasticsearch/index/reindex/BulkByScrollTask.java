@@ -49,7 +49,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
  * Task storing information about a currently running BulkByScroll request.
  */
 public class BulkByScrollTask extends CancellableTask {
-    private static final ESLogger logger = ESLoggerFactory.getLogger(BulkByScrollTask.class.getName());
+    private static final ESLogger logger = ESLoggerFactory.getLogger(BulkByScrollTask.class.getPackage().getName());
 
     /**
      * The total number of documents this request will process. 0 means we don't yet know or, possibly, there are actually 0 documents
@@ -125,12 +125,6 @@ public class BulkByScrollTask extends CancellableTask {
          * in the response.
          */
         public static final String INCLUDE_UPDATED = "include_updated";
-
-        /**
-         * XContent param name to indicate if "deleted" count must be included
-         * in the response.
-         */
-        public static final String INCLUDE_DELETED = "include_deleted";
 
         private final long total;
         private final long updated;
@@ -213,9 +207,7 @@ public class BulkByScrollTask extends CancellableTask {
             if (params.paramAsBoolean(INCLUDE_CREATED, true)) {
                 builder.field("created", created);
             }
-            if (params.paramAsBoolean(INCLUDE_DELETED, true)) {
-                builder.field("deleted", deleted);
-            }
+            builder.field("deleted", deleted);
             builder.field("batches", batches);
             builder.field("version_conflicts", versionConflicts);
             builder.field("noops", noops);
@@ -411,27 +403,34 @@ public class BulkByScrollTask extends CancellableTask {
      * Schedule prepareBulkRequestRunnable to run after some delay. This is where throttling plugs into reindexing so the request can be
      * rescheduled over and over again.
      */
-    void delayPrepareBulkRequest(ThreadPool threadPool, TimeValue delay, AbstractRunnable prepareBulkRequestRunnable) {
+    void delayPrepareBulkRequest(ThreadPool threadPool, TimeValue lastBatchStartTime, int lastBatchSize,
+            AbstractRunnable prepareBulkRequestRunnable) {
         // Synchronize so we are less likely to schedule the same request twice.
         synchronized (delayedPrepareBulkRequestReference) {
-            AbstractRunnable oneTime = new AbstractRunnable() {
-                private final AtomicBoolean hasRun = new AtomicBoolean(false);
-
-                @Override
-                protected void doRun() throws Exception {
-                    // Paranoia to prevent furiously rethrottling from running the command multiple times. Without this we totally can.
-                    if (hasRun.compareAndSet(false, true)) {
-                        prepareBulkRequestRunnable.run();
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable t) {
-                    prepareBulkRequestRunnable.onFailure(t);
-                }
-            };
-            delayedPrepareBulkRequestReference.set(new DelayedPrepareBulkRequest(threadPool, getRequestsPerSecond(), delay, oneTime));
+            TimeValue delay = throttleWaitTime(lastBatchStartTime, lastBatchSize);
+            delayedPrepareBulkRequestReference.set(new DelayedPrepareBulkRequest(threadPool, getRequestsPerSecond(),
+                    delay, new RunOnce(prepareBulkRequestRunnable)));
         }
+    }
+
+    TimeValue throttleWaitTime(TimeValue lastBatchStartTime, int lastBatchSize) {
+        long earliestNextBatchStartTime = lastBatchStartTime.nanos() + (long) perfectlyThrottledBatchTime(lastBatchSize);
+        return timeValueNanos(max(0, earliestNextBatchStartTime - System.nanoTime()));
+    }
+
+    /**
+     * How many nanoseconds should a batch of lastBatchSize have taken if it were perfectly throttled? Package private for testing.
+     */
+    float perfectlyThrottledBatchTime(int lastBatchSize) {
+        if (requestsPerSecond == Float.POSITIVE_INFINITY) {
+            return 0;
+        }
+        //       requests
+        // ------------------- == seconds
+        // request per seconds
+        float targetBatchTimeInSeconds = lastBatchSize / requestsPerSecond;
+        // nanoseconds per seconds * seconds == nanoseconds
+        return TimeUnit.SECONDS.toNanos(1) * targetBatchTimeInSeconds;
     }
 
     private void setRequestsPerSecond(float requestsPerSecond) {
@@ -524,6 +523,31 @@ public class BulkByScrollTask extends CancellableTask {
                 return timeValueNanos(0);
             }
             return timeValueNanos(round(remainingDelay * requestsPerSecond / newRequestsPerSecond));
+        }
+    }
+
+    /**
+     * Runnable that can only be run one time. This is paranoia to prevent furiously rethrottling from running the command multiple times.
+     * Without it the command would be run multiple times.
+     */
+    private static class RunOnce extends AbstractRunnable {
+        private final AtomicBoolean hasRun = new AtomicBoolean(false);
+        private final AbstractRunnable delegate;
+
+        public RunOnce(AbstractRunnable delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            if (hasRun.compareAndSet(false, true)) {
+                delegate.run();
+            }
+        }
+
+        @Override
+        public void onFailure(Throwable t) {
+            delegate.onFailure(t);
         }
     }
 }

@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -55,7 +56,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
     }
 
     public void testSimpleTimeout() throws Exception {
-        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         SearchResponse searchResponse = client().prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
                 .setQuery(scriptQuery(new Script(NativeTestScriptedTimeout.TEST_NATIVE_SCRIPT_TIMEOUT, ScriptType.INLINE, "native", null)))

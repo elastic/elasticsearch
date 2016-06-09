@@ -70,6 +70,7 @@
  * {@link org.elasticsearch.painless.node.SDeclaration} - Represents a single variable declaration.
  * {@link org.elasticsearch.painless.node.SDeclBlock} - Represents a series of declarations.
  * {@link org.elasticsearch.painless.node.SDo} - Represents a do-while loop.
+ * {@link org.elasticsearch.painless.node.SEach} - Represents a for each loop shortcut for iterables.
  * {@link org.elasticsearch.painless.node.SExpression} - Represents the top-level node for an expression as a statement.
  * {@link org.elasticsearch.painless.node.SFor} - Represents a for loop.
  * {@link org.elasticsearch.painless.node.SIf} - Represents an if block.
@@ -90,7 +91,7 @@
  * <p>
  * Generally, statement nodes have member data that evaluate legal control-flow during the analysis phase.
  * The typical order for statement nodes is for each node to call analyze on it's children during the analysis phase
- * and write on it's children during the writing phase.  No modifications are made to the structure of statement nodes.
+ * and write on it's children during the writing phase.
  * <p>
  * Generally, expression nodes have member data that evaluate static types.  The typical order for an expression node
  * during the analysis phase looks like the following:

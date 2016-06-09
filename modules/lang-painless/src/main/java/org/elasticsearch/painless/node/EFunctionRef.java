@@ -19,16 +19,25 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Variables;
+import org.objectweb.asm.Type;
+
+import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
+
+import java.lang.invoke.LambdaMetafactory;
 
 /**
  * Represents a function reference.
  */
 public class EFunctionRef extends AExpression {
-    public String type;
-    public String call;
+    public final String type;
+    public final String call;
+    
+    private FunctionRef ref;
 
     public EFunctionRef(Location location, String type, String call) {
         super(location);
@@ -39,12 +48,48 @@ public class EFunctionRef extends AExpression {
 
     @Override
     void analyze(Variables variables) {
-        throw createError(new UnsupportedOperationException("Function references [" + type + "::" + call + 
-                                                            "] are not currently supported."));
+        if (expected == null) {
+            ref = null;
+            actual = Definition.getType("String");
+        } else {
+            try {
+                ref = new FunctionRef(expected, type, call);
+            } catch (IllegalArgumentException e) {
+                throw createError(e);
+            }
+            actual = expected;
+        }
     }
 
     @Override
     void write(MethodWriter writer) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
+        if (ref == null) {
+            writer.push(type + "." + call);
+        } else {
+            writer.writeDebugInfo(location);
+            // convert MethodTypes to asm Type for the constant pool.
+            String invokedType = ref.invokedType.toMethodDescriptorString();
+            Type samMethodType = Type.getMethodType(ref.samMethodType.toMethodDescriptorString());
+            Type interfaceType = Type.getMethodType(ref.interfaceMethodType.toMethodDescriptorString());
+            if (ref.needsBridges()) {
+                writer.invokeDynamic(ref.invokedName, 
+                                     invokedType, 
+                                     LAMBDA_BOOTSTRAP_HANDLE, 
+                                     samMethodType, 
+                                     ref.implMethodASM, 
+                                     samMethodType, 
+                                     LambdaMetafactory.FLAG_BRIDGES, 
+                                     1, 
+                                     interfaceType);
+            } else {
+                writer.invokeDynamic(ref.invokedName, 
+                                     invokedType, 
+                                     LAMBDA_BOOTSTRAP_HANDLE, 
+                                     samMethodType, 
+                                     ref.implMethodASM, 
+                                     samMethodType, 
+                                     0);
+            }
+        }
     }
 }

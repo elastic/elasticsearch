@@ -57,7 +57,7 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return installPlugin ? pluginList(IngestClientIT.IngestPlugin.class) : Collections.emptyList();
+        return installPlugin ? pluginList(IngestTestPlugin.class) : Collections.emptyList();
     }
 
     @Override

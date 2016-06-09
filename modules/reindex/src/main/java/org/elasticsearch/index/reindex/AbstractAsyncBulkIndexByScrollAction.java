@@ -48,7 +48,9 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -173,17 +175,29 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
 
         void setIndex(String index);
 
+        String getIndex();
+
         void setType(String type);
+
+        String getType();
 
         void setId(String id);
 
+        String getId();
+
         void setVersion(long version);
+
+        long getVersion();
 
         void setVersionType(VersionType versionType);
 
         void setParent(String parent);
 
+        String getParent();
+
         void setRouting(String routing);
+
+        String getRouting();
 
         void setTimestamp(String timestamp);
 
@@ -213,8 +227,18 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         }
 
         @Override
+        public String getIndex() {
+            return request.index();
+        }
+
+        @Override
         public void setType(String type) {
             request.type(type);
+        }
+
+        @Override
+        public String getType() {
+            return request.type();
         }
 
         @Override
@@ -223,8 +247,18 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         }
 
         @Override
+        public String getId() {
+            return request.id();
+        }
+
+        @Override
         public void setVersion(long version) {
             request.version(version);
+        }
+
+        @Override
+        public long getVersion() {
+            return request.version();
         }
 
         @Override
@@ -238,8 +272,18 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         }
 
         @Override
+        public String getParent() {
+            return request.parent();
+        }
+
+        @Override
         public void setRouting(String routing) {
             request.routing(routing);
+        }
+
+        @Override
+        public String getRouting() {
+            return request.routing();
         }
 
         @Override
@@ -296,8 +340,18 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         }
 
         @Override
+        public String getIndex() {
+            return request.index();
+        }
+
+        @Override
         public void setType(String type) {
             request.type(type);
+        }
+
+        @Override
+        public String getType() {
+            return request.type();
         }
 
         @Override
@@ -306,8 +360,18 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         }
 
         @Override
+        public String getId() {
+            return request.id();
+        }
+
+        @Override
         public void setVersion(long version) {
             request.version(version);
+        }
+
+        @Override
+        public long getVersion() {
+            return request.version();
         }
 
         @Override
@@ -321,8 +385,18 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         }
 
         @Override
+        public String getParent() {
+            return request.parent();
+        }
+
+        @Override
         public void setRouting(String routing) {
             request.routing(routing);
+        }
+
+        @Override
+        public String getRouting() {
+            return request.routing();
         }
 
         @Override
@@ -409,21 +483,17 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
             Long oldTTL = fieldValue(doc, TTLFieldMapper.NAME);
             context.put(TTLFieldMapper.NAME, oldTTL);
             context.put(SourceFieldMapper.NAME, request.getSource());
-            context.put("op", "update");
+
+            OpType oldOpType = OpType.INDEX;
+            context.put("op", oldOpType.toString());
+
             executable.setNextVar("ctx", context);
             executable.run();
 
             Map<String, Object> resultCtx = (Map<String, Object>) executable.unwrap(context);
             String newOp = (String) resultCtx.remove("op");
             if (newOp == null) {
-                throw new IllegalArgumentException("Script cleared op!");
-            }
-            if ("noop".equals(newOp)) {
-                task.countNoop();
-                return null;
-            }
-            if (false == "update".equals(newOp)) {
-                throw new IllegalArgumentException("Invalid op [" + newOp + ']');
+                throw new IllegalArgumentException("Script cleared operation type");
             }
 
             /*
@@ -468,10 +538,33 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
             if (false == Objects.equals(oldTTL, newValue)) {
                 scriptChangedTTL(request, newValue);
             }
+
+            OpType newOpType = OpType.fromString(newOp);
+            if (newOpType !=  oldOpType) {
+                return scriptChangedOpType(request, oldOpType, newOpType);
+            }
+
             if (false == context.isEmpty()) {
                 throw new IllegalArgumentException("Invalid fields added to context [" + String.join(",", context.keySet()) + ']');
             }
             return request;
+        }
+
+        protected RequestWrapper<?> scriptChangedOpType(RequestWrapper<?> request, OpType oldOpType, OpType newOpType) {
+            switch (newOpType) {
+            case NOOP:
+                task.countNoop();
+                return null;
+            case DELETE:
+                RequestWrapper<DeleteRequest> delete = wrap(new DeleteRequest(request.getIndex(), request.getType(), request.getId()));
+                delete.setVersion(request.getVersion());
+                delete.setVersionType(VersionType.INTERNAL);
+                delete.setParent(request.getParent());
+                delete.setRouting(request.getRouting());
+                return delete;
+            default:
+                throw new IllegalArgumentException("Unsupported operation type change from [" + oldOpType + "] to [" + newOpType + "]");
+            }
         }
 
         protected abstract void scriptChangedIndex(RequestWrapper<?> request, Object to);
@@ -489,5 +582,39 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
         protected abstract void scriptChangedTimestamp(RequestWrapper<?> request, Object to);
 
         protected abstract void scriptChangedTTL(RequestWrapper<?> request, Object to);
+
+    }
+
+    public enum OpType {
+
+        NOOP("noop"),
+        INDEX("index"),
+        DELETE("delete");
+
+        private final String id;
+
+        OpType(String id) {
+            this.id = id;
+        }
+
+        public static OpType fromString(String opType) {
+            String lowerOpType = opType.toLowerCase(Locale.ROOT);
+            switch (lowerOpType) {
+                case "noop":
+                    return OpType.NOOP;
+                case "index":
+                    return OpType.INDEX;
+                case "delete":
+                    return OpType.DELETE;
+                default:
+                    throw new IllegalArgumentException("Operation type [" + lowerOpType + "] not allowed, only " +
+                            Arrays.toString(values()) + " are allowed");
+            }
+        }
+
+        @Override
+        public String toString() {
+            return id.toLowerCase(Locale.ROOT);
+        }
     }
 }

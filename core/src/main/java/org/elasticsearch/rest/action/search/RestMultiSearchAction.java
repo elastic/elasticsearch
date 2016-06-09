@@ -157,7 +157,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
                         Object value = entry.getValue();
                         if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
                             if (!allowExplicitIndex) {
-                                throw new IllegalArgumentException("explicit index in multi percolate is not allowed");
+                                throw new IllegalArgumentException("explicit index in multi search is not allowed");
                             }
                             searchRequest.indices(nodeStringArrayValue(value));
                         } else if ("type".equals(entry.getKey()) || "types".equals(entry.getKey())) {

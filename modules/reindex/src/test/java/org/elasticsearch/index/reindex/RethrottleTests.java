@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import static org.hamcrest.Matchers.hasSize;
 
@@ -30,9 +29,6 @@ import static org.hamcrest.Matchers.hasSize;
  * too but this is the only place that tests running against multiple nodes so it is the only integration tests that checks for
  * serialization.
  */
-// Extra logging in case of failure. We couldn't explain the last failure:
-// https://elasticsearch-ci.elastic.co/job/elastic+elasticsearch+master+g1gc/359/consoleFull
-@TestLogging("_root:DEBUG")
 public class RethrottleTests extends ReindexTestCase {
 
     public void testReindex() throws Exception {

@@ -119,11 +119,17 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     public Object run() {
         try {
             return executable.execute(variables, scorer, doc, aggregationValue);
-        } catch (PainlessError | Exception t) {
+        } catch (PainlessError | BootstrapMethodError | Exception t) {
             throw convertToScriptException(t);
         }
     }
-    
+
+    /**
+     * Adds stack trace and other useful information to exceptiosn thrown
+     * from a Painless script.
+     * @param t The throwable to build an exception around.
+     * @return The generated ScriptException.
+     */
     private ScriptException convertToScriptException(Throwable t) {
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
@@ -169,7 +175,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
         }
         throw new ScriptException("runtime error", t, scriptStack, name, PainlessScriptEngineService.NAME);
     }
-    
+
     /** returns true for methods that are part of the runtime */
     private static boolean shouldFilter(StackTraceElement element) {
         return element.getClassName().startsWith("org.elasticsearch.painless.") ||

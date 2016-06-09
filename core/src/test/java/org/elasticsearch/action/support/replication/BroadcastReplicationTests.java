@@ -21,7 +21,6 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -45,6 +44,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
@@ -81,7 +81,7 @@ public class BroadcastReplicationTests extends ESTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new ThreadPool("BroadcastReplicationTests");
+        threadPool = new TestThreadPool("BroadcastReplicationTests");
         circuitBreakerService = new NoneCircuitBreakerService();
     }
 

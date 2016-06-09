@@ -38,6 +38,7 @@ import org.elasticsearch.search.sort.SortMode;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -306,7 +307,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endObject()
                 .endArray()
                 .endObject())
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .execute().actionGet();
 
         SearchResponse searchResponse = client().prepareSearch("test")

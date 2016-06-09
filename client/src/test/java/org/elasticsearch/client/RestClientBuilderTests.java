@@ -53,7 +53,8 @@ public class RestClientBuilderTests extends LuceneTestCase {
         }
 
         try {
-            RestClient.builder(new HttpHost("localhost", 9200)).setMaxRetryTimeoutMillis(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
+            RestClient.builder(new HttpHost("localhost", 9200))
+                    .setMaxRetryTimeoutMillis(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
             fail("should have failed");
         } catch(IllegalArgumentException e) {
             assertEquals("maxRetryTimeout must be greater than 0", e.getMessage());

@@ -138,19 +138,21 @@ public final class RestClient implements Closeable {
         HttpRequestBase request = createHttpRequest(method, uri, entity);
         setHeaders(request, headers);
         //we apply a soft margin so that e.g. if a request took 59 seconds and timeout is set to 60 we don't do another attempt
-        long retryTimeout = Math.round(this.maxRetryTimeoutMillis / (float)100 * 98);
+        long retryTimeoutMillis = Math.round(this.maxRetryTimeoutMillis / (float)100 * 98);
         IOException lastSeenException = null;
         long startTime = System.nanoTime();
         for (HttpHost host : nextHost()) {
             if (lastSeenException != null) {
-                long timeElapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
-                long timeout = retryTimeout - timeElapsed;
+                //in case we are retrying, check whether maxRetryTimeout has been reached, in which case an exception will be thrown
+                long timeElapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
+                long timeout = retryTimeoutMillis - timeElapsedMillis;
                 if (timeout <= 0) {
                     IOException retryTimeoutException = new IOException(
-                            "request retries exceeded max retry timeout [" + retryTimeout + "]");
+                            "request retries exceeded max retry timeout [" + retryTimeoutMillis + "]");
                     retryTimeoutException.addSuppressed(lastSeenException);
                     throw retryTimeoutException;
                 }
+                //also reset the request to make it reusable for the next attempt
                 request.reset();
             }
 

@@ -32,6 +32,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
@@ -282,7 +283,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/8802")
     public void testBrokenMapping() throws Exception {
         // clean all templates setup by the framework.
         client().admin().indices().prepareDeleteTemplate("*").get();
@@ -291,22 +291,18 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
         assertThat(response.getIndexTemplates(), empty());
 
-        client().admin().indices().preparePutTemplate("template_1")
+        try {
+            client().admin().indices().preparePutTemplate("template_1")
                 .setTemplate("te*")
                 .addMapping("type1", "abcde")
                 .get();
+            fail("should throw exception");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), containsString("Failed to parse mapping "));
+        }
 
         response = client().admin().indices().prepareGetTemplates().get();
-        assertThat(response.getIndexTemplates(), hasSize(1));
-        assertThat(response.getIndexTemplates().get(0).getMappings().size(), equalTo(1));
-        assertThat(response.getIndexTemplates().get(0).getMappings().get("type1").string(), equalTo("abcde"));
-
-        try {
-            createIndex("test");
-            fail("create index should have failed due to broken index templates mapping");
-        } catch(ElasticsearchParseException e) {
-            //everything fine
-        }
+        assertThat(response.getIndexTemplates(), hasSize(0));
     }
 
     @Test
@@ -670,5 +666,52 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(response.getItems()[0].getId(), equalTo("test"));
         assertThat(response.getItems()[0].getVersion(), equalTo(1l));
     }
+
+    public void testCombineTemplates() throws Exception{
+        // clean all templates setup by the framework.
+        client().admin().indices().prepareDeleteTemplate("*").get();
+
+        // check get all templates on an empty index.
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), empty());
+
+        //Now, a complete mapping with two separated templates is error
+        // base template
+        client().admin().indices().preparePutTemplate("template_1")
+            .setTemplate("*")
+            .setSettings(
+                "    {\n" +
+                    "        \"index\" : {\n" +
+                    "            \"analysis\" : {\n" +
+                    "                \"analyzer\" : {\n" +
+                    "                    \"custom_1\" : {\n" +
+                    "                        \"tokenizer\" : \"whitespace\"\n" +
+                    "                    }\n" +
+                    "                }\n" +
+                    "            }\n" +
+                    "         }\n" +
+                    "    }\n")
+            .get();
+
+        // put template using custom_1 analyzer
+        try {
+            client().admin().indices().preparePutTemplate("template_2")
+                .setTemplate("test*")
+                .setCreate(true)
+                .setOrder(1)
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                    .startObject("field2").field("type", "string").field("analyzer", "custom_1").endObject()
+                    .endObject().endObject().endObject())
+                .get();
+            fail("should throw Exception");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), containsString("analyzer [custom_1] not found for field [field2]"));
+        }
+
+        response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), hasSize(1));
+
+    }
+
 
 }

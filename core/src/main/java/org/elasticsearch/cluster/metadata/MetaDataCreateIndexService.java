@@ -53,9 +53,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -209,7 +207,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     List<String> templateNames = new ArrayList<>();
 
                     for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
-                        mappings.put(entry.getKey(), parseMapping(entry.getValue()));
+                        mappings.put(entry.getKey(), MapperService.parseMapping(entry.getValue()));
                     }
 
                     for (Map.Entry<String, Custom> entry : request.customs().entrySet()) {
@@ -221,9 +219,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         templateNames.add(template.getName());
                         for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
                             if (mappings.containsKey(cursor.key)) {
-                                XContentHelper.mergeDefaults(mappings.get(cursor.key), parseMapping(cursor.value.string()));
+                                XContentHelper.mergeDefaults(mappings.get(cursor.key), MapperService.parseMapping(cursor.value.string()));
                             } else {
-                                mappings.put(cursor.key, parseMapping(cursor.value.string()));
+                                mappings.put(cursor.key, MapperService.parseMapping(cursor.value.string()));
                             }
                         }
                         // handle custom
@@ -311,26 +309,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // now add the mappings
                     IndexService indexService = indicesService.indexServiceSafe(request.index());
                     MapperService mapperService = indexService.mapperService();
-                    // first, add the default mapping
-                    if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
-                        try {
-                            mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(XContentFactory.jsonBuilder().map(mappings.get(MapperService.DEFAULT_MAPPING)).string()), MapperService.MergeReason.MAPPING_UPDATE, request.updateAllTypes());
-                        } catch (Exception e) {
-                            removalReason = "failed on parsing default mapping on index creation";
-                            throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, MapperService.DEFAULT_MAPPING, e.getMessage());
-                        }
-                    }
-                    for (Map.Entry<String, Map<String, Object>> entry : mappings.entrySet()) {
-                        if (entry.getKey().equals(MapperService.DEFAULT_MAPPING)) {
-                            continue;
-                        }
-                        try {
-                            // apply the default here, its the first time we parse it
-                            mapperService.merge(entry.getKey(), new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).string()), MapperService.MergeReason.MAPPING_UPDATE, request.updateAllTypes());
-                        } catch (Exception e) {
-                            removalReason = "failed on parsing mappings on index creation";
-                            throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
-                        }
+                    try {
+                        mapperService.merge(mappings, request.updateAllTypes());
+                    } catch (MapperParsingException mpe) {
+                        removalReason = "failed on parsing default mapping/mappings on index creation";
+                        throw mpe;
                     }
 
                     IndexQueryParserService indexQueryParserService = indexService.queryParserService();
@@ -420,35 +403,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 }
             }
         });
-    }
-
-    private Map<String, Object> parseMapping(String mappingSource) throws Exception {
-        try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource)) {
-            return parser.map();
-        }
-    }
-
-    private void addMappings(Map<String, Map<String, Object>> mappings, Path mappingsDir) throws IOException {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(mappingsDir)) {
-            for (Path mappingFile : stream) {
-                final String fileName = mappingFile.getFileName().toString();
-                if (FileSystemUtils.isHidden(mappingFile)) {
-                    continue;
-                }
-                int lastDotIndex = fileName.lastIndexOf('.');
-                String mappingType = lastDotIndex != -1 ? mappingFile.getFileName().toString().substring(0, lastDotIndex) : mappingFile.getFileName().toString();
-                try (BufferedReader reader = Files.newBufferedReader(mappingFile, Charsets.UTF_8)) {
-                    String mappingSource = Streams.copyToString(reader);
-                    if (mappings.containsKey(mappingType)) {
-                        XContentHelper.mergeDefaults(mappings.get(mappingType), parseMapping(mappingSource));
-                    } else {
-                        mappings.put(mappingType, parseMapping(mappingSource));
-                    }
-                } catch (Exception e) {
-                    logger.warn("failed to read / parse mapping [" + mappingType + "] from location [" + mappingFile + "], ignoring...", e);
-                }
-            }
-        }
     }
 
     private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state, IndexTemplateFilter indexTemplateFilter) throws IOException {

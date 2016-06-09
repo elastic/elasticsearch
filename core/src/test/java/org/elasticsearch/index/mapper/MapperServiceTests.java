@@ -44,11 +44,16 @@ import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.concurrent.ExecutionException;
+import java.util.Map;
 
 public class MapperServiceTests extends ESSingleNodeTestCase {
     @Rule
@@ -176,5 +181,29 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST)
             .build();
         assertThat(searchFilter, Matchers.<Query>equalTo(new ConstantScoreQuery(expectedQuery)));
+    }
+
+    public void testMergeWithMap() throws Throwable {
+        IndexService indexService1 = createIndex("index1");
+        MapperService mapperService = indexService1.mapperService();
+        Map<String, Map<String, Object>> mappings = new HashMap<>();
+
+        mappings.put(MapperService.DEFAULT_MAPPING, MapperService.parseMapping("{}"));
+        try {
+            mapperService.merge(mappings, false);
+            fail("should throw exception");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), startsWith("Failed to parse mapping [" + MapperService.DEFAULT_MAPPING + "]: "));
+        }
+
+        mappings.clear();
+        mappings.put("type1", MapperService.parseMapping("{}"));
+
+        try {
+            mapperService.merge(mappings, false);
+            fail("should throw exception");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: "));
+        }
     }
 }

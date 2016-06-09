@@ -72,17 +72,17 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
         private final HostsSniffer hostsSniffer;
         private final RestClient restClient;
 
-        private final long sniffInterval;
-        private final long sniffAfterFailureDelay;
+        private final long sniffIntervalMillis;
+        private final long sniffAfterFailureDelayMillis;
         private final ScheduledExecutorService scheduledExecutorService;
         private final AtomicBoolean running = new AtomicBoolean(false);
         private ScheduledFuture<?> scheduledFuture;
 
-        private Task(HostsSniffer hostsSniffer, RestClient restClient, long sniffInterval, long sniffAfterFailureDelay) {
+        private Task(HostsSniffer hostsSniffer, RestClient restClient, long sniffIntervalMillis, long sniffAfterFailureDelayMillis) {
             this.hostsSniffer = hostsSniffer;
             this.restClient = restClient;
-            this.sniffInterval = sniffInterval;
-            this.sniffAfterFailureDelay = sniffAfterFailureDelay;
+            this.sniffIntervalMillis = sniffIntervalMillis;
+            this.sniffAfterFailureDelayMillis = sniffAfterFailureDelayMillis;
             this.scheduledExecutorService = Executors.newScheduledThreadPool(1);
             scheduleNextRun(0);
         }
@@ -104,11 +104,11 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
 
         @Override
         public void run() {
-            sniff(null, sniffInterval);
+            sniff(null, sniffIntervalMillis);
         }
 
         void sniffOnFailure(HttpHost failedHost) {
-            sniff(failedHost, sniffAfterFailureDelay);
+            sniff(failedHost, sniffAfterFailureDelayMillis);
         }
 
         void sniff(HttpHost excludeHost, long nextSniffDelayMillis) {
@@ -158,9 +158,9 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
 
         private final RestClient restClient;
         private final HostsSniffer hostsSniffer;
-        private long sniffInterval = DEFAULT_SNIFF_INTERVAL;
+        private long sniffIntervalMillis = DEFAULT_SNIFF_INTERVAL;
         private boolean sniffOnFailure = true;
-        private long sniffAfterFailureDelay = DEFAULT_SNIFF_AFTER_FAILURE_DELAY;
+        private long sniffAfterFailureDelayMillis = DEFAULT_SNIFF_AFTER_FAILURE_DELAY;
 
         /**
          * Creates a new builder instance by providing the {@link RestClient} that will be used to communicate with elasticsearch,
@@ -174,21 +174,21 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
         }
 
         /**
-         * Sets the interval between consecutive ordinary sniff executions. Will be honoured when sniffOnFailure is disabled or
-         * when there are no failures between consecutive sniff executions.
-         * @throws IllegalArgumentException if sniffInterval is not greater than 0
+         * Sets the interval between consecutive ordinary sniff executions in milliseconds. Will be honoured when
+         * sniffOnFailure is disabled or when there are no failures between consecutive sniff executions.
+         * @throws IllegalArgumentException if sniffIntervalMillis is not greater than 0
          */
-        public Builder setSniffInterval(int sniffInterval) {
-            if (sniffInterval <= 0) {
-                throw new IllegalArgumentException("sniffInterval must be greater than 0");
+        public Builder setSniffIntervalMillis(int sniffIntervalMillis) {
+            if (sniffIntervalMillis <= 0) {
+                throw new IllegalArgumentException("sniffIntervalMillis must be greater than 0");
             }
-            this.sniffInterval = sniffInterval;
+            this.sniffIntervalMillis = sniffIntervalMillis;
             return this;
         }
 
         /**
          * Enables/disables sniffing on failure. If enabled, at each failure nodes will be reloaded, and a new sniff execution will
-         * be scheduled after a shorter time than usual (sniffAfterFailureDelay).
+         * be scheduled after a shorter time than usual (sniffAfterFailureDelayMillis).
          */
         public Builder setSniffOnFailure(boolean sniffOnFailure) {
             this.sniffOnFailure = sniffOnFailure;
@@ -196,13 +196,13 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
         }
 
         /**
-         * Sets the delay of a sniff execution scheduled after a failure.
+         * Sets the delay of a sniff execution scheduled after a failure (in milliseconds)
          */
-        public Builder setSniffAfterFailureDelay(int sniffAfterFailureDelay) {
-            if (sniffAfterFailureDelay <= 0) {
-                throw new IllegalArgumentException("sniffAfterFailureDelay must be greater than 0");
+        public Builder setSniffAfterFailureDelayMillis(int sniffAfterFailureDelayMillis) {
+            if (sniffAfterFailureDelayMillis <= 0) {
+                throw new IllegalArgumentException("sniffAfterFailureDelayMillis must be greater than 0");
             }
-            this.sniffAfterFailureDelay = sniffAfterFailureDelay;
+            this.sniffAfterFailureDelayMillis = sniffAfterFailureDelayMillis;
             return this;
         }
 
@@ -210,7 +210,7 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
          * Creates the {@link Sniffer} based on the provided configuration.
          */
         public Sniffer build() {
-            return new Sniffer(restClient, hostsSniffer, sniffInterval, sniffOnFailure, sniffAfterFailureDelay);
+            return new Sniffer(restClient, hostsSniffer, sniffIntervalMillis, sniffOnFailure, sniffAfterFailureDelayMillis);
         }
     }
 }

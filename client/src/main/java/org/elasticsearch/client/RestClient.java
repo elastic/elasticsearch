@@ -86,15 +86,15 @@ public final class RestClient implements Closeable {
     //we don't rely on default headers supported by HttpClient as those cannot be replaced, plus it would get hairy
     //when we create the HttpClient instance on our own as there would be two different ways to set the default headers.
     private final Header[] defaultHeaders;
-    private final long maxRetryTimeout;
+    private final long maxRetryTimeoutMillis;
     private final AtomicInteger lastHostIndex = new AtomicInteger(0);
     private volatile Set<HttpHost> hosts;
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private volatile FailureListener failureListener = new FailureListener();
 
-    private RestClient(CloseableHttpClient client, long maxRetryTimeout, Header[] defaultHeaders, HttpHost[] hosts) {
+    private RestClient(CloseableHttpClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders, HttpHost[] hosts) {
         this.client = client;
-        this.maxRetryTimeout = maxRetryTimeout;
+        this.maxRetryTimeoutMillis = maxRetryTimeoutMillis;
         this.defaultHeaders = defaultHeaders;
         setHosts(hosts);
     }
@@ -139,7 +139,7 @@ public final class RestClient implements Closeable {
         HttpRequestBase request = createHttpRequest(method, uri, entity);
         setHeaders(request, headers);
         //we apply a soft margin so that e.g. if a request took 59 seconds and timeout is set to 60 we don't do another attempt
-        long retryTimeout = Math.round(this.maxRetryTimeout / (float)100 * 98);
+        long retryTimeout = Math.round(this.maxRetryTimeoutMillis / (float)100 * 98);
         IOException lastSeenException = null;
         long startTime = System.nanoTime();
         Iterator<HttpHost> hostIterator = nextHost();
@@ -358,16 +358,16 @@ public final class RestClient implements Closeable {
      * Rest client builder. Helps creating a new {@link RestClient}.
      */
     public static final class Builder {
-        public static final int DEFAULT_CONNECT_TIMEOUT = 1000;
-        public static final int DEFAULT_SOCKET_TIMEOUT = 10000;
-        public static final int DEFAULT_MAX_RETRY_TIMEOUT = DEFAULT_SOCKET_TIMEOUT;
-        public static final int DEFAULT_CONNECTION_REQUEST_TIMEOUT = 500;
+        public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 1000;
+        public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 10000;
+        public static final int DEFAULT_MAX_RETRY_TIMEOUT_MILLIS = DEFAULT_SOCKET_TIMEOUT_MILLIS;
+        public static final int DEFAULT_CONNECTION_REQUEST_TIMEOUT_MILLIS = 500;
 
         private static final Header[] EMPTY_HEADERS = new Header[0];
 
         private final HttpHost[] hosts;
         private CloseableHttpClient httpClient;
-        private int maxRetryTimeout = DEFAULT_MAX_RETRY_TIMEOUT;
+        private int maxRetryTimeout = DEFAULT_MAX_RETRY_TIMEOUT_MILLIS;
         private Header[] defaultHeaders = EMPTY_HEADERS;
 
         /**
@@ -392,16 +392,16 @@ public final class RestClient implements Closeable {
         }
 
         /**
-         * Sets the maximum timeout to honour in case of multiple retries of the same request.
-         * {@link #DEFAULT_MAX_RETRY_TIMEOUT} if not specified.
+         * Sets the maximum timeout (in milliseconds) to honour in case of multiple retries of the same request.
+         * {@link #DEFAULT_MAX_RETRY_TIMEOUT_MILLIS} if not specified.
          *
-         * @throws IllegalArgumentException if maxRetryTimeout is not greater than 0
+         * @throws IllegalArgumentException if maxRetryTimeoutMillis is not greater than 0
          */
-        public Builder setMaxRetryTimeout(int maxRetryTimeout) {
-            if (maxRetryTimeout <= 0) {
-                throw new IllegalArgumentException("maxRetryTimeout must be greater than 0");
+        public Builder setMaxRetryTimeoutMillis(int maxRetryTimeoutMillis) {
+            if (maxRetryTimeoutMillis <= 0) {
+                throw new IllegalArgumentException("maxRetryTimeoutMillis must be greater than 0");
             }
-            this.maxRetryTimeout = maxRetryTimeout;
+            this.maxRetryTimeout = maxRetryTimeoutMillis;
             return this;
         }
 
@@ -446,9 +446,9 @@ public final class RestClient implements Closeable {
             connectionManager.setMaxTotal(30);
 
             //default timeouts are all infinite
-            RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(DEFAULT_CONNECT_TIMEOUT)
-                    .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT)
-                    .setConnectionRequestTimeout(DEFAULT_CONNECTION_REQUEST_TIMEOUT).build();
+            RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(DEFAULT_CONNECT_TIMEOUT_MILLIS)
+                    .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS)
+                    .setConnectionRequestTimeout(DEFAULT_CONNECTION_REQUEST_TIMEOUT_MILLIS).build();
             return HttpClientBuilder.create().setConnectionManager(connectionManager).setDefaultRequestConfig(requestConfig).build();
         }
     }

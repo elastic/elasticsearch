@@ -55,14 +55,14 @@ public class SnifferBuilderTests extends LuceneTestCase {
             }
 
             try {
-                Sniffer.builder(client, hostsSniffer).setSniffInterval(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
+                Sniffer.builder(client, hostsSniffer).setSniffIntervalMillis(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
                 assertEquals("sniffInterval must be greater than 0", e.getMessage());
             }
 
             try {
-                Sniffer.builder(client, hostsSniffer).setSniffAfterFailureDelay(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
+                Sniffer.builder(client, hostsSniffer).setSniffAfterFailureDelayMillis(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
                 assertEquals("sniffAfterFailureDelay must be greater than 0", e.getMessage());
@@ -74,10 +74,10 @@ public class SnifferBuilderTests extends LuceneTestCase {
 
             Sniffer.Builder builder = Sniffer.builder(client, hostsSniffer);
             if (random().nextBoolean()) {
-                builder.setSniffInterval(RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
+                builder.setSniffIntervalMillis(RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
             }
             if (random().nextBoolean()) {
-                builder.setSniffAfterFailureDelay(RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
+                builder.setSniffAfterFailureDelayMillis(RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
             }
             if (random().nextBoolean()) {
                 builder.setSniffOnFailure(random().nextBoolean());

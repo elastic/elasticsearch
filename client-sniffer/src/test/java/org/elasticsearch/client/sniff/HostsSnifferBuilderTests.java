@@ -50,7 +50,7 @@ public class HostsSnifferBuilderTests extends LuceneTestCase {
             }
 
             try {
-                HostsSniffer.builder(client).setSniffRequestTimeout(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
+                HostsSniffer.builder(client).setSniffRequestTimeoutMillis(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
                 assertEquals(e.getMessage(), "sniffRequestTimeout must be greater than 0");
@@ -61,7 +61,7 @@ public class HostsSnifferBuilderTests extends LuceneTestCase {
                 builder.setScheme(RandomPicks.randomFrom(random(), HostsSniffer.Scheme.values()));
             }
             if (random().nextBoolean()) {
-                builder.setSniffRequestTimeout(RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
+                builder.setSniffRequestTimeoutMillis(RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
             }
             assertNotNull(builder.build());
         }

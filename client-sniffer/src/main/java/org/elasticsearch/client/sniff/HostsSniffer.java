@@ -52,9 +52,9 @@ public class HostsSniffer {
     private final Scheme scheme;
     private final JsonFactory jsonFactory = new JsonFactory();
 
-    protected HostsSniffer(RestClient restClient, long sniffRequestTimeout, Scheme scheme) {
+    protected HostsSniffer(RestClient restClient, long sniffRequestTimeoutMillis, Scheme scheme) {
         this.restClient = restClient;
-        this.sniffRequestParams = Collections.<String, String>singletonMap("timeout", sniffRequestTimeout + "ms");
+        this.sniffRequestParams = Collections.<String, String>singletonMap("timeout", sniffRequestTimeoutMillis + "ms");
         this.scheme = scheme;
     }
 
@@ -155,7 +155,7 @@ public class HostsSniffer {
         public static final long DEFAULT_SNIFF_REQUEST_TIMEOUT = TimeUnit.SECONDS.toMillis(1);
 
         private final RestClient restClient;
-        private long sniffRequestTimeout = DEFAULT_SNIFF_REQUEST_TIMEOUT;
+        private long sniffRequestTimeoutMillis = DEFAULT_SNIFF_REQUEST_TIMEOUT;
         private Scheme scheme;
 
         private Builder(RestClient restClient) {
@@ -164,15 +164,14 @@ public class HostsSniffer {
         }
 
         /**
-         * Sets the sniff request timeout to be passed in as a query string parameter to elasticsearch.
-         * Allows to halt the request without any failure, as only the nodes that have responded
-         * within this timeout will be returned.
+         * Sets the sniff request timeout (in milliseconds) to be passed in as a query string parameter to elasticsearch.
+         * Allows to halt the request without any failure, as only the nodes that have responded within this timeout will be returned.
          */
-        public Builder setSniffRequestTimeout(int sniffRequestTimeout) {
-            if (sniffRequestTimeout <= 0) {
-                throw new IllegalArgumentException("sniffRequestTimeout must be greater than 0");
+        public Builder setSniffRequestTimeoutMillis(int sniffRequestTimeoutMillis) {
+            if (sniffRequestTimeoutMillis <= 0) {
+                throw new IllegalArgumentException("sniffRequestTimeoutMillis must be greater than 0");
             }
-            this.sniffRequestTimeout = sniffRequestTimeout;
+            this.sniffRequestTimeoutMillis = sniffRequestTimeoutMillis;
             return this;
         }
 
@@ -189,7 +188,7 @@ public class HostsSniffer {
          * Creates a new {@link HostsSniffer} instance given the provided configuration
          */
         public HostsSniffer build() {
-            return new HostsSniffer(restClient, sniffRequestTimeout, scheme);
+            return new HostsSniffer(restClient, sniffRequestTimeoutMillis, scheme);
         }
     }
 }

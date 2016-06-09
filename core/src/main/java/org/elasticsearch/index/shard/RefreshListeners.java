@@ -68,15 +68,16 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener 
      * @param location the location to listen for
      * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
      *        false otherwise.
+     * @return did we call the listener (true) or register the listener to call later (false)?
      */
-    public void addOrNotify(Translog.Location location, Consumer<Boolean> listener) {
+    public boolean addOrNotify(Translog.Location location, Consumer<Boolean> listener) {
         requireNonNull(listener, "listener cannot be null");
         requireNonNull(location, "location cannot be null");
 
         if (lastRefreshedLocation != null && lastRefreshedLocation.compareTo(location) >= 0) {
             // Location already visible, just call the listener
             listener.accept(false);
-            return;
+            return true;
         }
         synchronized (this) {
             if (refreshListeners == null) {
@@ -85,12 +86,13 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener 
             if (refreshListeners.size() < getMaxRefreshListeners.getAsInt()) {
                 // We have a free slot so register the listener
                 refreshListeners.add(new Tuple<>(location, listener));
-                return;
+                return false;
             }
         }
         // No free slot so force a refresh and call the listener in this thread
         forceRefresh.run();
         listener.accept(true);
+        return true;
     }
 
     /**

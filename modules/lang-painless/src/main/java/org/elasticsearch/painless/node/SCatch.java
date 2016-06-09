@@ -22,8 +22,8 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.Variables.Variable;
+import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Locals.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.elasticsearch.painless.MethodWriter;
@@ -52,7 +52,7 @@ public final class SCatch extends AStatement {
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         final Type type;
 
         try {
@@ -65,14 +65,14 @@ public final class SCatch extends AStatement {
             throw createError(new ClassCastException("Not an exception type [" + this.type + "]."));
         }
 
-        variable = variables.addVariable(location, type, name, true, false);
+        variable = locals.addVariable(location, type, name, true, false);
 
         if (block != null) {
             block.lastSource = lastSource;
             block.inLoop = inLoop;
             block.lastLoop = lastLoop;
 
-            block.analyze(variables);
+            block.analyze(locals);
 
             methodEscape = block.methodEscape;
             loopEscape = block.loopEscape;

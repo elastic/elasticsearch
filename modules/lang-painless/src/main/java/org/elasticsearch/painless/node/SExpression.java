@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -39,9 +39,9 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         expression.read = lastSource;
-        expression.analyze(variables);
+        expression.analyze(locals);
 
         if (!lastSource && !expression.statement) {
             throw createError(new IllegalArgumentException("Not a statement."));
@@ -51,7 +51,7 @@ public final class SExpression extends AStatement {
 
         expression.expected = rtn ? Definition.OBJECT_TYPE : expression.actual;
         expression.internal = rtn;
-        expression = expression.cast(variables);
+        expression = expression.cast(locals);
 
         methodEscape = rtn;
         loopEscape = rtn;

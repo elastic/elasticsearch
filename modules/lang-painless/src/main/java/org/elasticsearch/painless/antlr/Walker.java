@@ -28,9 +28,10 @@ import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.Locals.ExecuteReserved;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Variables.Reserved;
+import org.elasticsearch.painless.Locals.Reserved;
 import org.elasticsearch.painless.antlr.PainlessParser.AfterthoughtContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentsContext;
@@ -138,19 +139,21 @@ import java.util.List;
  */
 public final class Walker extends PainlessParserBaseVisitor<Object> {
 
-    public static SSource buildPainlessTree(String name, String sourceText, Reserved reserved, CompilerSettings settings) {
-        return new Walker(name, sourceText, reserved, settings).source;
+    public static SSource buildPainlessTree(String sourceName, String sourceText, Reserved reserved, CompilerSettings settings) {
+        return new Walker(sourceName, sourceText, reserved, settings).source;
     }
 
     private final Reserved reserved;
     private final SSource source;
     private final CompilerSettings settings;
     private final String sourceName;
+    private final String sourceText;
 
-    private Walker(String name, String sourceText, Reserved reserved, CompilerSettings settings) {
+    private Walker(String sourceName, String sourceText, Reserved reserved, CompilerSettings settings) {
         this.reserved = reserved;
         this.settings = settings;
-        this.sourceName = Location.computeSourceName(name, sourceText);
+        this.sourceName = Location.computeSourceName(sourceName, sourceText);
+        this.sourceText = sourceText;
         this.source = (SSource)visit(buildAntlrTree(sourceText));
     }
 
@@ -202,7 +205,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SSource(location(ctx), statements);
+        return new SSource(sourceName, sourceText, (ExecuteReserved)reserved, location(ctx), statements);
     }
 
     @Override
@@ -221,18 +224,16 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
     @Override
     public Object visitWhile(WhileContext ctx) {
-        if (settings.getMaxLoopCounter() > 0) {
-            reserved.usesLoop();
-        }
+        reserved.setMaxLoopCounter(settings.getMaxLoopCounter());
 
         AExpression expression = (AExpression)visitExpression(ctx.expression());
 
         if (ctx.trailer() != null) {
             SBlock block = (SBlock)visit(ctx.trailer());
 
-            return new SWhile(location(ctx), settings.getMaxLoopCounter(), expression, block);
+            return new SWhile(location(ctx), expression, block);
         } else if (ctx.empty() != null) {
-            return new SWhile(location(ctx), settings.getMaxLoopCounter(), expression, null);
+            return new SWhile(location(ctx), expression, null);
         } else {
             throw location(ctx).createError(new IllegalStateException(" Illegal tree structure."));
         }
@@ -240,21 +241,17 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
     @Override
     public Object visitDo(DoContext ctx) {
-        if (settings.getMaxLoopCounter() > 0) {
-            reserved.usesLoop();
-        }
+        reserved.setMaxLoopCounter(settings.getMaxLoopCounter());
 
         AExpression expression = (AExpression)visitExpression(ctx.expression());
         SBlock block = (SBlock)visit(ctx.block());
 
-        return new SDo(location(ctx), settings.getMaxLoopCounter(), block, expression);
+        return new SDo(location(ctx), block, expression);
     }
 
     @Override
     public Object visitFor(ForContext ctx) {
-        if (settings.getMaxLoopCounter() > 0) {
-            reserved.usesLoop();
-        }
+        reserved.setMaxLoopCounter(settings.getMaxLoopCounter());
 
         ANode initializer = ctx.initializer() == null ? null : (ANode)visit(ctx.initializer());
         AExpression expression = ctx.expression() == null ? null : (AExpression)visitExpression(ctx.expression());
@@ -263,9 +260,9 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         if (ctx.trailer() != null) {
             SBlock block = (SBlock)visit(ctx.trailer());
 
-            return new SFor(location(ctx), settings.getMaxLoopCounter(), initializer, expression, afterthought, block);
+            return new SFor(location(ctx), initializer, expression, afterthought, block);
         } else if (ctx.empty() != null) {
-            return new SFor(location(ctx), settings.getMaxLoopCounter(), initializer, expression, afterthought, null);
+            return new SFor(location(ctx), initializer, expression, afterthought, null);
         } else {
             throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
         }
@@ -273,16 +270,14 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
     @Override
     public Object visitEach(EachContext ctx) {
-        if (settings.getMaxLoopCounter() > 0) {
-            reserved.usesLoop();
-        }
+        reserved.setMaxLoopCounter(settings.getMaxLoopCounter());
 
         String type = ctx.decltype().getText();
         String name = ctx.ID().getText();
         AExpression expression = (AExpression)visitExpression(ctx.expression());
         SBlock block = (SBlock)visit(ctx.trailer());
 
-        return new SEach(location(ctx), settings.getMaxLoopCounter(), type, name, expression, block);
+        return new SEach(location(ctx), type, name, expression, block);
     }
 
     @Override

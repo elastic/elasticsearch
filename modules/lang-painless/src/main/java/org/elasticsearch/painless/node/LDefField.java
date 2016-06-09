@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Type;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -43,7 +43,7 @@ final class LDefField extends ALink implements IDefLink {
 
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
         after = Definition.DEF_TYPE;
 
         return this;

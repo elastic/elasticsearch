@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
@@ -43,7 +43,7 @@ public final class LNewArray extends ALink {
     }
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
         if (before != null) {
             throw createError(new IllegalArgumentException("Cannot create a new array with a target already defined."));
         } else if (store) {
@@ -64,8 +64,8 @@ public final class LNewArray extends ALink {
             AExpression expression = arguments.get(argument);
 
             expression.expected = Definition.INT_TYPE;
-            expression.analyze(variables);
-            arguments.set(argument, expression.cast(variables));
+            expression.analyze(locals);
+            arguments.set(argument, expression.cast(locals));
         }
 
         after = Definition.getType(type.struct, arguments.size());

@@ -26,7 +26,7 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
@@ -59,20 +59,20 @@ public final class EChain extends AExpression {
     }
 
     @Override
-    void analyze(Variables variables) {
-        analyzeLinks(variables);
+    void analyze(Locals locals) {
+        analyzeLinks(locals);
         analyzeIncrDecr();
 
         if (operation != null) {
-            analyzeCompound(variables);
+            analyzeCompound(locals);
         } else if (expression != null) {
-            analyzeWrite(variables);
+            analyzeWrite(locals);
         } else {
             analyzeRead();
         }
     }
 
-    private void analyzeLinks(Variables variables) {
+    private void analyzeLinks(Locals variables) {
         ALink previous = null;
         int index = 0;
 
@@ -153,7 +153,7 @@ public final class EChain extends AExpression {
         }
     }
 
-    private void analyzeCompound(Variables variables) {
+    private void analyzeCompound(Locals variables) {
         ALink last = links.get(links.size() - 1);
 
         expression.analyze(variables);
@@ -214,7 +214,7 @@ public final class EChain extends AExpression {
         this.actual = read ? last.after : Definition.VOID_TYPE;
     }
 
-    private void analyzeWrite(Variables variables) {
+    private void analyzeWrite(Locals variables) {
         ALink last = links.get(links.size() - 1);
 
         // If the store node is a def node, we remove the cast to def from the expression

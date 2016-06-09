@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -115,7 +115,7 @@ public abstract class AStatement extends ANode {
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    abstract void analyze(Variables variables);
+    abstract void analyze(Locals locals);
 
     /**
      * Writes ASM based on the data collected during the analysis phase.

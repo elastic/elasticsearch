@@ -25,7 +25,7 @@ import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -49,21 +49,21 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         if (operation == Operation.NOT) {
-            analyzeNot(variables);
+            analyzeNot(locals);
         } else if (operation == Operation.BWNOT) {
-            analyzeBWNot(variables);
+            analyzeBWNot(locals);
         } else if (operation == Operation.ADD) {
-            analyzerAdd(variables);
+            analyzerAdd(locals);
         } else if (operation == Operation.SUB) {
-            analyzerSub(variables);
+            analyzerSub(locals);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
-    void analyzeNot(Variables variables) {
+    void analyzeNot(Locals variables) {
         child.expected = Definition.BOOLEAN_TYPE;
         child.analyze(variables);
         child = child.cast(variables);
@@ -75,7 +75,7 @@ public final class EUnary extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    void analyzeBWNot(Variables variables) {
+    void analyzeBWNot(Locals variables) {
         child.analyze(variables);
 
         Type promote = AnalyzerCaster.promoteNumeric(child.actual, false);
@@ -102,7 +102,7 @@ public final class EUnary extends AExpression {
         actual = promote;
     }
 
-    void analyzerAdd(Variables variables) {
+    void analyzerAdd(Locals variables) {
         child.analyze(variables);
 
         Type promote = AnalyzerCaster.promoteNumeric(child.actual, true);
@@ -133,7 +133,7 @@ public final class EUnary extends AExpression {
         actual = promote;
     }
 
-    void analyzerSub(Variables variables) {
+    void analyzerSub(Locals variables) {
         child.analyze(variables);
 
         Type promote = AnalyzerCaster.promoteNumeric(child.actual, true);

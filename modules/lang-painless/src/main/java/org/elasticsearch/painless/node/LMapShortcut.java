@@ -23,7 +23,7 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -42,7 +42,7 @@ final class LMapShortcut extends ALink {
     }
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
         getter = before.struct.methods.get(new Definition.MethodKey("get", 1));
         setter = before.struct.methods.get(new Definition.MethodKey("put", 2));
 
@@ -61,8 +61,8 @@ final class LMapShortcut extends ALink {
 
         if ((load || store) && (!load || getter != null) && (!store || setter != null)) {
             index.expected = setter != null ? setter.arguments.get(0) : getter.arguments.get(0);
-            index.analyze(variables);
-            index = index.cast(variables);
+            index.analyze(locals);
+            index = index.cast(locals);
 
             after = setter != null ? setter.arguments.get(1) : getter.rtn;
         } else {

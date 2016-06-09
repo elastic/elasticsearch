@@ -20,7 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
-import org.elasticsearch.painless.Variables.Reserved;
+import org.elasticsearch.painless.Locals.Reserved;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.node.SSource;
 
@@ -100,9 +100,8 @@ final class Compiler {
                 " plugin if a script longer than this length is a requirement.");
         }
 
-        Reserved reserved = new Reserved();
-        SSource root = Walker.buildPainlessTree(name, source, reserved, settings);
-        Variables variables = Analyzer.analyze(reserved, root);
+        SSource root = Walker.buildPainlessTree(name, source, settings);
+        root
         BitSet expressions = new BitSet(source.length());
         byte[] bytes = Writer.write(settings, name, source, variables, root, expressions);
 
@@ -132,7 +131,7 @@ final class Compiler {
 
         Reserved reserved = new Reserved();
         SSource root = Walker.buildPainlessTree(name, source, reserved, settings);
-        Variables variables = Analyzer.analyze(reserved, root);
+        Locals variables = Analyzer.analyze(reserved, root);
 
         return Writer.write(settings, name, source, variables, root, new BitSet(source.length()));
     }

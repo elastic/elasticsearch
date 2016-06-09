@@ -31,7 +31,7 @@
   # perform alias rollover
   - do:
     indices.rollover:
-      index: "logs_search"
+      alias: "logs_search"
       body:
         conditions:
           max_docs: 1

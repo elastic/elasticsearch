@@ -49,14 +49,9 @@ forbiddenApisMain {
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
 }
 
-//TODO would be nice to just exclude the classes where we use com.sun.net.httpserver.* classes
-//excludes don't seem to work though and we don't want to have our own @SuppressForbidden
-forbiddenApisTest.enabled=false
-
 forbiddenApisTest {
   //client does not depend on core, so only jdk signatures should be checked
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
-  suppressAnnotations = ['**.SuppressForbidden']
 }
 
 //JarHell is part of es core, which we don't want to pull in

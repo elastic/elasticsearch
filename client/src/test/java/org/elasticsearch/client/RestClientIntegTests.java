@@ -32,6 +32,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.SuppressForbidden;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -83,32 +84,41 @@ public class RestClientIntegTests extends LuceneTestCase {
     }
 
     private static void createStatusCodeContext(HttpServer httpServer, final int statusCode) {
-        httpServer.createContext("/" + statusCode, new HttpHandler() {
-            @Override
-            public void handle(HttpExchange httpExchange) throws IOException {
-                StringBuilder body = new StringBuilder();
-                try (InputStreamReader reader = new InputStreamReader(httpExchange.getRequestBody(), Consts.UTF_8)) {
-                    char[] buffer = new char[256];
-                    int read;
-                    while ((read = reader.read(buffer)) != -1) {
-                        body.append(buffer, 0, read);
-                    }
+        httpServer.createContext("/" + statusCode, new ResponseHandler(statusCode));
+    }
+
+    @SuppressForbidden(reason = "uses sun HttpServer")
+    private static class ResponseHandler implements HttpHandler {
+        private final int statusCode;
+
+        ResponseHandler(int statusCode) {
+            this.statusCode = statusCode;
+        }
+
+        @Override
+        public void handle(HttpExchange httpExchange) throws IOException {
+            StringBuilder body = new StringBuilder();
+            try (InputStreamReader reader = new InputStreamReader(httpExchange.getRequestBody(), Consts.UTF_8)) {
+                char[] buffer = new char[256];
+                int read;
+                while ((read = reader.read(buffer)) != -1) {
+                    body.append(buffer, 0, read);
                 }
-                Headers requestHeaders = httpExchange.getRequestHeaders();
-                Headers responseHeaders = httpExchange.getResponseHeaders();
-                for (Map.Entry<String, List<String>> header : requestHeaders.entrySet()) {
-                    responseHeaders.put(header.getKey(), header.getValue());
-                }
-                httpExchange.getRequestBody().close();
-                httpExchange.sendResponseHeaders(statusCode, body.length() == 0 ? -1 : body.length());
-                if (body.length() > 0) {
-                    try (OutputStream out = httpExchange.getResponseBody()) {
-                        out.write(body.toString().getBytes(Consts.UTF_8));
-                    }
-                }
-                httpExchange.close();
             }
-        });
+            Headers requestHeaders = httpExchange.getRequestHeaders();
+            Headers responseHeaders = httpExchange.getResponseHeaders();
+            for (Map.Entry<String, List<String>> header : requestHeaders.entrySet()) {
+                responseHeaders.put(header.getKey(), header.getValue());
+            }
+            httpExchange.getRequestBody().close();
+            httpExchange.sendResponseHeaders(statusCode, body.length() == 0 ? -1 : body.length());
+            if (body.length() > 0) {
+                try (OutputStream out = httpExchange.getResponseBody()) {
+                    out.write(body.toString().getBytes(Consts.UTF_8));
+                }
+            }
+            httpExchange.close();
+        }
     }
 
     @AfterClass

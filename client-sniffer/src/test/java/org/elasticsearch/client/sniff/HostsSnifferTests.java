@@ -31,6 +31,7 @@ import org.apache.http.Consts;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.SuppressForbidden;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -54,6 +55,7 @@ import java.util.Set;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
+@SuppressForbidden(reason = "uses sun HttpServer")
 public class HostsSnifferTests extends LuceneTestCase {
 
     private int sniffRequestTimeout;
@@ -109,26 +111,37 @@ public class HostsSnifferTests extends LuceneTestCase {
         }
     }
 
-    private static HttpServer createHttpServer(final SniffResponse sniffResponse, final int sniffTimeout) throws IOException {
+    private static HttpServer createHttpServer(final SniffResponse sniffResponse, final int sniffTimeoutMillis) throws IOException {
         HttpServer httpServer = HttpServer.create(new InetSocketAddress(0), 0);
-        httpServer.createContext("/_nodes/http", new HttpHandler() {
-            @Override
-            public void handle(HttpExchange httpExchange) throws IOException {
-                if (httpExchange.getRequestMethod().equals(HttpGet.METHOD_NAME)) {
-                    if (httpExchange.getRequestURI().getRawQuery().equals("timeout=" + sniffTimeout + "ms")) {
-                        String nodesInfoBody = sniffResponse.nodesInfoBody;
-                        httpExchange.sendResponseHeaders(sniffResponse.nodesInfoResponseCode, nodesInfoBody.length());
-                        try (OutputStream out = httpExchange.getResponseBody()) {
-                            out.write(nodesInfoBody.getBytes(Consts.UTF_8));
-                            return;
-                        }
+        httpServer.createContext("/_nodes/http", new ResponseHandler(sniffTimeoutMillis, sniffResponse));
+        return httpServer;
+    }
+
+    @SuppressForbidden(reason = "uses sun HttpServer")
+    private static class ResponseHandler implements HttpHandler {
+        private final int sniffTimeoutMillis;
+        private final SniffResponse sniffResponse;
+
+        ResponseHandler(int sniffTimeoutMillis, SniffResponse sniffResponse) {
+            this.sniffTimeoutMillis = sniffTimeoutMillis;
+            this.sniffResponse = sniffResponse;
+        }
+
+        @Override
+        public void handle(HttpExchange httpExchange) throws IOException {
+            if (httpExchange.getRequestMethod().equals(HttpGet.METHOD_NAME)) {
+                if (httpExchange.getRequestURI().getRawQuery().equals("timeout=" + sniffTimeoutMillis + "ms")) {
+                    String nodesInfoBody = sniffResponse.nodesInfoBody;
+                    httpExchange.sendResponseHeaders(sniffResponse.nodesInfoResponseCode, nodesInfoBody.length());
+                    try (OutputStream out = httpExchange.getResponseBody()) {
+                        out.write(nodesInfoBody.getBytes(Consts.UTF_8));
+                        return;
                     }
                 }
-                httpExchange.sendResponseHeaders(404, 0);
-                httpExchange.close();
             }
-        });
-        return httpServer;
+            httpExchange.sendResponseHeaders(404, 0);
+            httpExchange.close();
+        }
     }
 
     private static SniffResponse buildSniffResponse(HostsSniffer.Scheme scheme) throws IOException {

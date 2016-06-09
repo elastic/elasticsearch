@@ -35,13 +35,13 @@ import java.util.Objects;
  * its corresponding {@link RequestLine} and {@link HttpHost}.
  * It must be closed to free any resource held by it, as well as the corresponding connection in the connection pool.
  */
-public class ElasticsearchResponse implements Closeable {
+public class Response implements Closeable {
 
     private final RequestLine requestLine;
     private final HttpHost host;
     private final CloseableHttpResponse response;
 
-    ElasticsearchResponse(RequestLine requestLine, HttpHost host, CloseableHttpResponse response) {
+    Response(RequestLine requestLine, HttpHost host, CloseableHttpResponse response) {
         Objects.requireNonNull(requestLine, "requestLine cannot be null");
         Objects.requireNonNull(host, "node cannot be null");
         Objects.requireNonNull(response, "response cannot be null");
@@ -101,7 +101,7 @@ public class ElasticsearchResponse implements Closeable {
 
     @Override
     public String toString() {
-        return "ElasticsearchResponse{" +
+        return "Response{" +
                 "requestLine=" + requestLine +
                 ", host=" + host +
                 ", response=" + response.getStatusLine() +

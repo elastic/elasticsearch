@@ -19,8 +19,8 @@
 
 package org.elasticsearch.options.detailederrors;
 
-import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -49,8 +49,8 @@ public class DetailedErrorsEnabledIT extends ESIntegTestCase {
         try {
             getRestClient().performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true"), null);
             fail("request should have failed");
-        } catch(ElasticsearchResponseException e) {
-            ElasticsearchResponse response = e.getElasticsearchResponse();
+        } catch(ResponseException e) {
+            Response response = e.getResponse();
             assertThat(response.getHeader("Content-Type"), containsString("application/json"));
             assertThat(e.getResponseBody(), containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; " +
                     "nested: ActionRequestValidationException[Validation Failed: 1:"));
@@ -59,8 +59,8 @@ public class DetailedErrorsEnabledIT extends ESIntegTestCase {
         try {
             getRestClient().performRequest("DELETE", "/", Collections.emptyMap(), null);
             fail("request should have failed");
-        } catch(ElasticsearchResponseException e) {
-            ElasticsearchResponse response = e.getElasticsearchResponse();
+        } catch(ResponseException e) {
+            Response response = e.getResponse();
             assertThat(response.getHeader("Content-Type"), containsString("application/json"));
             assertThat(e.getResponseBody(), not(containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; "
                     + "nested: ActionRequestValidationException[Validation Failed: 1:")));

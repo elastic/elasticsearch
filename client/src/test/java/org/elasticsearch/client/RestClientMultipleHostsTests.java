@@ -102,7 +102,7 @@ public class RestClientMultipleHostsTests extends LuceneTestCase {
             Collections.addAll(hostsSet, httpHosts);
             for (int j = 0; j < httpHosts.length; j++) {
                 int statusCode = randomOkStatusCode(random());
-                try (ElasticsearchResponse response = restClient.performRequest(randomHttpMethod(random()), "/" + statusCode,
+                try (Response response = restClient.performRequest(randomHttpMethod(random()), "/" + statusCode,
                         Collections.<String, String>emptyMap(), null)) {
                     assertThat(response.getStatusLine().getStatusCode(), equalTo(statusCode));
                     assertTrue("host not found: " + response.getHost(), hostsSet.remove(response.getHost()));
@@ -121,7 +121,7 @@ public class RestClientMultipleHostsTests extends LuceneTestCase {
             for (int j = 0; j < httpHosts.length; j++) {
                 String method = randomHttpMethod(random());
                 int statusCode = randomErrorNoRetryStatusCode(random());
-                try (ElasticsearchResponse response = restClient.performRequest(method, "/" + statusCode,
+                try (Response response = restClient.performRequest(method, "/" + statusCode,
                         Collections.<String, String>emptyMap(), null)) {
                     if (method.equals("HEAD") && statusCode == 404) {
                         //no exception gets thrown although we got a 404
@@ -131,11 +131,11 @@ public class RestClientMultipleHostsTests extends LuceneTestCase {
                     } else {
                         fail("request should have failed");
                     }
-                } catch(ElasticsearchResponseException e) {
+                } catch(ResponseException e) {
                     if (method.equals("HEAD") && statusCode == 404) {
                         throw e;
                     }
-                    ElasticsearchResponse response = e.getElasticsearchResponse();
+                    Response response = e.getResponse();
                     assertThat(response.getStatusLine().getStatusCode(), equalTo(statusCode));
                     assertTrue("host not found: " + response.getHost(), hostsSet.remove(response.getHost()));
                     assertEquals(0, e.getSuppressed().length);
@@ -151,21 +151,21 @@ public class RestClientMultipleHostsTests extends LuceneTestCase {
         try  {
             restClient.performRequest(randomHttpMethod(random()), retryEndpoint, Collections.<String, String>emptyMap(), null);
             fail("request should have failed");
-        } catch(ElasticsearchResponseException e) {
+        } catch(ResponseException e) {
             Set<HttpHost> hostsSet = new HashSet<>();
             Collections.addAll(hostsSet, httpHosts);
             //first request causes all the hosts to be blacklisted, the returned exception holds one suppressed exception each
             failureListener.assertCalled(httpHosts);
             do {
-                ElasticsearchResponse response = e.getElasticsearchResponse();
+                Response response = e.getResponse();
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(Integer.parseInt(retryEndpoint.substring(1))));
                 assertTrue("host [" + response.getHost() + "] not found, most likely used multiple times",
                         hostsSet.remove(response.getHost()));
                 if (e.getSuppressed().length > 0) {
                     assertEquals(1, e.getSuppressed().length);
                     Throwable suppressed = e.getSuppressed()[0];
-                    assertThat(suppressed, instanceOf(ElasticsearchResponseException.class));
-                    e = (ElasticsearchResponseException)suppressed;
+                    assertThat(suppressed, instanceOf(ResponseException.class));
+                    e = (ResponseException)suppressed;
                 } else {
                     e = null;
                 }
@@ -201,8 +201,8 @@ public class RestClientMultipleHostsTests extends LuceneTestCase {
                 try  {
                     restClient.performRequest(randomHttpMethod(random()), retryEndpoint, Collections.<String, String>emptyMap(), null);
                     fail("request should have failed");
-                } catch(ElasticsearchResponseException e) {
-                    ElasticsearchResponse response = e.getElasticsearchResponse();
+                } catch(ResponseException e) {
+                    Response response = e.getResponse();
                     assertThat(response.getStatusLine().getStatusCode(), equalTo(Integer.parseInt(retryEndpoint.substring(1))));
                     assertTrue("host [" + response.getHost() + "] not found, most likely used multiple times",
                             hostsSet.remove(response.getHost()));
@@ -224,13 +224,13 @@ public class RestClientMultipleHostsTests extends LuceneTestCase {
                 int iters = RandomInts.randomIntBetween(random(), 2, 10);
                 for (int y = 0; y < iters; y++) {
                     int statusCode = randomErrorNoRetryStatusCode(random());
-                    ElasticsearchResponse response;
-                    try (ElasticsearchResponse esResponse = restClient.performRequest(randomHttpMethod(random()), "/" + statusCode,
+                    Response response;
+                    try (Response esResponse = restClient.performRequest(randomHttpMethod(random()), "/" + statusCode,
                             Collections.<String, String>emptyMap(), null)) {
                         response = esResponse;
                     }
-                    catch(ElasticsearchResponseException e) {
-                        response = e.getElasticsearchResponse();
+                    catch(ResponseException e) {
+                        response = e.getResponse();
                     }
                     assertThat(response.getStatusLine().getStatusCode(), equalTo(statusCode));
                     if (selectedHost == null) {
@@ -248,8 +248,8 @@ public class RestClientMultipleHostsTests extends LuceneTestCase {
                         restClient.performRequest(randomHttpMethod(random()), retryEndpoint,
                                 Collections.<String, String>emptyMap(), null);
                         fail("request should have failed");
-                    } catch(ElasticsearchResponseException e) {
-                        ElasticsearchResponse response = e.getElasticsearchResponse();
+                    } catch(ResponseException e) {
+                        Response response = e.getResponse();
                         assertThat(response.getStatusLine().getStatusCode(), equalTo(Integer.parseInt(retryEndpoint.substring(1))));
                         assertThat(response.getHost(), equalTo(selectedHost));
                         failureListener.assertCalled(selectedHost);

@@ -19,7 +19,7 @@
 package org.elasticsearch.rest.action.main;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -40,14 +40,14 @@ public class RestMainActionIT extends ESIntegTestCase {
     }
 
     public void testHeadRequest() throws IOException {
-        try (ElasticsearchResponse response = getRestClient().performRequest("HEAD", "/", Collections.emptyMap(), null)) {
+        try (Response response = getRestClient().performRequest("HEAD", "/", Collections.emptyMap(), null)) {
             assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
             assertNull(response.getEntity());
         }
     }
 
     public void testGetRequest() throws IOException {
-        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null)) {
+        try (Response response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null)) {
             assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
             assertNotNull(response.getEntity());
             assertThat(EntityUtils.toString(response.getEntity()), containsString("cluster_name"));

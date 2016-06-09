@@ -19,7 +19,7 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -78,7 +78,7 @@ public class RestTestExecutionContext implements Closeable {
             //we always stash the last response body
             stash.stashResponse(response);
             return response;
-        } catch(ElasticsearchResponseException e) {
+        } catch(ResponseException e) {
             response = new RestTestResponse(e);
             throw e;
         }

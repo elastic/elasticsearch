@@ -22,7 +22,7 @@ package org.elasticsearch.test.rest;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
@@ -276,9 +276,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         deleteIndicesArgs.put("index", "*");
         try {
             adminExecutionContext.callApi("indices.delete", deleteIndicesArgs, Collections.emptyList(), Collections.emptyMap());
-        } catch (ElasticsearchResponseException e) {
+        } catch (ResponseException e) {
             // 404 here just means we had no indexes
-            if (e.getElasticsearchResponse().getStatusLine().getStatusCode() != 404) {
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
                 throw e;
             }
         }

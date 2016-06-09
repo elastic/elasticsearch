@@ -33,8 +33,8 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
@@ -106,8 +106,8 @@ public class RestTestClient implements Closeable {
             //we don't really use the urls here, we rely on the client doing round-robin to touch all the nodes in the cluster
             String method = restApi.getMethods().get(0);
             String endpoint = restApi.getPaths().get(0);
-            ElasticsearchResponse elasticsearchResponse = restClient.performRequest(method, endpoint, Collections.emptyMap(), null);
-            RestTestResponse restTestResponse = new RestTestResponse(elasticsearchResponse);
+            Response response = restClient.performRequest(method, endpoint, Collections.emptyMap(), null);
+            RestTestResponse restTestResponse = new RestTestResponse(response);
             Object latestVersion = restTestResponse.evaluate("version.number");
             if (latestVersion == null) {
                 throw new RuntimeException("elasticsearch version not found in the response");
@@ -143,7 +143,7 @@ public class RestTestClient implements Closeable {
                 entity = new StringEntity(body, RestClient.JSON_CONTENT_TYPE);
             }
             // And everything else is a url parameter!
-            ElasticsearchResponse response = restClient.performRequest(method, path, queryStringParams, entity);
+            Response response = restClient.performRequest(method, path, queryStringParams, entity);
             return new RestTestResponse(response);
         }
 
@@ -247,11 +247,11 @@ public class RestTestClient implements Closeable {
 
         logger.debug("calling api [{}]", apiName);
         try {
-            ElasticsearchResponse response = restClient.performRequest(requestMethod, requestPath,
+            Response response = restClient.performRequest(requestMethod, requestPath,
                     queryStringParams, requestBody, requestHeaders);
             return new RestTestResponse(response);
-        } catch(ElasticsearchResponseException e) {
-            if (ignores.contains(e.getElasticsearchResponse().getStatusLine().getStatusCode())) {
+        } catch(ResponseException e) {
+            if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
                 return new RestTestResponse(e);
             }
             throw e;

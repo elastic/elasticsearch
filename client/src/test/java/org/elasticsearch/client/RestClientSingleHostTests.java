@@ -183,7 +183,7 @@ public class RestClientSingleHostTests extends LuceneTestCase {
     public void testOkStatusCodes() throws Exception {
         for (String method : getHttpMethods()) {
             for (int okStatusCode : getOkStatusCodes()) {
-                ElasticsearchResponse response = restClient.performRequest(method, "/" + okStatusCode,
+                Response response = restClient.performRequest(method, "/" + okStatusCode,
                         Collections.<String, String>emptyMap(), null);
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(okStatusCode));
             }
@@ -198,7 +198,7 @@ public class RestClientSingleHostTests extends LuceneTestCase {
         for (String method : getHttpMethods()) {
             //error status codes should cause an exception to be thrown
             for (int errorStatusCode : getAllErrorStatusCodes()) {
-                try (ElasticsearchResponse response = restClient.performRequest(method, "/" + errorStatusCode,
+                try (Response response = restClient.performRequest(method, "/" + errorStatusCode,
                         Collections.<String, String>emptyMap(), null)) {
                     if (method.equals("HEAD") && errorStatusCode == 404) {
                         //no exception gets thrown although we got a 404
@@ -206,11 +206,11 @@ public class RestClientSingleHostTests extends LuceneTestCase {
                     } else {
                         fail("request should have failed");
                     }
-                } catch(ElasticsearchResponseException e) {
+                } catch(ResponseException e) {
                     if (method.equals("HEAD") && errorStatusCode == 404) {
                         throw e;
                     }
-                    assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), equalTo(errorStatusCode));
+                    assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(errorStatusCode));
                 }
                 if (errorStatusCode <= 500) {
                     failureListener.assertNotCalled();
@@ -250,7 +250,7 @@ public class RestClientSingleHostTests extends LuceneTestCase {
         StringEntity entity = new StringEntity(body);
         for (String method : Arrays.asList("DELETE", "GET", "PATCH", "POST", "PUT")) {
             for (int okStatusCode : getOkStatusCodes()) {
-                try (ElasticsearchResponse response = restClient.performRequest(method, "/" + okStatusCode,
+                try (Response response = restClient.performRequest(method, "/" + okStatusCode,
                         Collections.<String, String>emptyMap(), entity)) {
                     assertThat(response.getStatusLine().getStatusCode(), equalTo(okStatusCode));
                     assertThat(EntityUtils.toString(response.getEntity()), equalTo(body));
@@ -260,8 +260,8 @@ public class RestClientSingleHostTests extends LuceneTestCase {
                 try {
                     restClient.performRequest(method, "/" + errorStatusCode, Collections.<String, String>emptyMap(), entity);
                     fail("request should have failed");
-                } catch(ElasticsearchResponseException e) {
-                    ElasticsearchResponse response = e.getElasticsearchResponse();
+                } catch(ResponseException e) {
+                    Response response = e.getResponse();
                     assertThat(response.getStatusLine().getStatusCode(), equalTo(errorStatusCode));
                     assertThat(EntityUtils.toString(response.getEntity()), equalTo(body));
                 }
@@ -326,12 +326,12 @@ public class RestClientSingleHostTests extends LuceneTestCase {
             }
 
             int statusCode = randomStatusCode(random());
-            ElasticsearchResponse esResponse;
-            try (ElasticsearchResponse response = restClient.performRequest(method, "/" + statusCode,
+            Response esResponse;
+            try (Response response = restClient.performRequest(method, "/" + statusCode,
                     Collections.<String, String>emptyMap(), null, headers)) {
                 esResponse = response;
-            } catch(ElasticsearchResponseException e) {
-                esResponse = e.getElasticsearchResponse();
+            } catch(ResponseException e) {
+                esResponse = e.getResponse();
             }
             assertThat(esResponse.getStatusLine().getStatusCode(), equalTo(statusCode));
             for (Header responseHeader : esResponse.getHeaders()) {
@@ -413,7 +413,7 @@ public class RestClientSingleHostTests extends LuceneTestCase {
 
         try {
             restClient.performRequest(method, uriAsString, params, entity, headers);
-        } catch(ElasticsearchResponseException e) {
+        } catch(ResponseException e) {
             //all good
         }
         return request;

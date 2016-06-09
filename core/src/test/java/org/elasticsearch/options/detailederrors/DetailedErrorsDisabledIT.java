@@ -19,8 +19,8 @@
 
 package org.elasticsearch.options.detailederrors;
 
-import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -51,8 +51,8 @@ public class DetailedErrorsDisabledIT extends ESIntegTestCase {
         try {
             getRestClient().performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true"), null);
             fail("request should have failed");
-        } catch(ElasticsearchResponseException e) {
-            ElasticsearchResponse response = e.getElasticsearchResponse();
+        } catch(ResponseException e) {
+            Response response = e.getResponse();
             assertThat(response.getHeader("Content-Type"), is("application/json"));
             assertThat(e.getResponseBody(), is("{\"error\":\"error traces in responses are disabled.\"}"));
             assertThat(response.getStatusLine().getStatusCode(), is(400));

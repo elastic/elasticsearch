@@ -19,8 +19,8 @@
 package org.elasticsearch.rest;
 
 import org.apache.http.message.BasicHeader;
-import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
@@ -61,12 +61,12 @@ public class CorsRegexIT extends ESIntegTestCase {
 
     public void testThatRegularExpressionWorksOnMatch() throws Exception {
         String corsValue = "http://localhost:9200";
-        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
+        try (Response response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
                 new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue))) {
             assertResponseWithOriginheader(response, corsValue);
         }
         corsValue = "https://localhost:9200";
-        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
+        try (Response response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
                 new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue));) {
             assertResponseWithOriginheader(response, corsValue);
             assertThat(response.getHeader("Access-Control-Allow-Credentials"), is("true"));
@@ -78,8 +78,8 @@ public class CorsRegexIT extends ESIntegTestCase {
             getRestClient().performRequest("GET", "/", Collections.emptyMap(), null, new BasicHeader("User-Agent", "Mozilla Bar"),
                     new BasicHeader("Origin", "http://evil-host:9200"));
             fail("request should have failed");
-        } catch(ElasticsearchResponseException e) {
-            ElasticsearchResponse response = e.getElasticsearchResponse();
+        } catch(ResponseException e) {
+            Response response = e.getResponse();
             // a rejected origin gets a FORBIDDEN - 403
             assertThat(response.getStatusLine().getStatusCode(), is(403));
             assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
@@ -87,7 +87,7 @@ public class CorsRegexIT extends ESIntegTestCase {
     }
 
     public void testThatSendingNoOriginHeaderReturnsNoAccessControlHeader() throws Exception {
-        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
+        try (Response response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
                 new BasicHeader("User-Agent", "Mozilla Bar"))) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
             assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
@@ -95,7 +95,7 @@ public class CorsRegexIT extends ESIntegTestCase {
     }
 
     public void testThatRegularExpressionIsNotAppliedWithoutCorrectBrowserOnMatch() throws Exception {
-        try (ElasticsearchResponse response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null)) {
+        try (Response response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null)) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
             assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
         }
@@ -103,7 +103,7 @@ public class CorsRegexIT extends ESIntegTestCase {
 
     public void testThatPreFlightRequestWorksOnMatch() throws Exception {
         String corsValue = "http://localhost:9200";
-        try (ElasticsearchResponse response = getRestClient().performRequest("OPTIONS", "/", Collections.emptyMap(), null,
+        try (Response response = getRestClient().performRequest("OPTIONS", "/", Collections.emptyMap(), null,
                 new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue),
                 new BasicHeader(HttpHeaders.Names.ACCESS_CONTROL_REQUEST_METHOD, "GET"));) {
             assertResponseWithOriginheader(response, corsValue);
@@ -117,8 +117,8 @@ public class CorsRegexIT extends ESIntegTestCase {
                     new BasicHeader("Origin", "http://evil-host:9200"),
                     new BasicHeader(HttpHeaders.Names.ACCESS_CONTROL_REQUEST_METHOD, "GET"));
             fail("request should have failed");
-        } catch(ElasticsearchResponseException e) {
-            ElasticsearchResponse response = e.getElasticsearchResponse();
+        } catch(ResponseException e) {
+            Response response = e.getResponse();
             // a rejected origin gets a FORBIDDEN - 403
             assertThat(response.getStatusLine().getStatusCode(), is(403));
             assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
@@ -126,7 +126,7 @@ public class CorsRegexIT extends ESIntegTestCase {
         }
     }
 
-    protected static void assertResponseWithOriginheader(ElasticsearchResponse response, String expectedCorsHeader) {
+    protected static void assertResponseWithOriginheader(Response response, String expectedCorsHeader) {
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getHeader("Access-Control-Allow-Origin"), is(expectedCorsHeader));
     }

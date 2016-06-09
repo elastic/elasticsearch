@@ -21,8 +21,8 @@ package org.elasticsearch.test.rest.client;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.Stash;
 import org.elasticsearch.test.rest.json.JsonPath;
 
@@ -35,11 +35,11 @@ import java.nio.charset.StandardCharsets;
  */
 public class RestTestResponse {
 
-    private final ElasticsearchResponse response;
+    private final Response response;
     private final String body;
     private JsonPath parsedResponse;
 
-    public RestTestResponse(ElasticsearchResponse response) {
+    public RestTestResponse(Response response) {
         this.response = response;
         if (response.getEntity() != null) {
             try {
@@ -55,8 +55,8 @@ public class RestTestResponse {
         }
     }
 
-    public RestTestResponse(ElasticsearchResponseException responseException) {
-        this.response = responseException.getElasticsearchResponse();
+    public RestTestResponse(ResponseException responseException) {
+        this.response = responseException.getResponse();
         this.body = responseException.getResponseBody();
     }
 

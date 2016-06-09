@@ -31,8 +31,8 @@ import org.apache.http.Consts;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.junit.After;
 import org.junit.Before;
@@ -93,8 +93,8 @@ public class HostsSnifferTests extends LuceneTestCase {
                 for (HttpHost sniffedHost : sniffedHosts) {
                     assertEquals(sniffedHost, responseHostsIterator.next());
                 }
-            } catch(ElasticsearchResponseException e) {
-                ElasticsearchResponse response = e.getElasticsearchResponse();
+            } catch(ResponseException e) {
+                Response response = e.getResponse();
                 if (sniffResponse.isFailure) {
                     assertThat(e.getMessage(), containsString("GET " + httpHost + "/_nodes/http?timeout=" + sniffRequestTimeout + "ms"));
                     assertThat(e.getMessage(), containsString(Integer.toString(sniffResponse.nodesInfoResponseCode)));

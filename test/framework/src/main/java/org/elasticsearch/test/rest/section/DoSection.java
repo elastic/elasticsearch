@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test.rest.section;
 
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
@@ -102,7 +102,7 @@ public class DoSection implements ExecutableSection {
                 }
                 fail(formatStatusCodeMessage(restTestResponse, catchStatusCode));
             }
-        } catch(ElasticsearchResponseException e) {
+        } catch(ResponseException e) {
             RestTestResponse restTestResponse = new RestTestResponse(e);
             if (!Strings.hasLength(catchParam)) {
                 fail(formatStatusCodeMessage(restTestResponse, "2xx"));
@@ -111,7 +111,7 @@ public class DoSection implements ExecutableSection {
             } else if (catchParam.length() > 2 && catchParam.startsWith("/") && catchParam.endsWith("/")) {
                 //the text of the error message matches regular expression
                 assertThat(formatStatusCodeMessage(restTestResponse, "4xx|5xx"),
-                        e.getElasticsearchResponse().getStatusLine().getStatusCode(), greaterThanOrEqualTo(400));
+                        e.getResponse().getStatusLine().getStatusCode(), greaterThanOrEqualTo(400));
                 Object error = executionContext.response("error");
                 assertThat("error was expected in the response", error, notNullValue());
                 //remove delimiters from regex

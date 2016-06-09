@@ -19,8 +19,8 @@
 package org.elasticsearch.plugins;
 
 import org.apache.http.message.BasicHeader;
-import org.elasticsearch.client.ElasticsearchResponse;
-import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.responseheader.TestResponseHeaderPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -55,13 +55,13 @@ public class ResponseHeaderPluginIT extends ESIntegTestCase {
         try {
             getRestClient().performRequest("GET", "/_protected", Collections.emptyMap(), null);
             fail("request should have failed");
-        } catch(ElasticsearchResponseException e) {
-            ElasticsearchResponse response = e.getElasticsearchResponse();
+        } catch(ResponseException e) {
+            Response response = e.getResponse();
             assertThat(response.getStatusLine().getStatusCode(), equalTo(401));
             assertThat(response.getHeader("Secret"), equalTo("required"));
         }
 
-        try (ElasticsearchResponse authResponse = getRestClient().performRequest("GET", "/_protected", Collections.emptyMap(), null,
+        try (Response authResponse = getRestClient().performRequest("GET", "/_protected", Collections.emptyMap(), null,
                 new BasicHeader("Secret", "password"))) {
             assertThat(authResponse.getStatusLine().getStatusCode(), equalTo(200));
             assertThat(authResponse.getHeader("Secret"), equalTo("granted"));

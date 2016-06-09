@@ -144,12 +144,12 @@ public class RestClientIntegTests extends LuceneTestCase {
             }
 
             int statusCode = randomStatusCode(random());
-            ElasticsearchResponse esResponse;
-            try (ElasticsearchResponse response = restClient.performRequest(method, "/" + statusCode,
+            Response esResponse;
+            try (Response response = restClient.performRequest(method, "/" + statusCode,
                     Collections.<String, String>emptyMap(), null, headers)) {
                 esResponse = response;
-            } catch(ElasticsearchResponseException e) {
-                esResponse = e.getElasticsearchResponse();
+            } catch(ResponseException e) {
+                esResponse = e.getResponse();
             }
             assertThat(esResponse.getStatusLine().getStatusCode(), equalTo(statusCode));
             for (Header responseHeader : esResponse.getHeaders()) {
@@ -187,16 +187,16 @@ public class RestClientIntegTests extends LuceneTestCase {
     private void testBody(String method) throws Exception {
         String requestBody = "{ \"field\": \"value\" }";
         StringEntity entity = new StringEntity(requestBody);
-        ElasticsearchResponse esResponse;
+        Response esResponse;
         String responseBody;
         int statusCode = randomStatusCode(random());
-        try (ElasticsearchResponse response = restClient.performRequest(method, "/" + statusCode,
+        try (Response response = restClient.performRequest(method, "/" + statusCode,
                 Collections.<String, String>emptyMap(), entity)) {
             responseBody = EntityUtils.toString(response.getEntity());
             esResponse = response;
-        } catch(ElasticsearchResponseException e) {
+        } catch(ResponseException e) {
             responseBody = e.getResponseBody();
-            esResponse = e.getElasticsearchResponse();
+            esResponse = e.getResponse();
         }
         assertEquals(statusCode, esResponse.getStatusLine().getStatusCode());
         assertEquals(requestBody, responseBody);

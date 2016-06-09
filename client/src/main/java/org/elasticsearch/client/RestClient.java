@@ -131,10 +131,10 @@ public final class RestClient implements Closeable {
      * @return the response returned by elasticsearch
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
-     * @throws ElasticsearchResponseException in case elasticsearch responded with a status code that indicated an error
+     * @throws ResponseException in case elasticsearch responded with a status code that indicated an error
      */
-    public ElasticsearchResponse performRequest(String method, String endpoint, Map<String, String> params,
-                                                HttpEntity entity, Header... headers) throws IOException {
+    public Response performRequest(String method, String endpoint, Map<String, String> params,
+                                   HttpEntity entity, Header... headers) throws IOException {
         URI uri = buildUri(endpoint, params);
         HttpRequestBase request = createHttpRequest(method, uri, entity);
         setHeaders(request, headers);
@@ -167,7 +167,7 @@ public final class RestClient implements Closeable {
                 lastSeenException = addSuppressedException(lastSeenException, e);
                 continue;
             }
-            ElasticsearchResponse elasticsearchResponse = new ElasticsearchResponse(request.getRequestLine(), host, response);
+            Response elasticsearchResponse = new Response(request.getRequestLine(), host, response);
             int statusCode = response.getStatusLine().getStatusCode();
             if (statusCode < 300 || (request.getMethod().equals(HttpHead.METHOD_NAME) && statusCode == 404) ) {
                 RequestLogger.log(logger, "request succeeded", request, host, response);
@@ -185,9 +185,9 @@ public final class RestClient implements Closeable {
                 } finally {
                     elasticsearchResponse.close();
                 }
-                ElasticsearchResponseException elasticsearchResponseException = new ElasticsearchResponseException(
+                ResponseException responseException = new ResponseException(
                         elasticsearchResponse, responseBody);
-                lastSeenException = addSuppressedException(lastSeenException, elasticsearchResponseException);
+                lastSeenException = addSuppressedException(lastSeenException, responseException);
                 //clients don't retry on 500 because elasticsearch still misuses it instead of 400 in some places
                 if (statusCode == 502 || statusCode == 503 || statusCode == 504) {
                     onFailure(host);

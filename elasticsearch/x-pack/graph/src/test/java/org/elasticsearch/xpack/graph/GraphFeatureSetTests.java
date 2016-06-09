@@ -3,11 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.graph;
+package org.elasticsearch.xpack.graph;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.graph.GraphFeatureSet;
+import org.elasticsearch.xpack.graph.GraphLicensee;
 import org.junit.Before;
 
 import static org.hamcrest.core.Is.is;

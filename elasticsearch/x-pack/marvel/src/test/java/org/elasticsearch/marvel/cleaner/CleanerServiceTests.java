@@ -11,6 +11,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.MonitoringLicensee;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -40,7 +41,7 @@ public class CleanerServiceTests extends ESTestCase {
     @Before
     public void start() {
         clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(MonitoringSettings.HISTORY_DURATION));
-        threadPool = new ThreadPool("CleanerServiceTests");
+        threadPool = new TestThreadPool("CleanerServiceTests");
     }
 
     @After

@@ -10,6 +10,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
@@ -189,7 +190,7 @@ public class SelfReschedulingRunnableTests extends ESTestCase {
     }
 
     public void testStopPreventsRunning() throws Exception {
-        final ThreadPool threadPool = new ThreadPool("test-stop-self-schedule");
+        final ThreadPool threadPool = new TestThreadPool("test-stop-self-schedule");
         final AtomicInteger failureCounter = new AtomicInteger(0);
         final AtomicInteger runCounter = new AtomicInteger(0);
         final AbstractRunnable runnable = new AbstractRunnable() {
@@ -232,7 +233,7 @@ public class SelfReschedulingRunnableTests extends ESTestCase {
     }
 
     public void testStopPreventsRescheduling() throws Exception {
-        final ThreadPool threadPool = new ThreadPool("test-stop-self-schedule");
+        final ThreadPool threadPool = new TestThreadPool("test-stop-self-schedule");
         final CountDownLatch threadRunningLatch = new CountDownLatch(randomIntBetween(1, 16));
         final CountDownLatch stopCalledLatch = new CountDownLatch(1);
         final AbstractRunnable runnable = new AbstractRunnable() {

@@ -15,6 +15,7 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.user.User;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
@@ -49,7 +50,7 @@ public class LdapRealmTests extends LdapTestCase {
 
     @Before
     public void init() throws Exception {
-        threadPool = new ThreadPool("ldap realm tests");
+        threadPool = new TestThreadPool("ldap realm tests");
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
     }

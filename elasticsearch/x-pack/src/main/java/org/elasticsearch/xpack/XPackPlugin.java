@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.graph.Graph;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.marvel.Monitoring;
@@ -26,6 +25,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.authc.AuthenticationModule;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.xpack.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.action.XPackInfoAction;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.common.init.LazyInitializationService;
 import org.elasticsearch.xpack.common.secret.SecretModule;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
+import org.elasticsearch.xpack.graph.Graph;
 import org.elasticsearch.xpack.notification.Notification;
 import org.elasticsearch.xpack.notification.email.Account;
 import org.elasticsearch.xpack.notification.email.support.BodyPartSource;
@@ -51,6 +53,7 @@ import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 public class XPackPlugin extends Plugin {
 
@@ -199,6 +202,11 @@ public class XPackPlugin extends Plugin {
         watcher.onModule(module);
         graph.onModule(module);
         licensing.onModule(module);
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
+        return watcher.getExecutorBuilders(settings);
     }
 
     public void onModule(NetworkModule module) {

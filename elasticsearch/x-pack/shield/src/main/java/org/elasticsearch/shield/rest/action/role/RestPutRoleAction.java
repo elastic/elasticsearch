@@ -36,9 +36,7 @@ public class RestPutRoleAction extends BaseRestHandler {
     @Override
     protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
         PutRoleRequestBuilder requestBuilder = new SecurityClient(client).preparePutRole(request.param("name"), request.content());
-        if (request.hasParam("refresh")) {
-            requestBuilder.refresh(request.paramAsBoolean("refresh", true));
-        }
+        requestBuilder.setRefreshPolicy(request.param("refresh"));
         requestBuilder.execute(new RestBuilderListener<PutRoleResponse>(channel) {
             @Override
             public RestResponse buildResponse(PutRoleResponse putRoleResponse, XContentBuilder builder) throws Exception {

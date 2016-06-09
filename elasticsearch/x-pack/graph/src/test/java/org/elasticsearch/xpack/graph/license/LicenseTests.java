@@ -3,12 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.graph.license;
+package org.elasticsearch.xpack.graph.license;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.graph.GraphLicensee;
 import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeTestCase;
+import org.elasticsearch.xpack.graph.GraphLicensee;
 
 import static org.hamcrest.Matchers.is;
 

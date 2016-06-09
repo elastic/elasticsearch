@@ -61,8 +61,11 @@ jarHell.enabled=false
 //NamingConventionCheck is part of test-framework, which we don't want to pull in as it depends on es core
 namingConventions.enabled=false
 
-//TODO re-enable once our own jars are properly filtered out
-dependencyLicenses.enabled=false
+dependencyLicenses {
+  dependencies = project.configurations.runtime.fileCollection {
+    it.group.startsWith('org.elasticsearch') == false
+  }
+}
 
 thirdPartyAudit.excludes = [
   //commons-logging optional dependencies

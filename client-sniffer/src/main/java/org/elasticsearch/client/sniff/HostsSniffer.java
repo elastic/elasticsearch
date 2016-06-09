@@ -36,6 +36,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Class responsible for sniffing the http hosts from elasticsearch through the nodes info api and returning them back.
@@ -47,14 +49,13 @@ public class HostsSniffer {
 
     private final RestClient restClient;
     private final Map<String, String> sniffRequestParams;
-    private final String scheme;
-    private final JsonFactory jsonFactory;
+    private final Scheme scheme;
+    private final JsonFactory jsonFactory = new JsonFactory();
 
-    public HostsSniffer(RestClient restClient, long sniffRequestTimeout, String scheme) {
+    protected HostsSniffer(RestClient restClient, long sniffRequestTimeout, Scheme scheme) {
         this.restClient = restClient;
         this.sniffRequestParams = Collections.<String, String>singletonMap("timeout", sniffRequestTimeout + "ms");
         this.scheme = scheme;
-        this.jsonFactory = new JsonFactory();
     }
 
     /**
@@ -95,7 +96,7 @@ public class HostsSniffer {
         }
     }
 
-    private static HttpHost readHost(String nodeId, JsonParser parser, String scheme) throws IOException {
+    private static HttpHost readHost(String nodeId, JsonParser parser, Scheme scheme) throws IOException {
         HttpHost httpHost = null;
         String fieldName = null;
         while (parser.nextToken() != JsonToken.END_OBJECT) {
@@ -123,5 +124,72 @@ public class HostsSniffer {
             return null;
         }
         return httpHost;
+    }
+
+    /**
+     * Returns a new {@link Builder} to help with {@link HostsSniffer} creation.
+     */
+    public static Builder builder(RestClient restClient) {
+        return new Builder(restClient);
+    }
+
+    public enum Scheme {
+        HTTP("http"), HTTPS("https");
+
+        private final String name;
+
+        Scheme(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
+
+    /**
+     * HostsSniffer builder. Helps creating a new {@link HostsSniffer}.
+     */
+    public static class Builder {
+        public static final long DEFAULT_SNIFF_REQUEST_TIMEOUT = TimeUnit.SECONDS.toMillis(1);
+
+        private final RestClient restClient;
+        private long sniffRequestTimeout = DEFAULT_SNIFF_REQUEST_TIMEOUT;
+        private Scheme scheme;
+
+        private Builder(RestClient restClient) {
+            Objects.requireNonNull(restClient, "restClient cannot be null");
+            this.restClient = restClient;
+        }
+
+        /**
+         * Sets the sniff request timeout to be passed in as a query string parameter to elasticsearch.
+         * Allows to halt the request without any failure, as only the nodes that have responded
+         * within this timeout will be returned.
+         */
+        public Builder setSniffRequestTimeout(int sniffRequestTimeout) {
+            if (sniffRequestTimeout <= 0) {
+                throw new IllegalArgumentException("sniffRequestTimeout must be greater than 0");
+            }
+            this.sniffRequestTimeout = sniffRequestTimeout;
+            return this;
+        }
+
+        /**
+         * Sets the scheme to associate sniffed nodes with (as it is not returned by elasticsearch)
+         */
+        public Builder setScheme(Scheme scheme) {
+            Objects.requireNonNull(scheme, "scheme cannot be null");
+            this.scheme = scheme;
+            return this;
+        }
+
+        /**
+         * Creates a new {@link HostsSniffer} instance given the provided configuration
+         */
+        public HostsSniffer build() {
+            return new HostsSniffer(restClient, sniffRequestTimeout, scheme);
+        }
     }
 }

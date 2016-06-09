@@ -20,19 +20,15 @@
 package org.elasticsearch.client.sniff;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.RestClient;
 
-import java.util.Arrays;
-import java.util.logging.LogManager;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 public class SnifferBuilderTests extends LuceneTestCase {
-
-    static {
-        LogManager.getLogManager().reset();
-    }
 
     public void testBuild() throws Exception {
         int numNodes = RandomInts.randomIntBetween(random(), 1, 5);
@@ -40,58 +36,43 @@ public class SnifferBuilderTests extends LuceneTestCase {
         for (int i = 0; i < numNodes; i++) {
             hosts[i] = new HttpHost("localhost", 9200 + i);
         }
-        try (RestClient client = RestClient.builder(hosts).build()) {
 
+        HostsSniffer hostsSniffer = new MockHostsSniffer();
+
+        try (RestClient client = RestClient.builder(hosts).build()) {
             try {
-                Sniffer.builder(client).setScheme(null);
+                Sniffer.builder(null, hostsSniffer).build();
                 fail("should have failed");
             } catch(NullPointerException e) {
-                assertEquals("scheme cannot be null", e.getMessage());
+                assertEquals("restClient cannot be null", e.getMessage());
             }
 
             try {
-                Sniffer.builder(client).setScheme("whatever");
+                Sniffer.builder(client, null).build();
                 fail("should have failed");
-            } catch(IllegalArgumentException e) {
-                assertEquals("scheme must be either http or https", e.getMessage());
+            } catch(NullPointerException e) {
+                assertEquals("hostsSniffer cannot be null", e.getMessage());
             }
 
             try {
-                Sniffer.builder(client).setSniffInterval(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
+                Sniffer.builder(client, hostsSniffer).setSniffInterval(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
                 assertEquals("sniffInterval must be greater than 0", e.getMessage());
             }
 
             try {
-                Sniffer.builder(client).setSniffRequestTimeout(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
-                fail("should have failed");
-            } catch(IllegalArgumentException e) {
-                assertEquals("sniffRequestTimeout must be greater than 0", e.getMessage());
-            }
-
-            try {
-                Sniffer.builder(client).setSniffAfterFailureDelay(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
+                Sniffer.builder(client, hostsSniffer).setSniffAfterFailureDelay(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
                 assertEquals("sniffAfterFailureDelay must be greater than 0", e.getMessage());
             }
 
-            try {
-                Sniffer.builder(null).build();
-                fail("should have failed");
-            } catch(NullPointerException e) {
-                assertEquals("restClient cannot be null", e.getMessage());
-            }
-
-            try (Sniffer sniffer = Sniffer.builder(client).build()) {
+            try (Sniffer sniffer = Sniffer.builder(client, hostsSniffer).build()) {
                 assertNotNull(sniffer);
             }
 
-            Sniffer.Builder builder = Sniffer.builder(client);
-            if (random().nextBoolean()) {
-                builder.setScheme(RandomPicks.randomFrom(random(), Arrays.asList("http", "https")));
-            }
+            Sniffer.Builder builder = Sniffer.builder(client, hostsSniffer);
             if (random().nextBoolean()) {
                 builder.setSniffInterval(RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
             }
@@ -99,14 +80,22 @@ public class SnifferBuilderTests extends LuceneTestCase {
                 builder.setSniffAfterFailureDelay(RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
             }
             if (random().nextBoolean()) {
-                builder.setSniffRequestTimeout(RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
-            }
-            if (random().nextBoolean()) {
                 builder.setSniffOnFailure(random().nextBoolean());
             }
             try (Sniffer sniffer = builder.build()) {
                 assertNotNull(sniffer);
             }
+        }
+    }
+
+    private static class MockHostsSniffer extends HostsSniffer {
+        MockHostsSniffer() {
+            super(null, -1, null);
+        }
+
+        @Override
+        public List<HttpHost> sniffHosts() throws IOException {
+            return Collections.singletonList(new HttpHost("localhost", 9200));
         }
     }
 }

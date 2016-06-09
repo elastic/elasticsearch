@@ -43,7 +43,6 @@ import java.io.StringWriter;
 import java.net.InetSocketAddress;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -58,14 +57,14 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class HostsSnifferTests extends LuceneTestCase {
 
     private int sniffRequestTimeout;
-    private String scheme;
+    private HostsSniffer.Scheme scheme;
     private SniffResponse sniffResponse;
     private HttpServer httpServer;
 
     @Before
     public void startHttpServer() throws IOException {
         this.sniffRequestTimeout = RandomInts.randomIntBetween(random(), 1000, 10000);
-        this.scheme = RandomPicks.randomFrom(random(), Arrays.asList("http", "https"));
+        this.scheme = RandomPicks.randomFrom(random(), HostsSniffer.Scheme.values());
         if (rarely()) {
             this.sniffResponse = SniffResponse.buildFailure();
         } else {
@@ -132,7 +131,7 @@ public class HostsSnifferTests extends LuceneTestCase {
         return httpServer;
     }
 
-    private static SniffResponse buildSniffResponse(String scheme) throws IOException {
+    private static SniffResponse buildSniffResponse(HostsSniffer.Scheme scheme) throws IOException {
         int numNodes = RandomInts.randomIntBetween(random(), 1, 5);
         List<HttpHost> hosts = new ArrayList<>(numNodes);
         JsonFactory jsonFactory = new JsonFactory();
@@ -164,7 +163,7 @@ public class HostsSnifferTests extends LuceneTestCase {
             if (isHttpEnabled) {
                 String host = "host" + i;
                 int port = RandomInts.randomIntBetween(random(), 9200, 9299);
-                HttpHost httpHost = new HttpHost(host, port, scheme);
+                HttpHost httpHost = new HttpHost(host, port, scheme.toString());
                 hosts.add(httpHost);
                 generator.writeObjectFieldStart("http");
                 if (random().nextBoolean()) {

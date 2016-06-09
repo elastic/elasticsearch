@@ -224,7 +224,7 @@ public final class RestClient implements Closeable {
     private Iterator<HttpHost> nextHost() {
         Set<HttpHost> filteredHosts = new HashSet<>(hosts);
         for (Map.Entry<HttpHost, DeadHostState> entry : blacklist.entrySet()) {
-            if (System.nanoTime() - entry.getValue().getDeadUntil() < 0) {
+            if (System.nanoTime() - entry.getValue().getDeadUntilNanos() < 0) {
                 filteredHosts.remove(entry.getKey());
             }
         }
@@ -235,7 +235,7 @@ public final class RestClient implements Closeable {
             Collections.sort(sortedHosts, new Comparator<Map.Entry<HttpHost, DeadHostState>>() {
                 @Override
                 public int compare(Map.Entry<HttpHost, DeadHostState> o1, Map.Entry<HttpHost, DeadHostState> o2) {
-                    return Long.compare(o1.getValue().getDeadUntil(), o2.getValue().getDeadUntil());
+                    return Long.compare(o1.getValue().getDeadUntilNanos(), o2.getValue().getDeadUntilNanos());
                 }
             });
             HttpHost deadHost = sortedHosts.get(0).getKey();

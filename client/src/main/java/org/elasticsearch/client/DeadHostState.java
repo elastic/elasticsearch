@@ -34,17 +34,17 @@ class DeadHostState {
     static final DeadHostState INITIAL_DEAD_STATE = new DeadHostState();
 
     private final int failedAttempts;
-    private final long deadUntil;
+    private final long deadUntilNanos;
 
     private DeadHostState() {
         this.failedAttempts = 1;
-        this.deadUntil = System.nanoTime() + MIN_CONNECTION_TIMEOUT_NANOS;
+        this.deadUntilNanos = System.nanoTime() + MIN_CONNECTION_TIMEOUT_NANOS;
     }
 
     DeadHostState(DeadHostState previousDeadHostState) {
         long timeoutNanos = (long)Math.min(MIN_CONNECTION_TIMEOUT_NANOS * 2 * Math.pow(2, previousDeadHostState.failedAttempts * 0.5 - 1),
                 MAX_CONNECTION_TIMEOUT_NANOS);
-        this.deadUntil = System.nanoTime() + timeoutNanos;
+        this.deadUntilNanos = System.nanoTime() + timeoutNanos;
         this.failedAttempts = previousDeadHostState.failedAttempts + 1;
     }
 
@@ -52,15 +52,15 @@ class DeadHostState {
      * Returns the timestamp (nanos) till the host is supposed to stay dead without being retried.
      * After that the host should be retried.
      */
-    long getDeadUntil() {
-        return deadUntil;
+    long getDeadUntilNanos() {
+        return deadUntilNanos;
     }
 
     @Override
     public String toString() {
         return "DeadHostState{" +
                 "failedAttempts=" + failedAttempts +
-                ", deadUntil=" + deadUntil +
+                ", deadUntilNanos=" + deadUntilNanos +
                 '}';
     }
 }

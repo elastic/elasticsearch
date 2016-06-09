@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,7 +93,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
             realmUsage.put("key3", i % 2 == 0);
             when(realm.usageStats()).thenReturn(realmUsage);
         }
-        when(realms.iterator()).thenReturn(realmsList.iterator());
+        when(realms.iterator()).thenReturn(available ? realmsList.iterator() : Collections.<Realm>emptyIterator());
 
         SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState, realms, namedWriteableRegistry);
         XPackFeatureSet.Usage usage = featureSet.usage();
@@ -102,12 +103,14 @@ public class SecurityFeatureSetTests extends ESTestCase {
         assertThat(usage.available(), is(available));
         XContentSource source = new XContentSource(usage);
 
-        if (enabled) {
+        if (enabled && available) {
             for (int i = 0; i < 5; i++) {
                 assertThat(source.getValue("enabled_realms." + i + ".key1"), is("value" + i));
                 assertThat(source.getValue("enabled_realms." + i + ".key2"), is(i));
                 assertThat(source.getValue("enabled_realms." + i + ".key3"), is(i % 2 == 0));
             }
+        } else if (enabled) {
+            assertThat(source.getValue("enabled_realms"), is(notNullValue()));
         } else {
             assertThat(source.getValue("enabled_realms"), is(nullValue()));
         }

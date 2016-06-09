@@ -137,14 +137,14 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener 
              */
             return;
         }
-        // First check if we've actually moved forward. If not then just bail immediately.
-        assert lastRefreshedLocation == null || currentRefreshLocation.compareTo(lastRefreshedLocation) >= 0;
-        if (lastRefreshedLocation != null && currentRefreshLocation.compareTo(lastRefreshedLocation) == 0) {
-            return;
-        }
         /*
          * Set the lastRefreshedLocation so listeners that come in for locations before that will just execute inline without messing
-         * around with refreshListeners or synchronizing at all.
+         * around with refreshListeners or synchronizing at all. Note that it is not safe for us to abort early if we haven't advanced the
+         * position here because we set and read lastRefreshedLocation outside of a synchronized block. We do that so that waiting for a
+         * refresh that has already passed is just a volatile read but the cost is that any check whether or not we've advanced the
+         * position will introduce a race between adding the listener and the position check. We could work around this by moving this
+         * assignment into the synchronized block below and double checking lastRefreshedLocation in addOrNotify's synchronized block but
+         * that doesn't seem worth it given that we already skip this process early if there aren't any listeners to iterate.
          */
         lastRefreshedLocation = currentRefreshLocation;
         /*

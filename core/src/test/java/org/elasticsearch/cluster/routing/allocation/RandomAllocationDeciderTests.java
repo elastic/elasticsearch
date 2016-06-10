@@ -161,7 +161,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         }
     }
 
-    private static final class RandomAllocationDecider extends AllocationDecider {
+    public static final class RandomAllocationDecider extends AllocationDecider {
 
         private final Random random;
 

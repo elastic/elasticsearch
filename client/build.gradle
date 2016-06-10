@@ -52,9 +52,9 @@ forbiddenApisMain {
 }
 
 forbiddenApisTest {
-  //we are excluding jdk-non-portable to allow for com.sun.net.httpserver.* usage
-  //TODO remove this line once https://github.com/policeman-tools/forbidden-apis/issues/103 gets solved
-  bundledSignatures = ['jdk-unsafe', 'jdk-deprecated', 'jdk-system-out']
+  //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
+  bundledSignatures -= 'jdk-non-portable'
+  bundledSignatures += 'jdk-internal'
   //client does not depend on core, so only jdk signatures should be checked
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
 }

@@ -109,27 +109,23 @@ public class SyncedFlushService extends AbstractComponent {
         final ClusterState state = clusterService.state();
         final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, indicesOptions, aliasesOrIndices);
         final Map<String, List<ShardsSyncedFlushResult>> results = ConcurrentCollections.newConcurrentMap();
-        int totalNumberOfShards = 0;
         int numberOfShards = 0;
         for (String index : concreteIndices) {
             final IndexMetaData indexMetaData = state.metaData().index(index);
-            totalNumberOfShards += indexMetaData.getTotalNumberOfShards();
             numberOfShards += indexMetaData.getNumberOfShards();
             results.put(index, Collections.synchronizedList(new ArrayList<ShardsSyncedFlushResult>()));
-
         }
         if (numberOfShards == 0) {
             listener.onResponse(new SyncedFlushResponse(results));
             return;
         }
-        final int finalTotalNumberOfShards = totalNumberOfShards;
         final CountDown countDown = new CountDown(numberOfShards);
 
         for (final String index : concreteIndices) {
-            final int indexNumberOfShards = state.metaData().index(index).getNumberOfShards();
-            for (int shard = 0; shard < indexNumberOfShards; shard++) {
+            final IndexMetaData indexMetaData = state.metaData().index(index);
+            for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
                 final ShardId shardId = new ShardId(index, shard);
-                attemptSyncedFlush(shardId, new ActionListener<ShardsSyncedFlushResult>() {
+                innerAttemptSyncedFlush(shardId, state, new ActionListener<ShardsSyncedFlushResult>() {
                     @Override
                     public void onResponse(ShardsSyncedFlushResult syncedFlushResult) {
                         results.get(index).add(syncedFlushResult);
@@ -141,7 +137,8 @@ public class SyncedFlushService extends AbstractComponent {
                     @Override
                     public void onFailure(Throwable e) {
                         logger.debug("{} unexpected error while executing synced flush", shardId);
-                        results.get(index).add(new ShardsSyncedFlushResult(shardId, finalTotalNumberOfShards, e.getMessage()));
+                        final int totalShards = indexMetaData.getNumberOfReplicas() + 1;
+                        results.get(index).add(new ShardsSyncedFlushResult(shardId, totalShards, e.getMessage()));
                         if (countDown.countDown()) {
                             listener.onResponse(new SyncedFlushResponse(results));
                         }
@@ -178,8 +175,11 @@ public class SyncedFlushService extends AbstractComponent {
     * Synced flush is a best effort operation. The sync id may be written on all, some or none of the copies.
     **/
     public void attemptSyncedFlush(final ShardId shardId, final ActionListener<ShardsSyncedFlushResult> actionListener) {
+        innerAttemptSyncedFlush(shardId, clusterService.state(), actionListener);
+    }
+
+    private void innerAttemptSyncedFlush(final ShardId shardId, final ClusterState state, final ActionListener<ShardsSyncedFlushResult> actionListener) {
         try {
-            final ClusterState state = clusterService.state();
             final IndexShardRoutingTable shardRoutingTable = getShardRoutingTable(shardId, state);
             final List<ShardRouting> activeShards = shardRoutingTable.activeShards();
             final int totalShards = shardRoutingTable.getSize();

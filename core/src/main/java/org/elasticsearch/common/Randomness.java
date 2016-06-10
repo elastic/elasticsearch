@@ -116,27 +116,21 @@ public final class Randomness {
     /**
      * Provides a source of secure randomness that is reproducible when
      * running under the Elasticsearch test suite, and otherwise
-     * produces a non-reproducible source of secure randomness.
-     * Reproducible sources of secure randomness are created when the
-     * system property "tests.seed" is set and the security policy
-     * allows reading this system property. Otherwise, non-reproducible
-     * sources of secure randomness are created.
+     * produces a non-reproducible source of randomness. Reproducible
+     * sources of randomness are created when the system property
+     * "tests.seed" is set and the security policy allows reading this
+     * system property. Otherwise, non-reproducible sources of secure
+     * randomness are created.
      *
-     * @return a source of secure randomness
+     * @return a source of randomness
      * @throws IllegalStateException if running tests but was not able
      *                               to acquire an instance of Random from
      *                               RandomizedContext or tests are
      *                               running but tests.seed is not set
      */
-    public static SecureRandom getSecureRandom() {
+    public static Random getSecureRandom() {
         if (currentMethod != null && getRandomMethod != null) {
-            try {
-                final SecureRandom sr = SecureRandom.getInstance("SHA1PRNG", "SUN");
-                sr.setSeed(get().nextLong());
-                return sr;
-            } catch (NoSuchAlgorithmException | NoSuchProviderException e) {
-                throw new IllegalStateException("running tests but failed to create reproducible SecureRandom", e);
-            }
+            return get();
         } else {
             return getSecureRandomWithoutSeed();
         }

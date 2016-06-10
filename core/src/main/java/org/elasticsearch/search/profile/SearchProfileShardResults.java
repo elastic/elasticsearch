@@ -24,6 +24,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
+import org.elasticsearch.search.profile.aggregation.AggregationProfiler;
+import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -32,7 +35,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * A container class to hold all the profile results across all shards.  Internally
@@ -40,17 +42,10 @@ import java.util.stream.Collectors;
  */
 public final class SearchProfileShardResults implements Writeable, ToXContent{
 
-    private Map<String, List<ProfileShardResult>> shardResults;
+    private Map<String, ProfileShardResult> shardResults;
 
-    public SearchProfileShardResults(Map<String, List<ProfileShardResult>> shardResults) {
-        Map<String, List<ProfileShardResult>> transformed =
-                shardResults.entrySet()
-                        .stream()
-                        .collect(Collectors.toMap(
-                                        Map.Entry::getKey,
-                                        e -> Collections.unmodifiableList(e.getValue()))
-                        );
-        this.shardResults =  Collections.unmodifiableMap(transformed);
+    public SearchProfileShardResults(Map<String, ProfileShardResult> shardResults) {
+        this.shardResults =  Collections.unmodifiableMap(shardResults);
     }
 
     public SearchProfileShardResults(StreamInput in) throws IOException {
@@ -59,33 +54,22 @@ public final class SearchProfileShardResults implements Writeable, ToXContent{
 
         for (int i = 0; i < size; i++) {
             String key = in.readString();
-            int shardResultsSize = in.readInt();
-
-            List<ProfileShardResult> shardResult = new ArrayList<>(shardResultsSize);
-
-            for (int j = 0; j < shardResultsSize; j++) {
-                ProfileShardResult result = new ProfileShardResult(in);
-                shardResult.add(result);
-            }
-            shardResults.put(key, Collections.unmodifiableList(shardResult));
+            ProfileShardResult shardResult = new ProfileShardResult(in);
+            shardResults.put(key, shardResult);
         }
         shardResults = Collections.unmodifiableMap(shardResults);
     }
 
-    public Map<String, List<ProfileShardResult>> getShardResults() {
+    public Map<String, ProfileShardResult> getShardResults() {
         return this.shardResults;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(shardResults.size());
-        for (Map.Entry<String, List<ProfileShardResult>> entry : shardResults.entrySet()) {
+        for (Map.Entry<String, ProfileShardResult> entry : shardResults.entrySet()) {
             out.writeString(entry.getKey());
-            out.writeInt(entry.getValue().size());
-
-            for (ProfileShardResult result : entry.getValue()) {
-                result.writeTo(out);
-            }
+            entry.getValue().writeTo(out);
         }
     }
 
@@ -93,14 +77,18 @@ public final class SearchProfileShardResults implements Writeable, ToXContent{
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("profile").startArray("shards");
 
-        for (Map.Entry<String, List<ProfileShardResult>> entry : shardResults.entrySet()) {
-            builder.startObject().field("id",entry.getKey()).startArray("searches");
-            for (ProfileShardResult result : entry.getValue()) {
+        for (Map.Entry<String, ProfileShardResult> entry : shardResults.entrySet()) {
+            builder.startObject();
+            builder.field("id", entry.getKey());
+            builder.startArray("searches");
+            for (QueryProfileShardResult result : entry.getValue().getQueryProfileResults()) {
                 builder.startObject();
                 result.toXContent(builder, params);
                 builder.endObject();
             }
-            builder.endArray().endObject();
+            builder.endArray();
+            entry.getValue().getAggregationProfileResults().toXContent(builder, params);
+            builder.endObject();
         }
 
         builder.endArray().endObject();
@@ -112,16 +100,20 @@ public final class SearchProfileShardResults implements Writeable, ToXContent{
      * can be serialized to other nodes, emitted as JSON, etc.
      *
      * @param profilers
-     *            A list of Profilers to convert into
-     *            InternalProfileShardResults
-     * @return A list of corresponding InternalProfileShardResults
+     *            The {@link Profilers} to convert into results
+     * @return A {@link ProfileShardResult} representing the results for this
+     *         shard
      */
-    public static List<ProfileShardResult> buildShardResults(List<QueryProfiler> profilers) {
-        List<ProfileShardResult> results = new ArrayList<>(profilers.size());
-        for (QueryProfiler profiler : profilers) {
-            ProfileShardResult result = new ProfileShardResult(profiler.getQueryTree(), profiler.getRewriteTime(), profiler.getCollector());
-            results.add(result);
+    public static ProfileShardResult buildShardResults(Profilers profilers) {
+        List<QueryProfiler> queryProfilers = profilers.getQueryProfilers();
+        AggregationProfiler aggProfiler = profilers.getAggregationProfiler();
+        List<QueryProfileShardResult> queryResults = new ArrayList<>(queryProfilers.size());
+        for (QueryProfiler queryProfiler : queryProfilers) {
+            QueryProfileShardResult result = new QueryProfileShardResult(queryProfiler.getTree(), queryProfiler.getRewriteTime(),
+                    queryProfiler.getCollector());
+            queryResults.add(result);
         }
-        return results;
+        AggregationProfileShardResult aggResults = new AggregationProfileShardResult(aggProfiler.getTree());
+        return new ProfileShardResult(queryResults, aggResults);
     }
 }

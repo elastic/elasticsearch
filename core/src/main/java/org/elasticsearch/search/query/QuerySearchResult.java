@@ -59,7 +59,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
-    private List<ProfileShardResult> profileShardResults;
+    private ProfileShardResult profileShardResults;
 
     public QuerySearchResult() {
 
@@ -143,7 +143,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
      * Returns the profiled results for this search, or potentially null if result was empty
      * @return The profiled results, or null
      */
-    public @Nullable List<ProfileShardResult> profileResults() {
+    public @Nullable ProfileShardResult profileResults() {
         return profileShardResults;
     }
 
@@ -151,7 +151,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
      * Sets the finalized profiling results for this query
      * @param shardResults The finalized profile
      */
-    public void profileResults(List<ProfileShardResult> shardResults) {
+    public void profileResults(ProfileShardResult shardResults) {
         this.profileShardResults = shardResults;
     }
 
@@ -237,12 +237,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         terminatedEarly = in.readOptionalBoolean();
 
         if (in.getVersion().onOrAfter(Version.V_2_2_0) && in.readBoolean()) {
-            int profileSize = in.readVInt();
-            profileShardResults = new ArrayList<>(profileSize);
-            for (int i = 0; i < profileSize; i++) {
-                ProfileShardResult result = new ProfileShardResult(in);
-                profileShardResults.add(result);
-            }
+            profileShardResults = new ProfileShardResult(in);
         }
     }
 
@@ -296,10 +291,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeVInt(profileShardResults.size());
-                for (ProfileShardResult shardResult : profileShardResults) {
-                    shardResult.writeTo(out);
-                }
+                profileShardResults.writeTo(out);
             }
         }
     }

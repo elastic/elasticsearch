@@ -34,6 +34,7 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,11 +55,17 @@ public class ClusterChangedEventTests extends ESTestCase {
 
     private static final ClusterName TEST_CLUSTER_NAME = new ClusterName("test");
     private static final String NODE_ID_PREFIX = "node_";
-    private static final String INITIAL_CLUSTER_ID = UUIDs.randomBase64UUID();
-    // the initial indices which every cluster state test starts out with
-    private static final List<Index> initialIndices = Arrays.asList(new Index("idx1", UUIDs.randomBase64UUID()),
-                                                                    new Index("idx2", UUIDs.randomBase64UUID()),
-                                                                    new Index("idx3", UUIDs.randomBase64UUID()));
+    private static String INITIAL_CLUSTER_ID;
+    private static List<Index> initialIndices;
+
+    @BeforeClass
+    public static void beforeClass() {
+        INITIAL_CLUSTER_ID = UUIDs.randomBase64UUID();
+        // the initial indices which every cluster state test starts out with
+        initialIndices = Arrays.asList(new Index("idx1", UUIDs.randomBase64UUID()),
+            new Index("idx2", UUIDs.randomBase64UUID()),
+            new Index("idx3", UUIDs.randomBase64UUID()));
+    }
 
     /**
      * Test basic properties of the ClusterChangedEvent class:
@@ -140,24 +147,24 @@ public class ClusterChangedEventTests extends ESTestCase {
      */
     public void testIndexMetaDataChange() {
         final int numNodesInCluster = 3;
-        final ClusterState originalState = createState(numNodesInCluster, randomBoolean(), initialIndices);
-        final ClusterState newState = originalState; // doesn't matter for this test, just need a non-null value
-        final ClusterChangedEvent event = new ClusterChangedEvent("_na_", originalState, newState);
+        final ClusterState state = createState(numNodesInCluster, randomBoolean(), initialIndices);
 
         // test when its not the same IndexMetaData
         final Index index = initialIndices.get(0);
-        final IndexMetaData originalIndexMeta = originalState.metaData().index(index);
+        final IndexMetaData originalIndexMeta = state.metaData().index(index);
         // make sure the metadata is actually on the cluster state
         assertNotNull("IndexMetaData for " + index + " should exist on the cluster state", originalIndexMeta);
         IndexMetaData newIndexMeta = createIndexMetadata(index, originalIndexMeta.getVersion() + 1);
-        assertTrue("IndexMetaData with different version numbers must be considered changed", event.indexMetaDataChanged(newIndexMeta));
+        assertTrue("IndexMetaData with different version numbers must be considered changed",
+            ClusterChangedEvent.indexMetaDataChanged(originalIndexMeta, newIndexMeta));
 
         // test when it doesn't exist
         newIndexMeta = createIndexMetadata(new Index("doesntexist", UUIDs.randomBase64UUID()));
-        assertTrue("IndexMetaData that didn't previously exist should be considered changed", event.indexMetaDataChanged(newIndexMeta));
+        assertTrue("IndexMetaData that didn't previously exist should be considered changed",
+            ClusterChangedEvent.indexMetaDataChanged(originalIndexMeta, newIndexMeta));
 
         // test when its the same IndexMetaData
-        assertFalse("IndexMetaData should be the same", event.indexMetaDataChanged(originalIndexMeta));
+        assertFalse("IndexMetaData should be the same", ClusterChangedEvent.indexMetaDataChanged(originalIndexMeta, originalIndexMeta));
     }
 
     /**

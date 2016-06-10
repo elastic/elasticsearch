@@ -61,7 +61,7 @@ public abstract class SliceQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        if (super.equals(o) == false) {
+        if (sameClassAs(o) == false) {
             return false;
         }
         SliceQuery that = (SliceQuery) o;
@@ -70,7 +70,7 @@ public abstract class SliceQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), field, id, max);
+        return Objects.hash(classHash(), field, id, max);
     }
 
     @Override

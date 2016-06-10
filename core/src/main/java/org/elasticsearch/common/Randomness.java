@@ -114,13 +114,13 @@ public final class Randomness {
     }
 
     /**
-     * Provides a source of secure randomness that is reproducible when
+     * Provides a source of randomness that is reproducible when
      * running under the Elasticsearch test suite, and otherwise
-     * produces a non-reproducible source of randomness. Reproducible
-     * sources of randomness are created when the system property
-     * "tests.seed" is set and the security policy allows reading this
-     * system property. Otherwise, non-reproducible sources of secure
-     * randomness are created.
+     * produces a non-reproducible source of secure randomness.
+     * Reproducible sources of randomness are created when the system
+     * property "tests.seed" is set and the security policy allows
+     * reading this system property. Otherwise, non-reproducible
+     * sources of secure randomness are created.
      *
      * @return a source of randomness
      * @throws IllegalStateException if running tests but was not able

@@ -96,8 +96,8 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
                     }
                     logger.debug("scheduling next sniff in " + delayMillis + " ms");
                     this.scheduledFuture = this.scheduledExecutorService.schedule(this, delayMillis, TimeUnit.MILLISECONDS);
-                } catch(Throwable t) {
-                    logger.error("error while scheduling next sniffer task", t);
+                } catch(Exception e) {
+                    logger.error("error while scheduling next sniffer task", e);
                 }
             }
         }
@@ -120,8 +120,8 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
                     }
                     logger.debug("sniffed nodes: " + sniffedNodes);
                     this.restClient.setHosts(sniffedNodes.toArray(new HttpHost[sniffedNodes.size()]));
-                } catch (Throwable t) {
-                    logger.error("error while sniffing nodes", t);
+                } catch (Exception e) {
+                    logger.error("error while sniffing nodes", e);
                 } finally {
                     scheduleNextRun(nextSniffDelayMillis);
                     running.set(false);

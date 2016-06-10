@@ -111,6 +111,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
         Translog.Location location = null;
         for (int requestIndex = 0; requestIndex < request.items().length; requestIndex++) {
             BulkItemRequest item = request.items()[requestIndex];
+            item.request().copyContextAndHeadersFrom(request);
             if (item.request() instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) item.request();
                 preVersions[requestIndex] = indexRequest.version();

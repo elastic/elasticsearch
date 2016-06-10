@@ -66,6 +66,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -371,34 +372,54 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
     public <T> void submitStateUpdateTask(final String source, final T task,
                                           final ClusterStateTaskConfig config,
                                           final ClusterStateTaskExecutor<T> executor,
-                                          final ClusterStateTaskListener listener
-    ) {
-        innerSubmitStateUpdateTask(source, task, config, executor, safe(listener, logger));
+                                          final ClusterStateTaskListener listener) {
+        submitStateUpdateTasks(source, Collections.singletonMap(task, listener), config, executor);
     }
 
-    private <T> void innerSubmitStateUpdateTask(final String source, final T task,
-                                                final ClusterStateTaskConfig config,
-                                                final ClusterStateTaskExecutor executor,
-                                                final SafeClusterStateTaskListener listener) {
+    /**
+     * Submits a set of cluster state update task; submitted updates are guaranteed to be processed together,
+     * potentially with more tasks of the same executor.
+     *
+     * @param source   the source of the cluster state update task
+     * @param tasks    a map of update tasks and a corresponding listener to notify of their result
+     * @param config   the cluster state update task configuration
+     * @param executor the cluster state update task executor; tasks
+     *                 that share the same executor will be executed
+     *                 batches on this executor
+     * @param <T>      the type of the cluster state update task state
+     */
+    public <T> void submitStateUpdateTasks(final String source,
+                                           final Map<T, ClusterStateTaskListener> tasks, final ClusterStateTaskConfig config,
+                                           final ClusterStateTaskExecutor<T> executor) {
         if (!lifecycle.started()) {
             return;
         }
+        if (tasks.isEmpty()) {
+            return;
+        }
         try {
-            final UpdateTask<T> updateTask = new UpdateTask<>(source, task, config, executor, listener);
+            final List<UpdateTask<T>> updateTasks =
+                tasks.entrySet().stream().map(
+                    entry -> new UpdateTask<>(source, entry.getKey(), config, executor, safe(entry.getValue(), logger))
+                ).collect(Collectors.toList());
 
             synchronized (updateTasksPerExecutor) {
-                updateTasksPerExecutor.computeIfAbsent(executor, k -> new ArrayList<>()).add(updateTask);
+                updateTasksPerExecutor.computeIfAbsent(executor, k -> new ArrayList<>()).addAll(updateTasks);
             }
 
+            final UpdateTask<T> firstTask = updateTasks.get(0);
+
             if (config.timeout() != null) {
-                updateTasksExecutor.execute(updateTask, threadPool.scheduler(), config.timeout(), () -> threadPool.generic().execute(() -> {
-                    if (updateTask.processed.getAndSet(true) == false) {
-                        logger.debug("cluster state update task [{}] timed out after [{}]", source, config.timeout());
-                        listener.onFailure(source, new ProcessClusterEventTimeoutException(config.timeout(), source));
+                updateTasksExecutor.execute(firstTask, threadPool.scheduler(), config.timeout(), () -> threadPool.generic().execute(() -> {
+                    for (UpdateTask<T> task : updateTasks) {
+                        if (task.processed.getAndSet(true) == false) {
+                            logger.debug("cluster state update task [{}] timed out after [{}]", source, config.timeout());
+                            task.listener.onFailure(source, new ProcessClusterEventTimeoutException(config.timeout(), source));
+                        }
                     }
                 }));
             } else {
-                updateTasksExecutor.execute(updateTask);
+                updateTasksExecutor.execute(firstTask);
             }
         } catch (EsRejectedExecutionException e) {
             // ignore cases where we are shutting down..., there is really nothing interesting

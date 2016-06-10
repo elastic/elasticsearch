@@ -971,7 +971,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         protected void finalize(List<SnapshotFiles> snapshots, int fileListGeneration, Map<String, BlobMetaData> blobs) {
             BlobStoreIndexShardSnapshots newSnapshots = new BlobStoreIndexShardSnapshots(snapshots);
             // delete old index files first
-            blobs.keySet().forEach(blobName -> {
+            for (String blobName : blobs.keySet()) {
                 if (indexShardSnapshotsFormat.isTempBlobName(blobName) || blobName.startsWith(SNAPSHOT_INDEX_PREFIX)) {
                     try {
                         blobContainer.deleteBlob(blobName);
@@ -982,21 +982,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             + blobName + "] during cleanup", e);
                     }
                 }
-            });
+            }
 
             // now go over all the blobs, and if they don't exist in a snapshot, delete them
-            blobs.keySet().forEach(blobName -> {
+            for (String blobName : blobs.keySet()) {
                 // delete unused files
                 if (blobName.startsWith(DATA_BLOB_PREFIX)) {
                     if (newSnapshots.findNameFile(BlobStoreIndexShardSnapshot.FileInfo.canonicalName(blobName)) == null) {
                         try {
                             blobContainer.deleteBlob(blobName);
                         } catch (IOException e) {
+                            // TODO: don't catch and let the user handle it?
                             logger.debug("[{}] [{}] error deleting blob [{}] during cleanup", e, snapshotId, shardId, blobName);
                         }
                     }
                 }
-            });
+            }
 
             // If we deleted all snapshots - we don't need to create the index file
             if (snapshots.size() > 0) {

@@ -15,6 +15,7 @@
         refresh: true
         body:
           script:
+            lang: painless
             inline: ctx._source.user = "not" + ctx._source.user
   - match: {updated: 1}
   - match: {noops: 0}
@@ -51,6 +52,7 @@
         index:   twitter
         body:
           script:
+            lang: painless
             inline: if (ctx._source.user == "kimchy") {ctx._source.user = "not" + ctx._source.user} else {ctx.op = "noop"}
   - match: {updated: 1}
   - match: {noops: 1}
@@ -96,6 +98,7 @@
         index:   twitter
         body:
           script:
+            lang: painless
             inline: ctx.op = "noop"
   - match: {updated: 0}
   - match: {noops: 2}
@@ -118,6 +121,7 @@
         index: twitter
         body:
           script:
+            lang: painless
             inline: ctx.junk = "stuff"
 
 ---
@@ -137,6 +141,7 @@
         index: twitter
         body:
           script:
+            lang: painless
             inline: ctx._id = "stuff"
 
 ---
@@ -174,6 +179,7 @@
         index:   twitter
         body:
           script:
+            lang: painless
             inline: if (ctx._source.level != 11) {ctx._source.last_updated = "2016-01-02T00:00:00Z"} else {ctx.op = "delete"}
   - match: {updated: 3}
   - match: {deleted: 1}
@@ -237,17 +243,16 @@
         index:   twitter
         body:
           script:
-            inline: "switch (ctx._source.level % 3) {
-                      case 0:
-                        ctx._source.last_updated = \"2016-01-02T00:00:00Z\";
-                        break;
-                      case 1:
-                        ctx.op = \"noop\";
-                        break;
-                      case 2:
-                        ctx.op = \"delete\";
-                        break;
-                    }"
+            lang: painless
+            inline: |
+              int choice = ctx._source.level % 3;
+              if (choice == 0) {
+                ctx._source.last_updated = "2016-01-02T00:00:00Z";
+              } else if (choice == 1) {
+                ctx.op = "noop";
+              } else {
+                ctx.op = "delete";
+              }
   - match: {updated: 2}
   - match: {deleted: 1}
   - match: {noops: 1}
@@ -303,6 +308,7 @@
         index:   twitter
         body:
           script:
+            lang: painless
             inline: if (ctx._source.user == "kimchy") {ctx.op = "update"} else {ctx.op = "junk"}
 
   - match: { error.reason: 'Operation type [junk] not allowed, only [noop, index, delete] are allowed' }

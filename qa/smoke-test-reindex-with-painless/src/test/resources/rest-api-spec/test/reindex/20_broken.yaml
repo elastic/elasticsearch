@@ -11,10 +11,14 @@
 
   - do:
       catch: request
-      update_by_query:
-        index:   twitter
+      reindex:
         refresh: true
         body:
+          source:
+            index: twitter
+          dest:
+            index: new_twitter
           script:
+            lang: painless
             inline: syntax errors are fun!
-  - match: {error.reason: 'Failed to compile inline script [syntax errors are fun!] using lang [groovy]'}
+  - match: {error.reason: 'compile error'}

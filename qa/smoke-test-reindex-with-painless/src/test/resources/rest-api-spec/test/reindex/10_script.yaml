@@ -18,6 +18,7 @@
           dest:
             index: new_twitter
           script:
+            lang: painless
             inline: ctx._source.user = "other" + ctx._source.user
   - match: {created: 1}
   - match: {noops: 0}
@@ -57,6 +58,7 @@
           dest:
             index: new_twitter
           script:
+            lang: painless
             inline: if (ctx._id == "1") {ctx._source.user = "other" + ctx._source.user}
   - match: {created: 2}
   - match: {noops: 0}
@@ -116,6 +118,7 @@
           dest:
             index: new_twitter
           script:
+            lang: painless
             inline: ctx._parent = ctx._source.user
   - match: {created: 1}
   - match: {noops: 0}
@@ -159,6 +162,7 @@
           dest:
             index: new_twitter
           script:
+            lang: painless
             inline: ctx._routing = ctx._source.user
   - match: {created: 2}
   - match: {noops: 0}
@@ -217,6 +221,7 @@
           dest:
             index: new_twitter
           script:
+            lang: painless
             inline: ctx._parent = ctx._source.user; ctx._routing = "cat"
   - match: {created: 1}
   - match: {noops: 0}
@@ -262,6 +267,7 @@
           dest:
             index: new_twitter
           script:
+            lang: painless
             inline: if (ctx._source.user == "kimchy") {ctx._source.user = "not" + ctx._source.user} else {ctx.op = "noop"}
   - match: {created: 1}
   - match: {noops: 1}
@@ -314,6 +320,7 @@
           dest:
             index: new_twitter
           script:
+            lang: painless
             inline: ctx.op = "noop"
   - match: {updated: 0}
   - match: {noops: 2}
@@ -354,6 +361,7 @@
             index: new_twitter
             version_type: external
           script:
+            lang: painless
             inline: ctx._source.user = "other" + ctx._source.user; ctx._version = null
   - match: {updated: 1}
   - match: {noops: 0}
@@ -393,6 +401,7 @@
           dest:
             index: new_twitter
           script:
+            lang: painless
             inline: ctx._source.user = "other" + ctx._source.user; ctx._id = null
   - match: {created: 1}
   - match: {noops: 0}
@@ -432,6 +441,7 @@
           dest:
             index: new_twitter
           script:
+            lang: painless
             inline: if (ctx._source.user == "kimchy") {ctx._index = 'other_new_twitter'}
   - match: {created: 2}
   - match: {noops: 0}
@@ -504,6 +514,7 @@
             index: index2
             type: type2
           script:
+            lang: painless
             inline: "ctx._id = ctx._source.lang + '_' + ctx._source.id;
                      if (ctx._source.lang != \"en\" ) {ctx.op = 'delete'}"
   - match: {created: 1}

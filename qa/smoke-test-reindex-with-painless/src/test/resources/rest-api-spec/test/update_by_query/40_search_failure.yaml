@@ -16,15 +16,16 @@
         body:
           query:
             script:
-              script: 1/0 # Divide by 0 to cause a search time exception
+              lang: painless
+              script: throw new IllegalArgumentException("Cats!")
   - match: {updated: 0}
   - match: {version_conflicts: 0}
   - match: {batches: 0}
   - is_true: failures.0.shard
   - match: {failures.0.index:  source}
   - is_true: failures.0.node
-  - match: {failures.0.reason.type:   general_script_exception}
-  - match: {failures.0.reason.reason: "failed to run inline script [1/0] using lang [groovy]"}
-  - match: {failures.0.reason.caused_by.type:   arithmetic_exception}
-  - match: {failures.0.reason.caused_by.reason: Division by zero}
+  - match: {failures.0.reason.type:   script_exception}
+  - match: {failures.0.reason.reason: runtime error}
+  - match: {failures.0.reason.caused_by.type:   illegal_argument_exception}
+  - match: {failures.0.reason.caused_by.reason: Cats!}
   - gte: { took: 0 }

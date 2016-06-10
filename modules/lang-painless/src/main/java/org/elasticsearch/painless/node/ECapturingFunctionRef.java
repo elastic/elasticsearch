@@ -26,6 +26,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
@@ -77,19 +78,19 @@ public class ECapturingFunctionRef extends AExpression {
         if (defInterface && captured.type.sort == Definition.Sort.DEF) {
             // dynamic interface, dynamic implementation
             writer.push("D" + type + "." + call + ",1");
-            writer.loadLocal(captured.slot);
+            writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.slot);
         } else if (defInterface) {
             // dynamic interface, typed implementation
             writer.push("S" + captured.type.name + "." + call + ",1");
-            writer.loadLocal(captured.slot);
+            writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.slot);
         } else if (ref == null) {
             // typed interface, dynamic implementation
-            writer.loadLocal(captured.slot);
+            writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.slot);
             String descriptor = Type.getMethodType(expected.type, captured.type.type).getDescriptor();
             writer.invokeDynamic(call, descriptor, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.REFERENCE, expected.name);
         } else {
             // typed interface, typed implementation
-            writer.loadLocal(captured.slot);
+            writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.slot);
             // convert MethodTypes to asm Type for the constant pool.
             String invokedType = ref.invokedType.toMethodDescriptorString();
             Type samMethodType = Type.getMethodType(ref.samMethodType.toMethodDescriptorString());

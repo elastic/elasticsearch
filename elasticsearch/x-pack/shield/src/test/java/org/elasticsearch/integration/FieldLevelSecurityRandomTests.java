@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -141,7 +142,7 @@ public class FieldLevelSecurityRandomTests extends ShieldIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test")
                         .addMapping("type1", (Object[])fieldMappers)
         );
-        client().prepareIndex("test", "type1", "1").setSource(doc).setRefresh(true).get();
+        client().prepareIndex("test", "type1", "1").setSource(doc).setRefreshPolicy(IMMEDIATE).get();
 
         for (String allowedField : allowedFields) {
             logger.info("Checking allowed field [{}]", allowedField);

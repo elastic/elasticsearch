@@ -13,10 +13,9 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.shield.action.role.PutRoleResponse;
-import org.elasticsearch.shield.action.role.GetRolesResponse;
 import org.elasticsearch.shield.ShieldTemplateService;
-import org.elasticsearch.shield.authc.esnative.NativeRealm;
+import org.elasticsearch.shield.action.role.GetRolesResponse;
+import org.elasticsearch.shield.action.role.PutRoleResponse;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authz.RoleDescriptor;
@@ -31,9 +30,12 @@ import org.junit.BeforeClass;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+
 
 /**
  * Test for the Shield clear roles API that changes the polling aspect of shield to only run once an hour in order to
@@ -91,13 +93,12 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         int modifiedRolesCount = randomIntBetween(1, roles.length);
         List<String> toModify = randomSubsetOf(modifiedRolesCount, roles);
         logger.debug("--> modifying roles {} to have run_as", toModify);
-        final boolean refresh = randomBoolean();
         for (String role : toModify) {
             PutRoleResponse response = securityClient.preparePutRole(role)
                     .cluster("none")
                     .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null)
                     .runAs(role)
-                    .refresh(refresh)
+                    .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
                     .get();
             assertThat(response.isCreated(), is(false));
             logger.debug("--> updated role [{}] with run_as", role);
@@ -115,7 +116,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
             UpdateResponse response = internalClient().prepareUpdate().setId(role).setIndex(ShieldTemplateService.SECURITY_INDEX_NAME)
                     .setType(NativeRolesStore.ROLE_DOC_TYPE)
                     .setDoc("run_as", new String[] { role })
-                    .setRefresh(refresh)
+                    .setRefreshPolicy(refresh ? IMMEDIATE : NONE)
                     .get();
             assertThat(response.isCreated(), is(false));
             logger.debug("--> updated role [{}] with run_as", role);
@@ -158,7 +159,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         final boolean refresh = randomBoolean();
         DeleteResponse response = internalClient()
                 .prepareDelete(ShieldTemplateService.SECURITY_INDEX_NAME, NativeRolesStore.ROLE_DOC_TYPE, role)
-                .setRefresh(refresh)
+                .setRefreshPolicy(refresh ? IMMEDIATE : NONE)
                 .get();
         assertThat(response.isFound(), is(true));
 

@@ -23,6 +23,8 @@ import org.elasticsearch.test.ShieldIntegTestCase;
 
 import java.util.Collections;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -64,7 +66,8 @@ public class DateMathExpressionIntegTests extends ShieldIntegTestCase {
             CreateIndexResponse response = client.admin().indices().prepareCreate(expression).get();
             assertThat(response.isAcknowledged(), is(true));
         }
-        IndexResponse response = client.prepareIndex(expression, "type").setSource("foo", "bar").setRefresh(refeshOnOperation).get();
+        IndexResponse response = client.prepareIndex(expression, "type").setSource("foo", "bar")
+                .setRefreshPolicy(refeshOnOperation ? IMMEDIATE : NONE).get();
 
         assertThat(response.isCreated(), is(true));
         assertThat(response.getIndex(), containsString(expectedIndexName));
@@ -84,7 +87,7 @@ public class DateMathExpressionIntegTests extends ShieldIntegTestCase {
 
         UpdateResponse updateResponse = client.prepareUpdate(expression, "type", response.getId())
                 .setDoc("new", "field")
-                .setRefresh(refeshOnOperation)
+                .setRefreshPolicy(refeshOnOperation ? IMMEDIATE : NONE)
                 .get();
         assertThat(updateResponse.isCreated(), is(false));
 

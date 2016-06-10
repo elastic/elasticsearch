@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.graph.test;
+package org.elasticsearch.xpack.graph.test;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -11,13 +11,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.graph.action.GraphExploreAction;
-import org.elasticsearch.graph.action.GraphExploreRequest;
-import org.elasticsearch.graph.action.GraphExploreRequestBuilder;
-import org.elasticsearch.graph.action.GraphExploreResponse;
-import org.elasticsearch.graph.action.Hop;
-import org.elasticsearch.graph.action.Vertex;
-import org.elasticsearch.graph.action.VertexRequest;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
 import org.elasticsearch.marvel.Monitoring;
@@ -32,6 +25,13 @@ import org.elasticsearch.shield.Security;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.graph.action.GraphExploreAction;
+import org.elasticsearch.xpack.graph.action.GraphExploreRequest;
+import org.elasticsearch.xpack.graph.action.GraphExploreRequestBuilder;
+import org.elasticsearch.xpack.graph.action.GraphExploreResponse;
+import org.elasticsearch.xpack.graph.action.Hop;
+import org.elasticsearch.xpack.graph.action.Vertex;
+import org.elasticsearch.xpack.graph.action.VertexRequest;
 
 import java.util.Collection;
 import java.util.Map;

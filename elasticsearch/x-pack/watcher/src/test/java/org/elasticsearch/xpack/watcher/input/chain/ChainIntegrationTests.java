@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import java.net.InetSocketAddress;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
@@ -42,7 +43,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
     public void testChainedInputsAreWorking() throws Exception {
         String index = "the-most-awesome-index-ever";
         createIndex(index);
-        client().prepareIndex(index, "type", "id").setSource("{}").setRefresh(true).get();
+        client().prepareIndex(index, "type", "id").setSource("{}").setRefreshPolicy(IMMEDIATE).get();
 
         InetSocketAddress address = internalCluster().httpAddresses()[0];
         HttpInput.Builder httpInputBuilder = httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())

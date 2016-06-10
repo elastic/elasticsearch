@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.graph.action;
+package org.elasticsearch.xpack.graph.action;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 
@@ -15,8 +15,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.graph.action.Connection.ConnectionId;
-import org.elasticsearch.graph.action.Vertex.VertexId;
+import org.elasticsearch.xpack.graph.action.Connection.ConnectionId;
+import org.elasticsearch.xpack.graph.action.Vertex.VertexId;
 
 import java.io.IOException;
 import java.util.Collection;

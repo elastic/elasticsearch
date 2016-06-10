@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.Collections;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -108,13 +109,13 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                         .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
         client().prepareIndex("test", "type1", "2").setSource("field2", "value2")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
         client().prepareIndex("test", "type1", "3").setSource("field3", "value3")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         SearchResponse response = client()
@@ -289,13 +290,13 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                                 "field3", "type=text,term_vector=with_positions_offsets_payloads")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
         client().prepareIndex("test", "type1", "2").setSource("field2", "value2")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
         client().prepareIndex("test", "type1", "3").setSource("field3", "value3")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         boolean realtime = randomBoolean();
@@ -354,13 +355,13 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                                 "field3", "type=text,term_vector=with_positions_offsets_payloads")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
         client().prepareIndex("test", "type1", "2").setSource("field2", "value2")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
         client().prepareIndex("test", "type1", "3").setSource("field3", "value3")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         boolean realtime = randomBoolean();
@@ -419,13 +420,13 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                         .addMapping("type1", "field1", "type=text", "field2", "type=text,fielddata=true", "field3", "type=text")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
         client().prepareIndex("test", "type1", "2").setSource("field2", "value2")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
         client().prepareIndex("test", "type1", "3").setSource("field3", "value3")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         SearchResponse response = client().prepareSearch("test")
@@ -483,11 +484,11 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                         .addMapping("type2", "_parent", "type=type1", "field3", "type=text,fielddata=true")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
         client().prepareIndex("test", "type2", "2").setSource("field3", "value3")
                 .setParent("1")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         SearchResponse response = client().prepareSearch("test")
@@ -705,7 +706,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                 .addMapping("type", "field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test", "type", "1").setSource("field1", "value1")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         // With document level security enabled the update is not allowed:

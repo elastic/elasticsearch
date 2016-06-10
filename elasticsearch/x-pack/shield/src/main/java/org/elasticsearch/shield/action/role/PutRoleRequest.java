@@ -7,6 +7,8 @@ package org.elasticsearch.shield.action.role;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -24,13 +26,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object for adding a role to the shield index
  */
-public class PutRoleRequest extends ActionRequest<PutRoleRequest> {
+public class PutRoleRequest extends ActionRequest<PutRoleRequest> implements WriteRequest<PutRoleRequest> {
 
     private String name;
     private String[] clusterPrivileges = Strings.EMPTY_ARRAY;
     private List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
     private String[] runAs = Strings.EMPTY_ARRAY;
-    private boolean refresh = true;
+    private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
     
     public PutRoleRequest() {
     }
@@ -69,8 +71,19 @@ public class PutRoleRequest extends ActionRequest<PutRoleRequest> {
         this.runAs = usernames;
     }
 
-    public void refresh(boolean refresh) {
-        this.refresh = refresh;
+    @Override
+    public PutRoleRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
+        this.refreshPolicy = refreshPolicy;
+        return this;
+    }
+
+    /**
+     * Should this request trigger a refresh ({@linkplain RefreshPolicy#IMMEDIATE}, the default), wait for a refresh (
+     * {@linkplain RefreshPolicy#WAIT_UNTIL}), or proceed ignore refreshes entirely ({@linkplain RefreshPolicy#NONE}).
+     */
+    @Override
+    public WriteRequest.RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
     }
 
     public String name() {
@@ -89,10 +102,6 @@ public class PutRoleRequest extends ActionRequest<PutRoleRequest> {
         return runAs;
     }
 
-    public boolean refresh() {
-        return refresh;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -104,7 +113,7 @@ public class PutRoleRequest extends ActionRequest<PutRoleRequest> {
             indicesPrivileges.add(RoleDescriptor.IndicesPrivileges.createFrom(in));
         }
         runAs = in.readStringArray();
-        refresh = in.readBoolean();
+        refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
     @Override
@@ -117,7 +126,7 @@ public class PutRoleRequest extends ActionRequest<PutRoleRequest> {
             index.writeTo(out);
         }
         out.writeStringArray(runAs);
-        out.writeBoolean(refresh);
+        refreshPolicy.writeTo(out);
     }
 
     RoleDescriptor roleDescriptor() {

@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.zen.ping.unicast;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -79,7 +80,6 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.readPingResponse;
 
@@ -545,7 +545,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             id = in.readInt();
-            timeout = readTimeValue(in);
+            timeout = new TimeValue(in);
             pingResponse = readPingResponse(in);
         }
 

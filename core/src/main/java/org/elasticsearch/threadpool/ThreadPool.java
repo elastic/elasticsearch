@@ -579,7 +579,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
             min = in.readInt();
             max = in.readInt();
             if (in.readBoolean()) {
-                keepAlive = TimeValue.readTimeValue(in);
+                keepAlive = new TimeValue(in);
             }
             if (in.readBoolean()) {
                 queueSize = SizeValue.readSizeValue(in);

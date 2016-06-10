@@ -633,9 +633,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         routing = in.readOptionalString();
         parent = in.readOptionalString();
         timestamp = in.readOptionalString();
-        ttl = in.readBoolean() ? TimeValue.readTimeValue(in) : null;
+        ttl = in.readOptionalWriteable(TimeValue::new);
         source = in.readBytesReference();
-
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
@@ -650,12 +649,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);
         out.writeOptionalString(timestamp);
-        if (ttl == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            ttl.writeTo(out);
-        }
+        out.writeOptionalWriteable(ttl);
         out.writeBytesReference(source);
         out.writeByte(opType.id());
         out.writeLong(version);

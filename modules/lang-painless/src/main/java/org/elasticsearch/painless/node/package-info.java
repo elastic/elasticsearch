@@ -35,6 +35,7 @@
  * {@link org.elasticsearch.painless.node.EBinary} - Represents a binary math expression.
  * {@link org.elasticsearch.painless.node.EBool} - Represents a boolean expression.
  * {@link org.elasticsearch.painless.node.EBoolean} - Represents a boolean constant.
+ * {@link org.elasticsearch.painless.node.ECapturingFunctionRef} - Represents a function reference (capturing).
  * {@link org.elasticsearch.painless.node.ECast} - Represents an implicit cast in most cases.  (Internal only.)
  * {@link org.elasticsearch.painless.node.EChain} - Represents the entirety of a variable/method chain for read/write operations.
  * {@link org.elasticsearch.painless.node.EComp} - Represents a comparison expression.
@@ -42,7 +43,7 @@
  * {@link org.elasticsearch.painless.node.EConstant} - Represents a constant.  (Internal only.)
  * {@link org.elasticsearch.painless.node.EDecimal} - Represents a decimal constant.
  * {@link org.elasticsearch.painless.node.EExplicit} - Represents an explicit cast.
- * {@link org.elasticsearch.painless.node.EFunctionRef} - Represents a function reference.
+ * {@link org.elasticsearch.painless.node.EFunctionRef} - Represents a function reference (non-capturing).
  * {@link org.elasticsearch.painless.node.ENull} - Represents a null constant.
  * {@link org.elasticsearch.painless.node.ENumeric} - Represents a non-decimal numeric constant.
  * {@link org.elasticsearch.painless.node.EUnary} - Represents a unary math expression.

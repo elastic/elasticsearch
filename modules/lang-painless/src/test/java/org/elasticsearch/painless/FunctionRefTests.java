@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless;
 
+import java.util.Comparator;
+
 public class FunctionRefTests extends ScriptTestCase {
 
     public void testStaticMethodReference() {
@@ -39,12 +41,12 @@ public class FunctionRefTests extends ScriptTestCase {
 
     public void testCtorMethodReference() {
         assertEquals(3.0D, 
-            exec("List l = new ArrayList(); l.add(1.0); l.add(2.0); " + 
-                 "DoubleStream doubleStream = l.stream().mapToDouble(Double::doubleValue);" + 
-                 "DoubleSummaryStatistics stats = doubleStream.collect(DoubleSummaryStatistics::new, " +
-                                                                      "DoubleSummaryStatistics::accept, " +
-                                                                      "DoubleSummaryStatistics::combine); " + 
-                 "return stats.getSum()"));
+                exec("List l = new ArrayList(); l.add(1.0); l.add(2.0); " + 
+                        "DoubleStream doubleStream = l.stream().mapToDouble(Double::doubleValue);" + 
+                        "DoubleSummaryStatistics stats = doubleStream.collect(DoubleSummaryStatistics::new, " +
+                        "DoubleSummaryStatistics::accept, " +
+                        "DoubleSummaryStatistics::combine); " + 
+                        "return stats.getSum()"));
     }
     
     public void testCtorMethodReferenceDef() {
@@ -55,6 +57,58 @@ public class FunctionRefTests extends ScriptTestCase {
                                                   "DoubleSummaryStatistics::accept, " +
                                                   "DoubleSummaryStatistics::combine); " + 
                  "return stats.getSum()"));
+    }
+    
+    public void testCapturingMethodReference() {
+        assertEquals("5", exec("Integer x = Integer.valueOf(5); return Optional.empty().orElseGet(x::toString);"));
+        assertEquals("[]", exec("List l = new ArrayList(); return Optional.empty().orElseGet(l::toString);"));
+    }
+    
+    public void testCapturingMethodReferenceDefImpl() {
+        assertEquals("5", exec("def x = Integer.valueOf(5); return Optional.empty().orElseGet(x::toString);"));
+        assertEquals("[]", exec("def l = new ArrayList(); return Optional.empty().orElseGet(l::toString);"));
+    }
+    
+    public void testCapturingMethodReferenceDefInterface() {
+        assertEquals("5", exec("Integer x = Integer.valueOf(5); def opt = Optional.empty(); return opt.orElseGet(x::toString);"));
+        assertEquals("[]", exec("List l = new ArrayList(); def opt = Optional.empty(); return opt.orElseGet(l::toString);"));
+    }
+    
+    public void testCapturingMethodReferenceDefEverywhere() {
+        assertEquals("5", exec("def x = Integer.valueOf(5); def opt = Optional.empty(); return opt.orElseGet(x::toString);"));
+        assertEquals("[]", exec("def l = new ArrayList(); def opt = Optional.empty(); return opt.orElseGet(l::toString);"));
+    }
+    
+    public void testCapturingMethodReferenceMultipleLambdas() {
+        assertEquals("testingcdefg", exec(
+                "String x = 'testing';" +
+                "String y = 'abcdefg';" + 
+                "org.elasticsearch.painless.FeatureTest test = new org.elasticsearch.painless.FeatureTest(2,3);" + 
+                "return test.twoFunctionsOfX(x::concat, y::substring);"));
+    }
+    
+    public void testCapturingMethodReferenceMultipleLambdasDefImpls() {
+        assertEquals("testingcdefg", exec(
+                "def x = 'testing';" +
+                "def y = 'abcdefg';" + 
+                "org.elasticsearch.painless.FeatureTest test = new org.elasticsearch.painless.FeatureTest(2,3);" + 
+                "return test.twoFunctionsOfX(x::concat, y::substring);"));
+    }
+    
+    public void testCapturingMethodReferenceMultipleLambdasDefInterface() {
+        assertEquals("testingcdefg", exec(
+                "String x = 'testing';" +
+                "String y = 'abcdefg';" + 
+                "def test = new org.elasticsearch.painless.FeatureTest(2,3);" + 
+                "return test.twoFunctionsOfX(x::concat, y::substring);"));
+    }
+    
+    public void testCapturingMethodReferenceMultipleLambdasDefEverywhere() {
+        assertEquals("testingcdefg", exec(
+                "def x = 'testing';" +
+                "def y = 'abcdefg';" + 
+                "def test = new org.elasticsearch.painless.FeatureTest(2,3);" + 
+                "return test.twoFunctionsOfX(x::concat, y::substring);"));
     }
 
     public void testMethodMissing() {

@@ -53,8 +53,9 @@ public class FunctionRef {
      * @param expected interface type to implement.
      * @param type the left hand side of a method reference expression
      * @param call the right hand side of a method reference expression
+     * @param captures captured arguments
      */
-    public FunctionRef(Definition.Type expected, String type, String call) {
+    public FunctionRef(Definition.Type expected, String type, String call, Class<?>... captures) {
         boolean isCtorReference = "new".equals(call);
         // check its really a functional interface
         // for e.g. Comparable
@@ -66,7 +67,7 @@ public class FunctionRef {
         // e.g. compareTo
         invokedName = method.name;
         // e.g. (Object)Comparator
-        invokedType = MethodType.methodType(expected.clazz);
+        invokedType = MethodType.methodType(expected.clazz, captures);
         // e.g. (Object,Object)int
         interfaceMethodType = method.handle.type().dropParameterTypes(0, 1);
         // lookup requested method
@@ -80,7 +81,15 @@ public class FunctionRef {
             Definition.Method staticImpl = struct.staticMethods.get(new Definition.MethodKey(call, method.arguments.size()));
             if (staticImpl == null) {
                 // otherwise a virtual impl
-                impl = struct.methods.get(new Definition.MethodKey(call, method.arguments.size()-1));
+                final int arity;
+                if (captures.length > 0) {
+                    // receiver captured
+                    arity = method.arguments.size();
+                } else {
+                    // receiver passed
+                    arity = method.arguments.size() - 1;
+                }
+                impl = struct.methods.get(new Definition.MethodKey(call, arity));
             } else {
                 impl = staticImpl;
             }
@@ -98,12 +107,19 @@ public class FunctionRef {
         } else {
             tag = Opcodes.H_INVOKEVIRTUAL;
         }
-        implMethodASM = new Handle(tag, struct.type.getInternalName(), impl.name, impl.method.getDescriptor());
+        if (impl.owner.clazz.isInterface()) {
+            implMethodASM = new Handle(tag, struct.type.getInternalName(), impl.name, impl.method.getDescriptor());
+        } else {
+            implMethodASM = new Handle(tag, impl.owner.type.getInternalName(), impl.name, impl.method.getDescriptor());
+        }
         implMethod = impl.handle;
         if (isCtorReference) {
             samMethodType = MethodType.methodType(interfaceMethodType.returnType(), impl.handle.type().parameterArray());
         } else if (Modifier.isStatic(impl.modifiers)) {
             samMethodType = impl.handle.type();
+        } else if (captures.length > 0) {
+            // drop the receiver, we capture it
+            samMethodType = impl.handle.type().dropParameterTypes(0, 1);
         } else {
             // ensure the receiver type is exact and not a superclass type
             samMethodType = impl.handle.type().changeParameterType(0, struct.clazz);

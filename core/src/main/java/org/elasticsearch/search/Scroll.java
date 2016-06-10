@@ -26,8 +26,6 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
-
 /**
  * A scroll enables scrolling of search request. It holds a {@link #keepAlive()} time that
  * will control how long to keep the scrolling resources open.
@@ -64,18 +62,11 @@ public class Scroll implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            keepAlive = readTimeValue(in);
-        }
+        in.readOptionalWriteable(TimeValue::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (keepAlive == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            keepAlive.writeTo(out);
-        }
+        out.writeOptionalWriteable(keepAlive);
     }
 }

@@ -121,6 +121,12 @@ public final class IndexSettings {
     public static final Setting<Integer> MAX_REFRESH_LISTENERS_PER_SHARD = Setting.intSetting("index.max_refresh_listeners", 1000, 0,
             Property.Dynamic, Property.IndexScope);
 
+    /**
+     * The maximum number of slices allowed in a scroll request
+     */
+    public static final Setting<Integer> MAX_SLICES_PER_SCROLL = Setting.intSetting("index.max_slices_per_scroll",
+        1024, 1, Property.Dynamic, Property.IndexScope);
+
     private final Index index;
     private final Version version;
     private final ESLogger logger;
@@ -154,6 +160,11 @@ public final class IndexSettings {
      * The maximum number of refresh listeners allows on this shard.
      */
     private volatile int maxRefreshListeners;
+    /**
+     * The maximum number of slices allowed in a scroll request.
+     */
+    private volatile int maxSlicesPerScroll;
+
 
     /**
      * Returns the default search field for this index.
@@ -239,6 +250,7 @@ public final class IndexSettings {
         maxRescoreWindow = scopedSettings.get(MAX_RESCORE_WINDOW_SETTING);
         TTLPurgeDisabled = scopedSettings.get(INDEX_TTL_DISABLE_PURGE_SETTING);
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
+        maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         assert indexNameMatcher.test(indexMetaData.getIndex().getName());
 
@@ -262,6 +274,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
+        scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
     }
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {
@@ -519,6 +532,17 @@ public final class IndexSettings {
 
     private void setMaxRefreshListeners(int maxRefreshListeners) {
         this.maxRefreshListeners = maxRefreshListeners;
+    }
+
+    /**
+     * The maximum number of slices allowed in a scroll request.
+     */
+    public int getMaxSlicesPerScroll() {
+        return maxSlicesPerScroll;
+    }
+
+    private void setMaxSlicesPerScroll(int value) {
+        this.maxSlicesPerScroll = value;
     }
 
     IndexScopedSettings getScopedSettings() { return scopedSettings;}

@@ -19,6 +19,7 @@
 package org.elasticsearch.index.mapper.geo;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -46,7 +47,6 @@ import java.util.List;
 import java.util.Map;
 import java.lang.NumberFormatException;
 
-import static org.apache.lucene.spatial.util.GeoEncodingUtils.mortonHash;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -90,7 +90,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         if (indexCreatedBefore22 == true) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(mortonHash(1.2, 1.3)));
+            assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));
         }
     }
 
@@ -197,7 +197,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("89.0,1.0"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(mortonHash(89.0, 1.0)));
+            assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(GeoPointField.encodeLatLon(89.0, 1.0)));
         }
 
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
@@ -209,7 +209,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("-89.0,-1.0"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(mortonHash(-89.0, -1.0)));
+            assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(GeoPointField.encodeLatLon(-89.0, -1.0)));
         }
 
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
@@ -221,7 +221,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("-1.0,-179.0"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(mortonHash(-1.0, -179.0)));
+            assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(GeoPointField.encodeLatLon(-1.0, -179.0)));
         }
     }
 
@@ -408,7 +408,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(mortonHash(1.2, 1.3)));
+            assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));
         }
     }
 
@@ -441,7 +441,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(doc.rootDoc().getFields("point.lat")[1].numericValue().doubleValue(), equalTo(1.2));
             assertThat(doc.rootDoc().getFields("point.lon")[1].numericValue().doubleValue(), equalTo(1.3));
             // indexed hash
-            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(mortonHash(1.2, 1.3)));
+            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));
 
             // point field for 2nd value
             assertThat(doc.rootDoc().getFields("point.lat")[2].numericValue().doubleValue(), equalTo(1.4));
@@ -450,7 +450,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(doc.rootDoc().getFields("point.lat")[3].numericValue().doubleValue(), equalTo(1.4));
             assertThat(doc.rootDoc().getFields("point.lon")[3].numericValue().doubleValue(), equalTo(1.5));
             // indexed hash
-            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(mortonHash(1.4, 1.5)));
+            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoPointField.encodeLatLon(1.4, 1.5)));
         } else {
             assertThat(doc.rootDoc().getFields("point.lat").length, equalTo(2));
             assertThat(doc.rootDoc().getFields("point.lon").length, equalTo(2));
@@ -459,14 +459,14 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             if (version.before(Version.V_2_2_0)) {
                 assertThat(doc.rootDoc().getFields("point")[0].stringValue(), equalTo("1.2,1.3"));
             } else {
-                assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(mortonHash(1.2, 1.3)));
+                assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));
             }
             assertThat(doc.rootDoc().getFields("point.lat")[1].numericValue().doubleValue(), equalTo(1.4));
             assertThat(doc.rootDoc().getFields("point.lon")[1].numericValue().doubleValue(), equalTo(1.5));
             if (version.before(Version.V_2_2_0)) {
                 assertThat(doc.rootDoc().getFields("point")[1].stringValue(), equalTo("1.4,1.5"));
             } else {
-                assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(mortonHash(1.4, 1.5)));
+                assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoPointField.encodeLatLon(1.4, 1.5)));
             }
         }
     }
@@ -491,7 +491,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(mortonHash(1.2, 1.3)));
+            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));
         }
     }
 
@@ -517,7 +517,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(mortonHash(1.2, 1.3)));
+            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));
         }
     }
 
@@ -559,12 +559,12 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getFields("point")[0].stringValue(), equalTo("1.2,1.3"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(mortonHash(1.2, 1.3)));
+            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));
         }
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getFields("point")[1].stringValue(), equalTo("1.4,1.5"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(mortonHash(1.4, 1.5)));
+            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoPointField.encodeLatLon(1.4, 1.5)));
         }
     }
 
@@ -588,7 +588,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(mortonHash(1.2, 1.3)));
+            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));
         }
     }
 
@@ -613,7 +613,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(mortonHash(1.2, 1.3)));
+            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));
         }
     }
 
@@ -639,7 +639,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(mortonHash(1.2, 1.3)));
+            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));
         }
     }
 
@@ -669,14 +669,14 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             if (version.before(Version.V_2_2_0)) {
                 assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
             } else {
-                assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(mortonHash(1.2, 1.3)));
+                assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));
             }
             assertThat(doc.rootDoc().getFields("point.lat")[1].numericValue().doubleValue(), equalTo(1.4));
             assertThat(doc.rootDoc().getFields("point.lon")[1].numericValue().doubleValue(), equalTo(1.5));
             if (version.before(Version.V_2_2_0)) {
                 assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
             } else {
-                assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(mortonHash(1.4, 1.5)));
+                assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoPointField.encodeLatLon(1.4, 1.5)));
             }
         } else {
             assertThat(doc.rootDoc().getFields("point.lat").length, equalTo(4));
@@ -685,12 +685,12 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(doc.rootDoc().getFields("point.lat")[1].numericValue().doubleValue(), equalTo(1.2));
             assertThat(doc.rootDoc().getFields("point.lon")[0].numericValue().doubleValue(), equalTo(1.3));
             assertThat(doc.rootDoc().getFields("point.lon")[1].numericValue().doubleValue(), equalTo(1.3));
-            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(mortonHash(1.2, 1.3)));
+            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));
             assertThat(doc.rootDoc().getFields("point.lat")[2].numericValue().doubleValue(), equalTo(1.4));
             assertThat(doc.rootDoc().getFields("point.lat")[3].numericValue().doubleValue(), equalTo(1.4));
             assertThat(doc.rootDoc().getFields("point.lon")[2].numericValue().doubleValue(), equalTo(1.5));
             assertThat(doc.rootDoc().getFields("point.lon")[3].numericValue().doubleValue(), equalTo(1.5));
-            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(mortonHash(1.4, 1.5)));
+            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoPointField.encodeLatLon(1.4, 1.5)));
         }
     }
 

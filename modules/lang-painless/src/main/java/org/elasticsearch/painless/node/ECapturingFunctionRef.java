@@ -24,8 +24,8 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.Variables.Variable;
+import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Locals.Variable;
 import org.objectweb.asm.Type;
 
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
@@ -52,7 +52,7 @@ public class ECapturingFunctionRef extends AExpression {
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals variables) {
         captured = variables.getVariable(location, type);
         if (expected == null) {
             defInterface = true;

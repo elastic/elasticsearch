@@ -175,7 +175,7 @@ public final class InnerHitsContext {
 
             @Override
             public boolean equals(Object obj) {
-                if (super.equals(obj) == false) {
+                if (sameClassAs(obj) == false) {
                     return false;
                 }
                 NestedChildrenQuery other = (NestedChildrenQuery) obj;
@@ -187,7 +187,7 @@ public final class InnerHitsContext {
 
             @Override
             public int hashCode() {
-                int hash = super.hashCode();
+                int hash = classHash();
                 hash = 31 * hash + parentFilter.hashCode();
                 hash = 31 * hash + childFilter.hashCode();
                 hash = 31 * hash + docId;

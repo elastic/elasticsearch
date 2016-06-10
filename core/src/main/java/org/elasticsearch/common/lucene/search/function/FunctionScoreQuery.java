@@ -210,7 +210,7 @@ public class FunctionScoreQuery extends Query {
         if (this == o) {
             return true;
         }
-        if (super.equals(o) == false) {
+        if (sameClassAs(o) == false) {
             return false;
         }
         FunctionScoreQuery other = (FunctionScoreQuery) o;
@@ -221,6 +221,6 @@ public class FunctionScoreQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), subQuery.hashCode(), function, combineFunction, minScore, maxBoost);
+        return Objects.hash(classHash(), subQuery.hashCode(), function, combineFunction, minScore, maxBoost);
     }
 }

@@ -35,6 +35,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.core.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -457,5 +458,20 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldType.fielddataMinFrequency(), equalTo(2d));
         assertThat(fieldType.fielddataMaxFrequency(), equalTo((double) Integer.MAX_VALUE));
         assertThat(fieldType.fielddataMinSegmentSize(), equalTo(1000));
+    }
+
+    public void testNullConfigValuesFail() throws MapperParsingException, IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "text")
+                            .field("analyzer", (String) null)
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        Exception e = expectThrows(MapperParsingException.class, () -> parser.parse("type", new CompressedXContent(mapping)));
+        assertEquals("[analyzer] must not have a [null] value", e.getMessage());
     }
 }

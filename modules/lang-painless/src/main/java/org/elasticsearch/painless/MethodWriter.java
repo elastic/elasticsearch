@@ -90,10 +90,10 @@ public final class MethodWriter extends GeneratorAdapter {
     private final ClassWriter parent;
     private final BitSet statements;
 
-    private final Deque<List<org.objectweb.asm.Type>> stringConcatArgs = (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ?
-            null : new ArrayDeque<>();
+    private final Deque<List<org.objectweb.asm.Type>> stringConcatArgs =
+        (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ?  null : new ArrayDeque<>();
 
-    MethodWriter(int access, Method method, ClassWriter cw, BitSet statements) {
+    public MethodWriter(int access, Method method, ClassWriter cw, BitSet statements) {
         super(Opcodes.ASM5, cw.visitMethod(access, method.getName(), method.getDescriptor(), null, null),
                 access, method.getName(), method.getDescriptor());
 
@@ -104,7 +104,7 @@ public final class MethodWriter extends GeneratorAdapter {
     /**
      * @return A new {@link MethodWriter} with the specified access and signature.
      */
-    MethodWriter newMethodWriter(int access, Method method) {
+    public MethodWriter newMethodWriter(int access, Method method) {
         return new MethodWriter(access, method, parent, statements);
     }
 

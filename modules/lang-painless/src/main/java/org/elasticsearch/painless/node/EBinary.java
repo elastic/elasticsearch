@@ -26,7 +26,7 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 
 /**
  * Represents a binary math expression.
@@ -48,35 +48,35 @@ public final class EBinary extends AExpression {
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         if (operation == Operation.MUL) {
-            analyzeMul(variables);
+            analyzeMul(locals);
         } else if (operation == Operation.DIV) {
-            analyzeDiv(variables);
+            analyzeDiv(locals);
         } else if (operation == Operation.REM) {
-            analyzeRem(variables);
+            analyzeRem(locals);
         } else if (operation == Operation.ADD) {
-            analyzeAdd(variables);
+            analyzeAdd(locals);
         } else if (operation == Operation.SUB) {
-            analyzeSub(variables);
+            analyzeSub(locals);
         } else if (operation == Operation.LSH) {
-            analyzeLSH(variables);
+            analyzeLSH(locals);
         } else if (operation == Operation.RSH) {
-            analyzeRSH(variables);
+            analyzeRSH(locals);
         } else if (operation == Operation.USH) {
-            analyzeUSH(variables);
+            analyzeUSH(locals);
         } else if (operation == Operation.BWAND) {
-            analyzeBWAnd(variables);
+            analyzeBWAnd(locals);
         } else if (operation == Operation.XOR) {
-            analyzeXor(variables);
+            analyzeXor(locals);
         } else if (operation == Operation.BWOR) {
-            analyzeBWOr(variables);
+            analyzeBWOr(locals);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
-    private void analyzeMul(Variables variables) {
+    private void analyzeMul(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
@@ -112,7 +112,7 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeDiv(Variables variables) {
+    private void analyzeDiv(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
@@ -152,7 +152,7 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeRem(Variables variables) {
+    private void analyzeRem(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
@@ -192,7 +192,7 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeAdd(Variables variables) {
+    private void analyzeAdd(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
@@ -244,7 +244,7 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeSub(Variables variables) {
+    private void analyzeSub(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
@@ -280,7 +280,7 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeLSH(Variables variables) {
+    private void analyzeLSH(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
@@ -313,7 +313,7 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeRSH(Variables variables) {
+    private void analyzeRSH(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
@@ -346,7 +346,7 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeUSH(Variables variables) {
+    private void analyzeUSH(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
@@ -379,7 +379,7 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeBWAnd(Variables variables) {
+    private void analyzeBWAnd(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
@@ -411,7 +411,7 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeXor(Variables variables) {
+    private void analyzeXor(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
@@ -445,7 +445,7 @@ public final class EBinary extends AExpression {
         actual = promote;
     }
 
-    private void analyzeBWOr(Variables variables) {
+    private void analyzeBWOr(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 

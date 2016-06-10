@@ -23,7 +23,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.document.XInetAddressPoint;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.XPointValues;
@@ -176,7 +175,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
                     if (fields.length == 2) {
                         InetAddress address = InetAddresses.forString(fields[0]);
                         int prefixLength = Integer.parseInt(fields[1]);
-                        return XInetAddressPoint.newPrefixQuery(name(), address, prefixLength);
+                        return InetAddressPoint.newPrefixQuery(name(), address, prefixLength);
                     } else {
                         throw new IllegalArgumentException("Expected [ip/prefix] but was [" + term + "]");
                     }
@@ -191,27 +190,27 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
             failIfNotIndexed();
             InetAddress lower;
             if (lowerTerm == null) {
-                lower = XInetAddressPoint.MIN_VALUE;
+                lower = InetAddressPoint.MIN_VALUE;
             } else {
                 lower = parse(lowerTerm);
                 if (includeLower == false) {
-                    if (lower.equals(XInetAddressPoint.MAX_VALUE)) {
+                    if (lower.equals(InetAddressPoint.MAX_VALUE)) {
                         return new MatchNoDocsQuery();
                     }
-                    lower = XInetAddressPoint.nextUp(lower);
+                    lower = InetAddressPoint.nextUp(lower);
                 }
             }
 
             InetAddress upper;
             if (upperTerm == null) {
-                upper = XInetAddressPoint.MAX_VALUE;
+                upper = InetAddressPoint.MAX_VALUE;
             } else {
                 upper = parse(upperTerm);
                 if (includeUpper == false) {
-                    if (upper.equals(XInetAddressPoint.MIN_VALUE)) {
+                    if (upper.equals(InetAddressPoint.MIN_VALUE)) {
                         return new MatchNoDocsQuery();
                     }
-                    upper = XInetAddressPoint.nextDown(upper);
+                    upper = InetAddressPoint.nextDown(upper);
                 }
             }
 

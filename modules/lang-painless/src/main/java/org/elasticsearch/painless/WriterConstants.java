@@ -107,15 +107,15 @@ public final class WriterConstants {
     public final static Method DEF_LTE_CALL = getAsmMethod(boolean.class, "lte", Object.class, Object.class);
     public final static Method DEF_GT_CALL  = getAsmMethod(boolean.class, "gt" , Object.class, Object.class);
     public final static Method DEF_GTE_CALL = getAsmMethod(boolean.class, "gte", Object.class, Object.class);
-    
+
     /** invokedynamic bootstrap for lambda expression/method references */
     public final static MethodType LAMBDA_BOOTSTRAP_TYPE =
-            MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, 
+            MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class,
                                   MethodType.class, Object[].class);
     public final static Handle LAMBDA_BOOTSTRAP_HANDLE =
             new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(LambdaMetafactory.class),
                 "altMetafactory", LAMBDA_BOOTSTRAP_TYPE.toMethodDescriptorString());
-        
+
     /** dynamic invokedynamic bootstrap for indy string concats (Java 9+) */
     public final static Handle INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
     static {
@@ -152,7 +152,7 @@ public final class WriterConstants {
 
     public final static Method CHECKEQUALS = getAsmMethod(boolean.class, "checkEquals", Object.class, Object.class);
 
-    public static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
+    private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());
     }
 

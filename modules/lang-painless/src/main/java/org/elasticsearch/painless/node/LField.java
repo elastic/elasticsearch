@@ -24,7 +24,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
@@ -46,7 +46,7 @@ public final class LField extends ALink {
     }
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
         if (before == null) {
             throw createError(new IllegalArgumentException("Illegal field [" + value + "] access made without target."));
         }
@@ -54,9 +54,9 @@ public final class LField extends ALink {
         Sort sort = before.sort;
 
         if (sort == Sort.ARRAY) {
-            return new LArrayLength(location, value).copy(this).analyze(variables);
+            return new LArrayLength(location, value).copy(this).analyze(locals);
         } else if (sort == Sort.DEF) {
-            return new LDefField(location, value).copy(this).analyze(variables);
+            return new LDefField(location, value).copy(this).analyze(locals);
         }
 
         Struct struct = before.struct;
@@ -81,17 +81,17 @@ public final class LField extends ALink {
                     Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
             if (shortcut) {
-                return new LShortcut(location, value).copy(this).analyze(variables);
+                return new LShortcut(location, value).copy(this).analyze(locals);
             } else {
                 EConstant index = new EConstant(location, value);
-                index.analyze(variables);
+                index.analyze(locals);
 
                 if (Map.class.isAssignableFrom(before.clazz)) {
-                    return new LMapShortcut(location, index).copy(this).analyze(variables);
+                    return new LMapShortcut(location, index).copy(this).analyze(locals);
                 }
 
                 if (List.class.isAssignableFrom(before.clazz)) {
-                    return new LListShortcut(location, index).copy(this).analyze(variables);
+                    return new LListShortcut(location, index).copy(this).analyze(locals);
                 }
             }
         }

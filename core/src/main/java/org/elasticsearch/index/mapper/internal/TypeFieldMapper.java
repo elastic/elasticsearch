@@ -195,7 +195,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public boolean equals(Object obj) {
-            if (super.equals(obj) == false) {
+            if (sameClassAs(obj) == false) {
                 return false;
             }
             TypeQuery that = (TypeQuery) obj;
@@ -204,7 +204,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public int hashCode() {
-            return 31 * super.hashCode() + type.hashCode();
+            return 31 * classHash() + type.hashCode();
         }
 
         @Override

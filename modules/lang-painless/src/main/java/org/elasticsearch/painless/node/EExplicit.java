@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -40,7 +40,7 @@ public final class EExplicit extends AExpression {
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         try {
             actual = Definition.getType(this.type);
         } catch (IllegalArgumentException exception) {
@@ -49,8 +49,8 @@ public final class EExplicit extends AExpression {
 
         child.expected = actual;
         child.explicit = true;
-        child.analyze(variables);
-        child = child.cast(variables);
+        child.analyze(locals);
+        child = child.cast(locals);
     }
 
     @Override
@@ -58,11 +58,11 @@ public final class EExplicit extends AExpression {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
-    AExpression cast(Variables variables) {
+    AExpression cast(Locals locals) {
         child.expected = expected;
         child.explicit = explicit;
         child.internal = internal;
 
-        return child.cast(variables);
+        return child.cast(locals);
     }
 }

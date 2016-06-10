@@ -35,7 +35,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.io.IOException;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.Set;
 import java.util.HashSet;
 import java.util.concurrent.ExecutionException;
 
@@ -43,7 +42,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SearchSliceIT extends ESIntegTestCase {
@@ -71,7 +69,8 @@ public class SearchSliceIT extends ESIntegTestCase {
             .endObject().string();
         int numberOfShards = randomIntBetween(1, 7);
         assertAcked(client().admin().indices().prepareCreate("test")
-            .setSettings("number_of_shards", numberOfShards)
+            .setSettings("number_of_shards", numberOfShards,
+                         "index.max_slices_per_scroll", 10000)
             .addMapping("type", mapping));
         ensureGreen();
 

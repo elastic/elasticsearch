@@ -826,9 +826,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             if (context.scrollContext() == null) {
                 throw new SearchContextException(context, "`slice` cannot be used outside of a scroll context");
             }
-            context.sliceFilter(source.slice().toFilter(queryShardContext,
-                context.shardTarget().getShardId().getId(),
-                queryShardContext.getIndexSettings().getNumberOfShards()));
+            context.sliceBuilder(source.slice());
         }
     }
 

@@ -302,4 +302,19 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(1457654400000L, dvField.numericValue().longValue());
         assertFalse(dvField.fieldType().stored());
     }
+
+    public void testNullConfigValuesFail() throws MapperParsingException, IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "date")
+                            .field("format", (String) null)
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        Exception e = expectThrows(MapperParsingException.class, () -> parser.parse("type", new CompressedXContent(mapping)));
+        assertEquals("[format] must not have a [null] value", e.getMessage());
+    }
 }

@@ -126,6 +126,8 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
         }
     }
 
+    // norelease
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/LUCENE-7325")
     public void testLimitsBoundingBox() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();

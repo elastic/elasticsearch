@@ -41,6 +41,7 @@ dependencies {
   testCompile "org.apache.lucene:lucene-core:${versions.lucene}"
   testCompile "org.apache.lucene:lucene-codecs:${versions.lucene}"
   testCompile "org.elasticsearch:securemock:${versions.securemock}"
+  testCompile "org.codehaus.mojo:animal-sniffer-annotations:1.15"
   signature "org.codehaus.mojo.signature:java17:1.0@signature"
 }
 
@@ -55,11 +56,6 @@ forbiddenApisMain {
 forbiddenApisTest {
   //client does not depend on core, so only jdk signatures should be checked
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
-}
-
-animalsnifferTest {
-    //animalsniffer doesn't like sun classes usages (e.g. com.sun.net.httpserver.HttpServer)
-    exclude('org/elasticsearch/client/sniff/HostsSnifferTests.class')
 }
 
 //JarHell is part of es core, which we don't want to pull in

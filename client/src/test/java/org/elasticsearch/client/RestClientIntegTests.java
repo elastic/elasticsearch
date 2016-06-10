@@ -33,6 +33,7 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.SuppressForbidden;
+import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -57,6 +58,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
  * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.
  * Works against a real http server, one single host.
  */
+@IgnoreJRERequirement
 @SuppressForbidden(reason = "uses sun HttpServer")
 public class RestClientIntegTests extends LuceneTestCase {
 
@@ -87,6 +89,7 @@ public class RestClientIntegTests extends LuceneTestCase {
         httpServer.createContext("/" + statusCode, new ResponseHandler(statusCode));
     }
 
+    @IgnoreJRERequirement
     @SuppressForbidden(reason = "uses sun HttpServer")
     private static class ResponseHandler implements HttpHandler {
         private final int statusCode;

@@ -32,6 +32,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.SuppressForbidden;
+import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -55,6 +56,7 @@ import java.util.Set;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
+@IgnoreJRERequirement
 @SuppressForbidden(reason = "uses sun HttpServer")
 public class HostsSnifferTests extends LuceneTestCase {
 
@@ -117,6 +119,7 @@ public class HostsSnifferTests extends LuceneTestCase {
         return httpServer;
     }
 
+    @IgnoreJRERequirement
     @SuppressForbidden(reason = "uses sun HttpServer")
     private static class ResponseHandler implements HttpHandler {
         private final int sniffTimeoutMillis;

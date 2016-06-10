@@ -75,8 +75,8 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
                     return fileContext.delete(new Path(path, blobName), true);
                 }
             });
-        } catch (FileNotFoundException ok) {
-            // behaves like Files.deleteIfExists
+        } catch (FileNotFoundException e) {
+            throw new IOException(e);
         }
     }
 

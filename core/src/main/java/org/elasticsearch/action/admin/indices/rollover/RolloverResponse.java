@@ -34,6 +34,12 @@ import java.util.stream.Collectors;
 
 public final class RolloverResponse extends ActionResponse implements ToXContent {
 
+    private static final String NEW_INDEX = "new_index";
+    private static final String OLD_INDEX = "old_index";
+    private static final String DRY_RUN = "dry_run";
+    private static final String ROLLED_OVER = "rolled_over";
+    private static final String CONDITIONS = "conditions";
+
     private String oldIndex;
     private String newIndex;
     private Set<Map.Entry<String, Boolean>> conditionStatus;
@@ -122,23 +128,15 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(Fields.OLD_INDEX, oldIndex);
-        builder.field(Fields.NEW_INDEX, newIndex);
-        builder.field(Fields.ROLLED_OVER, rolledOver);
-        builder.field(Fields.DRY_RUN, dryRun);
-        builder.startObject(Fields.CONDITIONS);
+        builder.field(OLD_INDEX, oldIndex);
+        builder.field(NEW_INDEX, newIndex);
+        builder.field(ROLLED_OVER, rolledOver);
+        builder.field(DRY_RUN, dryRun);
+        builder.startObject(CONDITIONS);
         for (Map.Entry<String, Boolean> entry : conditionStatus) {
             builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();
         return builder;
-    }
-
-    static final class Fields {
-        static final String NEW_INDEX = "new_index";
-        static final String OLD_INDEX = "old_index";
-        static final String DRY_RUN = "dry_run";
-        static final String ROLLED_OVER = "rolled_over";
-        static final String CONDITIONS = "conditions";
     }
 }

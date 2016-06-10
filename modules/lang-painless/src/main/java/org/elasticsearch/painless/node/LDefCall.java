@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
@@ -46,14 +46,14 @@ final class LDefCall extends ALink implements IDefLink {
     }
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
         if (arguments.size() > 63) {
             // technically, the limitation is just methods with > 63 params, containing method references.
             // this is because we are lazy and use a long as a bitset. we can always change to a "string" if need be.
             // but NEED NOT BE. nothing with this many parameters is in the whitelist and we do not support varargs.
             throw new UnsupportedOperationException("methods with > 63 arguments are currently not supported");
         }
-        
+
         recipe = 0;
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
@@ -62,9 +62,9 @@ final class LDefCall extends ALink implements IDefLink {
                 recipe |= (1L << argument); // mark argument as deferred reference
             }
             expression.internal = true;
-            expression.analyze(variables);
+            expression.analyze(locals);
             expression.expected = expression.actual;
-            arguments.set(argument, expression.cast(variables));
+            arguments.set(argument, expression.cast(locals));
         }
 
         statement = true;

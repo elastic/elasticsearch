@@ -49,7 +49,8 @@
  * {@link org.elasticsearch.painless.node.IDefLink} - A marker interface for all LDef* (link) nodes.
  * {@link org.elasticsearch.painless.node.LArrayLength} - Represents an array length field load.
  * {@link org.elasticsearch.painless.node.LBrace} - Represents an array load/store or defers to possible shortcuts.
- * {@link org.elasticsearch.painless.node.LCall} - Represents a method call or defers to a def call.
+ * {@link org.elasticsearch.painless.node.LCallInvoke} - Represents a method call or defers to a def call.
+ * {@link org.elasticsearch.painless.node.LCallLocal} - Represents a user-defined call.
  * {@link org.elasticsearch.painless.node.LCast} - Represents a cast made in a variable/method chain.
  * {@link org.elasticsearch.painless.node.LDefArray} - Represents an array load/store or shortcut on a def type.  (Internal only.)
  * {@link org.elasticsearch.painless.node.LDefCall} - Represents a method call made on a def type. (Internal only.)
@@ -73,6 +74,7 @@
  * {@link org.elasticsearch.painless.node.SEach} - Represents a for each loop shortcut for iterables.
  * {@link org.elasticsearch.painless.node.SExpression} - Represents the top-level node for an expression as a statement.
  * {@link org.elasticsearch.painless.node.SFor} - Represents a for loop.
+ * {@link org.elasticsearch.painless.node.SFunction} - Represents a user-defined function.
  * {@link org.elasticsearch.painless.node.SIf} - Represents an if block.
  * {@link org.elasticsearch.painless.node.SIfElse} - Represents an if/else block.
  * {@link org.elasticsearch.painless.node.SReturn} - Represents a return statement.

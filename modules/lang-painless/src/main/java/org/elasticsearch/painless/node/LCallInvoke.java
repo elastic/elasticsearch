@@ -19,12 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
@@ -32,14 +32,14 @@ import java.util.List;
 /**
  * Represents a method call or deferes to a def call.
  */
-public final class LCall extends ALink {
+public final class LCallInvoke extends ALink {
 
     final String name;
     final List<AExpression> arguments;
 
     Method method = null;
 
-    public LCall(Location location, String name, List<AExpression> arguments) {
+    public LCallInvoke(Location location, String name, List<AExpression> arguments) {
         super(location, -1);
 
         this.name = name;
@@ -47,7 +47,7 @@ public final class LCall extends ALink {
     }
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
         if (before == null) {
             throw createError(new IllegalArgumentException("Illegal call [" + name + "] made without target."));
         } else if (before.sort == Sort.ARRAY) {
@@ -56,7 +56,7 @@ public final class LCall extends ALink {
             throw createError(new IllegalArgumentException("Cannot assign a value to a call [" + name + "]."));
         }
 
-        Definition.MethodKey methodKey = new Definition.MethodKey(name, arguments.size());
+        MethodKey methodKey = new MethodKey(name, arguments.size());
         Struct struct = before.struct;
         method = statik ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
 
@@ -66,8 +66,8 @@ public final class LCall extends ALink {
 
                 expression.expected = method.arguments.get(argument);
                 expression.internal = true;
-                expression.analyze(variables);
-                arguments.set(argument, expression.cast(variables));
+                expression.analyze(locals);
+                arguments.set(argument, expression.cast(locals));
             }
 
             statement = true;
@@ -78,11 +78,11 @@ public final class LCall extends ALink {
             ALink link = new LDefCall(location, name, arguments);
             link.copy(this);
 
-            return link.analyze(variables);
+            return link.analyze(locals);
         }
 
-        throw createError(new IllegalArgumentException("Unknown call [" + name + "] with [" + arguments.size() +
-                                                       "] arguments on type [" + struct.name + "]."));
+        throw createError(new IllegalArgumentException(
+            "Unknown call [" + name + "] with [" + arguments.size() + "] arguments on type [" + struct.name + "]."));
     }
 
     @Override
@@ -104,10 +104,6 @@ public final class LCall extends ALink {
             writer.invokeInterface(method.owner.type, method.method);
         } else {
             writer.invokeVirtual(method.owner.type, method.method);
-        }
-
-        if (!method.rtn.clazz.equals(method.handle.type().returnType())) {
-            writer.checkCast(method.rtn.type);
         }
     }
 

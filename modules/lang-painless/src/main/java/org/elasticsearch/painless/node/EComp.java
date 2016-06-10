@@ -25,7 +25,7 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -56,29 +56,29 @@ public final class EComp extends AExpression {
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         if (operation == Operation.EQ) {
-            analyzeEq(variables);
+            analyzeEq(locals);
         } else if (operation == Operation.EQR) {
-            analyzeEqR(variables);
+            analyzeEqR(locals);
         } else if (operation == Operation.NE) {
-            analyzeNE(variables);
+            analyzeNE(locals);
         } else if (operation == Operation.NER) {
-            analyzeNER(variables);
+            analyzeNER(locals);
         } else if (operation == Operation.GTE) {
-            analyzeGTE(variables);
+            analyzeGTE(locals);
         } else if (operation == Operation.GT) {
-            analyzeGT(variables);
+            analyzeGT(locals);
         } else if (operation == Operation.LTE) {
-            analyzeLTE(variables);
+            analyzeLTE(locals);
         } else if (operation == Operation.LT) {
-            analyzeLT(variables);
+            analyzeLT(locals);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
-    private void analyzeEq(Variables variables) {
+    private void analyzeEq(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
@@ -124,7 +124,7 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeEqR(Variables variables) {
+    private void analyzeEqR(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
@@ -166,7 +166,7 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeNE(Variables variables) {
+    private void analyzeNE(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
@@ -212,7 +212,7 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeNER(Variables variables) {
+    private void analyzeNER(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
@@ -254,7 +254,7 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeGTE(Variables variables) {
+    private void analyzeGTE(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
@@ -290,7 +290,7 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeGT(Variables variables) {
+    private void analyzeGT(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
@@ -326,7 +326,7 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeLTE(Variables variables) {
+    private void analyzeLTE(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
@@ -362,7 +362,7 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeLT(Variables variables) {
+    private void analyzeLT(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 

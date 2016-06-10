@@ -19,58 +19,61 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 
-/**
- * Represents an array instantiation.
- */
-public final class LNewArray extends ALink {
+import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
-    final String type;
+/**
+ * Represents a user-defined call.
+ */
+public class LCallLocal extends ALink {
+
+    final String name;
     final List<AExpression> arguments;
 
-    public LNewArray(Location location, String type, List<AExpression> arguments) {
+    Method method = null;
+
+    public LCallLocal(Location location, String name, List<AExpression> arguments) {
         super(location, -1);
 
-        this.type = type;
+        this.name = name;
         this.arguments = arguments;
     }
 
     @Override
     ALink analyze(Locals locals) {
         if (before != null) {
-            throw createError(new IllegalArgumentException("Cannot create a new array with a target already defined."));
+            throw createError(new IllegalArgumentException("Illegal call [" + name + "] against an existing target."));
         } else if (store) {
-            throw createError(new IllegalArgumentException("Cannot assign a value to a new array."));
-        } else if (!load) {
-            throw createError(new IllegalArgumentException("A newly created array must be read."));
+            throw createError(new IllegalArgumentException("Cannot assign a value to a call [" + name + "]."));
         }
 
-        final Type type;
+        MethodKey methodKey = new MethodKey(name, arguments.size());
+        method = locals.getMethod(methodKey);
 
-        try {
-            type = Definition.getType(this.type);
-        } catch (IllegalArgumentException exception) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
+        if (method != null) {
+            for (int argument = 0; argument < arguments.size(); ++argument) {
+                AExpression expression = arguments.get(argument);
+
+                expression.expected = method.arguments.get(argument);
+                expression.internal = true;
+                expression.analyze(locals);
+                arguments.set(argument, expression.cast(locals));
+            }
+
+            statement = true;
+            after = method.rtn;
+
+            return this;
         }
 
-        for (int argument = 0; argument < arguments.size(); ++argument) {
-            AExpression expression = arguments.get(argument);
-
-            expression.expected = Definition.INT_TYPE;
-            expression.analyze(locals);
-            arguments.set(argument, expression.cast(locals));
-        }
-
-        after = Definition.getType(type.struct, arguments.size());
-
-        return this;
+        throw createError(new IllegalArgumentException("Unknown call [" + name + "] with [" + arguments.size() + "] arguments."));
     }
 
     @Override
@@ -86,11 +89,7 @@ public final class LNewArray extends ALink {
             argument.write(writer);
         }
 
-        if (arguments.size() > 1) {
-            writer.visitMultiANewArrayInsn(after.type.getDescriptor(), after.type.getDimensions());
-        } else {
-            writer.newArray(Definition.getType(after.struct, 0).type);
-        }
+        writer.invokeStatic(CLASS_TYPE, method.method);
     }
 
     @Override

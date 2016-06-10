@@ -155,12 +155,6 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitDecltype(PainlessParser.DecltypeContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#funcref}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitFuncref(PainlessParser.FuncrefContext ctx);
-  /**
    * Visit a parse tree produced by {@link PainlessParser#declvar}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -385,4 +379,22 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitArgument(PainlessParser.ArgumentContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#lambda}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLambda(PainlessParser.LambdaContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#lamtype}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLamtype(PainlessParser.LamtypeContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#funcref}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFuncref(PainlessParser.FuncrefContext ctx);
 }

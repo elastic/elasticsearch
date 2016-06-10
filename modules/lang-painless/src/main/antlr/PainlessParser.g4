@@ -81,10 +81,6 @@ decltype
     : TYPE (LBRACE RBRACE)*
     ;
 
-funcref
-    : TYPE REF ( ID | NEW )
-    ;
-
 declvar
     : ID ( ASSIGN expression )?
     ;
@@ -175,5 +171,18 @@ arguments
 
 argument
     : expression
+    | lambda
     | funcref
+    ;
+
+lambda
+    : ( lamtype | LP ( lamtype ( COMMA lamtype )* )? RP ) ARROW block
+    ;
+
+lamtype
+    : decltype? ID
+    ;
+
+funcref
+    : TYPE REF ( ID | NEW )
     ;

@@ -51,7 +51,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class ProfileTests extends ESTestCase {
+public class QueryProfilerTests extends ESTestCase {
 
     static Directory dir;
     static IndexReader reader;
@@ -90,7 +90,7 @@ public class ProfileTests extends ESTestCase {
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1);
-        List<ProfileResult> results = profiler.getQueryTree();
+        List<ProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()).longValue(), greaterThan(0L));
@@ -109,7 +109,7 @@ public class ProfileTests extends ESTestCase {
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1, Sort.INDEXORDER); // scores are not needed
-        List<ProfileResult> results = profiler.getQueryTree();
+        List<ProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()).longValue(), greaterThan(0L));
@@ -128,7 +128,7 @@ public class ProfileTests extends ESTestCase {
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.count(query); // will use index stats
-        List<ProfileResult> results = profiler.getQueryTree();
+        List<ProfileResult> results = profiler.getTree();
         assertEquals(0, results.size());
 
         long rewriteTime = profiler.getRewriteTime();
@@ -144,7 +144,7 @@ public class ProfileTests extends ESTestCase {
         searcher.setProfiler(profiler);
         Query query = new RandomApproximationQuery(new TermQuery(new Term("foo", "bar")), random());
         searcher.count(query);
-        List<ProfileResult> results = profiler.getQueryTree();
+        List<ProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()).longValue(), greaterThan(0L));

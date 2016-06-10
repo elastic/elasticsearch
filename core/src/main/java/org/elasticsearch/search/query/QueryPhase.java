@@ -112,8 +112,8 @@ public class QueryPhase implements SearchPhase {
         aggregationPhase.execute(searchContext);
 
         if (searchContext.getProfilers() != null) {
-            List<ProfileShardResult> shardResults = SearchProfileShardResults
-                    .buildShardResults(searchContext.getProfilers().getQueryProfilers());
+            ProfileShardResult shardResults = SearchProfileShardResults
+                    .buildShardResults(searchContext.getProfilers());
             searchContext.queryResult().profileResults(shardResults);
         }
     }
@@ -385,8 +385,8 @@ public class QueryPhase implements SearchPhase {
             queryResult.topDocs(topDocsCallable.call(), sortValueFormats);
 
             if (searchContext.getProfilers() != null) {
-                List<ProfileShardResult> shardResults = SearchProfileShardResults
-                        .buildShardResults(searchContext.getProfilers().getQueryProfilers());
+                ProfileShardResult shardResults = SearchProfileShardResults
+                        .buildShardResults(searchContext.getProfilers());
                 searchContext.queryResult().profileResults(shardResults);
             }
 

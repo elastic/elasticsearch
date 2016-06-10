@@ -119,7 +119,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     public Object run() {
         try {
             return executable.execute(variables, scorer, doc, aggregationValue);
-        } catch (PainlessError | BootstrapMethodError | Exception t) {
+        } catch (PainlessError | BootstrapMethodError | IllegalAccessError | Exception t) {
             throw convertToScriptException(t);
         }
     }

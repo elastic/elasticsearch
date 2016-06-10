@@ -100,6 +100,7 @@ import org.elasticsearch.painless.node.AStatement;
 import org.elasticsearch.painless.node.EBinary;
 import org.elasticsearch.painless.node.EBool;
 import org.elasticsearch.painless.node.EBoolean;
+import org.elasticsearch.painless.node.ECapturingFunctionRef;
 import org.elasticsearch.painless.node.EChain;
 import org.elasticsearch.painless.node.EComp;
 import org.elasticsearch.painless.node.EConditional;
@@ -447,15 +448,19 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
     @Override
     public Object visitFuncref(FuncrefContext ctx) {
-        final String methodText;
-        if (ctx.ID() != null) {
-            methodText = ctx.ID().getText();
-        } else if (ctx.NEW() != null ){
-            methodText = ctx.NEW().getText();
+        if (ctx.TYPE() != null) {
+            // non-capturing Type::method or Type::new
+            final String methodText;
+            if (ctx.NEW() != null) {
+                methodText = ctx.NEW().getText();
+            } else {
+                methodText = ctx.ID(0).getText();
+            }
+            return new EFunctionRef(location(ctx), ctx.TYPE().getText(), methodText);
         } else {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+            // capturing object::method
+            return new ECapturingFunctionRef(location(ctx), ctx.ID(0).getText(), ctx.ID(1).getText());
         }
-        return new EFunctionRef(location(ctx), ctx.TYPE().getText(), methodText);
     }
 
     @Override

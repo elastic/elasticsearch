@@ -64,7 +64,7 @@ public class EFunctionRef extends AExpression {
     @Override
     void write(MethodWriter writer) {
         if (ref == null) {
-            writer.push(type + "." + call);
+            writer.push("S" + type + "." + call + ",0");
         } else {
             writer.writeDebugInfo(location);
             // convert MethodTypes to asm Type for the constant pool.

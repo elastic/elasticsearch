@@ -55,6 +55,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Callback;
+import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.SuspendableRefContainer;
 import org.elasticsearch.index.Index;
@@ -132,8 +133,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class IndexShard extends AbstractIndexShardComponent {
@@ -159,6 +160,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final TranslogConfig translogConfig;
     private final IndexEventListener indexEventListener;
     private final QueryCachingPolicy cachingPolicy;
+    private final CancellableThreads cancellableThreads;
 
 
     /**
@@ -266,6 +268,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
         refreshListeners = buildRefreshListeners();
         persistMetadata(shardRouting, null);
+        cancellableThreads = new CancellableThreads();
     }
 
     public Store store() {
@@ -589,7 +592,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     public void refresh(String source) {
         verifyNotClosed();
-        
+
         if (canIndex()) {
             long bytes = getEngine().getIndexBufferRAMBytesUsed();
             writingBytes.addAndGet(bytes);
@@ -846,6 +849,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                 } finally { // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                     IOUtils.close(engine);
                 }
+                cancellableThreads.cancel(reason);
             }
         }
     }
@@ -1284,7 +1288,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private void checkIndex() throws IOException {
         if (store.tryIncRef()) {
             try {
-                doCheckIndex();
+                cancellableThreads.executeIO(this::doCheckIndex);
             } finally {
                 store.decRef();
             }

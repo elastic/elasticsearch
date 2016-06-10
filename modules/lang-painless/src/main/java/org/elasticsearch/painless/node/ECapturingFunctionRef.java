@@ -19,27 +19,32 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Variables.Variable;
 import org.objectweb.asm.Type;
 
+import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 import java.lang.invoke.LambdaMetafactory;
 
 /**
- * Represents a function reference.
+ * Represents a capturing function reference.
  */
-public class EFunctionRef extends AExpression {
+public class ECapturingFunctionRef extends AExpression {
     public final String type;
     public final String call;
     
     private FunctionRef ref;
+    Variable captured;
+    private boolean defInterface;
 
-    public EFunctionRef(Location location, String type, String call) {
+    public ECapturingFunctionRef(Location location, String type, String call) {
         super(location);
 
         this.type = type;
@@ -48,14 +53,19 @@ public class EFunctionRef extends AExpression {
 
     @Override
     void analyze(Variables variables) {
+        captured = variables.getVariable(location, type);
         if (expected == null) {
-            ref = null;
+            defInterface = true;
             actual = Definition.getType("String");
         } else {
-            try {
-                ref = new FunctionRef(expected, type, call);
-            } catch (IllegalArgumentException e) {
-                throw createError(e);
+            defInterface = false;
+            // static case
+            if (captured.type.sort != Definition.Sort.DEF) {
+                try {
+                    ref = new FunctionRef(expected, captured.type.name, call, captured.type.clazz);
+                } catch (IllegalArgumentException e) {
+                    throw createError(e);
+                }
             }
             actual = expected;
         }
@@ -63,10 +73,23 @@ public class EFunctionRef extends AExpression {
 
     @Override
     void write(MethodWriter writer) {
-        if (ref == null) {
-            writer.push("S" + type + "." + call + ",0");
+        writer.writeDebugInfo(location);
+        if (defInterface && captured.type.sort == Definition.Sort.DEF) {
+            // dynamic interface, dynamic implementation
+            writer.push("D" + type + "." + call + ",1");
+            writer.loadLocal(captured.slot);
+        } else if (defInterface) {
+            // dynamic interface, typed implementation
+            writer.push("S" + captured.type.name + "." + call + ",1");
+            writer.loadLocal(captured.slot);
+        } else if (ref == null) {
+            // typed interface, dynamic implementation
+            writer.loadLocal(captured.slot);
+            String descriptor = Type.getMethodType(expected.type, captured.type.type).getDescriptor();
+            writer.invokeDynamic(call, descriptor, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.REFERENCE, expected.name);
         } else {
-            writer.writeDebugInfo(location);
+            // typed interface, typed implementation
+            writer.loadLocal(captured.slot);
             // convert MethodTypes to asm Type for the constant pool.
             String invokedType = ref.invokedType.toMethodDescriptorString();
             Type samMethodType = Type.getMethodType(ref.samMethodType.toMethodDescriptorString());

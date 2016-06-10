@@ -55,11 +55,15 @@ final class LDefCall extends ALink implements IDefLink {
         }
         
         recipe = 0;
+        int totalCaptures = 0;
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
             if (expression instanceof EFunctionRef) {
-                recipe |= (1L << argument); // mark argument as deferred reference
+                recipe |= (1L << (argument + totalCaptures)); // mark argument as deferred reference
+            } else if (expression instanceof ECapturingFunctionRef) {
+                recipe |= (1L << (argument + totalCaptures)); // mark argument as deferred reference
+                totalCaptures++;
             }
             expression.internal = true;
             expression.analyze(variables);
@@ -90,6 +94,10 @@ final class LDefCall extends ALink implements IDefLink {
 
         for (AExpression argument : arguments) {
             signature.append(argument.actual.type.getDescriptor());
+            if (argument instanceof ECapturingFunctionRef) {
+                ECapturingFunctionRef capturingRef = (ECapturingFunctionRef) argument;
+                signature.append(capturingRef.captured.type.type.getDescriptor());
+            }
             argument.write(writer);
         }
 

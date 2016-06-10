@@ -890,8 +890,7 @@ public final class Definition {
                             throw new AssertionError(e);
                         }
                     }
-                    owner.methods.put(methodKey,
-                        new Method(method.name, owner, method.rtn, method.arguments, method.method, method.modifiers, method.handle));
+                    owner.methods.put(methodKey, method);
                 }
             }
 

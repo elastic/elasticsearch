@@ -31,7 +31,6 @@ import org.apache.http.Consts;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.SuppressForbidden;
 import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -42,6 +41,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.StringWriter;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -57,7 +57,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @IgnoreJRERequirement
-@SuppressForbidden(reason = "uses sun HttpServer")
 public class HostsSnifferTests extends LuceneTestCase {
 
     private int sniffRequestTimeout;
@@ -84,7 +83,7 @@ public class HostsSnifferTests extends LuceneTestCase {
     }
 
     public void testSniffNodes() throws IOException, URISyntaxException {
-        HttpHost httpHost = new HttpHost(httpServer.getAddress().getHostName(), httpServer.getAddress().getPort());
+        HttpHost httpHost = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
         try (RestClient restClient = RestClient.builder(httpHost).build()) {
             HostsSniffer sniffer = new HostsSniffer(restClient, sniffRequestTimeout, scheme);
             try {
@@ -114,13 +113,12 @@ public class HostsSnifferTests extends LuceneTestCase {
     }
 
     private static HttpServer createHttpServer(final SniffResponse sniffResponse, final int sniffTimeoutMillis) throws IOException {
-        HttpServer httpServer = HttpServer.create(new InetSocketAddress(0), 0);
+        HttpServer httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.createContext("/_nodes/http", new ResponseHandler(sniffTimeoutMillis, sniffResponse));
         return httpServer;
     }
 
     @IgnoreJRERequirement
-    @SuppressForbidden(reason = "uses sun HttpServer")
     private static class ResponseHandler implements HttpHandler {
         private final int sniffTimeoutMillis;
         private final SniffResponse sniffResponse;

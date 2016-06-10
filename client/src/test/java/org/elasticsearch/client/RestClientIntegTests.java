@@ -32,7 +32,6 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.SuppressForbidden;
 import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -40,6 +39,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collections;
@@ -59,7 +59,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
  * Works against a real http server, one single host.
  */
 @IgnoreJRERequirement
-@SuppressForbidden(reason = "uses sun HttpServer")
 public class RestClientIntegTests extends LuceneTestCase {
 
     private static HttpServer httpServer;
@@ -68,7 +67,7 @@ public class RestClientIntegTests extends LuceneTestCase {
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
-        httpServer = HttpServer.create(new InetSocketAddress(0), 0);
+        httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
         //returns a different status code depending on the path
         for (int statusCode : getAllStatusCodes()) {
@@ -81,7 +80,7 @@ public class RestClientIntegTests extends LuceneTestCase {
             String headerValue = RandomStrings.randomAsciiOfLengthBetween(random(), 3, 10);
             defaultHeaders[i] = new BasicHeader(headerName, headerValue);
         }
-        restClient = RestClient.builder(new HttpHost(httpServer.getAddress().getHostName(), httpServer.getAddress().getPort()))
+        restClient = RestClient.builder(new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort()))
                 .setDefaultHeaders(defaultHeaders).build();
     }
 
@@ -90,7 +89,6 @@ public class RestClientIntegTests extends LuceneTestCase {
     }
 
     @IgnoreJRERequirement
-    @SuppressForbidden(reason = "uses sun HttpServer")
     private static class ResponseHandler implements HttpHandler {
         private final int statusCode;
 

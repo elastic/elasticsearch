@@ -176,7 +176,7 @@ public class RefreshListenersTests extends ESTestCase {
         }
 
         DummyRefreshListener listener = new DummyRefreshListener();
-        listeners.addOrNotify(index.getTranslogLocation(), listener);
+        assertTrue(listeners.addOrNotify(index.getTranslogLocation(), listener));
         assertFalse(listener.forcedRefresh.get());
         listener.assertNoError();
     }
@@ -195,12 +195,15 @@ public class RefreshListenersTests extends ESTestCase {
         });
         refresher.start();
         try {
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < 1000; i++) {
                 Engine.Index index = index("1");
-
                 DummyRefreshListener listener = new DummyRefreshListener();
-                listeners.addOrNotify(index.getTranslogLocation(), listener);
-                assertBusy(() -> assertNotNull(listener.forcedRefresh.get()));
+                boolean immediate = listeners.addOrNotify(index.getTranslogLocation(), listener);
+                if (immediate) {
+                    assertNotNull(listener.forcedRefresh.get());
+                } else {
+                    assertBusy(() -> assertNotNull(listener.forcedRefresh.get()));
+                }
                 assertFalse(listener.forcedRefresh.get());
                 listener.assertNoError();
             }

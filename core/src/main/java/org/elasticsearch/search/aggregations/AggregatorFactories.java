@@ -27,6 +27,8 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
+import org.elasticsearch.search.profile.Profilers;
+import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -81,7 +83,12 @@ public class AggregatorFactories {
             // propagate the fact that only bucket 0 will be collected with single-bucket
             // aggs
             final boolean collectsFromSingleBucket = false;
-            aggregators[i] = factories[i].create(parent, collectsFromSingleBucket);
+            Aggregator factory = factories[i].create(parent, collectsFromSingleBucket);
+            Profilers profilers = factory.context().searchContext().getProfilers();
+            if (profilers != null) {
+                factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
+            }
+            aggregators[i] = factory;
         }
         return aggregators;
     }
@@ -92,7 +99,12 @@ public class AggregatorFactories {
         for (int i = 0; i < factories.length; i++) {
             // top-level aggs only get called with bucket 0
             final boolean collectsFromSingleBucket = true;
-            aggregators[i] = factories[i].create(null, collectsFromSingleBucket);
+            Aggregator factory = factories[i].create(null, collectsFromSingleBucket);
+            Profilers profilers = factory.context().searchContext().getProfilers();
+            if (profilers != null) {
+                factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
+            }
+            aggregators[i] = factory;
         }
         return aggregators;
     }

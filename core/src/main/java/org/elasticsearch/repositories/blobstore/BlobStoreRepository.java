@@ -978,7 +978,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     } catch (IOException e) {
                         // We cannot delete index file - this is fatal, we cannot continue, otherwise we might end up
                         // with references to non-existing files
-                        throw new IndexShardSnapshotFailedException(shardId, "error deleting index files during cleanup", e);
+                        throw new IndexShardSnapshotFailedException(shardId, "error deleting index file ["
+                            + blobName + "] during cleanup", e);
                     }
                 }
             });

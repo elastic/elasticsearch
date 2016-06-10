@@ -217,7 +217,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             .masterNodeTimeout(createIndexRequest.masterNodeTimeout())
             .settings(createIndexRequest.settings())
             .aliases(createIndexRequest.aliases())
-            .customs(createIndexRequest.customs())
             .mappings(createIndexRequest.mappings());
     }
 

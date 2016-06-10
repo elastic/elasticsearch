@@ -42,9 +42,6 @@ import org.jboss.netty.channel.ChannelFutureListener;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- *
- */
 public class NettyTransportChannel implements TransportChannel {
 
     private final NettyTransport transport;
@@ -55,7 +52,7 @@ public class NettyTransportChannel implements TransportChannel {
     private final long requestId;
     private final String profileName;
     private final long reservedBytes;
-    private final AtomicBoolean closed = new AtomicBoolean();
+    private final AtomicBoolean released = new AtomicBoolean();
 
     public NettyTransportChannel(NettyTransport transport, TransportServiceAdapter transportServiceAdapter, String action, Channel channel,
                                  long requestId, Version version, String profileName, long reservedBytes) {
@@ -86,7 +83,7 @@ public class NettyTransportChannel implements TransportChannel {
 
     @Override
     public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
-        close();
+        release();
         if (transport.compress) {
             options = TransportResponseOptions.builder(options).withCompress(transport.compress).build();
         }
@@ -128,7 +125,7 @@ public class NettyTransportChannel implements TransportChannel {
 
     @Override
     public void sendResponse(Throwable error) throws IOException {
-        close();
+        release();
         BytesStreamOutput stream = new BytesStreamOutput();
         stream.skip(NettyHeader.HEADER_SIZE);
         RemoteTransportException tx = new RemoteTransportException(
@@ -147,10 +144,10 @@ public class NettyTransportChannel implements TransportChannel {
         future.addListener(onResponseSentListener);
     }
 
-    private void close() {
-        // attempt to close once atomically
-        if (closed.compareAndSet(false, true) == false) {
-            throw new IllegalStateException("Channel is already closed");
+    private void release() {
+        // attempt to release once atomically
+        if (released.compareAndSet(false, true) == false) {
+            throw new IllegalStateException("reserved bytes are already released");
         }
         transport.inFlightRequestsBreaker().addWithoutBreaking(-reservedBytes);
     }
@@ -174,4 +171,5 @@ public class NettyTransportChannel implements TransportChannel {
     public Channel getChannel() {
         return channel;
     }
+
 }

@@ -544,7 +544,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
             }
         }
         refreshPolicy = RefreshPolicy.readFrom(in);
-        timeout = TimeValue.readTimeValue(in);
+        timeout = new TimeValue(in);
     }
 
     @Override

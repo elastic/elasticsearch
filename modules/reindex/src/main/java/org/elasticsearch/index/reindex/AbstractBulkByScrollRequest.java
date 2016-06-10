@@ -299,9 +299,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         abortOnVersionConflict = in.readBoolean();
         size = in.readVInt();
         refresh = in.readBoolean();
-        timeout = TimeValue.readTimeValue(in);
+        timeout = new TimeValue(in);
         consistency = WriteConsistencyLevel.fromId(in.readByte());
-        retryBackoffInitialTime = TimeValue.readTimeValue(in);
+        retryBackoffInitialTime = new TimeValue(in);
         maxRetries = in.readVInt();
         requestsPerSecond = in.readFloat();
     }

@@ -468,6 +468,16 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
             return new CreateScorerOnceWeight(query.createWeight(searcher, needsScores));
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            return sameClassAs(obj) && query.equals(((CreateScorerOnceQuery) obj).query);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * classHash() + query.hashCode();
+        }
     }
 
     public void doTestIndexSearcherWrapper(boolean sparse, boolean deletions) throws IOException {

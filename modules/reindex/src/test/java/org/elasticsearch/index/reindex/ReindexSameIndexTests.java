@@ -43,7 +43,7 @@ public class ReindexSameIndexTests extends ESTestCase {
 
     private static ClusterState STATE;
     private static final IndexNameExpressionResolver INDEX_NAME_EXPRESSION_RESOLVER = new IndexNameExpressionResolver(Settings.EMPTY);
-    private static AutoCreateIndex AUTO_CREATE_INDEX = new AutoCreateIndex(Settings.EMPTY, INDEX_NAME_EXPRESSION_RESOLVER);
+    private static final AutoCreateIndex AUTO_CREATE_INDEX = new AutoCreateIndex(Settings.EMPTY, INDEX_NAME_EXPRESSION_RESOLVER);
 
     @BeforeClass
     public static void beforeClass() {

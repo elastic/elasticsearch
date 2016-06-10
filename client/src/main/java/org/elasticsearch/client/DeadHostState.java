@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit;
  * when the host should be retried (based on number of previous failed attempts).
  * Class is immutable, a new copy of it should be created each time the state has to be changed.
  */
-class DeadHostState {
+final class DeadHostState {
 
     private static final long MIN_CONNECTION_TIMEOUT_NANOS = TimeUnit.MINUTES.toNanos(1);
     private static final long MAX_CONNECTION_TIMEOUT_NANOS = TimeUnit.MINUTES.toNanos(30);

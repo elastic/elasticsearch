@@ -135,10 +135,10 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
                 if (scheduledExecutorService.awaitTermination(1000, TimeUnit.MILLISECONDS)) {
                     return;
                 }
+                scheduledExecutorService.shutdownNow();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-            scheduledExecutorService.shutdownNow();
         }
     }
 

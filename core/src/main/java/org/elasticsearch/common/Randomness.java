@@ -128,7 +128,7 @@ public final class Randomness {
      *                               RandomizedContext or tests are
      *                               running but tests.seed is not set
      */
-    public static Random getSecureRandom() {
+    public static Random getSecure() {
         if (currentMethod != null && getRandomMethod != null) {
             return get();
         } else {

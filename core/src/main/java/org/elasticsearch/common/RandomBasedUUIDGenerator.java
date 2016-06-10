@@ -30,7 +30,7 @@ class RandomBasedUUIDGenerator implements UUIDGenerator {
      */
     @Override
     public String getBase64UUID() {
-        return getBase64UUID(Randomness.getSecureRandom());
+        return getBase64UUID(Randomness.getSecure());
     }
 
     /**

@@ -23,6 +23,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
 import java.lang.reflect.Method;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.SecureRandom;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -44,6 +47,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * DiscoveryService#NODE_ID_SEED_SETTING)).
  */
 public final class Randomness {
+
     private static final Method currentMethod;
     private static final Method getRandomMethod;
 
@@ -72,7 +76,7 @@ public final class Randomness {
      * @param setting  the setting to access the seed
      * @return a reproducible source of randomness
      */
-    public static Random get(Settings settings, Setting<Long> setting) {
+    public static Random get(final Settings settings, final Setting<Long> setting) {
         if (setting.exists(settings)) {
             return new Random(setting.get(settings));
         } else {
@@ -98,7 +102,7 @@ public final class Randomness {
     public static Random get() {
         if (currentMethod != null && getRandomMethod != null) {
             try {
-                Object randomizedContext = currentMethod.invoke(null);
+                final Object randomizedContext = currentMethod.invoke(null);
                 return (Random) getRandomMethod.invoke(randomizedContext);
             } catch (ReflectiveOperationException e) {
                 // unexpected, bail
@@ -109,13 +113,42 @@ public final class Randomness {
         }
     }
 
+    /**
+     * Provides a source of randomness that is reproducible when
+     * running under the Elasticsearch test suite, and otherwise
+     * produces a non-reproducible source of secure randomness.
+     * Reproducible sources of randomness are created when the system
+     * property "tests.seed" is set and the security policy allows
+     * reading this system property. Otherwise, non-reproducible
+     * sources of secure randomness are created.
+     *
+     * @return a source of randomness
+     * @throws IllegalStateException if running tests but was not able
+     *                               to acquire an instance of Random from
+     *                               RandomizedContext or tests are
+     *                               running but tests.seed is not set
+     */
+    public static Random getSecure() {
+        if (currentMethod != null && getRandomMethod != null) {
+            return get();
+        } else {
+            return getSecureRandomWithoutSeed();
+        }
+    }
+
     @SuppressForbidden(reason = "ThreadLocalRandom is okay when not running tests")
     private static Random getWithoutSeed() {
         assert currentMethod == null && getRandomMethod == null : "running under tests but tried to create non-reproducible random";
         return ThreadLocalRandom.current();
     }
 
-    public static void shuffle(List<?> list) {
+    private static SecureRandom getSecureRandomWithoutSeed() {
+        assert currentMethod == null && getRandomMethod == null : "running under tests but tried to create non-reproducible random";
+        return SecureRandomHolder.INSTANCE;
+    }
+
+    public static void shuffle(final List<?> list) {
         Collections.shuffle(list, get());
     }
+
 }

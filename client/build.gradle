@@ -21,6 +21,7 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.JavaVersion
 
 apply plugin: 'elasticsearch.build'
+apply plugin: 'ru.vyarus.animalsniffer'
 
 targetCompatibility = JavaVersion.VERSION_1_7
 sourceCompatibility = JavaVersion.VERSION_1_7
@@ -38,9 +39,9 @@ dependencies {
   testCompile "org.apache.lucene:lucene-core:${versions.lucene}"
   testCompile "org.apache.lucene:lucene-codecs:${versions.lucene}"
   testCompile "org.elasticsearch:securemock:${versions.securemock}"
+  signature "org.codehaus.mojo.signature:java17:1.0@signature"
 }
 
-//TODO compiling from 1.8 with target 1.7 and source 1.7 is best effort, not enough to ensure we are java 7 compatible
 compileJava.options.compilerArgs << '-target' << '1.7' << '-source' << '1.7' << '-Xlint:all,-path,-serial,-options'
 compileTestJava.options.compilerArgs << '-target' << '1.7' << '-source' << '1.7'
 
@@ -52,6 +53,11 @@ forbiddenApisMain {
 forbiddenApisTest {
   //client does not depend on core, so only jdk signatures should be checked
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+}
+
+animalsnifferTest {
+    //animalsniffer doesn't like sun classes usages (e.g. com.sun.net.httpserver.HttpServer)
+    exclude('org/elasticsearch/client/RestClientIntegTests.class')
 }
 
 //JarHell is part of es core, which we don't want to pull in

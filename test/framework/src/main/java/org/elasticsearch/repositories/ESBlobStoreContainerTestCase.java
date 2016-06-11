@@ -112,6 +112,22 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
         }
     }
 
+    public void testDeleteBlob() throws IOException {
+        try (final BlobStore store = newBlobStore()) {
+            final String blobName = "foobar";
+            final BlobContainer container = store.blobContainer(new BlobPath());
+            expectThrows(IOException.class, () -> container.deleteBlob(blobName));
+
+            byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+            final BytesArray bytesArray = new BytesArray(data);
+            container.writeBlob(blobName, bytesArray);
+            container.deleteBlob(blobName); // should not raise
+
+            // blob deleted, so should raise again
+            expectThrows(IOException.class, () -> container.deleteBlob(blobName));
+        }
+    }
+
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/15579")
     public void testOverwriteFails() throws IOException {
         try (final BlobStore store = newBlobStore()) {

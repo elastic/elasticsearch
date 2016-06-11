@@ -200,6 +200,11 @@ public final class Definition {
             this.handle = handle;
         }
         
+        /** 
+         * Returns MethodType for this method.
+         * <p>
+         * This works even for user-defined Methods (where the MethodHandle is null).
+         */
         public MethodType getMethodType() {
             // we have a methodhandle already (e.g. whitelisted class)
             // just return its type

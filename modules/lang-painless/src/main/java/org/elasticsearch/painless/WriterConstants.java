@@ -28,6 +28,7 @@ import org.objectweb.asm.commons.Method;
 
 import java.lang.invoke.CallSite;
 import java.lang.invoke.LambdaMetafactory;
+import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.BitSet;
@@ -66,6 +67,8 @@ public final class WriterConstants {
     public final static Type UTILITY_TYPE = Type.getType(Utility.class);
     public final static Method STRING_TO_CHAR = getAsmMethod(char.class, "StringTochar", String.class);
     public final static Method CHAR_TO_STRING = getAsmMethod(String.class, "charToString", char.class);
+    
+    public final static Type METHOD_HANDLE_TYPE = Type.getType(MethodHandle.class);
 
     /** dynamic callsite bootstrap signature */
     public final static MethodType DEF_BOOTSTRAP_TYPE =

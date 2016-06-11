@@ -26,14 +26,13 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.ExecuteReserved;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.WriterConstants;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.Handle;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
-import java.lang.invoke.MethodHandle;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Handle;
+import org.objectweb.asm.Opcodes;
+
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
@@ -139,7 +138,6 @@ public final class SSource extends AStatement {
         expressions = new BitSet(source.length());
 
         // Write the constructor:
-
         MethodWriter constructor = new MethodWriter(Opcodes.ACC_PUBLIC, CONSTRUCTOR, writer, expressions);
         constructor.loadThis();
         constructor.loadArgs();
@@ -148,7 +146,6 @@ public final class SSource extends AStatement {
         constructor.endMethod();
 
         // Write the execute method:
-
         MethodWriter execute = new MethodWriter(Opcodes.ACC_PUBLIC, EXECUTE, writer, expressions);
         write(execute);
         execute.endMethod();
@@ -162,8 +159,8 @@ public final class SSource extends AStatement {
         if (!functions.isEmpty()) {
             for (SFunction function : functions) {
                 writer.visitField(Opcodes.ACC_FINAL | Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC, 
-                        function.getHandleStaticFieldName(), 
-                        Type.getDescriptor(MethodHandle.class), 
+                        function.getStaticHandleFieldName(), 
+                        WriterConstants.METHOD_HANDLE_TYPE.getDescriptor(), 
                         null, 
                         null).visitEnd();
             }
@@ -177,8 +174,8 @@ public final class SSource extends AStatement {
                                            false);
                 clinit.push(handle);
                 clinit.putStatic(CLASS_TYPE, 
-                                 function.getHandleStaticFieldName(), 
-                                 Type.getType(MethodHandle.class));
+                                 function.getStaticHandleFieldName(), 
+                                 WriterConstants.METHOD_HANDLE_TYPE);
             }
             clinit.returnValue();
             clinit.endMethod();

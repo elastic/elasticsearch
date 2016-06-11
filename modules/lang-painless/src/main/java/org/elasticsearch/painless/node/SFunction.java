@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
@@ -167,7 +168,7 @@ public class SFunction extends AStatement {
         }
     }
     
-    String getHandleStaticFieldName() {
-        return "handle$" + name + "$" + parameters.size();
+    String getStaticHandleFieldName() {
+        return Def.getUserFunctionHandleFieldName(name, parameters.size());
     }
 }

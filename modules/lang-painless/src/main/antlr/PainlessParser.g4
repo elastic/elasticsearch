@@ -92,6 +92,17 @@ trap
 delimiter
     : SEMICOLON
     | EOF
+    // RBRACK is a delimiter but we don't consume it because it is only valid
+    // in places where RBRACK can follow the statement. It is simpler to not
+    // consume it here then it is to consume it here. Unfortunately, they
+    // obvious syntax to do this `| { _input.LA(1) == RBRACK }?` generates an
+    // amazingly intense `adaptivePredict` call that doesn't actually work
+    // and builds a serious DFA. Huge. So instead we use standard ANTLR syntax
+    // to consume the token and then undo the consumption. This looks hairy but
+    // it is better than the alternatives.
+    |   { int mark = _input.mark(); int index = _input.index(); }
+            RBRACK
+        { _input.seek(index); _input.release(mark); }
     ;
 
 // Note we return the boolean s.  This is returned as true

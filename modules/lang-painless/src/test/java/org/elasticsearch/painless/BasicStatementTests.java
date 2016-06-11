@@ -221,4 +221,13 @@ public class BasicStatementTests extends ScriptTestCase {
         });
         assertTrue(exception.getCause().getMessage().contains("Lambda functions are not supported."));
     }
+
+    public void testLastInBlockDoesntNeedSemi() {
+        // One statement in the block in case that is a special case
+        assertEquals(10, exec("def i = 1; if (i == 1) {return 10}"));
+        assertEquals(10, exec("def i = 1; if (i == 1) {return 10} else {return 12}"));
+        // Two statements in the block, in case that is the general case
+        assertEquals(10, exec("def i = 1; if (i == 1) {i = 2; return 10}"));
+        assertEquals(10, exec("def i = 1; if (i == 1) {i = 2; return 10} else {return 12}"));
+    }
 }

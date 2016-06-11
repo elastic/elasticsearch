@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.discovery.zen;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -122,14 +123,14 @@ public class NodeJoinControllerTests extends ESTestCase {
             nodes.add(node);
             joinNode(node);
         }
-        nodeJoinController.startAccumulatingJoins();
+        nodeJoinController.startElectionContext();
         ArrayList<Future<Void>> pendingJoins = new ArrayList<>();
         for (int i = randomInt(5); i > 0; i--) {
             DiscoveryNode node = newNode(nodeId++);
             nodes.add(node);
             pendingJoins.add(joinNodeAsync(node));
         }
-        nodeJoinController.stopAccumulatingJoins("test");
+        nodeJoinController.stopElectionContext("test");
         boolean hadSyncJoin = false;
         for (int i = randomInt(5); i > 0; i--) {
             DiscoveryNode node = newNode(nodeId++);
@@ -140,13 +141,14 @@ public class NodeJoinControllerTests extends ESTestCase {
         if (hadSyncJoin) {
             for (Future<Void> joinFuture : pendingJoins) {
                 assertThat(joinFuture.isDone(), equalTo(true));
+                Throwable t = expectThrows(ExecutionException.class, joinFuture::get); // stop an election fails pending joins
+                assertThat(t.getCause(), instanceOf(NotMasterException.class));
             }
         }
         for (Future<Void> joinFuture : pendingJoins) {
-            joinFuture.get();
+            Throwable t = expectThrows(ExecutionException.class, joinFuture::get); // stop an election fails pending joins
+            assertThat(t.getCause(), instanceOf(NotMasterException.class));
         }
-
-        assertNodesInCurrentState(nodes);
     }
 
     public void testFailingJoinsWhenNotMaster() throws ExecutionException, InterruptedException {
@@ -163,14 +165,14 @@ public class NodeJoinControllerTests extends ESTestCase {
 
         logger.debug("--> testing joins fail post accumulation");
         ArrayList<Future<Void>> pendingJoins = new ArrayList<>();
-        nodeJoinController.startAccumulatingJoins();
+        nodeJoinController.startElectionContext();
         for (int i = 1 + randomInt(5); i > 0; i--) {
             DiscoveryNode node = newNode(nodeId++);
             final Future<Void> future = joinNodeAsync(node);
             pendingJoins.add(future);
             assertThat(future.isDone(), equalTo(false));
         }
-        nodeJoinController.stopAccumulatingJoins("test");
+        nodeJoinController.stopElectionContext("test");
         for (Future<Void> future : pendingJoins) {
             try {
                 future.get();
@@ -197,7 +199,7 @@ public class NodeJoinControllerTests extends ESTestCase {
             }
         }
 
-        nodeJoinController.startAccumulatingJoins();
+        nodeJoinController.startElectionContext();
         final SimpleFuture electionFuture = new SimpleFuture("master election");
         final Thread masterElection = new Thread(new AbstractRunnable() {
             @Override
@@ -229,6 +231,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         electionFuture.get();
     }
 
+    @Seed("DE4D608991D6D518")
     public void testSimpleMasterElection() throws InterruptedException, ExecutionException {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterService.state().nodes()).masterNodeId(null);
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodes));
@@ -245,7 +248,7 @@ public class NodeJoinControllerTests extends ESTestCase {
             }
         }
 
-        nodeJoinController.startAccumulatingJoins();
+        nodeJoinController.startElectionContext();
         final SimpleFuture electionFuture = new SimpleFuture("master election");
         final Thread masterElection = new Thread(new AbstractRunnable() {
             @Override
@@ -334,8 +337,8 @@ public class NodeJoinControllerTests extends ESTestCase {
         }
 
         logger.debug("--> testing accumulation stopped");
-        nodeJoinController.startAccumulatingJoins();
-        nodeJoinController.stopAccumulatingJoins("test");
+        nodeJoinController.startElectionContext();
+        nodeJoinController.stopElectionContext("test");
 
     }
 
@@ -356,7 +359,7 @@ public class NodeJoinControllerTests extends ESTestCase {
             }
         }
 
-        nodeJoinController.startAccumulatingJoins();
+        nodeJoinController.startElectionContext();
         final int initialJoins = randomIntBetween(0, requiredJoins - 1);
         final ArrayList<SimpleFuture> pendingJoins = new ArrayList<>();
         ArrayList<DiscoveryNode> nodesToJoin = new ArrayList<>();
@@ -457,7 +460,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes()).masterNodeId(null);
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodesBuilder));
 
-        nodeJoinController.startAccumulatingJoins();
+        nodeJoinController.startElectionContext();
 
         Thread[] threads = new Thread[3 + randomInt(5)];
         final int requiredJoins = randomInt(threads.length);

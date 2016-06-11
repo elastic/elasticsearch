@@ -275,7 +275,7 @@ public class ClusterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStatePublished(ClusterState newClusterState) {
+                public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
                     published.set(true);
                     latch.countDown();
                 }
@@ -471,7 +471,7 @@ public class ClusterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void clusterStatePublished(ClusterState newClusterState) {
+            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
                 published.incrementAndGet();
                 semaphore.release();
             }

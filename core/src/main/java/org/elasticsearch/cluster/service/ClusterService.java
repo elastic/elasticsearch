@@ -702,7 +702,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
             }
 
             try {
-                executor.clusterStatePublished(newClusterState);
+                executor.clusterStatePublished(clusterChangedEvent);
             } catch (Exception e) {
                 logger.error("exception thrown while notifying executor of new cluster state publication [{}]", e, source);
             }

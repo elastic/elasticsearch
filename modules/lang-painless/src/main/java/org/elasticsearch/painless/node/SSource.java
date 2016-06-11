@@ -164,7 +164,7 @@ public final class SSource extends AStatement {
                         null, 
                         null).visitEnd();
             }
-            final MethodWriter clinit = new MethodWriter(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, 
+            final MethodWriter clinit = new MethodWriter(Opcodes.ACC_STATIC, 
                                                    WriterConstants.CLINIT, writer, expressions);
             for (SFunction function : functions) {
                 final Handle handle = new Handle(Opcodes.H_INVOKESTATIC, 

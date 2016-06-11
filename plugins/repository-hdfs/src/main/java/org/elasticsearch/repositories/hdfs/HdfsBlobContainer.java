@@ -68,16 +68,12 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlob(String blobName) throws IOException {
-        try {
-            store.execute(new Operation<Boolean>() {
-                @Override
-                public Boolean run(FileContext fileContext) throws IOException {
-                    return fileContext.delete(new Path(path, blobName), true);
-                }
-            });
-        } catch (FileNotFoundException e) {
-            throw new IOException(e);
-        }
+        store.execute(new Operation<Boolean>() {
+            @Override
+            public Boolean run(FileContext fileContext) throws IOException {
+                return fileContext.delete(new Path(path, blobName), true);
+            }
+        });
     }
 
     @Override

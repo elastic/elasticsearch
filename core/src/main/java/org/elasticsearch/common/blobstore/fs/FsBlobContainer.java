@@ -30,7 +30,6 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -86,12 +85,9 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public void deleteBlob(String blobName) throws IOException {
         Path blobPath = path.resolve(blobName);
-        try {
-            if (!Files.deleteIfExists(blobPath)) {
-                throw new IOException("File " + blobPath.toString() + " does not exist");
-            }
-        } catch (DirectoryNotEmptyException | SecurityException e) {
-            throw new IOException(e);
+        if (!Files.deleteIfExists(blobPath)) {
+            // blobPath does not exist
+            throw new IOException("File " + blobPath.toString() + " does not exist");
         }
     }
 

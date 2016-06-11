@@ -29,7 +29,6 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -321,14 +320,26 @@ public final class Def {
                                                          String call, Class<?>... captures) throws LambdaConversionException {
          final FunctionRef ref;
          if ("this".equals(type)) {
+             // user written method
              Method interfaceMethod = clazz.struct.getFunctionalMethod();
              if (interfaceMethod == null) {
                  throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                     "to [" + clazz.name + "], not a functional interface");
              }
-             int arity = interfaceMethod.arguments.size();
-             // user written method
-             ref = null;
+             int arity = interfaceMethod.arguments.size() + captures.length;
+             final MethodHandle handle;
+             try {
+                 MethodHandle accessor = lookup.findStaticGetter(lookup.lookupClass(), 
+                                                                 "handle$" + call + "$" + arity, 
+                                                                 MethodHandle.class);
+                 handle = (MethodHandle) accessor.invokeExact();
+             } catch (NoSuchFieldException | IllegalAccessException e) {
+                 throw new IllegalArgumentException("Unknown call [" + call + "] with [" + arity + "] arguments.");
+             } catch (Throwable t) {
+                 rethrow(t);
+                 throw new AssertionError();
+             }
+             ref = new FunctionRef(clazz, interfaceMethod, handle, captures);
          } else {
              // whitelist lookup
              ref = new FunctionRef(clazz, type, call, captures);

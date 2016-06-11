@@ -101,6 +101,27 @@ public class FunctionRef {
         samMethodType = impl.getMethodType().dropParameterTypes(0, captures.length);
     }
 
+    /**
+     * Creates a new FunctionRef (low level). 
+     * <p>
+     * This will <b>not</b> set implMethodASM. It is for runtime use only.
+     */
+    public FunctionRef(Definition.Type expected, Definition.Method method, MethodHandle impl, Class<?>... captures) {
+        // e.g. compareTo
+        invokedName = method.name;
+        // e.g. (Object)Comparator
+        invokedType = MethodType.methodType(expected.clazz, captures);
+        // e.g. (Object,Object)int
+        interfaceMethodType = method.getMethodType().dropParameterTypes(0, 1);
+
+        implMethod = impl;
+        
+        implMethodASM = null;
+        
+        // remove any prepended captured arguments for the 'natural' signature.
+        samMethodType = impl.type().dropParameterTypes(0, captures.length);
+    }
+
     /** 
      * Looks up {@code type::call} from the whitelist, and returns a matching method.
      */

@@ -114,7 +114,6 @@ public class FunctionRefTests extends ScriptTestCase {
                              "List l = new ArrayList(); l.add(2); l.add(1); l.sort(this::mycompare); return l.get(0);"));
     }
     
-    @AwaitsFix(bugUrl = "working on it")
     public void testOwnStaticMethodReferenceDef() {
         assertEquals(2, exec("int mycompare(int i, int j) { j - i } " +
                              "def l = new ArrayList(); l.add(2); l.add(1); l.sort(this::mycompare); return l.get(0);"));

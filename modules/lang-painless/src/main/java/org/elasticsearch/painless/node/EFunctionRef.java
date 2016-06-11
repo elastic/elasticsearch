@@ -31,7 +31,6 @@ import org.objectweb.asm.Type;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 import java.lang.invoke.LambdaMetafactory;
-import java.lang.reflect.Modifier;
 
 /**
  * Represents a function reference.

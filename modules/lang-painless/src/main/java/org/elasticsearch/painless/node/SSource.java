@@ -158,8 +158,7 @@ public final class SSource extends AStatement {
         if (!functions.isEmpty()) {
             // write a reference to each function
             for (SFunction function : functions) {
-                // XXX: Opcodes.ACC_FINAL too
-                writer.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC, 
+                writer.visitField(Opcodes.ACC_FINAL | Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC, 
                         "handle$" + function.name + "$" + function.parameters.size(), 
                         Type.getDescriptor(MethodHandle.class), 
                         null, 

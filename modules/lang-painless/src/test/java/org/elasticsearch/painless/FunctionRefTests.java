@@ -110,8 +110,6 @@ public class FunctionRefTests extends ScriptTestCase {
     }
     
     public void testOwnStaticMethodReference() {
-        System.out.println(Debugger.toString("int mycompare(int i, int j) { return j - i; } " +
-                             "List l = new ArrayList(); l.add(2); l.add(1); l.sort(this::mycompare); return l.get(0);"));
         assertEquals(2, exec("int mycompare(int i, int j) { j - i } " +
                              "List l = new ArrayList(); l.add(2); l.add(1); l.sort(this::mycompare); return l.get(0);"));
     }

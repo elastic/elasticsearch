@@ -136,25 +136,29 @@ public final class SSource extends AStatement {
         writer.visit(classVersion, classAccess, className, null, classBase, classInterfaces);
         writer.visitSource(Location.computeSourceName(name, source), null);
 
-        // Create the execute MethodWriter.
-
         expressions = new BitSet(source.length());
-        MethodWriter execute = new MethodWriter(Opcodes.ACC_PUBLIC, EXECUTE, writer, expressions);
 
-        // Write the constructor.
+        // Write the constructor:
 
-        MethodWriter constructor = execute.newMethodWriter(Opcodes.ACC_PUBLIC, CONSTRUCTOR);
+        MethodWriter constructor = new MethodWriter(Opcodes.ACC_PUBLIC, CONSTRUCTOR, writer, expressions);
         constructor.loadThis();
         constructor.loadArgs();
         constructor.invokeConstructor(org.objectweb.asm.Type.getType(Executable.class), CONSTRUCTOR);
         constructor.returnValue();
         constructor.endMethod();
 
-        // Write the execute method.
+        // Write the execute method:
 
+        MethodWriter execute = new MethodWriter(Opcodes.ACC_PUBLIC, EXECUTE, writer, expressions);
         write(execute);
         execute.endMethod();
         
+        // Write all functions:
+        
+        for (SFunction function : functions) {
+            function.write(writer, expressions);
+        }
+
         if (!functions.isEmpty()) {
             // write a reference to each function
             for (SFunction function : functions) {
@@ -186,10 +190,6 @@ public final class SSource extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        for (SFunction function : functions) {
-            function.write(writer);
-        }
-
         if (reserved.usesScore()) {
             // if the _score value is used, we do this once:
             // final double _score = scorer.score();

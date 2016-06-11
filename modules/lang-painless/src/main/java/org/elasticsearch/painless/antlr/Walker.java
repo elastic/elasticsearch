@@ -69,6 +69,8 @@ import org.elasticsearch.painless.antlr.PainlessParser.FuncrefContext;
 import org.elasticsearch.painless.antlr.PainlessParser.FunctionContext;
 import org.elasticsearch.painless.antlr.PainlessParser.IfContext;
 import org.elasticsearch.painless.antlr.PainlessParser.InitializerContext;
+import org.elasticsearch.painless.antlr.PainlessParser.LambdaContext;
+import org.elasticsearch.painless.antlr.PainlessParser.LamtypeContext;
 import org.elasticsearch.painless.antlr.PainlessParser.NewarrayContext;
 import org.elasticsearch.painless.antlr.PainlessParser.NewobjectContext;
 import org.elasticsearch.painless.antlr.PainlessParser.NullContext;
@@ -107,6 +109,7 @@ import org.elasticsearch.painless.node.EConditional;
 import org.elasticsearch.painless.node.EDecimal;
 import org.elasticsearch.painless.node.EExplicit;
 import org.elasticsearch.painless.node.EFunctionRef;
+import org.elasticsearch.painless.node.ELambda;
 import org.elasticsearch.painless.node.ENull;
 import org.elasticsearch.painless.node.ENumeric;
 import org.elasticsearch.painless.node.EUnary;
@@ -446,24 +449,6 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
     }
 
-    @Override
-    public Object visitFuncref(FuncrefContext ctx) {
-        if (ctx.TYPE() != null) {
-            // non-capturing Type::method or Type::new
-            final String methodText;
-            if (ctx.NEW() != null) {
-                methodText = ctx.NEW().getText();
-            } else {
-                methodText = ctx.ID(0).getText();
-            }
-            return new EFunctionRef(location(ctx), ctx.TYPE().getText(), methodText);
-        } else {
-            // capturing object::method
-            return new ECapturingFunctionRef(location(ctx), ctx.ID(0).getText(), ctx.ID(1).getText());
-        }
-    }
-
-    @Override
     public Object visitDeclvar(DeclvarContext ctx) {
         throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
     }
@@ -923,10 +908,59 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
     public Object visitArgument(ArgumentContext ctx) {
         if (ctx.expression() != null) {
             return visitExpression(ctx.expression());
+        } else if (ctx.lambda() != null) {
+            return visit(ctx.lambda());
         } else if (ctx.funcref() != null) {
             return visit(ctx.funcref());
         } else {
             throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        }
+    }
+
+    @Override
+    public Object visitLambda(LambdaContext ctx) {
+        reserved.push(new FunctionReserved());
+
+        List<String> paramTypes = new ArrayList<>();
+        List<String> paramNames = new ArrayList<>();
+        List<AStatement> statements = new ArrayList<>();
+
+        for (LamtypeContext lamtype : ctx.lamtype()) {
+            if (lamtype.decltype() == null) {
+                paramTypes.add(null);
+            } else {
+                paramTypes.add(lamtype.decltype().getText());
+            }
+
+            paramNames.add(lamtype.ID().getText());
+        }
+
+        for (StatementContext statement : ctx.block().statement()) {
+            statements.add((AStatement)visit(statement));
+        }
+
+        return new ELambda((FunctionReserved)reserved.pop(), location(ctx), paramTypes, paramNames, statements);
+    }
+
+    @Override
+    public Object visitLamtype(LamtypeContext ctx) {
+        throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+    }
+
+    @Override
+    public Object visitFuncref(FuncrefContext ctx) {
+        if (ctx.TYPE() != null) {
+            // non-capturing Type::method or Type::new
+            final String methodText;
+            if (ctx.NEW() != null) {
+                methodText = ctx.NEW().getText();
+            } else {
+                methodText = ctx.ID(0).getText();
+            }
+            return new EFunctionRef(location(ctx), ctx.TYPE().getText(), methodText);
+        } else {
+            // capturing object::method
+            return new ECapturingFunctionRef(location(ctx), ctx.ID(0).getText(), ctx.ID(1).getText());
         }
     }
 }

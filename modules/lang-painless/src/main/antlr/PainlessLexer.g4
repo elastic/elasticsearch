@@ -78,6 +78,7 @@ BOOLOR:  '||';
 COND:    '?';
 COLON:   ':';
 REF:     '::';
+ARROW:   '->';
 INCR:    '++';
 DECR:    '--';
 

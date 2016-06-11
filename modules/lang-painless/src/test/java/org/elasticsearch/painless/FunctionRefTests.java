@@ -119,6 +119,15 @@ public class FunctionRefTests extends ScriptTestCase {
                              "def l = new ArrayList(); l.add(2); l.add(1); l.sort(this::mycompare); return l.get(0);"));
     }
 
+    public void testInterfaceDefaultMethod() {
+        assertEquals("bar", exec("String f(BiFunction function) { function.apply('foo', 'bar') }" + 
+                                 "Map map = new HashMap(); f(map::getOrDefault)"));
+    }
+    
+    public void testInterfaceDefaultMethodDef() {
+        assertEquals("bar", exec("String f(BiFunction function) { function.apply('foo', 'bar') }" + 
+                                 "def map = new HashMap(); f(map::getOrDefault)"));
+    }
 
     public void testMethodMissing() {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {

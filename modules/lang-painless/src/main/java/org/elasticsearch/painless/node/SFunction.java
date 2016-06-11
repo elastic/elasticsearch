@@ -166,4 +166,8 @@ public class SFunction extends AStatement {
             }
         }
     }
+    
+    String getHandleStaticFieldName() {
+        return "handle$" + name + "$" + parameters.size();
+    }
 }

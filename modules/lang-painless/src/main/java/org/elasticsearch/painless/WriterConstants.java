@@ -46,6 +46,7 @@ public final class WriterConstants {
     public final static Type CLASS_TYPE        = Type.getObjectType(CLASS_NAME.replace('.', '/'));
 
     public final static Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", String.class, String.class, BitSet.class);
+    public final static Method CLINIT      = getAsmMethod(void.class, "<clinit>");
     public final static Method EXECUTE     =
         getAsmMethod(Object.class, "execute", Map.class, Scorer.class, LeafDocLookup.class, Object.class);
 

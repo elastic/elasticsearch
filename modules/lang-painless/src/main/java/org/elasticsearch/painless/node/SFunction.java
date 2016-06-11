@@ -32,6 +32,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
 
 import java.lang.invoke.MethodType;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -94,7 +95,7 @@ public class SFunction extends AStatement {
 
         org.objectweb.asm.commons.Method method =
             new org.objectweb.asm.commons.Method(name, MethodType.methodType(rtnType.clazz, paramClasses).toMethodDescriptorString());
-        this.method = new Method(name, null, rtnType, paramTypes, method, 0, null);
+        this.method = new Method(name, null, rtnType, paramTypes, method, Modifier.STATIC | Modifier.PRIVATE, null);
     }
 
     @Override

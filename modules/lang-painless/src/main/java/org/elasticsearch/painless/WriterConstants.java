@@ -71,7 +71,7 @@ public final class WriterConstants {
         MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, int.class, Object[].class);
     public final static Handle DEF_BOOTSTRAP_HANDLE =
         new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(DefBootstrap.class),
-            "bootstrap", DEF_BOOTSTRAP_TYPE.toMethodDescriptorString());
+            "bootstrap", DEF_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
 
     public final static Type DEF_UTIL_TYPE = Type.getType(Def.class);
     public final static Method DEF_TO_BOOLEAN         = getAsmMethod(boolean.class, "DefToboolean"       , Object.class);
@@ -114,7 +114,7 @@ public final class WriterConstants {
                                   MethodType.class, Object[].class);
     public final static Handle LAMBDA_BOOTSTRAP_HANDLE =
             new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(LambdaMetafactory.class),
-                "altMetafactory", LAMBDA_BOOTSTRAP_TYPE.toMethodDescriptorString());
+                "altMetafactory", LAMBDA_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
 
     /** dynamic invokedynamic bootstrap for indy string concats (Java 9+) */
     public final static Handle INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
@@ -126,7 +126,7 @@ public final class WriterConstants {
             final MethodType type = MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class);
             // ensure it is there:
             MethodHandles.publicLookup().findStatic(factory, methodName, type);
-            bs = new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(factory), methodName, type.toMethodDescriptorString());
+            bs = new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(factory), methodName, type.toMethodDescriptorString(), false);
         } catch (ReflectiveOperationException e) {
             // not Java 9 - we set it null, so MethodWriter uses StringBuilder:
             bs = null;

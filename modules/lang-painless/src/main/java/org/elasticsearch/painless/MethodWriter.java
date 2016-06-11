@@ -355,11 +355,11 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     @Override
-    public void visitEnd() {
+    public void endMethod() {
         if (stringConcatArgs != null && !stringConcatArgs.isEmpty()) {
             throw new IllegalStateException("String concat bytecode not completed.");
         }
-        super.visitEnd();
+        super.endMethod();
     }
 
 }

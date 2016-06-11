@@ -29,6 +29,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -318,7 +319,20 @@ public final class Def {
       */
      private static MethodHandle lookupReferenceInternal(Lookup lookup, Definition.Type clazz, String type,
                                                          String call, Class<?>... captures) throws LambdaConversionException {
-         FunctionRef ref = new FunctionRef(clazz, type, call, captures);
+         final FunctionRef ref;
+         if ("this".equals(type)) {
+             Method interfaceMethod = clazz.struct.getFunctionalMethod();
+             if (interfaceMethod == null) {
+                 throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
+                                                    "to [" + clazz.name + "], not a functional interface");
+             }
+             int arity = interfaceMethod.arguments.size();
+             // user written method
+             ref = null;
+         } else {
+             // whitelist lookup
+             ref = new FunctionRef(clazz, type, call, captures);
+         }
          final CallSite callSite;
          if (ref.needsBridges()) {
              callSite = LambdaMetafactory.altMetafactory(lookup, 

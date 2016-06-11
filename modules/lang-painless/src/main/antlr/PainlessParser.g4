@@ -196,5 +196,5 @@ lamtype
 
 funcref
     : TYPE REF ( ID | NEW )
-    | ID REF ID
+    | ( ID | THIS ) REF ID
     ;

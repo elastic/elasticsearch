@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import java.util.Comparator;
-
 public class FunctionRefTests extends ScriptTestCase {
 
     public void testStaticMethodReference() {
@@ -110,6 +108,20 @@ public class FunctionRefTests extends ScriptTestCase {
                 "def test = new org.elasticsearch.painless.FeatureTest(2,3);" + 
                 "return test.twoFunctionsOfX(x::concat, y::substring);"));
     }
+    
+    public void testOwnStaticMethodReference() {
+        //System.out.println(Debugger.toString("int mycompare(int i, int j) { return j - i; } " +
+        //                     "List l = new ArrayList(); l.add(2); l.add(1); l.sort(this::mycompare); return l.get(0);"));
+        assertEquals(2, exec("int mycompare(int i, int j) { return j - i; } " +
+                             "List l = new ArrayList(); l.add(2); l.add(1); l.sort(this::mycompare); return l.get(0);"));
+    }
+    
+    @AwaitsFix(bugUrl = "working on it")
+    public void testOwnStaticMethodReferenceDef() {
+        assertEquals(2, exec("int mycompare(int i, int j) { return j - i; } " +
+                             "def l = new ArrayList(); l.add(2); l.add(1); l.sort(this::mycompare); return l.get(0);"));
+    }
+
 
     public void testMethodMissing() {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {

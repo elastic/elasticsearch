@@ -27,6 +27,7 @@ import java.io.InputStreamReader;
 import java.io.LineNumberReader;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -197,6 +198,41 @@ public final class Definition {
             this.method = method;
             this.modifiers = modifiers;
             this.handle = handle;
+        }
+        
+        public MethodType getMethodType() {
+            // we have a methodhandle already (e.g. whitelisted class)
+            // just return its type
+            if (handle != null) {
+                return handle.type();
+            }
+            // otherwise compute it
+            final Class<?> params[];
+            final Class<?> returnValue;
+            if (Modifier.isStatic(modifiers)) {
+                // static method: straightforward copy
+                params = new Class<?>[arguments.size()];
+                for (int i = 0; i < arguments.size(); i++) {
+                    params[i] = arguments.get(i).clazz;
+                }
+                returnValue = rtn.clazz;
+            } else if ("<init>".equals(name)) {
+                // constructor: returns the owner class
+                params = new Class<?>[arguments.size()];
+                for (int i = 0; i < arguments.size(); i++) {
+                    params[i] = arguments.get(i).clazz;
+                }
+                returnValue = owner.clazz;
+            } else {
+                // virtual/interface method: add receiver class
+                params = new Class<?>[1 + arguments.size()];
+                params[0] = owner.clazz;
+                for (int i = 0; i < arguments.size(); i++) {
+                    params[i + 1] = arguments.get(i).clazz;
+                }
+                returnValue = rtn.clazz;
+            }
+            return MethodType.methodType(returnValue, params);
         }
     }
 

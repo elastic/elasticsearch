@@ -177,7 +177,9 @@ public final class SSource extends AStatement {
                                            function.method.method.getDescriptor(), 
                                            false);
                 clinit.push(handle);
-                clinit.putStatic(CLASS_TYPE, "handle$" + function.name + "$" + function.parameters.size(), Type.getType(MethodHandle.class));
+                clinit.putStatic(CLASS_TYPE, 
+                                 "handle$" + function.name + "$" + function.parameters.size(), 
+                                 Type.getType(MethodHandle.class));
             }
             clinit.returnValue();
             clinit.endMethod();

@@ -398,13 +398,19 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
             return;
         }
         try {
-            final List<UpdateTask<T>> updateTasks =
-                tasks.entrySet().stream().map(
-                    entry -> new UpdateTask<>(source, entry.getKey(), config, executor, safe(entry.getValue(), logger))
-                ).collect(Collectors.toList());
+            final List<UpdateTask<T>> updateTasks = tasks.entrySet().stream().map(
+                entry -> new UpdateTask<>(source, entry.getKey(), config, executor, safe(entry.getValue(), logger))
+            ).collect(Collectors.toList());
 
             synchronized (updateTasksPerExecutor) {
-                updateTasksPerExecutor.computeIfAbsent(executor, k -> new ArrayList<>()).addAll(updateTasks);
+                List<UpdateTask> existingTasks = updateTasksPerExecutor.computeIfAbsent(executor, k -> new ArrayList<>());
+                for (UpdateTask existing : existingTasks) {
+                    //noinspection SuspiciousMethodCalls
+                    if (tasks.containsKey(existing.task)) {
+                        throw new IllegalArgumentException("task [" + existing.task + "] is already queued");
+                    }
+                }
+                existingTasks.addAll(updateTasks);
             }
 
             final UpdateTask<T> firstTask = updateTasks.get(0);

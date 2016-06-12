@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
@@ -592,9 +593,6 @@ public class ClusterServiceTests extends ESTestCase {
      * Note, this test can only work as long as we have a single thread executor executing the state update tasks!
      */
     public void testPrioritizedTasks() throws Exception {
-        Settings settings = Settings.builder()
-            .put("discovery.type", "local")
-            .build();
         BlockingTask block = new BlockingTask(Priority.IMMEDIATE);
         clusterService.submitStateUpdateTask("test", block);
         int taskCount = randomIntBetween(5, 20);
@@ -608,7 +606,7 @@ public class ClusterServiceTests extends ESTestCase {
             clusterService.submitStateUpdateTask("test", new PrioritizedTask(priority, latch, tasks));
         }
 
-        block.release();
+        block.close();
         latch.await();
 
         Priority prevPriority = null;
@@ -618,6 +616,23 @@ public class ClusterServiceTests extends ESTestCase {
             } else {
                 assertThat(task.priority().sameOrAfter(prevPriority), is(true));
             }
+        }
+    }
+
+    public void testDuplicateSubmission() {
+        try (BlockingTask blockingTask = new BlockingTask(Priority.IMMEDIATE)) {
+            clusterService.submitStateUpdateTask("blocking", blockingTask);
+
+            ClusterStateTaskExecutor<Object> executor = (currentState, tasks) ->
+                ClusterStateTaskExecutor.BatchResult.builder().successes(tasks).build(currentState);
+
+            Object task = new Object();
+            ClusterStateTaskListener listener = (source, t) -> fail(ExceptionsHelper.detailedMessage(t));
+
+            clusterService.submitStateUpdateTask("first time", task, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
+
+            expectThrows(IllegalArgumentException.class, () -> clusterService.submitStateUpdateTask("second time", task,
+                ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener));
         }
     }
 
@@ -826,7 +841,7 @@ public class ClusterServiceTests extends ESTestCase {
         mockAppender.assertAllExpectationsMatched();
     }
 
-    private static class BlockingTask extends ClusterStateUpdateTask {
+    private static class BlockingTask extends ClusterStateUpdateTask implements Releasable {
         private final CountDownLatch latch = new CountDownLatch(1);
 
         public BlockingTask(Priority priority) {
@@ -843,7 +858,7 @@ public class ClusterServiceTests extends ESTestCase {
         public void onFailure(String source, Throwable t) {
         }
 
-        public void release() {
+        public void close() {
             latch.countDown();
         }
 

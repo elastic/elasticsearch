@@ -94,7 +94,8 @@ public interface ClusterStateTaskExecutor<T> {
             }
 
             private Builder<T> result(T task, TaskResult executionResult) {
-                executionResults.put(task, executionResult);
+                TaskResult existing = executionResults.put(task, executionResult);
+                assert existing == null : task + " already has result " + existing;
                 return this;
             }
 

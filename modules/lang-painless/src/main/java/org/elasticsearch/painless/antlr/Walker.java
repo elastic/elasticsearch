@@ -45,10 +45,13 @@ import org.elasticsearch.painless.antlr.PainlessParser.BraceaccessContext;
 import org.elasticsearch.painless.antlr.PainlessParser.BreakContext;
 import org.elasticsearch.painless.antlr.PainlessParser.CallinvokeContext;
 import org.elasticsearch.painless.antlr.PainlessParser.CalllocalContext;
+import org.elasticsearch.painless.antlr.PainlessParser.CapturingFuncrefContext;
 import org.elasticsearch.painless.antlr.PainlessParser.CastContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ChainprecContext;
+import org.elasticsearch.painless.antlr.PainlessParser.ClassFuncrefContext;
 import org.elasticsearch.painless.antlr.PainlessParser.CompContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ConditionalContext;
+import org.elasticsearch.painless.antlr.PainlessParser.ConstructorFuncrefContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ContinueContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DeclContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DeclarationContext;
@@ -71,6 +74,7 @@ import org.elasticsearch.painless.antlr.PainlessParser.IfContext;
 import org.elasticsearch.painless.antlr.PainlessParser.InitializerContext;
 import org.elasticsearch.painless.antlr.PainlessParser.LambdaContext;
 import org.elasticsearch.painless.antlr.PainlessParser.LamtypeContext;
+import org.elasticsearch.painless.antlr.PainlessParser.LocalFuncrefContext;
 import org.elasticsearch.painless.antlr.PainlessParser.NewarrayContext;
 import org.elasticsearch.painless.antlr.PainlessParser.NewobjectContext;
 import org.elasticsearch.painless.antlr.PainlessParser.NullContext;
@@ -950,20 +954,36 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
     @Override
     public Object visitFuncref(FuncrefContext ctx) {
-        if (ctx.TYPE() != null) {
-            // non-capturing Type::method or Type::new
-            final String methodText;
-            if (ctx.NEW() != null) {
-                methodText = ctx.NEW().getText();
-            } else {
-                methodText = ctx.ID(0).getText();
-            }
-            return new EFunctionRef(location(ctx), ctx.TYPE().getText(), methodText);
-        } else if (ctx.THIS() != null) {
-            return new EFunctionRef(location(ctx), ctx.THIS().getText(), ctx.ID(0).getText());
+        if (ctx.classFuncref() != null) {
+            return visit(ctx.classFuncref());
+        } else if (ctx.constructorFuncref() != null) {
+            return visit(ctx.constructorFuncref());
+        } else if (ctx.capturingFuncref() != null) {
+            return visit(ctx.capturingFuncref());
+        } else if (ctx.localFuncref() != null) {
+            return visit(ctx.localFuncref());
         } else {
-            // capturing object::method
-            return new ECapturingFunctionRef(location(ctx), ctx.ID(0).getText(), ctx.ID(1).getText());
+            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
         }
+    }
+
+    @Override
+    public Object visitClassFuncref(ClassFuncrefContext ctx) {
+        return new EFunctionRef(location(ctx), ctx.TYPE().getText(), ctx.ID().getText());
+    }
+
+    @Override
+    public Object visitConstructorFuncref(ConstructorFuncrefContext ctx) {
+        return new EFunctionRef(location(ctx), ctx.TYPE().getText(), ctx.NEW().getText());
+    }
+
+    @Override
+    public Object visitCapturingFuncref(CapturingFuncrefContext ctx) {
+        return new ECapturingFunctionRef(location(ctx), ctx.ID(0).getText(), ctx.ID(1).getText());
+    }
+
+    @Override
+    public Object visitLocalFuncref(LocalFuncrefContext ctx) {
+        return new EFunctionRef(location(ctx), ctx.THIS().getText(), ctx.ID().getText());
     }
 }

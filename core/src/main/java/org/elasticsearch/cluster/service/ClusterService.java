@@ -68,6 +68,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -398,7 +399,9 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
             return;
         }
         try {
-            final List<UpdateTask<T>> updateTasks = tasks.entrySet().stream().map(
+            // convert to an identity map to check for dups based on update tasks semantics of using identity instead of equal
+            final IdentityHashMap<T, ClusterStateTaskListener> tasksIdentity = new IdentityHashMap<>(tasks);
+            final List<UpdateTask<T>> updateTasks = tasksIdentity.entrySet().stream().map(
                 entry -> new UpdateTask<>(source, entry.getKey(), config, executor, safe(entry.getValue(), logger))
             ).collect(Collectors.toList());
 
@@ -406,7 +409,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
                 List<UpdateTask> existingTasks = updateTasksPerExecutor.computeIfAbsent(executor, k -> new ArrayList<>());
                 for (UpdateTask existing : existingTasks) {
                     //noinspection SuspiciousMethodCalls
-                    if (tasks.get(existing.task) == existing.task) { // we require object level identity
+                    if (tasksIdentity.containsKey(existing.task)) {
                         throw new IllegalArgumentException("task [" + existing.task + "] is already queued");
                     }
                 }

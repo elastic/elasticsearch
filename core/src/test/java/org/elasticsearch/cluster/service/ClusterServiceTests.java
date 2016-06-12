@@ -623,16 +623,19 @@ public class ClusterServiceTests extends ESTestCase {
         try (BlockingTask blockingTask = new BlockingTask(Priority.IMMEDIATE)) {
             clusterService.submitStateUpdateTask("blocking", blockingTask);
 
-            ClusterStateTaskExecutor<Object> executor = (currentState, tasks) ->
-                ClusterStateTaskExecutor.BatchResult.builder().successes(tasks).build(currentState);
+            ClusterStateTaskExecutor<SimpleTask> executor = (currentState, tasks) ->
+                ClusterStateTaskExecutor.BatchResult.<SimpleTask>builder().successes(tasks).build(currentState);
 
-            Object task = new Object();
+            SimpleTask task = new SimpleTask(1);
             ClusterStateTaskListener listener = (source, t) -> fail(ExceptionsHelper.detailedMessage(t));
 
             clusterService.submitStateUpdateTask("first time", task, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
 
             expectThrows(IllegalArgumentException.class, () -> clusterService.submitStateUpdateTask("second time", task,
                 ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener));
+
+            clusterService.submitStateUpdateTask("third time a charm", new SimpleTask(1),
+                ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
         }
     }
 
@@ -839,6 +842,24 @@ public class ClusterServiceTests extends ESTestCase {
             rootLogger.removeAppender(mockAppender);
         }
         mockAppender.assertAllExpectationsMatched();
+    }
+
+    private static class SimpleTask {
+        private final int id;
+
+        private SimpleTask(int id) {
+            this.id = id;
+        }
+
+        @Override
+        public int hashCode() {
+            return super.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return super.equals(obj);
+        }
     }
 
     private static class BlockingTask extends ClusterStateUpdateTask implements Releasable {

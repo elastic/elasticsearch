@@ -449,6 +449,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
     }
 
+    @Override
     public Object visitDeclvar(DeclvarContext ctx) {
         throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
     }
@@ -958,6 +959,8 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
                 methodText = ctx.ID(0).getText();
             }
             return new EFunctionRef(location(ctx), ctx.TYPE().getText(), methodText);
+        } else if (ctx.THIS() != null) {
+            return new EFunctionRef(location(ctx), ctx.THIS().getText(), ctx.ID(0).getText());
         } else {
             // capturing object::method
             return new ECapturingFunctionRef(location(ctx), ctx.ID(0).getText(), ctx.ID(1).getText());

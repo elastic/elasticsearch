@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
@@ -29,10 +30,13 @@ import org.elasticsearch.painless.Locals.FunctionReserved;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 
 import java.lang.invoke.MethodType;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
 
@@ -94,7 +98,7 @@ public class SFunction extends AStatement {
 
         org.objectweb.asm.commons.Method method =
             new org.objectweb.asm.commons.Method(name, MethodType.methodType(rtnType.clazz, paramClasses).toMethodDescriptorString());
-        this.method = new Method(name, null, rtnType, paramTypes, method, 0, null);
+        this.method = new Method(name, null, rtnType, paramTypes, method, Modifier.STATIC | Modifier.PRIVATE, null);
     }
 
     @Override
@@ -131,11 +135,16 @@ public class SFunction extends AStatement {
 
         locals.decrementScope();
     }
+    
+    /** Writes the function to given ClassWriter. */
+    void write (ClassWriter writer, BitSet statements) {
+        final MethodWriter function = new MethodWriter(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC, method.method, writer, statements);
+        write(function);
+        function.endMethod();
+    }
 
     @Override
-    void write(MethodWriter writer) {
-        MethodWriter function = writer.newMethodWriter(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC, method.method);
-
+    void write(MethodWriter function) {
         if (reserved.getMaxLoopCounter() > 0) {
             // if there is infinite loop protection, we do this once:
             // int #loop = settings.getMaxLoopCounter()
@@ -157,7 +166,9 @@ public class SFunction extends AStatement {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
-
-        function.endMethod();
+    }
+    
+    String getStaticHandleFieldName() {
+        return Def.getUserFunctionHandleFieldName(name, parameters.size());
     }
 }

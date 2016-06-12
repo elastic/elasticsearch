@@ -33,8 +33,6 @@ public class ELambda extends AExpression {
     final List<String> paramNameStrs;
     final List<AStatement> statements;
 
-    Locals locals = null;
-
     public ELambda(FunctionReserved reserved, Location location,
                    List<String> paramTypes, List<String> paramNames, List<AStatement> statements) {
         super(location);

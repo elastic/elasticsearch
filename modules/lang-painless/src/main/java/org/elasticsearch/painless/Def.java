@@ -23,7 +23,6 @@ import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.RuntimeClass;
 
 import java.lang.invoke.CallSite;
-import java.lang.invoke.LambdaConversionException;
 import java.lang.invoke.LambdaMetafactory;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -219,11 +218,11 @@ public final class Def {
      * @param args args passed to callsite
      * @param recipe bitset marking functional parameters
      * @return pointer to matching method to invoke. never returns null.
-     * @throws LambdaConversionException if a method reference cannot be converted to an functional interface
      * @throws IllegalArgumentException if no matching whitelisted method was found.
+     * @throws Throwable if a method reference cannot be converted to an functional interface
      */
      static MethodHandle lookupMethod(Lookup lookup, MethodType callSiteType, 
-             Class<?> receiverClass, String name, Object args[], long recipe) throws LambdaConversionException {
+             Class<?> receiverClass, String name, Object args[], long recipe) throws Throwable {
          // simple case: no lambdas
          if (recipe == 0) {
              return lookupMethodInternal(receiverClass, name, args.length - 1).handle;
@@ -302,7 +301,7 @@ public final class Def {
       * so we simply need to lookup the matching implementation method based on receiver type.
       */
      static MethodHandle lookupReference(Lookup lookup, String interfaceClass, 
-                                         Class<?> receiverClass, String name) throws LambdaConversionException {
+                                         Class<?> receiverClass, String name) throws Throwable {
          Definition.Type interfaceType = Definition.getType(interfaceClass);
          Method interfaceMethod = interfaceType.struct.getFunctionalMethod();
          if (interfaceMethod == null) {
@@ -313,12 +312,32 @@ public final class Def {
          return lookupReferenceInternal(lookup, interfaceType, implMethod.owner.name, implMethod.name, receiverClass);
      }
      
-     /** Returns a method handle to an implementation of clazz, given method reference signature 
-      * @throws LambdaConversionException if a method reference cannot be converted to an functional interface
-      */
+     /** Returns a method handle to an implementation of clazz, given method reference signature. */
      private static MethodHandle lookupReferenceInternal(Lookup lookup, Definition.Type clazz, String type,
-                                                         String call, Class<?>... captures) throws LambdaConversionException {
-         FunctionRef ref = new FunctionRef(clazz, type, call, captures);
+                                                         String call, Class<?>... captures) throws Throwable {
+         final FunctionRef ref;
+         if ("this".equals(type)) {
+             // user written method
+             Method interfaceMethod = clazz.struct.getFunctionalMethod();
+             if (interfaceMethod == null) {
+                 throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
+                                                    "to [" + clazz.name + "], not a functional interface");
+             }
+             int arity = interfaceMethod.arguments.size() + captures.length;
+             final MethodHandle handle;
+             try {
+                 MethodHandle accessor = lookup.findStaticGetter(lookup.lookupClass(), 
+                                                                 getUserFunctionHandleFieldName(call, arity), 
+                                                                 MethodHandle.class);
+                 handle = (MethodHandle) accessor.invokeExact();
+             } catch (NoSuchFieldException | IllegalAccessException e) {
+                 throw new IllegalArgumentException("Unknown call [" + call + "] with [" + arity + "] arguments.");
+             }
+             ref = new FunctionRef(clazz, interfaceMethod, handle, captures);
+         } else {
+             // whitelist lookup
+             ref = new FunctionRef(clazz, type, call, captures);
+         }
          final CallSite callSite;
          if (ref.needsBridges()) {
              callSite = LambdaMetafactory.altMetafactory(lookup, 
@@ -342,6 +361,10 @@ public final class Def {
          return callSite.dynamicInvoker().asType(MethodType.methodType(clazz.clazz, captures));
      }
      
+     /** gets the field name used to lookup up the MethodHandle for a function. */
+     public static String getUserFunctionHandleFieldName(String name, int arity) {
+         return "handle$" + name + "$" + arity;
+     }
 
     /**
      * Looks up handle for a dynamic field getter (field load)

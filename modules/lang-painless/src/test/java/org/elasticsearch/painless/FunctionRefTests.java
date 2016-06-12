@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import java.util.Comparator;
-
 public class FunctionRefTests extends ScriptTestCase {
 
     public void testStaticMethodReference() {
@@ -109,6 +107,26 @@ public class FunctionRefTests extends ScriptTestCase {
                 "def y = 'abcdefg';" + 
                 "def test = new org.elasticsearch.painless.FeatureTest(2,3);" + 
                 "return test.twoFunctionsOfX(x::concat, y::substring);"));
+    }
+    
+    public void testOwnStaticMethodReference() {
+        assertEquals(2, exec("int mycompare(int i, int j) { j - i } " +
+                             "List l = new ArrayList(); l.add(2); l.add(1); l.sort(this::mycompare); return l.get(0);"));
+    }
+    
+    public void testOwnStaticMethodReferenceDef() {
+        assertEquals(2, exec("int mycompare(int i, int j) { j - i } " +
+                             "def l = new ArrayList(); l.add(2); l.add(1); l.sort(this::mycompare); return l.get(0);"));
+    }
+
+    public void testInterfaceDefaultMethod() {
+        assertEquals("bar", exec("String f(BiFunction function) { function.apply('foo', 'bar') }" + 
+                                 "Map map = new HashMap(); f(map::getOrDefault)"));
+    }
+    
+    public void testInterfaceDefaultMethodDef() {
+        assertEquals("bar", exec("String f(BiFunction function) { function.apply('foo', 'bar') }" + 
+                                 "def map = new HashMap(); f(map::getOrDefault)"));
     }
 
     public void testMethodMissing() {

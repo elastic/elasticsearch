@@ -209,7 +209,7 @@ classFuncref
 // reference to a constructor, e.g. ArrayList::new
 // currently limited to simple non-array types
 constructorFuncref
-    : TYPE REF NEW
+    : decltype REF NEW
     ;
 
 // reference to an instance method, e.g. object::toString

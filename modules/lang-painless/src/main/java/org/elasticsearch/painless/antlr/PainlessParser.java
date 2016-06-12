@@ -2969,7 +2969,9 @@ class PainlessParser extends Parser {
   }
 
   public static class ConstructorFuncrefContext extends ParserRuleContext {
-    public TerminalNode TYPE() { return getToken(PainlessParser.TYPE, 0); }
+    public DecltypeContext decltype() {
+      return getRuleContext(DecltypeContext.class,0);
+    }
     public TerminalNode REF() { return getToken(PainlessParser.REF, 0); }
     public TerminalNode NEW() { return getToken(PainlessParser.NEW, 0); }
     public ConstructorFuncrefContext(ParserRuleContext parent, int invokingState) {
@@ -2990,7 +2992,7 @@ class PainlessParser extends Parser {
       enterOuterAlt(_localctx, 1);
       {
       setState(460);
-      match(TYPE);
+      decltype();
       setState(461);
       match(REF);
       setState(462);
@@ -3350,7 +3352,7 @@ class PainlessParser extends Parser {
     "\u01c4\u01c9\5\66\34\2\u01c5\u01c9\58\35\2\u01c6\u01c9\5:\36\2\u01c7\u01c9"+
     "\5<\37\2\u01c8\u01c4\3\2\2\2\u01c8\u01c5\3\2\2\2\u01c8\u01c6\3\2\2\2\u01c8"+
     "\u01c7\3\2\2\2\u01c9\65\3\2\2\2\u01ca\u01cb\7L\2\2\u01cb\u01cc\7\64\2"+
-    "\2\u01cc\u01cd\7M\2\2\u01cd\67\3\2\2\2\u01ce\u01cf\7L\2\2\u01cf\u01d0"+
+    "\2\u01cc\u01cd\7M\2\2\u01cd\67\3\2\2\2\u01ce\u01cf\5\26\f\2\u01cf\u01d0"+
     "\7\64\2\2\u01d0\u01d1\7\26\2\2\u01d19\3\2\2\2\u01d2\u01d3\7M\2\2\u01d3"+
     "\u01d4\7\64\2\2\u01d4\u01d5\7M\2\2\u01d5;\3\2\2\2\u01d6\u01d7\7\32\2\2"+
     "\u01d7\u01d8\7\64\2\2\u01d8\u01d9\7M\2\2\u01d9=\3\2\2\2*AGZ]iq~\u0082"+

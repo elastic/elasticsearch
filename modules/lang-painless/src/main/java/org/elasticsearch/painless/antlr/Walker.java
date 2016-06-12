@@ -148,6 +148,7 @@ import org.elasticsearch.painless.node.SWhile;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
 
@@ -166,6 +167,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
     private final String sourceText;
 
     private final Deque<Reserved> reserved = new ArrayDeque<>();
+    private final List<SFunction> synthetic = new ArrayList<>();
 
     private Walker(String sourceName, String sourceText, CompilerSettings settings) {
         this.settings = settings;
@@ -229,6 +231,8 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         for (StatementContext statement : ctx.statement()) {
             statements.add((AStatement)visit(statement));
         }
+        
+        functions.addAll(synthetic);
 
         return new SSource(sourceName, sourceText, (ExecuteReserved)reserved.pop(), location(ctx), functions, statements);
     }
@@ -255,7 +259,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SFunction((FunctionReserved)reserved.pop(), location(ctx), rtnType, name, paramTypes, paramNames, statements);
+        return new SFunction((FunctionReserved)reserved.pop(), location(ctx), rtnType, name, paramTypes, paramNames, statements, false);
     }
 
     @Override
@@ -974,7 +978,22 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
     @Override
     public Object visitConstructorFuncref(ConstructorFuncrefContext ctx) {
-        return new EFunctionRef(location(ctx), ctx.TYPE().getText(), ctx.NEW().getText());
+        if (!ctx.decltype().LBRACE().isEmpty()) {
+            // array constructors are special: we need to make a synthetic method
+            // taking integer as argument and returning a new instance, and return a ref to that.
+            Location location = location(ctx);
+            String arrayType = ctx.decltype().getText();
+            SReturn code = new SReturn(location, 
+                           new EChain(location,
+                           new LNewArray(location, arrayType, Arrays.asList(
+                           new EChain(location, 
+                           new LVariable(location, "size"))))));
+            String name = "lambda$" + synthetic.size();
+            synthetic.add(new SFunction(new FunctionReserved(), location, arrayType, name, 
+                          Arrays.asList("int"), Arrays.asList("size"), Arrays.asList(code), true));
+            return new EFunctionRef(location(ctx), "this", name);
+        }
+        return new EFunctionRef(location(ctx), ctx.decltype().getText(), ctx.NEW().getText());
     }
 
     @Override

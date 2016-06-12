@@ -126,10 +126,7 @@ public class NodeJoinController extends AbstractComponent {
 
             }
             if (logger.isTraceEnabled()) {
-                final int pendingNodes;
-                synchronized (this) {
-                    pendingNodes = myElectionContext.getPendingMasterJoinsCount();
-                }
+                final int pendingNodes = myElectionContext.getPendingMasterJoinsCount();
                 logger.trace("timed out waiting to be elected. waited [{}]. pending master node joins [{}]", timeValue, pendingNodes);
             }
             failContext(myElectionContext, "timed out waiting to be elected");
@@ -260,7 +257,6 @@ public class NodeJoinController extends AbstractComponent {
         }
 
         public synchronized int getPendingMasterJoinsCount() {
-            ensureOpen();
             int pendingMasterJoins = 0;
             for (DiscoveryNode node : joinRequestAccumulator.keySet()) {
                 if (node.isMasterNode()) {

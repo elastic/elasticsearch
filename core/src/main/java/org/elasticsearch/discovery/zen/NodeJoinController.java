@@ -18,14 +18,13 @@
  */
 package org.elasticsearch.discovery.zen;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -66,7 +65,6 @@ public class NodeJoinController extends AbstractComponent {
 
     // this is set while trying to become a master mutation should be done under lock
     ElectionContext electionContext = null;
-
 
 
     public NodeJoinController(ClusterService clusterService, RoutingService routingService, ElectMasterService electMaster, DiscoverySettings discoverySettings, Settings settings) {
@@ -111,7 +109,7 @@ public class NodeJoinController extends AbstractComponent {
         final ElectionContext myElectionContext;
         synchronized (this) {
             assert electionContext != null : "waitToBeElectedAsMaster is called we are not accumulating joins";
-            electionContext.attemptToBeElected(requiredMasterJoins, wrapperCallback);
+            electionContext.onAttemptToBeElected(requiredMasterJoins, wrapperCallback);
             myElectionContext = electionContext;
         }
 
@@ -134,44 +132,22 @@ public class NodeJoinController extends AbstractComponent {
                 }
                 logger.trace("timed out waiting to be elected. waited [{}]. pending master node joins [{}]", timeValue, pendingNodes);
             }
-            // callback will clear the context, if it's active
-            failContext(myElectionContext, new ElasticsearchTimeoutException("timed out waiting to be elected"));
+            failContext(myElectionContext, "timed out waiting to be elected");
         } catch (Throwable t) {
             logger.error("unexpected failure while waiting for incoming joins", t);
-            failContext(myElectionContext, "unexpected failure while waiting for pending joins", t);
+            failContext(myElectionContext, "unexpected failure while waiting for pending joins [" + t.getMessage() + "]");
         }
     }
 
-    private void failContext(final ElectionContext context, final Throwable throwable) {
-        failContext(context, throwable.getMessage(), throwable);
-    }
-
-    /** utility method to fail the given election context under the cluster state thread */
-    private synchronized void failContext(final ElectionContext context, final String reason, final Throwable throwable) {
+    /**
+     * utility method to fail the given election context under the cluster state thread
+     */
+    private synchronized void failContext(final ElectionContext context, final String reason) {
         if (electionContext == context) {
             // remove the context if still active
             electionContext = null;
         }
-        clusterService.submitStateUpdateTask("zen-disco-join(failure [" + reason + "])", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
-
-            @Override
-            public boolean runOnlyOnMaster() {
-                return false;
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                context.onFailure(throwable);
-                return currentState;
-            }
-
-            @Override
-            public void onFailure(String source, Throwable updateFailure) {
-                logger.warn("unexpected error while trying to fail election context due to [{}]. original exception [{}]", updateFailure, reason, throwable);
-                context.onFailure(updateFailure);
-            }
-        });
-
+        context.closeAndProcessPending(reason);
     }
 
     /**
@@ -181,7 +157,7 @@ public class NodeJoinController extends AbstractComponent {
     public synchronized void startElectionContext() {
         logger.trace("starting an election context, will accumulate joins");
         assert electionContext == null : "double startElectionContext() calls";
-        electionContext = new ElectionContext(logger);
+        electionContext = new ElectionContext();
     }
 
     /**
@@ -191,9 +167,7 @@ public class NodeJoinController extends AbstractComponent {
         logger.trace("stopping election ([{}])", reason);
         synchronized (this) {
             assert electionContext != null : "stopElectionContext() called but not accumulating";
-            assert electionContext.getCallback() == null : "stopElectionContext is called, but we are also actively";
-            clusterService.submitStateUpdateTasks("election stop [" + reason + "]",
-                electionContext.getPendingAsTasks(), ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
+            electionContext.closeAndProcessPending(reason);
             electionContext = null;
         }
     }
@@ -227,26 +201,8 @@ public class NodeJoinController extends AbstractComponent {
                     electionContext.requiredMasterJoins);
             }
         } else {
-            final String source = "zen-disco-join(elected_as_master, [" + pendingMasterJoins + "] joins received)";
-            ElectionContext context = electionContext;
+            electionContext.closeAndBecomeMaster();
             electionContext = null; // clear this out so future joins won't be accumulated
-            Map<DiscoveryNode, ClusterStateTaskListener> tasks = context.getPendingAsTasks();
-            tasks.put(BECOME_MASTER_TASK, new ClusterStateTaskListener() {
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    assert newState.nodes().isLocalNodeElectedMaster() : "should have become a master but isn't " + newState.prettyPrint();
-                    context.onElectedAsMaster(newState);
-                }
-
-                @Override
-                public void onFailure(String source, Throwable t) {
-                    context.onFailure(t);
-                }
-            });
-            clusterService.submitStateUpdateTasks(source,
-                tasks, ClusterStateTaskConfig.build(Priority.URGENT),
-                joinTaskExecutor);
         }
     }
 
@@ -264,23 +220,15 @@ public class NodeJoinController extends AbstractComponent {
         void onFailure(Throwable t);
     }
 
-    static class ElectionContext implements ElectionCallback {
+    class ElectionContext {
         private ElectionCallback callback = null;
         private int requiredMasterJoins = -1;
         private final Map<DiscoveryNode, List<MembershipAction.JoinCallback>> joinRequestAccumulator = new HashMap<>();
 
         final AtomicBoolean closed = new AtomicBoolean();
-        final private ESLogger logger;
 
-        ElectionContext(ESLogger logger) {
-            this.logger = logger;
-        }
-
-        protected void onClose() {
-
-        }
-
-        public synchronized void attemptToBeElected(int requiredMasterJoins, ElectionCallback callback) {
+        public synchronized void onAttemptToBeElected(int requiredMasterJoins, ElectionCallback callback) {
+            ensureOpen();
             assert this.requiredMasterJoins < 0;
             assert this.callback == null;
             this.requiredMasterJoins = requiredMasterJoins;
@@ -288,29 +236,31 @@ public class NodeJoinController extends AbstractComponent {
         }
 
         public synchronized void addIncomingJoin(DiscoveryNode node, MembershipAction.JoinCallback callback) {
+            ensureOpen();
             joinRequestAccumulator.computeIfAbsent(node, n -> new ArrayList<>()).add(callback);
         }
 
 
         public synchronized boolean isEnoughPendingJoins(int pendingMasterJoins) {
-            final boolean hasEngough;
+            final boolean hasEnough;
             if (requiredMasterJoins < 0) {
                 // requiredMasterNodes is unknown yet, return false and keep on waiting
-                hasEngough = false;
+                hasEnough = false;
             } else {
                 assert callback != null : "requiredMasterJoins is set but not the callback";
-                hasEngough = pendingMasterJoins >= requiredMasterJoins;
+                hasEnough = pendingMasterJoins >= requiredMasterJoins;
             }
-            return hasEngough;
+            return hasEnough;
         }
 
-        public synchronized Map<DiscoveryNode, ClusterStateTaskListener> getPendingAsTasks() {
+        private Map<DiscoveryNode, ClusterStateTaskListener> getPendingAsTasks() {
             Map<DiscoveryNode, ClusterStateTaskListener> tasks = new HashMap<>();
             joinRequestAccumulator.entrySet().stream().forEach(e -> tasks.put(e.getKey(), new JoinTaskListener(e.getValue(), logger)));
             return tasks;
         }
 
         public synchronized int getPendingMasterJoinsCount() {
+            ensureOpen();
             int pendingMasterJoins = 0;
             for (DiscoveryNode node : joinRequestAccumulator.keySet()) {
                 if (node.isMasterNode()) {
@@ -320,36 +270,76 @@ public class NodeJoinController extends AbstractComponent {
             return pendingMasterJoins;
         }
 
+        public synchronized void closeAndBecomeMaster() {
+            assert callback != null : "becoming a master but the callback is not yet set";
+            assert isEnoughPendingJoins(getPendingMasterJoinsCount()) : "becoming a master but pending joins of "
+                + getPendingMasterJoinsCount() + " are not enough. needs [" + requiredMasterJoins + "];";
+
+            innerClose();
+
+            Map<DiscoveryNode, ClusterStateTaskListener> tasks = getPendingAsTasks();
+            final String source = "zen-disco-join(elected_as_master, [" + tasks.size() + "] nodes joined)";
+
+            tasks.put(BECOME_MASTER_TASK, joinProcessedListener);
+            clusterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
+        }
+
+        public synchronized void closeAndProcessPending(String reason) {
+            innerClose();
+            Map<DiscoveryNode, ClusterStateTaskListener> tasks = getPendingAsTasks();
+            final String source = "zen-disco-join(election stopped [" + reason + "] nodes joined";
+
+            tasks.put(FINISH_ELECTION_NOT_MASTER_TASK, joinProcessedListener);
+            clusterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
+        }
+
+        private void innerClose() {
+            if (closed.getAndSet(true)) {
+                throw new AlreadyClosedException("election context is already closed");
+            }
+        }
+
+        private void ensureOpen() {
+            if (closed.get()) {
+                throw new AlreadyClosedException("election context is already closed");
+            }
+        }
+
         private synchronized ElectionCallback getCallback() {
             return callback;
         }
 
-        @Override
-        public void onElectedAsMaster(ClusterState state) {
+        private void onElectedAsMaster(ClusterState state) {
             ClusterService.assertClusterStateThread();
             assert state.nodes().isLocalNodeElectedMaster() : "onElectedAsMaster called but local node is not master";
-            if (closed.compareAndSet(false, true)) {
-                ElectionCallback callback = getCallback(); // get under lock
-                try {
-                    onClose();
-                } finally {
-                    callback.onElectedAsMaster(state);
-                }
+            ElectionCallback callback = getCallback(); // get under lock
+            if (callback != null) {
+                callback.onElectedAsMaster(state);
             }
         }
 
-        @Override
-        public void onFailure(Throwable t) {
+        private void onFailure(Throwable t) {
             ClusterService.assertClusterStateThread();
-            if (closed.compareAndSet(false, true)) {
-                ElectionCallback callback = getCallback(); // get under lock
-                try {
-                    onClose();
-                } finally {
-                    callback.onFailure(t);
-                }
+            ElectionCallback callback = getCallback(); // get under lock
+            if (callback != null) {
+                callback.onFailure(t);
             }
         }
+
+        private final ClusterStateTaskListener joinProcessedListener = new ClusterStateTaskListener() {
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                assert newState.nodes().isLocalNodeElectedMaster() : "should have become a master but isn't " + newState.prettyPrint();
+                onElectedAsMaster(newState);
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                ElectionContext.this.onFailure(t);
+            }
+        };
+
     }
 
     static class JoinTaskListener implements ClusterStateTaskListener {
@@ -391,6 +381,11 @@ public class NodeJoinController extends AbstractComponent {
     // a task indicated that the current node should become master, if no current master is known
     private final static DiscoveryNode BECOME_MASTER_TASK = new DiscoveryNode("_BECOME_MASTER_TASK_", DummyTransportAddress.INSTANCE,
         Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
+
+    // a task that is used to process pending joins without explicitly becoming a master and listening to the results
+    // this task is used when election is stop without the local node becoming a master per se (though it might
+    private final static DiscoveryNode FINISH_ELECTION_NOT_MASTER_TASK = new DiscoveryNode("_NOT_MASTER_TASK_",
+        DummyTransportAddress.INSTANCE, Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
 
     class JoinTaskExecutor implements ClusterStateTaskExecutor<DiscoveryNode> {
 
@@ -434,7 +429,7 @@ public class NodeJoinController extends AbstractComponent {
             }
 
             for (final DiscoveryNode node : joiningNodes) {
-                if (node.equals(BECOME_MASTER_TASK)) {
+                if (node.equals(BECOME_MASTER_TASK) || node.equals(FINISH_ELECTION_NOT_MASTER_TASK)) {
                     // noop
                 } else if (currentNodes.nodeExists(node.getId())) {
                     logger.debug("received a join request for an existing node [{}]", node);

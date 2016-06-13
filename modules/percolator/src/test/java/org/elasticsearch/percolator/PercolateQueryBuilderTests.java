@@ -249,7 +249,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     public void testCreateMultiDocumentSearcher() throws Exception {
-        int numDocs = randomIntBetween(1, 8);
+        int numDocs = randomIntBetween(2, 8);
         List<ParseContext.Document> docs = new ArrayList<>(numDocs);
         for (int i = 0; i < numDocs; i++) {
             docs.add(new ParseContext.Document());

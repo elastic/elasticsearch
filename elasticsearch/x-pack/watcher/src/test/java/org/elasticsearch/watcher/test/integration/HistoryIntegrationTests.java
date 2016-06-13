@@ -38,7 +38,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         SearchRequestBuilder searchRequestBuilder = client().prepareSearch("foo").addSort(SortBuilders.fieldSort("inner.date").order
                 (SortOrder.DESC));
-        builder.input(InputBuilders.chainInput().add("first", InputBuilders.searchInput(searchRequestBuilder)));
+        builder.input(InputBuilders.chainInput().add("first", InputBuilders.searchInput(searchRequestBuilder.request())));
 
         PutWatchResponse response = watcherClient().preparePutWatch("test_watch").setSource(builder).get();
         assertThat(response.isCreated(), is(true));

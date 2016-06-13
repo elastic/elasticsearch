@@ -17,9 +17,8 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.xpack.watcher.input.Input;
-import org.elasticsearch.xpack.watcher.support.SearchRequestEquivalence;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.xpack.watcher.support.WatcherUtils;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.joda.time.DateTimeZone;
 
@@ -38,14 +37,14 @@ public class SearchInput implements Input {
 
     public static final String TYPE = "search";
 
-    private final SearchRequest searchRequest;
+    private final WatcherSearchTemplateRequest request;
     private final @Nullable Set<String> extractKeys;
     private final @Nullable TimeValue timeout;
     private final @Nullable DateTimeZone dynamicNameTimeZone;
 
-    public SearchInput(SearchRequest searchRequest, @Nullable Set<String> extractKeys,
+    public SearchInput(WatcherSearchTemplateRequest request, @Nullable Set<String> extractKeys,
                        @Nullable TimeValue timeout, @Nullable DateTimeZone dynamicNameTimeZone) {
-        this.searchRequest = searchRequest;
+        this.request = request;
         this.extractKeys = extractKeys;
         this.timeout = timeout;
         this.dynamicNameTimeZone = dynamicNameTimeZone;
@@ -63,7 +62,7 @@ public class SearchInput implements Input {
 
         SearchInput that = (SearchInput) o;
 
-        if (!SearchRequestEquivalence.INSTANCE.equivalent(searchRequest, this.searchRequest)) return false;
+        if (request != null ? !request.equals(that.request) : that.request != null) return false;
         if (extractKeys != null ? !extractKeys.equals(that.extractKeys) : that.extractKeys != null) return false;
         if (timeout != null ? !timeout.equals(that.timeout) : that.timeout != null) return false;
         return !(dynamicNameTimeZone != null ? !dynamicNameTimeZone.equals(that.dynamicNameTimeZone) : that.dynamicNameTimeZone != null);
@@ -71,15 +70,15 @@ public class SearchInput implements Input {
 
     @Override
     public int hashCode() {
-        int result = searchRequest.hashCode();
+        int result = request != null ? request.hashCode() : 0;
         result = 31 * result + (extractKeys != null ? extractKeys.hashCode() : 0);
         result = 31 * result + (timeout != null ? timeout.hashCode() : 0);
         result = 31 * result + (dynamicNameTimeZone != null ? dynamicNameTimeZone.hashCode() : 0);
         return result;
     }
 
-    public SearchRequest getSearchRequest() {
-        return searchRequest;
+    public WatcherSearchTemplateRequest getRequest() {
+        return request;
     }
 
     public Set<String> getExtractKeys() {
@@ -97,8 +96,9 @@ public class SearchInput implements Input {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Field.REQUEST.getPreferredName());
-        builder = WatcherUtils.writeSearchRequest(searchRequest, builder, params);
+        if (request != null) {
+            builder.field(Field.REQUEST.getPreferredName(), request);
+        }
         if (extractKeys != null) {
             builder.field(Field.EXTRACT.getPreferredName(), extractKeys);
         }
@@ -115,7 +115,7 @@ public class SearchInput implements Input {
     public static SearchInput parse(String watchId, XContentParser parser, QueryParseContext context,
                                     AggregatorParsers aggParsers, Suggesters suggesters)
             throws IOException {
-        SearchRequest request = null;
+        WatcherSearchTemplateRequest request = null;
         Set<String> extract = null;
         TimeValue timeout = null;
         DateTimeZone dynamicNameTimeZone = null;
@@ -127,7 +127,7 @@ public class SearchInput implements Input {
                 currentFieldName = parser.currentName();
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.REQUEST)) {
                 try {
-                    request = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE, context,
+                    request = WatcherSearchTemplateRequest.fromXContent(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE, context,
                                                              aggParsers, suggesters);
                 } catch (ElasticsearchParseException srpe) {
                     throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. failed to parse [{}]", srpe, TYPE,
@@ -170,7 +170,7 @@ public class SearchInput implements Input {
         return new SearchInput(request, extract, timeout, dynamicNameTimeZone);
     }
 
-    public static Builder builder(SearchRequest request) {
+    public static Builder builder(WatcherSearchTemplateRequest request) {
         return new Builder(request);
     }
 
@@ -198,20 +198,19 @@ public class SearchInput implements Input {
                 return builder;
             }
             builder.startObject(type);
-            builder.field(Field.REQUEST.getPreferredName());
-            WatcherUtils.writeSearchRequest(request, builder, params);
+            builder.field(Field.REQUEST.getPreferredName(), new WatcherSearchTemplateRequest(request));
             return builder.endObject();
         }
     }
 
     public static class Builder implements Input.Builder<SearchInput> {
 
-        private final SearchRequest request;
+        private final WatcherSearchTemplateRequest request;
         private final Set<String> extractKeys = new HashSet<>();
         private TimeValue timeout;
         private DateTimeZone dynamicNameTimeZone;
 
-        private Builder(SearchRequest request) {
+        private Builder(WatcherSearchTemplateRequest request) {
             this.request = request;
         }
 

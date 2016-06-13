@@ -34,7 +34,6 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,17 +54,11 @@ public class ClusterChangedEventTests extends ESTestCase {
 
     private static final ClusterName TEST_CLUSTER_NAME = new ClusterName("test");
     private static final String NODE_ID_PREFIX = "node_";
-    private static String INITIAL_CLUSTER_ID;
-    private static List<Index> initialIndices;
-
-    @BeforeClass
-    public static void beforeClass() {
-        INITIAL_CLUSTER_ID = UUIDs.randomBase64UUID();
-        // the initial indices which every cluster state test starts out with
-        initialIndices = Arrays.asList(new Index("idx1", UUIDs.randomBase64UUID()),
-            new Index("idx2", UUIDs.randomBase64UUID()),
-            new Index("idx3", UUIDs.randomBase64UUID()));
-    }
+    private static final String INITIAL_CLUSTER_ID = UUIDs.randomBase64UUID();
+    // the initial indices which every cluster state test starts out with
+    private static final List<Index> initialIndices = Arrays.asList(new Index("idx1", UUIDs.randomBase64UUID()),
+                                                                    new Index("idx2", UUIDs.randomBase64UUID()),
+                                                                    new Index("idx3", UUIDs.randomBase64UUID()));
 
     /**
      * Test basic properties of the ClusterChangedEvent class:

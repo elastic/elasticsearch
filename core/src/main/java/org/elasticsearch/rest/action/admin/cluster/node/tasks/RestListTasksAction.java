@@ -40,8 +40,9 @@ public class RestListTasksAction extends BaseRestHandler {
     @Inject
     public RestListTasksAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
-        controller.registerHandler(GET, "/_tasks", this);
-        controller.registerHandler(GET, "/_tasks/{taskId}", this);
+        // don't trip circuit breaker to give users a chance to retrieve ids for tasks they can cancel
+        controller.registerHandler(GET, "/_tasks", this, false);
+        controller.registerHandler(GET, "/_tasks/{taskId}", this, false);
     }
 
     public static ListTasksRequest generateListTasksRequest(RestRequest request) {

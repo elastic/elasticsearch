@@ -52,9 +52,9 @@ public class RestClusterStateAction extends BaseRestHandler {
     @Inject
     public RestClusterStateAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
         super(settings, client);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}/{indices}", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state", this, false);
+        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}", this, false);
+        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}/{indices}", this, false);
 
         this.settingsFilter = settingsFilter;
     }

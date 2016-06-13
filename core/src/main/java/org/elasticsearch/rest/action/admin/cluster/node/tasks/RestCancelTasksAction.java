@@ -40,8 +40,8 @@ public class RestCancelTasksAction extends BaseRestHandler {
     @Inject
     public RestCancelTasksAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
-        controller.registerHandler(POST, "/_tasks/_cancel", this);
-        controller.registerHandler(POST, "/_tasks/{taskId}/_cancel", this);
+        controller.registerHandler(POST, "/_tasks/_cancel", this, false);
+        controller.registerHandler(POST, "/_tasks/{taskId}/_cancel", this, false);
     }
 
     @Override

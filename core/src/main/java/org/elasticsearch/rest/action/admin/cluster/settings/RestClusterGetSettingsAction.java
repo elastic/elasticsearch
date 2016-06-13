@@ -53,7 +53,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     public RestClusterGetSettingsAction(Settings settings, RestController controller, Client client, ClusterSettings clusterSettings, SettingsFilter settingsFilter) {
         super(settings, client);
         this.clusterSettings = clusterSettings;
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/settings", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_cluster/settings", this, false);
         this.settingsFilter = settingsFilter;
     }
 

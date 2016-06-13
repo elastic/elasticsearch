@@ -45,8 +45,8 @@ public class RestClusterHealthAction extends BaseRestHandler {
     public RestClusterHealthAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
 
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/health", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/health/{index}", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_cluster/health", this, false);
+        controller.registerHandler(RestRequest.Method.GET, "/_cluster/health/{index}", this, false);
     }
 
     @Override

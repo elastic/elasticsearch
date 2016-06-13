@@ -45,15 +45,15 @@ public class RestNodesStatsAction extends BaseRestHandler {
     @Inject
     public RestNodesStatsAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
-        controller.registerHandler(GET, "/_nodes/stats", this);
-        controller.registerHandler(GET, "/_nodes/{nodeId}/stats", this);
+        controller.registerHandler(GET, "/_nodes/stats", this, false);
+        controller.registerHandler(GET, "/_nodes/{nodeId}/stats", this, false);
 
-        controller.registerHandler(GET, "/_nodes/stats/{metric}", this);
-        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}", this);
+        controller.registerHandler(GET, "/_nodes/stats/{metric}", this, false);
+        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}", this, false);
 
-        controller.registerHandler(GET, "/_nodes/stats/{metric}/{indexMetric}", this);
+        controller.registerHandler(GET, "/_nodes/stats/{metric}/{indexMetric}", this, false);
 
-        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}/{indexMetric}", this);
+        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}/{indexMetric}", this, false);
     }
 
     @Override

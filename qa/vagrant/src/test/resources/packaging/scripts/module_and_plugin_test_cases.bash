@@ -248,10 +248,7 @@ fi
 }
 
 @test "[$GROUP] check lang-painless module" {
-    # we specify the version on the asm-5.0.4.jar so that the test does
-    # not spuriously pass if the jar is missing but the other asm jars
-    # are present
-    check_secure_module lang-painless antlr4-runtime-*.jar asm-5.0.4.jar asm-commons-*.jar asm-tree-*.jar
+    check_secure_module lang-painless antlr4-runtime-*.jar asm-debug-all-*.jar
 }
 
 @test "[$GROUP] install javascript plugin" {

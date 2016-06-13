@@ -244,7 +244,6 @@ public final class RestClient implements Closeable {
         }
 
         List<HttpHost> rotatedHosts = new ArrayList<>(filteredHosts);
-        //TODO is it possible to make this O(1)? (rotate is O(n))
         Collections.rotate(rotatedHosts, rotatedHosts.size() - lastHostIndex.getAndIncrement());
         return rotatedHosts;
     }

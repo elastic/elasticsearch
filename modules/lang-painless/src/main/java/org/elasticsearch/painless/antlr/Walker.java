@@ -84,6 +84,7 @@ import org.elasticsearch.painless.antlr.PainlessParser.ParametersContext;
 import org.elasticsearch.painless.antlr.PainlessParser.PostContext;
 import org.elasticsearch.painless.antlr.PainlessParser.PreContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ReadContext;
+import org.elasticsearch.painless.antlr.PainlessParser.RegexContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ReturnContext;
 import org.elasticsearch.painless.antlr.PainlessParser.SecondaryContext;
 import org.elasticsearch.painless.antlr.PainlessParser.SingleContext;
@@ -124,6 +125,7 @@ import org.elasticsearch.painless.node.LCast;
 import org.elasticsearch.painless.node.LField;
 import org.elasticsearch.painless.node.LNewArray;
 import org.elasticsearch.painless.node.LNewObj;
+import org.elasticsearch.painless.node.LRegex;
 import org.elasticsearch.painless.node.LStatic;
 import org.elasticsearch.painless.node.LString;
 import org.elasticsearch.painless.node.LVariable;
@@ -822,6 +824,15 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         String string = ctx.STRING().getText().substring(1, ctx.STRING().getText().length() - 1);
         List<ALink> links = new ArrayList<>();
         links.add(new LString(location(ctx), string));
+
+        return links;
+    }
+
+    @Override
+    public Object visitRegex(RegexContext ctx) {
+        String pattern = ctx.REGEX().getText().substring(1, ctx.REGEX().getText().length() - 1);
+        List<ALink> links = new ArrayList<>();
+        links.add(new LRegex(location(ctx), pattern));
 
         return links;
     }

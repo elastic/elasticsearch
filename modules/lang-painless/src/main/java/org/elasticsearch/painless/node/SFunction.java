@@ -30,7 +30,9 @@ import org.elasticsearch.painless.Locals.FunctionReserved;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.WriterConstants;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 
 import java.lang.invoke.MethodType;
@@ -39,6 +41,8 @@ import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
 /**
  * Represents a user-defined function.
@@ -137,6 +141,9 @@ public class SFunction extends AStatement {
         }
 
         locals.decrementScope();
+
+        String staticHandleFieldName = Def.getUserFunctionHandleFieldName(name, parameters.size());
+        locals.addConstant(location, WriterConstants.METHOD_HANDLE_TYPE, staticHandleFieldName, this::initializeConstant);
     }
     
     /** Writes the function to given ClassWriter. */
@@ -174,8 +181,13 @@ public class SFunction extends AStatement {
             }
         }
     }
-    
-    String getStaticHandleFieldName() {
-        return Def.getUserFunctionHandleFieldName(name, parameters.size());
+
+    private void initializeConstant(MethodWriter writer) {
+        final Handle handle = new Handle(Opcodes.H_INVOKESTATIC,
+                CLASS_TYPE.getInternalName(),
+                name,
+                method.method.getDescriptor(),
+                false);
+        writer.push(handle);
     }
 }

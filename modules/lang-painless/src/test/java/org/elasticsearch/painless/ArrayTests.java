@@ -79,4 +79,10 @@ public class ArrayTests extends ScriptTestCase {
             "int total = 0; for (int x = 0; x < a.length; x++) { total += a[x]; } return total;"));
     }
 
+    /**
+     * Make sure we don't try and convert the {@code /} after the {@code ]} into a regex....
+     */
+    public void testDivideArray() {
+        assertEquals(1, exec("def[] x = new def[1]; x[0] = 2; return x[0] / 2"));
+    }
 }

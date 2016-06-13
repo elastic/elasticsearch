@@ -157,6 +157,7 @@ primary[boolean c] returns [boolean s = true]
     : { !$c }? LP e = expression RP { $s = $e.s; } # exprprec
     | { $c }?  LP unary[true] RP                   # chainprec
     |          STRING                              # string
+    |          REGEX                               # regex
     |          ID                                  # variable
     |          ID arguments                        # calllocal
     |          NEW TYPE arguments                  # newobject

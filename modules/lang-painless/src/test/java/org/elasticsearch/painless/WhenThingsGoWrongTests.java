@@ -22,6 +22,7 @@ package org.elasticsearch.painless;
 import java.lang.invoke.WrongMethodTypeException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.regex.PatternSyntaxException;
 
 import static java.util.Collections.emptyMap;
 
@@ -211,4 +212,19 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         });
         assertEquals("invalid sequence of tokens near ['}'].", e.getMessage());
     }
+
+    public void testCantUsePatternCompile() {
+        IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("Pattern.compile(\"aa\")");
+        });
+        assertEquals("Unknown call [compile] with [1] arguments on type [Pattern].", e.getMessage());
+    }
+
+    public void testBadRegexPattern() {
+        PatternSyntaxException e = expectScriptThrows(PatternSyntaxException.class, () -> {
+            exec("/\\ujjjj/"); // Invalid unicode
+        });
+        assertEquals("Illegal Unicode escape sequence near index 2\n\\ujjjj\n  ^", e.getMessage());
+    }
+
 }

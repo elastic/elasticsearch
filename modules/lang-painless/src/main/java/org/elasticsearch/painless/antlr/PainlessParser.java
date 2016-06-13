@@ -25,8 +25,8 @@ class PainlessParser extends Parser {
     XOR=44, BWOR=45, BOOLAND=46, BOOLOR=47, COND=48, COLON=49, REF=50, ARROW=51, 
     INCR=52, DECR=53, ASSIGN=54, AADD=55, ASUB=56, AMUL=57, ADIV=58, AREM=59, 
     AAND=60, AXOR=61, AOR=62, ALSH=63, ARSH=64, AUSH=65, OCTAL=66, HEX=67, 
-    INTEGER=68, DECIMAL=69, STRING=70, TRUE=71, FALSE=72, NULL=73, TYPE=74, 
-    ID=75, DOTINTEGER=76, DOTID=77;
+    INTEGER=68, DECIMAL=69, STRING=70, REGEX=71, TRUE=72, FALSE=73, NULL=74, 
+    TYPE=75, ID=76, DOTINTEGER=77, DOTID=78;
   public static final int
     RULE_source = 0, RULE_function = 1, RULE_parameters = 2, RULE_statement = 3, 
     RULE_trailer = 4, RULE_block = 5, RULE_empty = 6, RULE_initializer = 7, 
@@ -52,7 +52,7 @@ class PainlessParser extends Parser {
     "'>'", "'>='", "'=='", "'==='", "'!='", "'!=='", "'&'", "'^'", "'|'", 
     "'&&'", "'||'", "'?'", "':'", "'::'", "'->'", "'++'", "'--'", "'='", "'+='", 
     "'-='", "'*='", "'/='", "'%='", "'&='", "'^='", "'|='", "'<<='", "'>>='", 
-    "'>>>='", null, null, null, null, null, "'true'", "'false'", "'null'"
+    "'>>>='", null, null, null, null, null, null, "'true'", "'false'", "'null'"
   };
   private static final String[] _SYMBOLIC_NAMES = {
     null, "WS", "COMMENT", "LBRACK", "RBRACK", "LBRACE", "RBRACE", "LP", "RP", 
@@ -63,7 +63,7 @@ class PainlessParser extends Parser {
     "BOOLAND", "BOOLOR", "COND", "COLON", "REF", "ARROW", "INCR", "DECR", 
     "ASSIGN", "AADD", "ASUB", "AMUL", "ADIV", "AREM", "AAND", "AXOR", "AOR", 
     "ALSH", "ARSH", "AUSH", "OCTAL", "HEX", "INTEGER", "DECIMAL", "STRING", 
-    "TRUE", "FALSE", "NULL", "TYPE", "ID", "DOTINTEGER", "DOTID"
+    "REGEX", "TRUE", "FALSE", "NULL", "TYPE", "ID", "DOTINTEGER", "DOTID"
   };
   public static final Vocabulary VOCABULARY = new VocabularyImpl(_LITERAL_NAMES, _SYMBOLIC_NAMES);
 
@@ -2228,6 +2228,15 @@ class PainlessParser extends Parser {
       this.s = ctx.s;
     }
   }
+  public static class RegexContext extends PrimaryContext {
+    public TerminalNode REGEX() { return getToken(PainlessParser.REGEX, 0); }
+    public RegexContext(PrimaryContext ctx) { copyFrom(ctx); }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof PainlessParserVisitor ) return ((PainlessParserVisitor<? extends T>)visitor).visitRegex(this);
+      else return visitor.visitChildren(this);
+    }
+  }
   public static class StringContext extends PrimaryContext {
     public TerminalNode STRING() { return getToken(PainlessParser.STRING, 0); }
     public StringContext(PrimaryContext ctx) { copyFrom(ctx); }
@@ -2303,7 +2312,7 @@ class PainlessParser extends Parser {
     PrimaryContext _localctx = new PrimaryContext(_ctx, getState(), c);
     enterRule(_localctx, 34, RULE_primary);
     try {
-      setState(390);
+      setState(391);
       switch ( getInterpreter().adaptivePredict(_input,29,_ctx) ) {
       case 1:
         _localctx = new ExprprecContext(_localctx);
@@ -2343,32 +2352,40 @@ class PainlessParser extends Parser {
         }
         break;
       case 4:
-        _localctx = new VariableContext(_localctx);
+        _localctx = new RegexContext(_localctx);
         enterOuterAlt(_localctx, 4);
         {
         setState(384);
-        match(ID);
+        match(REGEX);
         }
         break;
       case 5:
-        _localctx = new CalllocalContext(_localctx);
+        _localctx = new VariableContext(_localctx);
         enterOuterAlt(_localctx, 5);
         {
         setState(385);
         match(ID);
-        setState(386);
-        arguments();
         }
         break;
       case 6:
-        _localctx = new NewobjectContext(_localctx);
+        _localctx = new CalllocalContext(_localctx);
         enterOuterAlt(_localctx, 6);
         {
+        setState(386);
+        match(ID);
         setState(387);
-        match(NEW);
+        arguments();
+        }
+        break;
+      case 7:
+        _localctx = new NewobjectContext(_localctx);
+        enterOuterAlt(_localctx, 7);
+        {
         setState(388);
-        match(TYPE);
+        match(NEW);
         setState(389);
+        match(TYPE);
+        setState(390);
         arguments();
         }
         break;
@@ -2410,23 +2427,23 @@ class PainlessParser extends Parser {
     SecondaryContext _localctx = new SecondaryContext(_ctx, getState(), s);
     enterRule(_localctx, 36, RULE_secondary);
     try {
-      setState(396);
+      setState(397);
       switch ( getInterpreter().adaptivePredict(_input,30,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
         {
-        setState(392);
-        if (!( _localctx.s )) throw new FailedPredicateException(this, " $s ");
         setState(393);
+        if (!( _localctx.s )) throw new FailedPredicateException(this, " $s ");
+        setState(394);
         dot();
         }
         break;
       case 2:
         enterOuterAlt(_localctx, 2);
         {
-        setState(394);
-        if (!( _localctx.s )) throw new FailedPredicateException(this, " $s ");
         setState(395);
+        if (!( _localctx.s )) throw new FailedPredicateException(this, " $s ");
+        setState(396);
         brace();
         }
         break;
@@ -2484,17 +2501,17 @@ class PainlessParser extends Parser {
     enterRule(_localctx, 38, RULE_dot);
     int _la;
     try {
-      setState(403);
+      setState(404);
       switch ( getInterpreter().adaptivePredict(_input,31,_ctx) ) {
       case 1:
         _localctx = new CallinvokeContext(_localctx);
         enterOuterAlt(_localctx, 1);
         {
-        setState(398);
-        match(DOT);
         setState(399);
-        match(DOTID);
+        match(DOT);
         setState(400);
+        match(DOTID);
+        setState(401);
         arguments();
         }
         break;
@@ -2502,9 +2519,9 @@ class PainlessParser extends Parser {
         _localctx = new FieldaccessContext(_localctx);
         enterOuterAlt(_localctx, 2);
         {
-        setState(401);
-        match(DOT);
         setState(402);
+        match(DOT);
+        setState(403);
         _la = _input.LA(1);
         if ( !(_la==DOTINTEGER || _la==DOTID) ) {
         _errHandler.recoverInline(this);
@@ -2558,11 +2575,11 @@ class PainlessParser extends Parser {
       _localctx = new BraceaccessContext(_localctx);
       enterOuterAlt(_localctx, 1);
       {
-      setState(405);
-      match(LBRACE);
       setState(406);
-      expression(0);
+      match(LBRACE);
       setState(407);
+      expression(0);
+      setState(408);
       match(RBRACE);
       }
     }
@@ -2609,34 +2626,34 @@ class PainlessParser extends Parser {
       enterOuterAlt(_localctx, 1);
       {
       {
-      setState(409);
+      setState(410);
       match(LP);
-      setState(418);
+      setState(419);
       switch ( getInterpreter().adaptivePredict(_input,33,_ctx) ) {
       case 1:
         {
-        setState(410);
+        setState(411);
         argument();
-        setState(415);
+        setState(416);
         _errHandler.sync(this);
         _la = _input.LA(1);
         while (_la==COMMA) {
           {
           {
-          setState(411);
-          match(COMMA);
           setState(412);
+          match(COMMA);
+          setState(413);
           argument();
           }
           }
-          setState(417);
+          setState(418);
           _errHandler.sync(this);
           _la = _input.LA(1);
         }
         }
         break;
       }
-      setState(420);
+      setState(421);
       match(RP);
       }
       }
@@ -2677,26 +2694,26 @@ class PainlessParser extends Parser {
     ArgumentContext _localctx = new ArgumentContext(_ctx, getState());
     enterRule(_localctx, 44, RULE_argument);
     try {
-      setState(425);
+      setState(426);
       switch ( getInterpreter().adaptivePredict(_input,34,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
         {
-        setState(422);
+        setState(423);
         expression(0);
         }
         break;
       case 2:
         enterOuterAlt(_localctx, 2);
         {
-        setState(423);
+        setState(424);
         lambda();
         }
         break;
       case 3:
         enterOuterAlt(_localctx, 3);
         {
-        setState(424);
+        setState(425);
         funcref();
         }
         break;
@@ -2748,54 +2765,54 @@ class PainlessParser extends Parser {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(440);
+      setState(441);
       switch (_input.LA(1)) {
       case TYPE:
       case ID:
         {
-        setState(427);
+        setState(428);
         lamtype();
         }
         break;
       case LP:
         {
-        setState(428);
+        setState(429);
         match(LP);
-        setState(437);
+        setState(438);
         _la = _input.LA(1);
         if (_la==TYPE || _la==ID) {
           {
-          setState(429);
+          setState(430);
           lamtype();
-          setState(434);
+          setState(435);
           _errHandler.sync(this);
           _la = _input.LA(1);
           while (_la==COMMA) {
             {
             {
-            setState(430);
-            match(COMMA);
             setState(431);
+            match(COMMA);
+            setState(432);
             lamtype();
             }
             }
-            setState(436);
+            setState(437);
             _errHandler.sync(this);
             _la = _input.LA(1);
           }
           }
         }
 
-        setState(439);
+        setState(440);
         match(RP);
         }
         break;
       default:
         throw new NoViableAltException(this);
       }
-      setState(442);
-      match(ARROW);
       setState(443);
+      match(ARROW);
+      setState(444);
       block();
       }
     }
@@ -2833,16 +2850,16 @@ class PainlessParser extends Parser {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(446);
+      setState(447);
       _la = _input.LA(1);
       if (_la==TYPE) {
         {
-        setState(445);
+        setState(446);
         decltype();
         }
       }
 
-      setState(448);
+      setState(449);
       match(ID);
       }
     }
@@ -2885,33 +2902,33 @@ class PainlessParser extends Parser {
     FuncrefContext _localctx = new FuncrefContext(_ctx, getState());
     enterRule(_localctx, 50, RULE_funcref);
     try {
-      setState(454);
+      setState(455);
       switch ( getInterpreter().adaptivePredict(_input,39,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
         {
-        setState(450);
+        setState(451);
         classFuncref();
         }
         break;
       case 2:
         enterOuterAlt(_localctx, 2);
         {
-        setState(451);
+        setState(452);
         constructorFuncref();
         }
         break;
       case 3:
         enterOuterAlt(_localctx, 3);
         {
-        setState(452);
+        setState(453);
         capturingFuncref();
         }
         break;
       case 4:
         enterOuterAlt(_localctx, 4);
         {
-        setState(453);
+        setState(454);
         localFuncref();
         }
         break;
@@ -2949,11 +2966,11 @@ class PainlessParser extends Parser {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(456);
-      match(TYPE);
       setState(457);
-      match(REF);
+      match(TYPE);
       setState(458);
+      match(REF);
+      setState(459);
       match(ID);
       }
     }
@@ -2991,11 +3008,11 @@ class PainlessParser extends Parser {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(460);
-      decltype();
       setState(461);
-      match(REF);
+      decltype();
       setState(462);
+      match(REF);
+      setState(463);
       match(NEW);
       }
     }
@@ -3033,11 +3050,11 @@ class PainlessParser extends Parser {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(464);
-      match(ID);
       setState(465);
-      match(REF);
+      match(ID);
       setState(466);
+      match(REF);
+      setState(467);
       match(ID);
       }
     }
@@ -3073,11 +3090,11 @@ class PainlessParser extends Parser {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(468);
-      match(THIS);
       setState(469);
-      match(REF);
+      match(THIS);
       setState(470);
+      match(REF);
+      setState(471);
       match(ID);
       }
     }
@@ -3182,7 +3199,7 @@ class PainlessParser extends Parser {
   }
 
   public static final String _serializedATN =
-    "\3\u0430\ud6d1\u8206\uad2d\u4417\uaef1\u8d80\uaadd\3O\u01db\4\2\t\2\4"+
+    "\3\u0430\ud6d1\u8206\uad2d\u4417\uaef1\u8d80\uaadd\3P\u01dc\4\2\t\2\4"+
     "\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7\4\b\t\b\4\t\t\t\4\n\t\n\4\13\t"+
     "\13\4\f\t\f\4\r\t\r\4\16\t\16\4\17\t\17\4\20\t\20\4\21\t\21\4\22\t\22"+
     "\4\23\t\23\4\24\t\24\4\25\t\25\4\26\t\26\4\27\t\27\4\30\t\30\4\31\t\31"+
@@ -3211,27 +3228,27 @@ class PainlessParser extends Parser {
     "\22\3\22\3\22\3\22\3\22\3\22\3\22\6\22\u0168\n\22\r\22\16\22\u0169\3\22"+
     "\3\22\7\22\u016e\n\22\f\22\16\22\u0171\13\22\5\22\u0173\n\22\5\22\u0175"+
     "\n\22\3\23\3\23\3\23\3\23\3\23\3\23\3\23\3\23\3\23\3\23\3\23\3\23\3\23"+
-    "\3\23\3\23\3\23\3\23\3\23\5\23\u0189\n\23\3\24\3\24\3\24\3\24\5\24\u018f"+
-    "\n\24\3\25\3\25\3\25\3\25\3\25\5\25\u0196\n\25\3\26\3\26\3\26\3\26\3\27"+
-    "\3\27\3\27\3\27\7\27\u01a0\n\27\f\27\16\27\u01a3\13\27\5\27\u01a5\n\27"+
-    "\3\27\3\27\3\30\3\30\3\30\5\30\u01ac\n\30\3\31\3\31\3\31\3\31\3\31\7\31"+
-    "\u01b3\n\31\f\31\16\31\u01b6\13\31\5\31\u01b8\n\31\3\31\5\31\u01bb\n\31"+
-    "\3\31\3\31\3\31\3\32\5\32\u01c1\n\32\3\32\3\32\3\33\3\33\3\33\3\33\5\33"+
-    "\u01c9\n\33\3\34\3\34\3\34\3\34\3\35\3\35\3\35\3\35\3\36\3\36\3\36\3\36"+
-    "\3\37\3\37\3\37\3\37\3\37\2\3\36 \2\4\6\b\n\f\16\20\22\24\26\30\32\34"+
-    "\36 \"$&(*,.\60\62\64\668:<\2\f\3\28C\3\2\35\37\3\2 !\3\2\"$\3\2%(\3\2"+
-    "),\3\2\66\67\3\2DG\4\2\33\34 !\3\2NO\u0207\2A\3\2\2\2\4L\3\2\2\2\6Q\3"+
-    "\2\2\2\b\u00af\3\2\2\2\n\u00b3\3\2\2\2\f\u00b5\3\2\2\2\16\u00be\3\2\2"+
-    "\2\20\u00c2\3\2\2\2\22\u00c4\3\2\2\2\24\u00c6\3\2\2\2\26\u00cf\3\2\2\2"+
-    "\30\u00d7\3\2\2\2\32\u00dc\3\2\2\2\34\u00e8\3\2\2\2\36\u00f3\3\2\2\2 "+
-    "\u0150\3\2\2\2\"\u0174\3\2\2\2$\u0188\3\2\2\2&\u018e\3\2\2\2(\u0195\3"+
-    "\2\2\2*\u0197\3\2\2\2,\u019b\3\2\2\2.\u01ab\3\2\2\2\60\u01ba\3\2\2\2\62"+
-    "\u01c0\3\2\2\2\64\u01c8\3\2\2\2\66\u01ca\3\2\2\28\u01ce\3\2\2\2:\u01d2"+
-    "\3\2\2\2<\u01d6\3\2\2\2>@\5\4\3\2?>\3\2\2\2@C\3\2\2\2A?\3\2\2\2AB\3\2"+
+    "\3\23\3\23\3\23\3\23\3\23\3\23\5\23\u018a\n\23\3\24\3\24\3\24\3\24\5\24"+
+    "\u0190\n\24\3\25\3\25\3\25\3\25\3\25\5\25\u0197\n\25\3\26\3\26\3\26\3"+
+    "\26\3\27\3\27\3\27\3\27\7\27\u01a1\n\27\f\27\16\27\u01a4\13\27\5\27\u01a6"+
+    "\n\27\3\27\3\27\3\30\3\30\3\30\5\30\u01ad\n\30\3\31\3\31\3\31\3\31\3\31"+
+    "\7\31\u01b4\n\31\f\31\16\31\u01b7\13\31\5\31\u01b9\n\31\3\31\5\31\u01bc"+
+    "\n\31\3\31\3\31\3\31\3\32\5\32\u01c2\n\32\3\32\3\32\3\33\3\33\3\33\3\33"+
+    "\5\33\u01ca\n\33\3\34\3\34\3\34\3\34\3\35\3\35\3\35\3\35\3\36\3\36\3\36"+
+    "\3\36\3\37\3\37\3\37\3\37\3\37\2\3\36 \2\4\6\b\n\f\16\20\22\24\26\30\32"+
+    "\34\36 \"$&(*,.\60\62\64\668:<\2\f\3\28C\3\2\35\37\3\2 !\3\2\"$\3\2%("+
+    "\3\2),\3\2\66\67\3\2DG\4\2\33\34 !\3\2OP\u0209\2A\3\2\2\2\4L\3\2\2\2\6"+
+    "Q\3\2\2\2\b\u00af\3\2\2\2\n\u00b3\3\2\2\2\f\u00b5\3\2\2\2\16\u00be\3\2"+
+    "\2\2\20\u00c2\3\2\2\2\22\u00c4\3\2\2\2\24\u00c6\3\2\2\2\26\u00cf\3\2\2"+
+    "\2\30\u00d7\3\2\2\2\32\u00dc\3\2\2\2\34\u00e8\3\2\2\2\36\u00f3\3\2\2\2"+
+    " \u0150\3\2\2\2\"\u0174\3\2\2\2$\u0189\3\2\2\2&\u018f\3\2\2\2(\u0196\3"+
+    "\2\2\2*\u0198\3\2\2\2,\u019c\3\2\2\2.\u01ac\3\2\2\2\60\u01bb\3\2\2\2\62"+
+    "\u01c1\3\2\2\2\64\u01c9\3\2\2\2\66\u01cb\3\2\2\28\u01cf\3\2\2\2:\u01d3"+
+    "\3\2\2\2<\u01d7\3\2\2\2>@\5\4\3\2?>\3\2\2\2@C\3\2\2\2A?\3\2\2\2AB\3\2"+
     "\2\2BG\3\2\2\2CA\3\2\2\2DF\5\b\5\2ED\3\2\2\2FI\3\2\2\2GE\3\2\2\2GH\3\2"+
-    "\2\2HJ\3\2\2\2IG\3\2\2\2JK\7\2\2\3K\3\3\2\2\2LM\5\26\f\2MN\7M\2\2NO\5"+
-    "\6\4\2OP\5\f\7\2P\5\3\2\2\2Q]\7\t\2\2RS\5\26\f\2SZ\7M\2\2TU\7\f\2\2UV"+
-    "\5\26\f\2VW\7M\2\2WY\3\2\2\2XT\3\2\2\2Y\\\3\2\2\2ZX\3\2\2\2Z[\3\2\2\2"+
+    "\2\2HJ\3\2\2\2IG\3\2\2\2JK\7\2\2\3K\3\3\2\2\2LM\5\26\f\2MN\7N\2\2NO\5"+
+    "\6\4\2OP\5\f\7\2P\5\3\2\2\2Q]\7\t\2\2RS\5\26\f\2SZ\7N\2\2TU\7\f\2\2UV"+
+    "\5\26\f\2VW\7N\2\2WY\3\2\2\2XT\3\2\2\2Y\\\3\2\2\2ZX\3\2\2\2Z[\3\2\2\2"+
     "[^\3\2\2\2\\Z\3\2\2\2]R\3\2\2\2]^\3\2\2\2^_\3\2\2\2_`\7\n\2\2`\7\3\2\2"+
     "\2ab\7\16\2\2bc\7\t\2\2cd\5\36\20\2de\7\n\2\2ei\5\n\6\2fg\7\17\2\2gj\5"+
     "\n\6\2hj\6\5\2\2if\3\2\2\2ih\3\2\2\2j\u00b0\3\2\2\2kl\7\20\2\2lm\7\t\2"+
@@ -3244,7 +3261,7 @@ class PainlessParser extends Parser {
     "\2\2\2\u0087\u0088\3\2\2\2\u0088\u008b\7\n\2\2\u0089\u008c\5\n\6\2\u008a"+
     "\u008c\5\16\b\2\u008b\u0089\3\2\2\2\u008b\u008a\3\2\2\2\u008c\u00b0\3"+
     "\2\2\2\u008d\u008e\7\22\2\2\u008e\u008f\7\t\2\2\u008f\u0090\5\26\f\2\u0090"+
-    "\u0091\7M\2\2\u0091\u0092\7\63\2\2\u0092\u0093\5\36\20\2\u0093\u0094\7"+
+    "\u0091\7N\2\2\u0091\u0092\7\63\2\2\u0092\u0093\5\36\20\2\u0093\u0094\7"+
     "\n\2\2\u0094\u0095\5\n\6\2\u0095\u00b0\3\2\2\2\u0096\u0097\5\24\13\2\u0097"+
     "\u0098\5\34\17\2\u0098\u00b0\3\2\2\2\u0099\u009a\7\23\2\2\u009a\u00b0"+
     "\5\34\17\2\u009b\u009c\7\24\2\2\u009c\u00b0\5\34\17\2\u009d\u009e\7\25"+
@@ -3266,12 +3283,12 @@ class PainlessParser extends Parser {
     "\5\36\20\2\u00c5\23\3\2\2\2\u00c6\u00c7\5\26\f\2\u00c7\u00cc\5\30\r\2"+
     "\u00c8\u00c9\7\f\2\2\u00c9\u00cb\5\30\r\2\u00ca\u00c8\3\2\2\2\u00cb\u00ce"+
     "\3\2\2\2\u00cc\u00ca\3\2\2\2\u00cc\u00cd\3\2\2\2\u00cd\25\3\2\2\2\u00ce"+
-    "\u00cc\3\2\2\2\u00cf\u00d4\7L\2\2\u00d0\u00d1\7\7\2\2\u00d1\u00d3\7\b"+
+    "\u00cc\3\2\2\2\u00cf\u00d4\7M\2\2\u00d0\u00d1\7\7\2\2\u00d1\u00d3\7\b"+
     "\2\2\u00d2\u00d0\3\2\2\2\u00d3\u00d6\3\2\2\2\u00d4\u00d2\3\2\2\2\u00d4"+
-    "\u00d5\3\2\2\2\u00d5\27\3\2\2\2\u00d6\u00d4\3\2\2\2\u00d7\u00da\7M\2\2"+
+    "\u00d5\3\2\2\2\u00d5\27\3\2\2\2\u00d6\u00d4\3\2\2\2\u00d7\u00da\7N\2\2"+
     "\u00d8\u00d9\78\2\2\u00d9\u00db\5\36\20\2\u00da\u00d8\3\2\2\2\u00da\u00db"+
     "\3\2\2\2\u00db\31\3\2\2\2\u00dc\u00dd\7\30\2\2\u00dd\u00de\7\t\2\2\u00de"+
-    "\u00df\7L\2\2\u00df\u00e0\7M\2\2\u00e0\u00e1\7\n\2\2\u00e1\u00e2\5\f\7"+
+    "\u00df\7M\2\2\u00df\u00e0\7N\2\2\u00e0\u00e1\7\n\2\2\u00e1\u00e2\5\f\7"+
     "\2\u00e2\33\3\2\2\2\u00e3\u00e9\7\r\2\2\u00e4\u00e9\7\2\2\3\u00e5\u00e6"+
     "\b\17\1\2\u00e6\u00e7\7\6\2\2\u00e7\u00e9\b\17\1\2\u00e8\u00e3\3\2\2\2"+
     "\u00e8\u00e4\3\2\2\2\u00e8\u00e5\3\2\2\2\u00e9\35\3\2\2\2\u00ea\u00eb"+
@@ -3303,9 +3320,9 @@ class PainlessParser extends Parser {
     "\2\2\u0135\u0151\5\"\22\2\u0136\u0137\6\21\17\3\u0137\u0138\5\"\22\2\u0138"+
     "\u0139\t\b\2\2\u0139\u0151\3\2\2\2\u013a\u013b\6\21\20\3\u013b\u0151\5"+
     "\"\22\2\u013c\u013d\6\21\21\3\u013d\u013e\t\t\2\2\u013e\u0151\b\21\1\2"+
-    "\u013f\u0140\6\21\22\3\u0140\u0141\7I\2\2\u0141\u0151\b\21\1\2\u0142\u0143"+
-    "\6\21\23\3\u0143\u0144\7J\2\2\u0144\u0151\b\21\1\2\u0145\u0146\6\21\24"+
-    "\3\u0146\u0147\7K\2\2\u0147\u0151\b\21\1\2\u0148\u0149\6\21\25\3\u0149"+
+    "\u013f\u0140\6\21\22\3\u0140\u0141\7J\2\2\u0141\u0151\b\21\1\2\u0142\u0143"+
+    "\6\21\23\3\u0143\u0144\7K\2\2\u0144\u0151\b\21\1\2\u0145\u0146\6\21\24"+
+    "\3\u0146\u0147\7L\2\2\u0147\u0151\b\21\1\2\u0148\u0149\6\21\25\3\u0149"+
     "\u014a\t\n\2\2\u014a\u0151\5 \21\2\u014b\u014c\7\t\2\2\u014c\u014d\5\26"+
     "\f\2\u014d\u014e\7\n\2\2\u014e\u014f\5 \21\2\u014f\u0151\3\2\2\2\u0150"+
     "\u0133\3\2\2\2\u0150\u0136\3\2\2\2\u0150\u013a\3\2\2\2\u0150\u013c\3\2"+
@@ -3316,7 +3333,7 @@ class PainlessParser extends Parser {
     "\u015a\5\26\f\2\u015a\u015e\5(\25\2\u015b\u015d\5&\24\2\u015c\u015b\3"+
     "\2\2\2\u015d\u0160\3\2\2\2\u015e\u015c\3\2\2\2\u015e\u015f\3\2\2\2\u015f"+
     "\u0175\3\2\2\2\u0160\u015e\3\2\2\2\u0161\u0162\7\26\2\2\u0162\u0167\7"+
-    "L\2\2\u0163\u0164\7\7\2\2\u0164\u0165\5\36\20\2\u0165\u0166\7\b\2\2\u0166"+
+    "M\2\2\u0163\u0164\7\7\2\2\u0164\u0165\5\36\20\2\u0165\u0166\7\b\2\2\u0166"+
     "\u0168\3\2\2\2\u0167\u0163\3\2\2\2\u0168\u0169\3\2\2\2\u0169\u0167\3\2"+
     "\2\2\u0169\u016a\3\2\2\2\u016a\u0172\3\2\2\2\u016b\u016f\5(\25\2\u016c"+
     "\u016e\5&\24\2\u016d\u016c\3\2\2\2\u016e\u0171\3\2\2\2\u016f\u016d\3\2"+
@@ -3324,41 +3341,42 @@ class PainlessParser extends Parser {
     "\u016b\3\2\2\2\u0172\u0173\3\2\2\2\u0173\u0175\3\2\2\2\u0174\u0152\3\2"+
     "\2\2\u0174\u0159\3\2\2\2\u0174\u0161\3\2\2\2\u0175#\3\2\2\2\u0176\u0177"+
     "\6\23\26\3\u0177\u0178\7\t\2\2\u0178\u0179\5\36\20\2\u0179\u017a\7\n\2"+
-    "\2\u017a\u017b\b\23\1\2\u017b\u0189\3\2\2\2\u017c\u017d\6\23\27\3\u017d"+
-    "\u017e\7\t\2\2\u017e\u017f\5 \21\2\u017f\u0180\7\n\2\2\u0180\u0189\3\2"+
-    "\2\2\u0181\u0189\7H\2\2\u0182\u0189\7M\2\2\u0183\u0184\7M\2\2\u0184\u0189"+
-    "\5,\27\2\u0185\u0186\7\26\2\2\u0186\u0187\7L\2\2\u0187\u0189\5,\27\2\u0188"+
-    "\u0176\3\2\2\2\u0188\u017c\3\2\2\2\u0188\u0181\3\2\2\2\u0188\u0182\3\2"+
-    "\2\2\u0188\u0183\3\2\2\2\u0188\u0185\3\2\2\2\u0189%\3\2\2\2\u018a\u018b"+
-    "\6\24\30\3\u018b\u018f\5(\25\2\u018c\u018d\6\24\31\3\u018d\u018f\5*\26"+
-    "\2\u018e\u018a\3\2\2\2\u018e\u018c\3\2\2\2\u018f\'\3\2\2\2\u0190\u0191"+
-    "\7\13\2\2\u0191\u0192\7O\2\2\u0192\u0196\5,\27\2\u0193\u0194\7\13\2\2"+
-    "\u0194\u0196\t\13\2\2\u0195\u0190\3\2\2\2\u0195\u0193\3\2\2\2\u0196)\3"+
-    "\2\2\2\u0197\u0198\7\7\2\2\u0198\u0199\5\36\20\2\u0199\u019a\7\b\2\2\u019a"+
-    "+\3\2\2\2\u019b\u01a4\7\t\2\2\u019c\u01a1\5.\30\2\u019d\u019e\7\f\2\2"+
-    "\u019e\u01a0\5.\30\2\u019f\u019d\3\2\2\2\u01a0\u01a3\3\2\2\2\u01a1\u019f"+
-    "\3\2\2\2\u01a1\u01a2\3\2\2\2\u01a2\u01a5\3\2\2\2\u01a3\u01a1\3\2\2\2\u01a4"+
-    "\u019c\3\2\2\2\u01a4\u01a5\3\2\2\2\u01a5\u01a6\3\2\2\2\u01a6\u01a7\7\n"+
-    "\2\2\u01a7-\3\2\2\2\u01a8\u01ac\5\36\20\2\u01a9\u01ac\5\60\31\2\u01aa"+
-    "\u01ac\5\64\33\2\u01ab\u01a8\3\2\2\2\u01ab\u01a9\3\2\2\2\u01ab\u01aa\3"+
-    "\2\2\2\u01ac/\3\2\2\2\u01ad\u01bb\5\62\32\2\u01ae\u01b7\7\t\2\2\u01af"+
-    "\u01b4\5\62\32\2\u01b0\u01b1\7\f\2\2\u01b1\u01b3\5\62\32\2\u01b2\u01b0"+
-    "\3\2\2\2\u01b3\u01b6\3\2\2\2\u01b4\u01b2\3\2\2\2\u01b4\u01b5\3\2\2\2\u01b5"+
-    "\u01b8\3\2\2\2\u01b6\u01b4\3\2\2\2\u01b7\u01af\3\2\2\2\u01b7\u01b8\3\2"+
-    "\2\2\u01b8\u01b9\3\2\2\2\u01b9\u01bb\7\n\2\2\u01ba\u01ad\3\2\2\2\u01ba"+
-    "\u01ae\3\2\2\2\u01bb\u01bc\3\2\2\2\u01bc\u01bd\7\65\2\2\u01bd\u01be\5"+
-    "\f\7\2\u01be\61\3\2\2\2\u01bf\u01c1\5\26\f\2\u01c0\u01bf\3\2\2\2\u01c0"+
-    "\u01c1\3\2\2\2\u01c1\u01c2\3\2\2\2\u01c2\u01c3\7M\2\2\u01c3\63\3\2\2\2"+
-    "\u01c4\u01c9\5\66\34\2\u01c5\u01c9\58\35\2\u01c6\u01c9\5:\36\2\u01c7\u01c9"+
-    "\5<\37\2\u01c8\u01c4\3\2\2\2\u01c8\u01c5\3\2\2\2\u01c8\u01c6\3\2\2\2\u01c8"+
-    "\u01c7\3\2\2\2\u01c9\65\3\2\2\2\u01ca\u01cb\7L\2\2\u01cb\u01cc\7\64\2"+
-    "\2\u01cc\u01cd\7M\2\2\u01cd\67\3\2\2\2\u01ce\u01cf\5\26\f\2\u01cf\u01d0"+
-    "\7\64\2\2\u01d0\u01d1\7\26\2\2\u01d19\3\2\2\2\u01d2\u01d3\7M\2\2\u01d3"+
-    "\u01d4\7\64\2\2\u01d4\u01d5\7M\2\2\u01d5;\3\2\2\2\u01d6\u01d7\7\32\2\2"+
-    "\u01d7\u01d8\7\64\2\2\u01d8\u01d9\7M\2\2\u01d9=\3\2\2\2*AGZ]iq~\u0082"+
-    "\u0086\u008b\u00a6\u00af\u00b3\u00b9\u00c2\u00cc\u00d4\u00da\u00e8\u00f3"+
-    "\u012e\u0130\u0150\u0156\u015e\u0169\u016f\u0172\u0174\u0188\u018e\u0195"+
-    "\u01a1\u01a4\u01ab\u01b4\u01b7\u01ba\u01c0\u01c8";
+    "\2\u017a\u017b\b\23\1\2\u017b\u018a\3\2\2\2\u017c\u017d\6\23\27\3\u017d"+
+    "\u017e\7\t\2\2\u017e\u017f\5 \21\2\u017f\u0180\7\n\2\2\u0180\u018a\3\2"+
+    "\2\2\u0181\u018a\7H\2\2\u0182\u018a\7I\2\2\u0183\u018a\7N\2\2\u0184\u0185"+
+    "\7N\2\2\u0185\u018a\5,\27\2\u0186\u0187\7\26\2\2\u0187\u0188\7M\2\2\u0188"+
+    "\u018a\5,\27\2\u0189\u0176\3\2\2\2\u0189\u017c\3\2\2\2\u0189\u0181\3\2"+
+    "\2\2\u0189\u0182\3\2\2\2\u0189\u0183\3\2\2\2\u0189\u0184\3\2\2\2\u0189"+
+    "\u0186\3\2\2\2\u018a%\3\2\2\2\u018b\u018c\6\24\30\3\u018c\u0190\5(\25"+
+    "\2\u018d\u018e\6\24\31\3\u018e\u0190\5*\26\2\u018f\u018b\3\2\2\2\u018f"+
+    "\u018d\3\2\2\2\u0190\'\3\2\2\2\u0191\u0192\7\13\2\2\u0192\u0193\7P\2\2"+
+    "\u0193\u0197\5,\27\2\u0194\u0195\7\13\2\2\u0195\u0197\t\13\2\2\u0196\u0191"+
+    "\3\2\2\2\u0196\u0194\3\2\2\2\u0197)\3\2\2\2\u0198\u0199\7\7\2\2\u0199"+
+    "\u019a\5\36\20\2\u019a\u019b\7\b\2\2\u019b+\3\2\2\2\u019c\u01a5\7\t\2"+
+    "\2\u019d\u01a2\5.\30\2\u019e\u019f\7\f\2\2\u019f\u01a1\5.\30\2\u01a0\u019e"+
+    "\3\2\2\2\u01a1\u01a4\3\2\2\2\u01a2\u01a0\3\2\2\2\u01a2\u01a3\3\2\2\2\u01a3"+
+    "\u01a6\3\2\2\2\u01a4\u01a2\3\2\2\2\u01a5\u019d\3\2\2\2\u01a5\u01a6\3\2"+
+    "\2\2\u01a6\u01a7\3\2\2\2\u01a7\u01a8\7\n\2\2\u01a8-\3\2\2\2\u01a9\u01ad"+
+    "\5\36\20\2\u01aa\u01ad\5\60\31\2\u01ab\u01ad\5\64\33\2\u01ac\u01a9\3\2"+
+    "\2\2\u01ac\u01aa\3\2\2\2\u01ac\u01ab\3\2\2\2\u01ad/\3\2\2\2\u01ae\u01bc"+
+    "\5\62\32\2\u01af\u01b8\7\t\2\2\u01b0\u01b5\5\62\32\2\u01b1\u01b2\7\f\2"+
+    "\2\u01b2\u01b4\5\62\32\2\u01b3\u01b1\3\2\2\2\u01b4\u01b7\3\2\2\2\u01b5"+
+    "\u01b3\3\2\2\2\u01b5\u01b6\3\2\2\2\u01b6\u01b9\3\2\2\2\u01b7\u01b5\3\2"+
+    "\2\2\u01b8\u01b0\3\2\2\2\u01b8\u01b9\3\2\2\2\u01b9\u01ba\3\2\2\2\u01ba"+
+    "\u01bc\7\n\2\2\u01bb\u01ae\3\2\2\2\u01bb\u01af\3\2\2\2\u01bc\u01bd\3\2"+
+    "\2\2\u01bd\u01be\7\65\2\2\u01be\u01bf\5\f\7\2\u01bf\61\3\2\2\2\u01c0\u01c2"+
+    "\5\26\f\2\u01c1\u01c0\3\2\2\2\u01c1\u01c2\3\2\2\2\u01c2\u01c3\3\2\2\2"+
+    "\u01c3\u01c4\7N\2\2\u01c4\63\3\2\2\2\u01c5\u01ca\5\66\34\2\u01c6\u01ca"+
+    "\58\35\2\u01c7\u01ca\5:\36\2\u01c8\u01ca\5<\37\2\u01c9\u01c5\3\2\2\2\u01c9"+
+    "\u01c6\3\2\2\2\u01c9\u01c7\3\2\2\2\u01c9\u01c8\3\2\2\2\u01ca\65\3\2\2"+
+    "\2\u01cb\u01cc\7M\2\2\u01cc\u01cd\7\64\2\2\u01cd\u01ce\7N\2\2\u01ce\67"+
+    "\3\2\2\2\u01cf\u01d0\5\26\f\2\u01d0\u01d1\7\64\2\2\u01d1\u01d2\7\26\2"+
+    "\2\u01d29\3\2\2\2\u01d3\u01d4\7N\2\2\u01d4\u01d5\7\64\2\2\u01d5\u01d6"+
+    "\7N\2\2\u01d6;\3\2\2\2\u01d7\u01d8\7\32\2\2\u01d8\u01d9\7\64\2\2\u01d9"+
+    "\u01da\7N\2\2\u01da=\3\2\2\2*AGZ]iq~\u0082\u0086\u008b\u00a6\u00af\u00b3"+
+    "\u00b9\u00c2\u00cc\u00d4\u00da\u00e8\u00f3\u012e\u0130\u0150\u0156\u015e"+
+    "\u0169\u016f\u0172\u0174\u0189\u018f\u0196\u01a2\u01a5\u01ac\u01b5\u01b8"+
+    "\u01bb\u01c1\u01c9";
   public static final ATN _ATN =
     new ATNDeserializer().deserialize(_serializedATN.toCharArray());
   static {

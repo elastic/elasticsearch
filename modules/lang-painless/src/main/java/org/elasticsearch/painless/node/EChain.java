@@ -29,6 +29,7 @@ import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -46,6 +47,11 @@ public final class EChain extends AExpression {
     Type promote = null;
     Cast there = null;
     Cast back = null;
+    
+    /** Creates a new RHS-only EChain */
+    public EChain(Location location, ALink link) {
+        this(location, Arrays.asList(link), false, false, null, null);
+    }
 
     public EChain(Location location, List<ALink> links,
                   boolean pre, boolean post, Operation operation, AExpression expression) {

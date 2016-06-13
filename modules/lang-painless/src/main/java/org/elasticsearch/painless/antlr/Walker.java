@@ -45,10 +45,13 @@ import org.elasticsearch.painless.antlr.PainlessParser.BraceaccessContext;
 import org.elasticsearch.painless.antlr.PainlessParser.BreakContext;
 import org.elasticsearch.painless.antlr.PainlessParser.CallinvokeContext;
 import org.elasticsearch.painless.antlr.PainlessParser.CalllocalContext;
+import org.elasticsearch.painless.antlr.PainlessParser.CapturingFuncrefContext;
 import org.elasticsearch.painless.antlr.PainlessParser.CastContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ChainprecContext;
+import org.elasticsearch.painless.antlr.PainlessParser.ClassFuncrefContext;
 import org.elasticsearch.painless.antlr.PainlessParser.CompContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ConditionalContext;
+import org.elasticsearch.painless.antlr.PainlessParser.ConstructorFuncrefContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ContinueContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DeclContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DeclarationContext;
@@ -71,6 +74,7 @@ import org.elasticsearch.painless.antlr.PainlessParser.IfContext;
 import org.elasticsearch.painless.antlr.PainlessParser.InitializerContext;
 import org.elasticsearch.painless.antlr.PainlessParser.LambdaContext;
 import org.elasticsearch.painless.antlr.PainlessParser.LamtypeContext;
+import org.elasticsearch.painless.antlr.PainlessParser.LocalFuncrefContext;
 import org.elasticsearch.painless.antlr.PainlessParser.NewarrayContext;
 import org.elasticsearch.painless.antlr.PainlessParser.NewobjectContext;
 import org.elasticsearch.painless.antlr.PainlessParser.NullContext;
@@ -144,6 +148,7 @@ import org.elasticsearch.painless.node.SWhile;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
 
@@ -162,6 +167,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
     private final String sourceText;
 
     private final Deque<Reserved> reserved = new ArrayDeque<>();
+    private final List<SFunction> synthetic = new ArrayList<>();
 
     private Walker(String sourceName, String sourceText, CompilerSettings settings) {
         this.settings = settings;
@@ -225,6 +231,8 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         for (StatementContext statement : ctx.statement()) {
             statements.add((AStatement)visit(statement));
         }
+        
+        functions.addAll(synthetic);
 
         return new SSource(sourceName, sourceText, (ExecuteReserved)reserved.pop(), location(ctx), functions, statements);
     }
@@ -251,7 +259,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SFunction((FunctionReserved)reserved.pop(), location(ctx), rtnType, name, paramTypes, paramNames, statements);
+        return new SFunction((FunctionReserved)reserved.pop(), location(ctx), rtnType, name, paramTypes, paramNames, statements, false);
     }
 
     @Override
@@ -950,20 +958,51 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
     @Override
     public Object visitFuncref(FuncrefContext ctx) {
-        if (ctx.TYPE() != null) {
-            // non-capturing Type::method or Type::new
-            final String methodText;
-            if (ctx.NEW() != null) {
-                methodText = ctx.NEW().getText();
-            } else {
-                methodText = ctx.ID(0).getText();
-            }
-            return new EFunctionRef(location(ctx), ctx.TYPE().getText(), methodText);
-        } else if (ctx.THIS() != null) {
-            return new EFunctionRef(location(ctx), ctx.THIS().getText(), ctx.ID(0).getText());
+        if (ctx.classFuncref() != null) {
+            return visit(ctx.classFuncref());
+        } else if (ctx.constructorFuncref() != null) {
+            return visit(ctx.constructorFuncref());
+        } else if (ctx.capturingFuncref() != null) {
+            return visit(ctx.capturingFuncref());
+        } else if (ctx.localFuncref() != null) {
+            return visit(ctx.localFuncref());
         } else {
-            // capturing object::method
-            return new ECapturingFunctionRef(location(ctx), ctx.ID(0).getText(), ctx.ID(1).getText());
+            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
         }
+    }
+
+    @Override
+    public Object visitClassFuncref(ClassFuncrefContext ctx) {
+        return new EFunctionRef(location(ctx), ctx.TYPE().getText(), ctx.ID().getText());
+    }
+
+    @Override
+    public Object visitConstructorFuncref(ConstructorFuncrefContext ctx) {
+        if (!ctx.decltype().LBRACE().isEmpty()) {
+            // array constructors are special: we need to make a synthetic method
+            // taking integer as argument and returning a new instance, and return a ref to that.
+            Location location = location(ctx);
+            String arrayType = ctx.decltype().getText();
+            SReturn code = new SReturn(location, 
+                           new EChain(location,
+                           new LNewArray(location, arrayType, Arrays.asList(
+                           new EChain(location, 
+                           new LVariable(location, "size"))))));
+            String name = "lambda$" + synthetic.size();
+            synthetic.add(new SFunction(new FunctionReserved(), location, arrayType, name, 
+                          Arrays.asList("int"), Arrays.asList("size"), Arrays.asList(code), true));
+            return new EFunctionRef(location(ctx), "this", name);
+        }
+        return new EFunctionRef(location(ctx), ctx.decltype().getText(), ctx.NEW().getText());
+    }
+
+    @Override
+    public Object visitCapturingFuncref(CapturingFuncrefContext ctx) {
+        return new ECapturingFunctionRef(location(ctx), ctx.ID(0).getText(), ctx.ID(1).getText());
+    }
+
+    @Override
+    public Object visitLocalFuncref(LocalFuncrefContext ctx) {
+        return new EFunctionRef(location(ctx), ctx.THIS().getText(), ctx.ID().getText());
     }
 }

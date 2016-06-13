@@ -56,7 +56,21 @@ public class FunctionRefTests extends ScriptTestCase {
                                                   "DoubleSummaryStatistics::combine); " + 
                  "return stats.getSum()"));
     }
-    
+
+    public void testArrayCtorMethodRef() {
+        assertEquals(1.0D, 
+                exec("List l = new ArrayList(); l.add(1.0); l.add(2.0); " + 
+                     "def[] array = l.stream().toArray(Double[]::new);" + 
+                     "return array[0];"));
+    }
+
+    public void testArrayCtorMethodRefDef() {
+        assertEquals(1.0D, 
+                exec("def l = new ArrayList(); l.add(1.0); l.add(2.0); " + 
+                     "def[] array = l.stream().toArray(Double[]::new);" + 
+                     "return array[0];"));
+    }
+
     public void testCapturingMethodReference() {
         assertEquals("5", exec("Integer x = Integer.valueOf(5); return Optional.empty().orElseGet(x::toString);"));
         assertEquals("[]", exec("List l = new ArrayList(); return Optional.empty().orElseGet(l::toString);"));

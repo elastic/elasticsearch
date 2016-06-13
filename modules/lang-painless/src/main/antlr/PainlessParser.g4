@@ -195,6 +195,30 @@ lamtype
     ;
 
 funcref
-    : TYPE REF ( ID | NEW )
-    | ( ID | THIS ) REF ID
+    : classFuncref
+    | constructorFuncref
+    | capturingFuncref
+    | localFuncref
+    ;
+
+// reference to a static or instance method, e.g. ArrayList::size or Integer::compare
+classFuncref
+    : TYPE REF ID
+    ;
+
+// reference to a constructor, e.g. ArrayList::new
+// currently limited to simple non-array types
+constructorFuncref
+    : decltype REF NEW
+    ;
+
+// reference to an instance method, e.g. object::toString
+// currently limited to capture of a simple variable (id).
+capturingFuncref
+    : ID REF ID
+    ;
+
+// reference to a local function, e.g. this::myfunc
+localFuncref
+    : THIS REF ID
     ;

@@ -35,6 +35,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -90,6 +91,7 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
 
         Set<String> allowedMetaFields = new HashSet<>();
         allowedMetaFields.addAll(Arrays.asList(MapperService.getAllMetaFields()));
+        allowedMetaFields.add(FieldNamesFieldMapper.NAME); // TODO: add _field_names to MapperService#META_FIELDS?
         allowedMetaFields.add("_source"); // TODO: add _source to MapperService#META_FIELDS?
         allowedMetaFields.add("_version"); // TODO: add _version to MapperService#META_FIELDS?
         allowedMetaFields.remove("_all"); // The _all field contains actual data and we can't include that by default.

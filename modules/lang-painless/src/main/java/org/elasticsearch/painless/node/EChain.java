@@ -48,7 +48,7 @@ public final class EChain extends AExpression {
     Cast there = null;
     Cast back = null;
     
-    /** Creates a new simple EChain */
+    /** Creates a new RHS-only EChain */
     public EChain(Location location, ALink link) {
         this(location, Arrays.asList(link), false, false, null, null);
     }

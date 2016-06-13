@@ -204,7 +204,7 @@ funcref
 // reference to a static or instance method, e.g. ArrayList::size or Integer::compare
 classFuncref
     : TYPE REF ID
-	;
+    ;
 
 // reference to a constructor, e.g. ArrayList::new
 // currently limited to simple non-array types

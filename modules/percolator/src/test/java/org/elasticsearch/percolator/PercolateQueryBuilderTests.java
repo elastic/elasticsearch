@@ -20,7 +20,15 @@
 package org.elasticsearch.percolator;
 
 import com.fasterxml.jackson.core.JsonParseException;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -30,10 +38,14 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -44,11 +56,14 @@ import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQueryBuilder> {
 
@@ -231,6 +246,27 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> parseQuery("{\"percolate\" : { \"document\": {}}"));
         assertThat(e.getMessage(), equalTo("[percolate] query is missing required [document_type] parameter"));
+    }
+
+    public void testCreateMultiDocumentSearcher() throws Exception {
+        int numDocs = randomIntBetween(1, 8);
+        List<ParseContext.Document> docs = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            docs.add(new ParseContext.Document());
+        }
+
+        Analyzer analyzer = new WhitespaceAnalyzer();
+        ParsedDocument parsedDocument = new ParsedDocument(null, "_id", "_type", null, -1L, -1L, docs, null, null);
+        IndexSearcher indexSearcher = PercolateQueryBuilder.createMultiDocumentSearcher(analyzer, parsedDocument);
+        assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(numDocs));
+
+        // ensure that any query get modified so that the nested docs are never included as hits:
+        Query query = new MatchAllDocsQuery();
+        BooleanQuery result = (BooleanQuery) indexSearcher.createNormalizedWeight(query, true).getQuery();
+        assertThat(result.clauses().size(), equalTo(2));
+        assertThat(result.clauses().get(0).getQuery(), sameInstance(query));
+        assertThat(result.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(result.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
     }
 
     private static BytesReference randomSource() {

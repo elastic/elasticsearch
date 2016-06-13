@@ -22,83 +22,50 @@ package org.elasticsearch.search.profile;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.profile.query.CollectorResult;
+import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
+import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * A container class to hold the profile results for a single shard in the request.
- * Contains a list of query profiles, a collector tree and a total rewrite tree.
- */
-public final class ProfileShardResult implements Writeable, ToXContent {
+public class ProfileShardResult implements Writeable {
 
-    private final List<ProfileResult> queryProfileResults;
+    private final List<QueryProfileShardResult> queryProfileResults;
 
-    private final CollectorResult profileCollector;
+    private final AggregationProfileShardResult aggProfileShardResult;
 
-    private final long rewriteTime;
-
-    public ProfileShardResult(List<ProfileResult> queryProfileResults, long rewriteTime,
-                              CollectorResult profileCollector) {
-        assert(profileCollector != null);
-        this.queryProfileResults = queryProfileResults;
-        this.profileCollector = profileCollector;
-        this.rewriteTime = rewriteTime;
+    public ProfileShardResult(List<QueryProfileShardResult> queryProfileResults, AggregationProfileShardResult aggProfileShardResult) {
+        this.aggProfileShardResult = aggProfileShardResult;
+        this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
     }
 
-    /**
-     * Read from a stream.
-     */
     public ProfileShardResult(StreamInput in) throws IOException {
         int profileSize = in.readVInt();
-        queryProfileResults = new ArrayList<>(profileSize);
-        for (int j = 0; j < profileSize; j++) {
-            queryProfileResults.add(new ProfileResult(in));
+        List<QueryProfileShardResult> queryProfileResults = new ArrayList<>(profileSize);
+        for (int i = 0; i < profileSize; i++) {
+            QueryProfileShardResult result = new QueryProfileShardResult(in);
+            queryProfileResults.add(result);
         }
-
-        profileCollector = new CollectorResult(in);
-        rewriteTime = in.readLong();
+        this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
+        this.aggProfileShardResult = new AggregationProfileShardResult(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(queryProfileResults.size());
-        for (ProfileResult p : queryProfileResults) {
-            p.writeTo(out);
+        for (QueryProfileShardResult queryShardResult : queryProfileResults) {
+            queryShardResult.writeTo(out);
         }
-        profileCollector.writeTo(out);
-        out.writeLong(rewriteTime);
+        aggProfileShardResult.writeTo(out);
     }
 
-
-    public List<ProfileResult> getQueryResults() {
-        return Collections.unmodifiableList(queryProfileResults);
+    public List<QueryProfileShardResult> getQueryProfileResults() {
+        return queryProfileResults;
     }
 
-    public long getRewriteTime() {
-        return rewriteTime;
-    }
-
-    public CollectorResult getCollectorResult() {
-        return profileCollector;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray("query");
-        for (ProfileResult p : queryProfileResults) {
-            p.toXContent(builder, params);
-        }
-        builder.endArray();
-        builder.field("rewrite_time", rewriteTime);
-        builder.startArray("collector");
-        profileCollector.toXContent(builder, params);
-        builder.endArray();
-        return builder;
+    public AggregationProfileShardResult getAggregationProfileResults() {
+        return aggProfileShardResult;
     }
 }

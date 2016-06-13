@@ -19,34 +19,87 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Definition.MethodKey;
+import org.elasticsearch.painless.Executable;
+import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Locals.ExecuteReserved;
+import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Handle;
+import org.objectweb.asm.Opcodes;
+
+import java.util.BitSet;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.painless.WriterConstants.BASE_CLASS_TYPE;
+import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
+import static org.elasticsearch.painless.WriterConstants.CONSTRUCTOR;
+import static org.elasticsearch.painless.WriterConstants.EXECUTE;
+import static org.elasticsearch.painless.WriterConstants.MAP_GET;
+import static org.elasticsearch.painless.WriterConstants.MAP_TYPE;
 
 /**
  * The root of all Painless trees.  Contains a series of statements.
  */
 public final class SSource extends AStatement {
 
+    final String name;
+    final String source;
+    final ExecuteReserved reserved;
+    final List<SFunction> functions;
     final List<AStatement> statements;
 
-    public SSource(Location location, List<AStatement> statements) {
+    private Locals locals;
+    private BitSet expressions;
+    private byte[] bytes;
+
+    public SSource(String name, String source, ExecuteReserved reserved, Location location,
+                   List<SFunction> functions, List<AStatement> statements) {
         super(location);
 
+        this.name = name;
+        this.source = source;
+        this.reserved = reserved;
+        this.functions = Collections.unmodifiableList(functions);
         this.statements = Collections.unmodifiableList(statements);
     }
 
+    public void analyze() {
+        Map<MethodKey, Method> methods = new HashMap<>();
+
+        for (SFunction function : functions) {
+            function.generate();
+
+            MethodKey key = new MethodKey(function.name, function.parameters.size());
+
+            if (methods.put(key, function.method) != null) {
+                throw createError(new IllegalArgumentException("Duplicate functions with name [" + function.name + "]."));
+            }
+        }
+
+        locals = new Locals(reserved, methods);
+        analyze(locals);
+    }
+
     @Override
-    public void analyze(Variables variables) {
+    void analyze(Locals locals) {
+        for (SFunction function : functions) {
+            function.analyze(locals);
+        }
+
         if (statements == null || statements.isEmpty()) {
             throw createError(new IllegalArgumentException("Cannot generate an empty script."));
         }
 
-        variables.incrementScope();
+        locals.incrementScope();
 
         AStatement last = statements.get(statements.size() - 1);
 
@@ -59,17 +112,117 @@ public final class SSource extends AStatement {
 
             statement.lastSource = statement == last;
 
-            statement.analyze(variables);
+            statement.analyze(locals);
 
             methodEscape = statement.methodEscape;
             allEscape = statement.allEscape;
         }
 
-        variables.decrementScope();
+        locals.decrementScope();
     }
 
+    public void write() {
+        // Create the ClassWriter.
+
+        int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
+        int classVersion = Opcodes.V1_8;
+        int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
+        String classBase = BASE_CLASS_TYPE.getInternalName();
+        String className = CLASS_TYPE.getInternalName();
+        String classInterfaces[] = reserved.usesScore() ? new String[] { WriterConstants.NEEDS_SCORE_TYPE.getInternalName() } : null;
+
+        ClassWriter writer = new ClassWriter(classFrames);
+        writer.visit(classVersion, classAccess, className, null, classBase, classInterfaces);
+        writer.visitSource(Location.computeSourceName(name, source), null);
+
+        expressions = new BitSet(source.length());
+
+        // Write the constructor:
+        MethodWriter constructor = new MethodWriter(Opcodes.ACC_PUBLIC, CONSTRUCTOR, writer, expressions);
+        constructor.loadThis();
+        constructor.loadArgs();
+        constructor.invokeConstructor(org.objectweb.asm.Type.getType(Executable.class), CONSTRUCTOR);
+        constructor.returnValue();
+        constructor.endMethod();
+
+        // Write the execute method:
+        MethodWriter execute = new MethodWriter(Opcodes.ACC_PUBLIC, EXECUTE, writer, expressions);
+        write(execute);
+        execute.endMethod();
+        
+        // Write all functions:
+        for (SFunction function : functions) {
+            function.write(writer, expressions);
+        }
+
+        // Write a static field with Handle (function reference) for every function:
+        if (!functions.isEmpty()) {
+            for (SFunction function : functions) {
+                writer.visitField(Opcodes.ACC_FINAL | Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC, 
+                        function.getStaticHandleFieldName(), 
+                        WriterConstants.METHOD_HANDLE_TYPE.getDescriptor(), 
+                        null, 
+                        null).visitEnd();
+            }
+            final MethodWriter clinit = new MethodWriter(Opcodes.ACC_STATIC, 
+                                                   WriterConstants.CLINIT, writer, expressions);
+            for (SFunction function : functions) {
+                final Handle handle = new Handle(Opcodes.H_INVOKESTATIC, 
+                                           CLASS_TYPE.getInternalName(), 
+                                           function.name, 
+                                           function.method.method.getDescriptor(), 
+                                           false);
+                clinit.push(handle);
+                clinit.putStatic(CLASS_TYPE, 
+                                 function.getStaticHandleFieldName(), 
+                                 WriterConstants.METHOD_HANDLE_TYPE);
+            }
+            clinit.returnValue();
+            clinit.endMethod();
+        }
+        
+        // End writing the class and store the generated bytes:
+        writer.visitEnd();
+        bytes = writer.toByteArray();
+    }
+    
     @Override
-    public void write(MethodWriter writer) {
+    void write(MethodWriter writer) {
+        if (reserved.usesScore()) {
+            // if the _score value is used, we do this once:
+            // final double _score = scorer.score();
+            Variable scorer = locals.getVariable(null, ExecuteReserved.SCORER);
+            Variable score = locals.getVariable(null, ExecuteReserved.SCORE);
+
+            writer.visitVarInsn(Opcodes.ALOAD, scorer.slot);
+            writer.invokeVirtual(WriterConstants.SCORER_TYPE, WriterConstants.SCORER_SCORE);
+            writer.visitInsn(Opcodes.F2D);
+            writer.visitVarInsn(Opcodes.DSTORE, score.slot);
+        }
+
+        if (reserved.usesCtx()) {
+            // if the _ctx value is used, we do this once:
+            // final Map<String,Object> ctx = input.get("ctx");
+
+            Variable input = locals.getVariable(null, ExecuteReserved.PARAMS);
+            Variable ctx = locals.getVariable(null, ExecuteReserved.CTX);
+
+            writer.visitVarInsn(Opcodes.ALOAD, input.slot);
+            writer.push(ExecuteReserved.CTX);
+            writer.invokeInterface(MAP_TYPE, MAP_GET);
+            writer.visitVarInsn(Opcodes.ASTORE, ctx.slot);
+        }
+
+        if (reserved.getMaxLoopCounter() > 0) {
+            // if there is infinite loop protection, we do this once:
+            // int #loop = settings.getMaxLoopCounter()
+
+            Variable loop = locals.getVariable(null, ExecuteReserved.LOOP);
+
+            writer.push(reserved.getMaxLoopCounter());
+            writer.visitVarInsn(Opcodes.ISTORE, loop.slot);
+        }
+
         for (AStatement statement : statements) {
             statement.write(writer);
         }
@@ -78,5 +231,13 @@ public final class SSource extends AStatement {
             writer.visitInsn(Opcodes.ACONST_NULL);
             writer.returnValue();
         }
+    }
+
+    public BitSet getExpressions() {
+        return expressions;
+    }
+
+    public byte[] getBytes() {
+        return bytes;
     }
 }

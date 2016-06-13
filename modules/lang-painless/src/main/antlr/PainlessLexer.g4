@@ -51,6 +51,7 @@ NEW:       'new';
 TRY:       'try';
 CATCH:     'catch';
 THROW:     'throw';
+THIS:      'this';
 
 BOOLNOT: '!';
 BWNOT:   '~';
@@ -78,6 +79,7 @@ BOOLOR:  '||';
 COND:    '?';
 COLON:   ':';
 REF:     '::';
+ARROW:   '->';
 INCR:    '++';
 DECR:    '--';
 

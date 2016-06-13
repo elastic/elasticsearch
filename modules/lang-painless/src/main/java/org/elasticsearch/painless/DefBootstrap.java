@@ -60,6 +60,8 @@ public final class DefBootstrap {
     public static final int ARRAY_STORE = 4;
     /** static bootstrap parameter indicating a dynamic iteration, e.g. for (x : y) */
     public static final int ITERATOR = 5;
+    /** static bootstrap parameter indicating a dynamic method reference, e.g. foo::bar */
+    public static final int REFERENCE = 6;
 
     /**
      * CallSite that implements the polymorphic inlining cache (PIC).
@@ -71,17 +73,15 @@ public final class DefBootstrap {
         private final Lookup lookup;
         private final String name;
         private final int flavor;
-        private final long recipe;
+        private final Object[] args;
         int depth; // pkg-protected for testing
 
-        PIC(Lookup lookup, String name, MethodType type, int flavor, long recipe) {
+        PIC(Lookup lookup, String name, MethodType type, int flavor, Object[] args) {
             super(type);
             this.lookup = lookup;
             this.name = name;
             this.flavor = flavor;
-            this.recipe = recipe;
-            assert recipe == 0 || flavor == METHOD_CALL;
-            assert Long.bitCount(recipe) <= type.parameterCount();
+            this.args = args;
 
             final MethodHandle fallback = FALLBACK.bindTo(this)
               .asCollector(Object[].class, type.parameterCount())
@@ -101,10 +101,10 @@ public final class DefBootstrap {
         /**
          * Does a slow lookup against the whitelist.
          */
-        private MethodHandle lookup(int flavor, Class<?> clazz, String name, Object[] args, long recipe) throws Throwable {
+        private MethodHandle lookup(int flavor, Class<?> clazz, String name, Object[] args) throws Throwable {
             switch(flavor) {
                 case METHOD_CALL:
-                    return Def.lookupMethod(lookup, clazz, name, args, recipe);
+                    return Def.lookupMethod(lookup, type(), clazz, name, args, (Long) this.args[0]);
                 case LOAD:
                     return Def.lookupGetter(clazz, name);
                 case STORE:
@@ -115,6 +115,8 @@ public final class DefBootstrap {
                     return Def.lookupArrayStore(clazz);
                 case ITERATOR:
                     return Def.lookupIterator(clazz);
+                case REFERENCE:
+                    return Def.lookupReference(lookup, (String) this.args[0], clazz, name);
                 default: throw new AssertionError();
             }
         }
@@ -128,7 +130,7 @@ public final class DefBootstrap {
             final MethodType type = type();
             final Object receiver = args[0];
             final Class<?> receiverClass = receiver.getClass();
-            final MethodHandle target = lookup(flavor, receiverClass, name, args, recipe).asType(type);
+            final MethodHandle target = lookup(flavor, receiverClass, name, args).asType(type);
 
             if (depth >= MAX_DEPTH) {
                 // revert to a vtable call
@@ -170,8 +172,36 @@ public final class DefBootstrap {
      * <p>
      * see https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html#jvms-6.5.invokedynamic
      */
-    public static CallSite bootstrap(Lookup lookup, String name, MethodType type, int flavor, long recipe) {
-        return new PIC(lookup, name, type, flavor, recipe);
+    public static CallSite bootstrap(Lookup lookup, String name, MethodType type, int flavor, Object... args) {
+        // validate arguments
+        switch(flavor) {
+            case METHOD_CALL:
+                if (args.length != 1) {
+                    throw new BootstrapMethodError("Invalid number of parameters for method call");
+                }
+                if (args[0] instanceof Long == false) {
+                    throw new BootstrapMethodError("Illegal parameter for method call: " + args[0]);
+                }
+                long recipe = (Long) args[0];
+                if (Long.bitCount(recipe) > type.parameterCount()) {
+                    throw new BootstrapMethodError("Illegal recipe for method call: too many bits");
+                }
+                break;
+            case REFERENCE:
+                if (args.length != 1) {
+                    throw new BootstrapMethodError("Invalid number of parameters for reference call");
+                }
+                if (args[0] instanceof String == false) {
+                    throw new BootstrapMethodError("Illegal parameter for reference call: " + args[0]);
+                }
+                break;
+            default:
+                if (args.length > 0) {
+                    throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
+                }
+                break;
+        }
+        return new PIC(lookup, name, type, flavor, args);
     }
 
 }

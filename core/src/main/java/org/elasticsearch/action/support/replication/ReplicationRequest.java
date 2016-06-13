@@ -181,7 +181,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             shardId = null;
         }
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
-        timeout = TimeValue.readTimeValue(in);
+        timeout = new TimeValue(in);
         index = in.readString();
         routedBasedOnClusterVersion = in.readVLong();
         primaryTerm = in.readVLong();

@@ -100,8 +100,9 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         GeoPointInPolygonQuery geoQuery = (GeoPointInPolygonQuery) query;
         assertThat(geoQuery.getField(), equalTo(queryBuilder.fieldName()));
         List<GeoPoint> queryBuilderPoints = queryBuilder.points();
-        double[] lats = geoQuery.getLats();
-        double[] lons = geoQuery.getLons();
+        assertEquals(1, geoQuery.getPolygons().length);
+        double[] lats = geoQuery.getPolygons()[0].getPolyLats();
+        double[] lons = geoQuery.getPolygons()[0].getPolyLons();
         assertThat(lats.length, equalTo(queryBuilderPoints.size()));
         assertThat(lons.length, equalTo(queryBuilderPoints.size()));
         for (int i=0; i < queryBuilderPoints.size(); ++i) {
@@ -321,8 +322,9 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         } else {
             GeoPointInPolygonQuery q = (GeoPointInPolygonQuery) parsedQuery;
             assertThat(q.getField(), equalTo(GEO_POINT_FIELD_NAME));
-            final double[] lats = q.getLats();
-            final double[] lons = q.getLons();
+            assertEquals(1, q.getPolygons().length);
+            final double[] lats = q.getPolygons()[0].getPolyLats();
+            final double[] lons = q.getPolygons()[0].getPolyLons();
             assertThat(lats.length, equalTo(4));
             assertThat(lons.length, equalTo(4));
             assertThat(lats[0], closeTo(40, 1E-5));

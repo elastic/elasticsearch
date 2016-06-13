@@ -22,7 +22,15 @@ parser grammar PainlessParser;
 options { tokenVocab=PainlessLexer; }
 
 source
-    : statement* EOF
+    : function* statement* EOF
+    ;
+
+function
+    : decltype ID parameters block
+    ;
+
+parameters
+    : LP ( decltype ID ( COMMA decltype ID )* )? RP
     ;
 
 // Note we use a predicate on the if/else case here to prevent the
@@ -73,10 +81,6 @@ decltype
     : TYPE (LBRACE RBRACE)*
     ;
 
-funcref
-    : TYPE REF ( ID | NEW )
-    ;
-
 declvar
     : ID ( ASSIGN expression )?
     ;
@@ -88,6 +92,17 @@ trap
 delimiter
     : SEMICOLON
     | EOF
+    // RBRACK is a delimiter but we don't consume it because it is only valid
+    // in places where RBRACK can follow the statement. It is simpler to not
+    // consume it here then it is to consume it here. Unfortunately, they
+    // obvious syntax to do this `| { _input.LA(1) == RBRACK }?` generates an
+    // amazingly intense `adaptivePredict` call that doesn't actually work
+    // and builds a serious DFA. Huge. So instead we use standard ANTLR syntax
+    // to consume the token and then undo the consumption. This looks hairy but
+    // it is better than the alternatives.
+    |   { int mark = _input.mark(); int index = _input.index(); }
+            RBRACK
+        { _input.seek(index); _input.release(mark); }
     ;
 
 // Note we return the boolean s.  This is returned as true
@@ -143,6 +158,7 @@ primary[boolean c] returns [boolean s = true]
     | { $c }?  LP unary[true] RP                   # chainprec
     |          STRING                              # string
     |          ID                                  # variable
+    |          ID arguments                        # calllocal
     |          NEW TYPE arguments                  # newobject
     ;
 
@@ -166,5 +182,19 @@ arguments
 
 argument
     : expression
+    | lambda
     | funcref
+    ;
+
+lambda
+    : ( lamtype | LP ( lamtype ( COMMA lamtype )* )? RP ) ARROW block
+    ;
+
+lamtype
+    : decltype? ID
+    ;
+
+funcref
+    : TYPE REF ( ID | NEW )
+    | ( ID | THIS ) REF ID
     ;

@@ -22,7 +22,6 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
-import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -88,25 +87,16 @@ import static org.elasticsearch.painless.WriterConstants.UTILITY_TYPE;
  * shared by the nodes of the Painless tree.
  */
 public final class MethodWriter extends GeneratorAdapter {
-    private final ClassWriter parent;
     private final BitSet statements;
 
-    private final Deque<List<org.objectweb.asm.Type>> stringConcatArgs = (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ?
-            null : new ArrayDeque<>();
+    private final Deque<List<org.objectweb.asm.Type>> stringConcatArgs =
+        (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ?  null : new ArrayDeque<>();
 
-    MethodWriter(int access, Method method, ClassWriter cw, BitSet statements) {
+    public MethodWriter(int access, Method method, ClassWriter cw, BitSet statements) {
         super(Opcodes.ASM5, cw.visitMethod(access, method.getName(), method.getDescriptor(), null, null),
                 access, method.getName(), method.getDescriptor());
 
-        this.parent = cw;
         this.statements = statements;
-    }
-
-    /**
-     * @return A new {@link MethodWriter} with the specified access and signature.
-     */
-    MethodWriter newMethodWriter(int access, Method method) {
-        return new MethodWriter(access, method, parent, statements);
     }
 
     /**
@@ -356,11 +346,16 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     @Override
-    public void visitEnd() {
+    public void endMethod() {
         if (stringConcatArgs != null && !stringConcatArgs.isEmpty()) {
             throw new IllegalStateException("String concat bytecode not completed.");
         }
-        super.visitEnd();
+        super.endMethod();
+    }
+
+    @Override
+    public void visitEnd() {
+        throw new AssertionError("Should never call this method on MethodWriter, use endMethod() instead");
     }
 
 }

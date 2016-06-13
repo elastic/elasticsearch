@@ -21,8 +21,8 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.Variables.Variable;
+import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Locals.Variable;
 import org.objectweb.asm.Opcodes;
 
 /**
@@ -41,12 +41,12 @@ public final class LVariable extends ALink {
     }
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
         if (before != null) {
             throw createError(new IllegalArgumentException("Illegal variable [" + name + "] access with target already defined."));
         }
 
-        Variable variable = variables.getVariable(location, name);
+        Variable variable = locals.getVariable(location, name);
 
         if (store && variable.readonly) {
             throw createError(new IllegalArgumentException("Variable [" + variable.name + "] is read-only."));

@@ -54,7 +54,6 @@ public class NettyHttpRequestSizeLimitIT extends ESIntegTestCase {
             .build();
     }
 
-    @TestLogging("_root:DEBUG,org.elasticsearch.common.breaker:TRACE,org.elasticsearch.test:TRACE,org.elasticsearch.transport:TRACE")
     public void testLimitsInFlightRequests() throws Exception {
         ensureGreen();
 

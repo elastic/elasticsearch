@@ -33,7 +33,7 @@ public class DefBootstrapTests extends ESTestCase {
         CallSite site = DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
                                                   "toString", 
                                                   MethodType.methodType(String.class, Object.class), 
-                                                  DefBootstrap.METHOD_CALL, 0);
+                                                  DefBootstrap.METHOD_CALL, 0L);
         MethodHandle handle = site.dynamicInvoker();
         assertDepthEquals(site, 0);
 
@@ -50,7 +50,7 @@ public class DefBootstrapTests extends ESTestCase {
         CallSite site = DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
                                                   "toString", 
                                                   MethodType.methodType(String.class, Object.class), 
-                                                  DefBootstrap.METHOD_CALL, 0);
+                                                  DefBootstrap.METHOD_CALL, 0L);
         MethodHandle handle = site.dynamicInvoker();
         assertDepthEquals(site, 0);
 
@@ -72,7 +72,7 @@ public class DefBootstrapTests extends ESTestCase {
         CallSite site = DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
                                                   "toString", 
                                                   MethodType.methodType(String.class, Object.class), 
-                                                  DefBootstrap.METHOD_CALL, 0);
+                                                  DefBootstrap.METHOD_CALL, 0L);
         MethodHandle handle = site.dynamicInvoker();
         assertDepthEquals(site, 0);
 

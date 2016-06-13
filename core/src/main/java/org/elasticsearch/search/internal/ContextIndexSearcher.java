@@ -122,7 +122,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 weight = super.createWeight(query, needsScores);
             } finally {
                 profile.stopAndRecordTime();
-                profiler.pollLastQuery();
+                profiler.pollLastElement();
             }
             return new ProfileWeight(query, weight, profile);
         } else {

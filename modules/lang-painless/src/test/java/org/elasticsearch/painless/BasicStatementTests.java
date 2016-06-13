@@ -134,7 +134,7 @@ public class BasicStatementTests extends ScriptTestCase {
             " String cat = ''; int total = 0;" +
             " for (Map.Entry e : m.entrySet()) { cat += e.getKey(); total += e.getValue(); } return cat + total"));
     }
-    
+
     public void testIterableForEachStatementDef() {
         assertEquals(6, exec("def l = new ArrayList(); l.add(1); l.add(2); l.add(3); int total = 0;" +
             " for (int x : l) total += x; return total"));
@@ -153,7 +153,7 @@ public class BasicStatementTests extends ScriptTestCase {
         assertEquals(6, exec("int[][] i = new int[3][1]; i[0][0] = 1; i[1][0] = 2; i[2][0] = 3; int total = 0;" +
             " for (int[] j : i) total += j[0]; return total"));
     }
-    
+
     public void testArrayForEachStatementDef() {
         assertEquals(6, exec("def a = new int[3]; a[0] = 1; a[1] = 2; a[2] = 3; int total = 0;" +
             " for (int x : a) total += x; return total"));
@@ -213,5 +213,21 @@ public class BasicStatementTests extends ScriptTestCase {
         assertEquals(4, exec("int[] x = new int[2]; x[1] = 4; return x[1];"));
         assertEquals(5, ((short[])exec("short[] s = new short[3]; s[1] = 5; return s;"))[1]);
         assertEquals(10, ((Map)exec("Map s = new HashMap(); s.put(\"x\", 10); return s;")).get("x"));
+    }
+
+    public void testLambdas() {
+        Exception exception = expectThrows(Exception.class, () -> {
+            exec("Math.max(2, p -> {p.doSomething();})");
+        });
+        assertTrue(exception.getCause().getMessage().contains("Lambda functions are not supported."));
+    }
+
+    public void testLastInBlockDoesntNeedSemi() {
+        // One statement in the block in case that is a special case
+        assertEquals(10, exec("def i = 1; if (i == 1) {return 10}"));
+        assertEquals(10, exec("def i = 1; if (i == 1) {return 10} else {return 12}"));
+        // Two statements in the block, in case that is the general case
+        assertEquals(10, exec("def i = 1; if (i == 1) {i = 2; return 10}"));
+        assertEquals(10, exec("def i = 1; if (i == 1) {i = 2; return 10} else {return 12}"));
     }
 }

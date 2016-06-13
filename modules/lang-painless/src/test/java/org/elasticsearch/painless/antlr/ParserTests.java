@@ -78,4 +78,17 @@ public class ParserTests extends ScriptTestCase {
         exception = expectThrows(RuntimeException.class, () -> buildAntlrTree("((Map)x.-x)"));
         assertTrue(exception.getMessage().contains("unexpected character"));
     }
+
+    public void testLambdaSyntax() {
+        buildAntlrTree("call(p -> {p.doSomething();});");
+        buildAntlrTree("call(int p -> {p.doSomething();});");
+        buildAntlrTree("call((p, u, v) -> {p.doSomething(); blah = 1;});");
+        buildAntlrTree("call(1, (p, u, v) -> {p.doSomething(); blah = 1;}, 3);");
+        buildAntlrTree("call((p, u, v) -> {p.doSomething(); blah = 1;});");
+        buildAntlrTree("call(x, y, z, (int p, int u, int v) -> {p.doSomething(); blah = 1;});");
+        buildAntlrTree("call(x, y, z, (long p, List u, String v) -> {p.doSomething(); blah = 1;});");
+        buildAntlrTree("call(x, y, z, (int p, u, int v) -> {p.doSomething(); blah = 1;});");
+        buildAntlrTree("call(x, (int p, u, int v) -> {p.doSomething(); blah = 1;}, z," +
+            " (int p, u, int v) -> {p.doSomething(); blah = 1;}, 'test');");
+    }
 }

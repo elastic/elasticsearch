@@ -74,11 +74,7 @@ public final class TermsSliceQuery extends SliceQuery {
             int hashCode = term.hashCode();
             if (contains(hashCode)) {
                 docsEnum = te.postings(docsEnum, PostingsEnum.NONE);
-                int docId = docsEnum.nextDoc();
-                while (docId != DocIdSetIterator.NO_MORE_DOCS) {
-                    builder.add(docId);
-                    docId = docsEnum.nextDoc();
-                }
+                builder.add(docsEnum);
             }
         }
         return builder.build();

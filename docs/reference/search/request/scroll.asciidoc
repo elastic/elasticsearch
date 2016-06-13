@@ -264,3 +264,6 @@ curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
 --------------------------------------------------
 
 For append only time-based indices, the `timestamp` field can be used safely.
+
+NOTE: By default the maximum number of slices allowed per scroll is limited to 1024.
+You can update the `index.max_slices_per_scroll` index setting to bypass this limit.

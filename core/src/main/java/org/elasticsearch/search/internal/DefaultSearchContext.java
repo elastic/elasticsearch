@@ -68,6 +68,7 @@ import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
@@ -116,7 +117,7 @@ public class DefaultSearchContext extends SearchContext {
     private boolean trackScores = false; // when sorting, track scores as well...
     private FieldDoc searchAfter;
     // filter for sliced scroll
-    private Query sliceFilter;
+    private SliceBuilder sliceBuilder;
 
     /**
      * The original query as sent by the user without the types and aliases
@@ -212,10 +213,20 @@ public class DefaultSearchContext extends SearchContext {
                 if (rescoreContext.window() > maxWindow) {
                     throw new QueryPhaseExecutionException(this, "Rescore window [" + rescoreContext.window() + "] is too large. It must "
                             + "be less than [" + maxWindow + "]. This prevents allocating massive heaps for storing the results to be "
-                            + "rescored. This limit can be set by chaining the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey()
+                            + "rescored. This limit can be set by changing the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey()
                             + "] index level setting.");
 
                 }
+            }
+        }
+
+        if (sliceBuilder != null) {
+            int sliceLimit = indexService.getIndexSettings().getMaxSlicesPerScroll();
+            int numSlices = sliceBuilder.getMax();
+            if (numSlices > sliceLimit) {
+                throw new QueryPhaseExecutionException(this, "The number of slices [" + numSlices + "] is too large. It must "
+                    + "be less than [" + sliceLimit + "]. This limit can be set by changing the [" +
+                    IndexSettings.MAX_SLICES_PER_SCROLL.getKey() + "] index level setting.");
             }
         }
 
@@ -257,9 +268,11 @@ public class DefaultSearchContext extends SearchContext {
     @Nullable
     public Query searchFilter(String[] types) {
         Query typesFilter = createSearchFilter(types, aliasFilter, mapperService().hasNested());
-        if (sliceFilter == null) {
+        if (sliceBuilder == null) {
             return typesFilter;
         }
+         Query sliceFilter = sliceBuilder.toFilter(queryShardContext, shardTarget().getShardId().getId(),
+                queryShardContext.getIndexSettings().getNumberOfShards());
         if (typesFilter == null) {
             return sliceFilter;
         }
@@ -562,8 +575,8 @@ public class DefaultSearchContext extends SearchContext {
         return searchAfter;
     }
 
-    public SearchContext sliceFilter(Query filter) {
-        this.sliceFilter = filter;
+    public SearchContext sliceBuilder(SliceBuilder sliceBuilder) {
+        this.sliceBuilder = sliceBuilder;
         return this;
     }
 

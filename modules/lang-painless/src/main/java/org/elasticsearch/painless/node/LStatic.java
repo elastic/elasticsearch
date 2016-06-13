@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 
 /**
  * Represents a static type target.
@@ -38,7 +38,7 @@ public final class LStatic extends ALink {
     }
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
         if (before != null) {
             throw createError(new IllegalArgumentException("Illegal static type [" + type + "] after target already defined."));
         }

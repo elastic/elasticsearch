@@ -318,13 +318,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
         Explanation explanation = searchResponse.getHits().hits()[0].explanation();
         assertThat(explanation.getValue(), equalTo(2f));
-        assertThat(explanation.toString(), startsWith("2.0 = sum of:\n  2.0 = Score based on child doc range from 0 to 1\n"));
-        // TODO: Enable when changes from BlockJoinQuery#explain are added to Lucene (Most likely version 4.2)
-//        assertThat(explanation.getDetails().length, equalTo(2));
-//        assertThat(explanation.getDetails()[0].getValue(), equalTo(1f));
-//        assertThat(explanation.getDetails()[0].getDescription(), equalTo("Child[0]"));
-//        assertThat(explanation.getDetails()[1].getValue(), equalTo(1f));
-//        assertThat(explanation.getDetails()[1].getDescription(), equalTo("Child[1]"));
+        assertThat(explanation.toString(), startsWith("2.0 = sum of:\n  2.0 = Score based on 2 child docs in range from 0 to 1"));
     }
 
     public void testSimpleNestedSorting() throws Exception {

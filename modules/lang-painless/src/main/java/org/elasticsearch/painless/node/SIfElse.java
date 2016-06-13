@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -43,10 +43,10 @@ public final class SIfElse extends AStatement {
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         condition.expected = Definition.BOOLEAN_TYPE;
-        condition.analyze(variables);
-        condition = condition.cast(variables);
+        condition.analyze(locals);
+        condition = condition.cast(locals);
 
         if (condition.constant != null) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
@@ -60,9 +60,9 @@ public final class SIfElse extends AStatement {
         ifblock.inLoop = inLoop;
         ifblock.lastLoop = lastLoop;
 
-        variables.incrementScope();
-        ifblock.analyze(variables);
-        variables.decrementScope();
+        locals.incrementScope();
+        ifblock.analyze(locals);
+        locals.decrementScope();
 
         anyContinue = ifblock.anyContinue;
         anyBreak = ifblock.anyBreak;
@@ -76,9 +76,9 @@ public final class SIfElse extends AStatement {
         elseblock.inLoop = inLoop;
         elseblock.lastLoop = lastLoop;
 
-        variables.incrementScope();
-        elseblock.analyze(variables);
-        variables.decrementScope();
+        locals.incrementScope();
+        elseblock.analyze(locals);
+        locals.decrementScope();
 
         methodEscape = ifblock.methodEscape && elseblock.methodEscape;
         loopEscape = ifblock.loopEscape && elseblock.loopEscape;

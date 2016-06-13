@@ -95,9 +95,6 @@ or as a single value
     "color": {
         "type": "category",
         "default": "red"
-        "contexts": {
-            "place_type": ["cafe", "food"] <1>
-        }
     }
 }
 --------------------------------------------------

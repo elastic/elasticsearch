@@ -40,6 +40,8 @@ import java.nio.charset.StandardCharsets;
 /**
  * Helper class that exposes static methods to unify the way requests are logged.
  * Includes trace logging to log complete requests and responses in curl format.
+ * Useful for debugging, manually sending logged requests via curl and checking their responses.
+ * Trace logging is a feature that all the language clients provide.
  */
 final class RequestLogger {
 

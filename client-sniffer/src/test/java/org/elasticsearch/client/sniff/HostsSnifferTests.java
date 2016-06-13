@@ -56,6 +56,7 @@ import java.util.Set;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
+//animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
 @IgnoreJRERequirement
 public class HostsSnifferTests extends LuceneTestCase {
 
@@ -118,6 +119,7 @@ public class HostsSnifferTests extends LuceneTestCase {
         return httpServer;
     }
 
+    //animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
     @IgnoreJRERequirement
     private static class ResponseHandler implements HttpHandler {
         private final int sniffTimeoutMillis;

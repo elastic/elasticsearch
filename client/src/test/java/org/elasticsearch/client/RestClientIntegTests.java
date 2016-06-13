@@ -58,6 +58,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
  * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.
  * Works against a real http server, one single host.
  */
+//animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
 @IgnoreJRERequirement
 public class RestClientIntegTests extends LuceneTestCase {
 
@@ -88,6 +89,7 @@ public class RestClientIntegTests extends LuceneTestCase {
         httpServer.createContext("/" + statusCode, new ResponseHandler(statusCode));
     }
 
+    //animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
     @IgnoreJRERequirement
     private static class ResponseHandler implements HttpHandler {
         private final int statusCode;

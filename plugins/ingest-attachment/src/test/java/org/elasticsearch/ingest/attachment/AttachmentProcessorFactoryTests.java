@@ -20,7 +20,7 @@
 package org.elasticsearch.ingest.attachment;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ingest.core.AbstractProcessorFactory;
+import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;

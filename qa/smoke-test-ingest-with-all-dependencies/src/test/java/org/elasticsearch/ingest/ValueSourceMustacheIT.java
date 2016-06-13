@@ -19,9 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ingest.core.IngestDocument;
-import org.elasticsearch.ingest.core.ValueSource;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;

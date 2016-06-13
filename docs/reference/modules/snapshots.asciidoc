@@ -326,7 +326,7 @@ By default, all indices in the snapshot as well as cluster state are restored. I
 should be restored as well as prevent global cluster state from being restored by using `indices` and
 `include_global_state` options in the restore request body. The list of indices supports
 <<search-multi-index-type,multi index syntax>>. The `rename_pattern` and `rename_replacement` options can be also used to
-rename index on restore using regular expression that supports referencing the original text as explained
+rename indices on restore using regular expression that supports referencing the original text as explained
 http://docs.oracle.com/javase/6/docs/api/java/util/regex/Matcher.html#appendReplacement(java.lang.StringBuffer,%20java.lang.String)[here].
 Set `include_aliases` to `false` to prevent aliases from being restored together with associated indices
 

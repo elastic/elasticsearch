@@ -73,10 +73,11 @@ This similarity has the following options:
 [horizontal]
 `k1`::
     Controls non-linear term frequency normalization
-    (saturation).
+    (saturation). The default value is `1.2`.
 
 `b`::
     Controls to what degree document length normalizes tf values.
+    The default value is `0.75`.
 
 `discount_overlaps`::
     Determines whether overlap tokens (Tokens with

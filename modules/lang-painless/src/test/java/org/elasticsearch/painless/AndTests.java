@@ -45,4 +45,13 @@ public class AndTests extends ScriptTestCase {
         assertEquals(5L & -12L, exec("return 5L & -12L;"));
         assertEquals(7L & 15L & 3L, exec("return 7L & 15L & 3L;"));
     }
+    
+    public void testIllegal() throws Exception {
+        expectScriptThrows(ClassCastException.class, () -> {
+            exec("float x = (float)4; int y = 1; return x & y");
+        });
+        expectScriptThrows(ClassCastException.class, () -> {
+            exec("double x = (double)4; int y = 1; return x & y");
+        });
+    }
 }

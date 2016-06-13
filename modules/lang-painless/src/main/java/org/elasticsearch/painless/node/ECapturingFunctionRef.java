@@ -87,7 +87,7 @@ public class ECapturingFunctionRef extends AExpression {
             // typed interface, dynamic implementation
             writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.slot);
             String descriptor = Type.getMethodType(expected.type, captured.type.type).getDescriptor();
-            writer.invokeDynamic(call, descriptor, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.REFERENCE, expected.name);
+            writer.invokeDynamic(call, descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.REFERENCE, expected.name);
         } else {
             // typed interface, typed implementation
             writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.slot);

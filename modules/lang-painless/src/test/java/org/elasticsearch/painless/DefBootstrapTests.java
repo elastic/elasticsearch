@@ -23,6 +23,8 @@ import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.util.Arrays;
+import java.util.Collections;
 
 import org.elasticsearch.test.ESTestCase;
 
@@ -88,6 +90,19 @@ public class DefBootstrapTests extends ESTestCase {
         assertDepthEquals(site, 5);
         assertEquals("c", handle.invoke(Character.valueOf('c')));
         assertDepthEquals(site, 5);
+    }
+    
+    /** test that we really revert to a "generic" method that can handle any receiver types */
+    public void testMegamorphic() throws Throwable {
+        DefBootstrap.PIC site = (DefBootstrap.PIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
+                                                                          "size", 
+                                                                          MethodType.methodType(int.class, Object.class), 
+                                                                          DefBootstrap.METHOD_CALL, 0L);
+        site.depth = DefBootstrap.PIC.MAX_DEPTH; // mark megamorphic
+        MethodHandle handle = site.dynamicInvoker();
+        // arguments are cast to object here, or IDE compilers eat it :)
+        assertEquals(2, handle.invoke((Object) Arrays.asList("1", "2")));
+        assertEquals(1, handle.invoke((Object) Collections.singletonMap("a", "b")));
     }
     
     static void assertDepthEquals(CallSite site, int expected) {

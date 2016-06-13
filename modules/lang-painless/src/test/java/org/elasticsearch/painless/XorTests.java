@@ -59,4 +59,13 @@ public class XorTests extends ScriptTestCase {
         assertEquals(true, exec("return false ^ true;"));
         assertEquals(false, exec("return false ^ false;"));
     }
+    
+    public void testIllegal() throws Exception {
+        expectScriptThrows(ClassCastException.class, () -> {
+            exec("float x = (float)4; int y = 1; return x ^ y");
+        });
+        expectScriptThrows(ClassCastException.class, () -> {
+            exec("double x = (double)4; int y = 1; return x ^ y");
+        });
+    }
 }

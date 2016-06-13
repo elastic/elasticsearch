@@ -34,6 +34,7 @@ import java.lang.invoke.MethodType;
 import java.util.BitSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
@@ -102,24 +103,6 @@ public final class WriterConstants {
     public final static Method DEF_TO_LONG_EXPLICIT   = getAsmMethod(long.class   , "DefTolongExplicit"  , Object.class);
     public final static Method DEF_TO_FLOAT_EXPLICIT  = getAsmMethod(float.class  , "DefTofloatExplicit" , Object.class);
     public final static Method DEF_TO_DOUBLE_EXPLICIT = getAsmMethod(double.class , "DefTodoubleExplicit", Object.class);
-    public final static Method DEF_NOT_CALL = getAsmMethod(Object.class , "not", Object.class);
-    public final static Method DEF_NEG_CALL = getAsmMethod(Object.class , "neg", Object.class);
-    public final static Method DEF_MUL_CALL = getAsmMethod(Object.class , "mul", Object.class, Object.class);
-    public final static Method DEF_DIV_CALL = getAsmMethod(Object.class , "div", Object.class, Object.class);
-    public final static Method DEF_REM_CALL = getAsmMethod(Object.class , "rem", Object.class, Object.class);
-    public final static Method DEF_ADD_CALL = getAsmMethod(Object.class , "add", Object.class, Object.class);
-    public final static Method DEF_SUB_CALL = getAsmMethod(Object.class , "sub", Object.class, Object.class);
-    public final static Method DEF_LSH_CALL = getAsmMethod(Object.class , "lsh", Object.class, int.class);
-    public final static Method DEF_RSH_CALL = getAsmMethod(Object.class , "rsh", Object.class, int.class);
-    public final static Method DEF_USH_CALL = getAsmMethod(Object.class , "ush", Object.class, int.class);
-    public final static Method DEF_AND_CALL = getAsmMethod(Object.class , "and", Object.class, Object.class);
-    public final static Method DEF_XOR_CALL = getAsmMethod(Object.class , "xor", Object.class, Object.class);
-    public final static Method DEF_OR_CALL  = getAsmMethod(Object.class , "or" , Object.class, Object.class);
-    public final static Method DEF_EQ_CALL  = getAsmMethod(boolean.class, "eq" , Object.class, Object.class);
-    public final static Method DEF_LT_CALL  = getAsmMethod(boolean.class, "lt" , Object.class, Object.class);
-    public final static Method DEF_LTE_CALL = getAsmMethod(boolean.class, "lte", Object.class, Object.class);
-    public final static Method DEF_GT_CALL  = getAsmMethod(boolean.class, "gt" , Object.class, Object.class);
-    public final static Method DEF_GTE_CALL = getAsmMethod(boolean.class, "gte", Object.class, Object.class);
 
     /** invokedynamic bootstrap for lambda expression/method references */
     public final static MethodType LAMBDA_BOOTSTRAP_TYPE =
@@ -163,7 +146,8 @@ public final class WriterConstants {
     public final static Method STRINGBUILDER_APPEND_OBJECT  = getAsmMethod(StringBuilder.class, "append", Object.class);
     public final static Method STRINGBUILDER_TOSTRING       = getAsmMethod(String.class, "toString");
 
-    public final static Method CHECKEQUALS = getAsmMethod(boolean.class, "checkEquals", Object.class, Object.class);
+    public final static Type OBJECTS_TYPE = Type.getType(Objects.class);
+    public final static Method EQUALS = getAsmMethod(boolean.class, "equals", Object.class, Object.class);
 
     private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());

@@ -284,22 +284,27 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteNumeric(left.actual, false);
+        Type lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
+        Type rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
 
-        if (promote == null) {
+        if (lhspromote == null || rhspromote == null) {
             throw createError(new ClassCastException("Cannot apply left shift [<<] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = Definition.INT_TYPE;
-        right.explicit = true;
+        left.expected = lhspromote;
+        if (rhspromote.sort == Sort.LONG) {
+            right.expected = Definition.INT_TYPE;
+            right.explicit = true;
+        } else {
+            right.expected = rhspromote;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = promote.sort;
+            Sort sort = lhspromote.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant << (int)right.constant;
@@ -310,29 +315,34 @@ public final class EBinary extends AExpression {
             }
         }
 
-        actual = promote;
+        actual = lhspromote;
     }
 
     private void analyzeRSH(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteNumeric(left.actual, false);
+        Type lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
+        Type rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
 
-        if (promote == null) {
+        if (lhspromote == null || rhspromote == null) {
             throw createError(new ClassCastException("Cannot apply right shift [>>] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = Definition.INT_TYPE;
-        right.explicit = true;
+        left.expected = lhspromote;
+        if (rhspromote.sort == Sort.LONG) { 
+            right.expected = Definition.INT_TYPE;
+            right.explicit = true;
+        } else {
+            right.expected = rhspromote;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = promote.sort;
+            Sort sort = lhspromote.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant >> (int)right.constant;
@@ -343,29 +353,34 @@ public final class EBinary extends AExpression {
             }
         }
 
-        actual = promote;
+        actual = lhspromote;
     }
 
     private void analyzeUSH(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteNumeric(left.actual, false);
+        Type lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
+        Type rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
 
-        if (promote == null) {
+        if (lhspromote == null || rhspromote == null) {
             throw createError(new ClassCastException("Cannot apply unsigned shift [>>>] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = Definition.INT_TYPE;
-        right.explicit = true;
+        left.expected = lhspromote;
+        if (rhspromote.sort == Sort.LONG) { 
+            right.expected = Definition.INT_TYPE;
+            right.explicit = true;
+        } else {
+            right.expected = rhspromote;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = promote.sort;
+            Sort sort = lhspromote.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant >>> (int)right.constant;
@@ -376,7 +391,7 @@ public final class EBinary extends AExpression {
             }
         }
 
-        actual = promote;
+        actual = lhspromote;
     }
 
     private void analyzeBWAnd(Locals variables) {

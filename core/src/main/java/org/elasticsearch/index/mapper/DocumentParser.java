@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
@@ -47,6 +48,7 @@ import org.elasticsearch.percolator.PercolatorService;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -466,35 +468,45 @@ class DocumentParser implements Closeable {
             if (builder == null) {
                 builder = MapperBuilders.dateField(currentFieldName);
             }
-        } else if (fieldType.numericType() != null) {
-            switch (fieldType.numericType()) {
-            case LONG:
+        } else {
+            switch (fieldType.typeName()) {
+            case "long":
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
                 if (builder == null) {
                     builder = MapperBuilders.longField(currentFieldName);
                 }
                 break;
-            case DOUBLE:
+            case "double":
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
                 if (builder == null) {
                     builder = MapperBuilders.doubleField(currentFieldName);
                 }
                 break;
-            case INT:
+            case "int":
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "integer");
                 if (builder == null) {
                     builder = MapperBuilders.integerField(currentFieldName);
                 }
                 break;
-            case FLOAT:
+            case "float":
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "float");
                 if (builder == null) {
                     builder = MapperBuilders.floatField(currentFieldName);
                 }
                 break;
-            default:
-                throw new AssertionError("Unexpected numeric type " + fieldType.numericType());
+            case BooleanFieldMapper.CONTENT_TYPE:
+                builder = context.root().findTemplateBuilder(context, currentFieldName, "boolean");
+                break;
             }
+        }
+        if (builder == null) {
+            Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext(currentFieldName);
+            Mapper.TypeParser typeParser = parserContext.typeParser(fieldType.typeName());
+            if (typeParser == null) {
+                throw new MapperParsingException("Cannot generate dynamic mappings of type [" + fieldType.typeName()
+                    + "] for [" + currentFieldName + "]");
+            }
+            builder = typeParser.parse(currentFieldName, new HashMap<String, Object>(), parserContext);
         }
         return builder;
     }

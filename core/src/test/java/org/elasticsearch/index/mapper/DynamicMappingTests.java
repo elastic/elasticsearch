@@ -27,6 +27,8 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper.BooleanFieldType;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
@@ -35,6 +37,7 @@ import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper.LongFieldType;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -374,7 +377,9 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 "my_field3", "type=long,doc_values=false",
                 "my_field4", "type=float,index_options=freqs",
                 "my_field5", "type=double,precision_step=14",
-                "my_field6", "type=date,doc_values=false");
+                "my_field6", "type=date,doc_values=false",
+                "my_field7", "type=boolean,doc_values=false",
+                "my_field8", "type=ip");
 
         // Even if the dynamic type of our new field is long, we already have a mapping for the same field
         // of type string so it should be mapped as a string
@@ -387,6 +392,8 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                     .field("my_field4", 45)
                     .field("my_field5", 46)
                     .field("my_field6", 47)
+                    .field("my_field7", true)
+                    .field("my_field8", "10.0.0.0")
                 .endObject());
         Mapper myField1Mapper = null;
         Mapper myField2Mapper = null;
@@ -394,6 +401,8 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         Mapper myField4Mapper = null;
         Mapper myField5Mapper = null;
         Mapper myField6Mapper = null;
+        Mapper myField7Mapper = null;
+        Mapper myField8Mapper = null;
         for (Mapper m : update) {
             switch (m.name()) {
             case "my_field1":
@@ -413,6 +422,12 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 break;
             case "my_field6":
                 myField6Mapper = m;
+                break;
+            case "my_field7":
+                myField7Mapper = m;
+                break;
+            case "my_field8":
+                myField8Mapper = m;
                 break;
             }
         }
@@ -445,6 +460,13 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         assertNotNull(myField6Mapper);
         assertTrue(myField6Mapper instanceof DateFieldMapper);
         assertFalse(((DateFieldType) ((DateFieldMapper) myField6Mapper).fieldType()).hasDocValues());
+
+        assertNotNull(myField7Mapper);
+        assertTrue(myField7Mapper instanceof BooleanFieldMapper);
+        assertFalse(((BooleanFieldType) ((BooleanFieldMapper) myField7Mapper).fieldType()).hasDocValues());
+
+        assertNotNull(myField8Mapper);
+        assertTrue(myField8Mapper instanceof IpFieldMapper);
 
         // This can't work
         try {

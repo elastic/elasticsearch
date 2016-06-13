@@ -104,18 +104,17 @@ public class NodeJoinController extends AbstractComponent {
             }
         };
 
-
-        // capture the context we add the callback to make sure we fail our own
-        final ElectionContext myElectionContext;
-        synchronized (this) {
-            assert electionContext != null : "waitToBeElectedAsMaster is called we are not accumulating joins";
-            electionContext.onAttemptToBeElected(requiredMasterJoins, wrapperCallback);
-            myElectionContext = electionContext;
-        }
+        ElectionContext myElectionContext = null;
 
         try {
             // check what we have so far..
-            checkPendingJoinsAndElectIfNeeded();
+            // capture the context we add the callback to make sure we fail our own
+            synchronized (this) {
+                assert electionContext != null : "waitToBeElectedAsMaster is called we are not accumulating joins";
+                myElectionContext = electionContext;
+                electionContext.onAttemptToBeElected(requiredMasterJoins, wrapperCallback);
+                checkPendingJoinsAndElectIfNeeded();
+            }
 
             try {
                 if (done.await(timeValue.millis(), TimeUnit.MILLISECONDS)) {
@@ -129,22 +128,22 @@ public class NodeJoinController extends AbstractComponent {
                 final int pendingNodes = myElectionContext.getPendingMasterJoinsCount();
                 logger.trace("timed out waiting to be elected. waited [{}]. pending master node joins [{}]", timeValue, pendingNodes);
             }
-            failContext(myElectionContext, "timed out waiting to be elected");
+            failContextIfNeeded(myElectionContext, "timed out waiting to be elected");
         } catch (Throwable t) {
             logger.error("unexpected failure while waiting for incoming joins", t);
-            failContext(myElectionContext, "unexpected failure while waiting for pending joins [" + t.getMessage() + "]");
+            if (myElectionContext != null) {
+                failContextIfNeeded(myElectionContext, "unexpected failure while waiting for pending joins [" + t.getMessage() + "]");
+            }
         }
     }
 
     /**
      * utility method to fail the given election context under the cluster state thread
      */
-    private synchronized void failContext(final ElectionContext context, final String reason) {
+    private synchronized void failContextIfNeeded(final ElectionContext context, final String reason) {
         if (electionContext == context) {
-            // remove the context if still active
-            electionContext = null;
+            stopElectionContext(reason);
         }
-        context.closeAndProcessPending(reason);
     }
 
     /**
@@ -198,6 +197,10 @@ public class NodeJoinController extends AbstractComponent {
                     electionContext.requiredMasterJoins);
             }
         } else {
+            if (logger.isTraceEnabled()) {
+                logger.trace("have enough joins for election. Got [{}], required [{}]", pendingMasterJoins,
+                    electionContext.requiredMasterJoins);
+            }
             electionContext.closeAndBecomeMaster();
             electionContext = null; // clear this out so future joins won't be accumulated
         }

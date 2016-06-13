@@ -34,6 +34,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -192,6 +193,13 @@ public final class ExtractQueryTermsService {
         } else if (query instanceof BlendedTermQuery) {
             List<Term> terms = ((BlendedTermQuery) query).getTerms();
             return new HashSet<>(terms);
+        } else if (query instanceof DisjunctionMaxQuery) {
+            List<Query> disjuncts = ((DisjunctionMaxQuery) query).getDisjuncts();
+            Set<Term> terms = new HashSet<>();
+            for (Query disjunct : disjuncts) {
+                terms.addAll(extractQueryTerms(disjunct));
+            }
+            return terms;
         } else if (query instanceof SpanTermQuery) {
             return Collections.singleton(((SpanTermQuery) query).getTerm());
         } else if (query instanceof SpanNearQuery) {

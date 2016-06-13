@@ -62,7 +62,7 @@ final class LDefArray extends ALink implements IDefLink {
         writer.writeDebugInfo(location);
 
         String desc = Type.getMethodDescriptor(after.type, Definition.DEF_TYPE.type, index.actual.type);
-        writer.invokeDynamic("arrayLoad", desc, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.ARRAY_LOAD);
+        writer.invokeDynamic("arrayLoad", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_LOAD);
     }
 
     @Override
@@ -70,6 +70,6 @@ final class LDefArray extends ALink implements IDefLink {
         writer.writeDebugInfo(location);
 
         String desc = Type.getMethodDescriptor(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, index.actual.type, after.type);
-        writer.invokeDynamic("arrayStore", desc, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.ARRAY_STORE);
+        writer.invokeDynamic("arrayStore", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_STORE);
     }
 }

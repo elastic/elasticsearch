@@ -35,15 +35,7 @@ import java.util.Deque;
 import java.util.List;
 
 import static org.elasticsearch.painless.WriterConstants.CHAR_TO_STRING;
-import static org.elasticsearch.painless.WriterConstants.DEF_ADD_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_AND_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_DIV_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_LSH_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_MUL_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_OR_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_REM_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_RSH_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_SUB_CALL;
+import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_BOOLEAN;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_BYTE_EXPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_BYTE_IMPLICIT;
@@ -59,9 +51,7 @@ import static org.elasticsearch.painless.WriterConstants.DEF_TO_LONG_EXPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_LONG_IMPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_EXPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_USH_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
-import static org.elasticsearch.painless.WriterConstants.DEF_XOR_CALL;
 import static org.elasticsearch.painless.WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.MAX_INDY_STRING_CONCAT_ARGS;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
@@ -283,18 +273,44 @@ public final class MethodWriter extends GeneratorAdapter {
         }
 
         if (sort == Sort.DEF) {
+            // XXX: move this out, so we can populate descriptor with what we really have (instead of casts/boxing!)
+            org.objectweb.asm.Type objectType = org.objectweb.asm.Type.getType(Object.class);
+            org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(objectType, objectType, objectType);
+            
             switch (operation) {
-                case MUL:   invokeStatic(DEF_UTIL_TYPE, DEF_MUL_CALL); break;
-                case DIV:   invokeStatic(DEF_UTIL_TYPE, DEF_DIV_CALL); break;
-                case REM:   invokeStatic(DEF_UTIL_TYPE, DEF_REM_CALL); break;
-                case ADD:   invokeStatic(DEF_UTIL_TYPE, DEF_ADD_CALL); break;
-                case SUB:   invokeStatic(DEF_UTIL_TYPE, DEF_SUB_CALL); break;
-                case LSH:   invokeStatic(DEF_UTIL_TYPE, DEF_LSH_CALL); break;
-                case USH:   invokeStatic(DEF_UTIL_TYPE, DEF_RSH_CALL); break;
-                case RSH:   invokeStatic(DEF_UTIL_TYPE, DEF_USH_CALL); break;
-                case BWAND: invokeStatic(DEF_UTIL_TYPE, DEF_AND_CALL); break;
-                case XOR:   invokeStatic(DEF_UTIL_TYPE, DEF_XOR_CALL); break;
-                case BWOR:  invokeStatic(DEF_UTIL_TYPE, DEF_OR_CALL);  break;
+                case MUL:
+                    invokeDynamic("mul", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                    break;
+                case DIV:
+                    invokeDynamic("div", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                    break;
+                case REM:
+                    invokeDynamic("rem", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                    break;
+                case ADD:
+                    invokeDynamic("add", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                    break;
+                case SUB:
+                    invokeDynamic("sub", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                    break;
+                case LSH:
+                    invokeDynamic("lsh", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
+                    break;
+                case USH:
+                    invokeDynamic("ush", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
+                    break;
+                case RSH:
+                    invokeDynamic("rsh", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
+                    break;
+                case BWAND: 
+                    invokeDynamic("and", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                    break;
+                case XOR:   
+                    invokeDynamic("xor", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                    break;
+                case BWOR:  
+                    invokeDynamic("or", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                    break;
                 default:
                     throw location.createError(new IllegalStateException("Illegal tree structure."));
             }

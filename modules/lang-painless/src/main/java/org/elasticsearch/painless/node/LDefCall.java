@@ -105,7 +105,7 @@ final class LDefCall extends ALink implements IDefLink {
         // return value
         signature.append(after.type.getDescriptor());
 
-        writer.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.METHOD_CALL, recipe);
+        writer.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.METHOD_CALL, recipe);
     }
 
     @Override

@@ -24,19 +24,15 @@ import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
 
-import static org.elasticsearch.painless.WriterConstants.CHECKEQUALS;
-import static org.elasticsearch.painless.WriterConstants.DEF_EQ_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_GTE_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_GT_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_LTE_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_LT_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
-import static org.elasticsearch.painless.WriterConstants.UTILITY_TYPE;
+import static org.elasticsearch.painless.WriterConstants.OBJECTS_TYPE;
+import static org.elasticsearch.painless.WriterConstants.EQUALS;
+import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 
 /**
  * Represents a comparison expression.
@@ -456,11 +452,15 @@ public final class EComp extends AExpression {
 
                 break;
             case DEF:
+                // XXX: move this out, so we can populate descriptor with what we really have (instead of casts/boxing!)
+                org.objectweb.asm.Type booleanType = org.objectweb.asm.Type.getType(boolean.class);
+                org.objectweb.asm.Type objectType = org.objectweb.asm.Type.getType(Object.class);
+                org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(booleanType, objectType, objectType);
                 if (eq) {
                     if (right.isNull) {
                         writer.ifNull(jump);
                     } else if (!left.isNull && (operation == Operation.EQ || operation == Operation.NE)) {
-                        writer.invokeStatic(DEF_UTIL_TYPE, DEF_EQ_CALL);
+                        writer.invokeDynamic("eq", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
                         writejump = false;
                     } else {
                         writer.ifCmp(rtype, MethodWriter.EQ, jump);
@@ -469,22 +469,22 @@ public final class EComp extends AExpression {
                     if (right.isNull) {
                         writer.ifNonNull(jump);
                     } else if (!left.isNull && (operation == Operation.EQ || operation == Operation.NE)) {
-                        writer.invokeStatic(DEF_UTIL_TYPE, DEF_EQ_CALL);
+                        writer.invokeDynamic("eq", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
                         writer.ifZCmp(MethodWriter.EQ, jump);
                     } else {
                         writer.ifCmp(rtype, MethodWriter.NE, jump);
                     }
                 } else if (lt) {
-                    writer.invokeStatic(DEF_UTIL_TYPE, DEF_LT_CALL);
+                    writer.invokeDynamic("lt", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
                     writejump = false;
                 } else if (lte) {
-                    writer.invokeStatic(DEF_UTIL_TYPE, DEF_LTE_CALL);
+                    writer.invokeDynamic("lte", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
                     writejump = false;
                 } else if (gt) {
-                    writer.invokeStatic(DEF_UTIL_TYPE, DEF_GT_CALL);
+                    writer.invokeDynamic("gt", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
                     writejump = false;
                 } else if (gte) {
-                    writer.invokeStatic(DEF_UTIL_TYPE, DEF_GTE_CALL);
+                    writer.invokeDynamic("gte", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
                     writejump = false;
                 } else {
                     throw createError(new IllegalStateException("Illegal tree structure."));
@@ -500,7 +500,7 @@ public final class EComp extends AExpression {
                     if (right.isNull) {
                         writer.ifNull(jump);
                     } else if (operation == Operation.EQ || operation == Operation.NE) {
-                        writer.invokeStatic(UTILITY_TYPE, CHECKEQUALS);
+                        writer.invokeStatic(OBJECTS_TYPE, EQUALS);
 
                         if (branch) {
                             writer.ifZCmp(MethodWriter.NE, jump);
@@ -514,7 +514,7 @@ public final class EComp extends AExpression {
                     if (right.isNull) {
                         writer.ifNonNull(jump);
                     } else if (operation == Operation.EQ || operation == Operation.NE) {
-                        writer.invokeStatic(UTILITY_TYPE, CHECKEQUALS);
+                        writer.invokeStatic(OBJECTS_TYPE, EQUALS);
                         writer.ifZCmp(MethodWriter.EQ, jump);
                     } else {
                         writer.ifCmp(rtype, MethodWriter.NE, jump);

@@ -66,7 +66,7 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
         echo " sudo service elasticsearch start"
 
     elif command -v update-rc.d >/dev/null; then
-        echo "### NOT starting on installation, please execute the following statements to configure elasticsearch service to start automatically using chkconfig"
+        echo "### NOT starting on installation, please execute the following statements to configure elasticsearch service to start automatically using update-rc.d"
         echo " sudo update-rc.d elasticsearch defaults 95 10"
         echo "### You can start elasticsearch service by executing"
         echo " sudo /etc/init.d/elasticsearch start"

@@ -33,16 +33,14 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
-/**
- *
- */
 public class OperationRouting extends AbstractComponent {
-
 
     private final AwarenessAllocationDecider awarenessAllocationDecider;
 
@@ -158,10 +156,14 @@ public class OperationRouting extends AbstractComponent {
             }
             preferenceType = Preference.parse(preference);
             switch (preferenceType) {
-                case PREFER_NODE:
-                    return indexShard.preferNodeActiveInitializingShardsIt(preference.substring(Preference.PREFER_NODE.type().length() + 1));
+                case PREFER_NODES:
+                    final Set<String> nodesIds =
+                            Arrays.stream(
+                                    preference.substring(Preference.PREFER_NODES.type().length() + 1).split(",")
+                            ).collect(Collectors.toSet());
+                    return indexShard.preferNodeActiveInitializingShardsIt(nodesIds);
                 case LOCAL:
-                    return indexShard.preferNodeActiveInitializingShardsIt(localNodeId);
+                    return indexShard.preferNodeActiveInitializingShardsIt(Collections.singleton(localNodeId));
                 case PRIMARY:
                     return indexShard.primaryActiveInitializingShardIt();
                 case REPLICA:

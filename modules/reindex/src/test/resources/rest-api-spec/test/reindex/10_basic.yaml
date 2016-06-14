@@ -79,7 +79,6 @@
             index: dest
   - is_false: timed_out
   - match: {task: '/.+:\d+/'}
-  - set: {task: task}
   - is_false: updated
   - is_false: version_conflicts
   - is_false: batches
@@ -92,7 +91,7 @@
   - do:
       tasks.list:
         wait_for_completion: true
-        task_id: $task
+        actions: indices:data/write/reindex
   - is_false: node_failures
 
 ---

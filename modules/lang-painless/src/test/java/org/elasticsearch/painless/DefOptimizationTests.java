@@ -403,4 +403,19 @@ public class DefOptimizationTests extends ScriptTestCase {
         assertBytecodeExists("def x = 1; int y = 2; return x > y", 
                              "INVOKEDYNAMIC gt(Ljava/lang/Object;I)Z");
     }
+    
+    public void testUnaryMinusOptRet() {
+        assertBytecodeExists("def x = 1; double y = -x; return y", 
+                             "INVOKEDYNAMIC neg(Ljava/lang/Object;)D");
+    }
+    
+    public void testUnaryNotOptRet() {
+        assertBytecodeExists("def x = 1; double y = ~x; return y", 
+                             "INVOKEDYNAMIC not(Ljava/lang/Object;)D");
+    }
+    
+    public void testUnaryPlusOptRet() {
+        assertBytecodeExists("def x = 1; double y = +x; return y", 
+                             "INVOKEDYNAMIC plus(Ljava/lang/Object;)D");
+    }
 }

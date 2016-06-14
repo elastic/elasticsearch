@@ -22,6 +22,13 @@ package org.elasticsearch.painless;
 /** Tests for or operator across all types */
 public class OrTests extends ScriptTestCase {
 
+    public void testBasics() throws Exception {
+        assertEquals(5 | 3, exec("return 5 | 3;"));
+        assertEquals(5L | 3, exec("return 5L | 3;"));
+        assertEquals(5 | 3L, exec("return 5 | 3L;"));
+        assertEquals(7, exec("short x = 5; byte y = 3; return x | y;"));
+    }
+
     public void testInt() throws Exception {
         assertEquals(5 | 12, exec("int x = 5; int y = 12; return x | y;"));
         assertEquals(5 | -12, exec("int x = 5; int y = -12; return x | y;"));
@@ -53,5 +60,152 @@ public class OrTests extends ScriptTestCase {
         expectScriptThrows(ClassCastException.class, () -> {
             exec("double x = (double)4; int y = 1; return x | y");
         });
+    }
+    
+    public void testDef() {
+        expectScriptThrows(ClassCastException.class, () -> {
+            exec("def x = (float)4; def y = (byte)1; return x | y");
+        });
+        expectScriptThrows(ClassCastException.class, () -> {
+            exec("def x = (double)4; def y = (byte)1; return x | y");
+        });
+        assertEquals(5, exec("def x = (byte)4; def y = (byte)1; return x | y"));
+        assertEquals(5, exec("def x = (short)4; def y = (byte)1; return x | y"));
+        assertEquals(5, exec("def x = (char)4; def y = (byte)1; return x | y"));
+        assertEquals(5, exec("def x = (int)4; def y = (byte)1; return x | y"));
+        assertEquals(5L, exec("def x = (long)4; def y = (byte)1; return x | y"));
+
+        assertEquals(5, exec("def x = (byte)4; def y = (short)1; return x | y"));
+        assertEquals(5, exec("def x = (short)4; def y = (short)1; return x | y"));
+        assertEquals(5, exec("def x = (char)4; def y = (short)1; return x | y"));
+        assertEquals(5, exec("def x = (int)4; def y = (short)1; return x | y"));
+        assertEquals(5L, exec("def x = (long)4; def y = (short)1; return x | y"));
+
+        assertEquals(5, exec("def x = (byte)4; def y = (char)1; return x | y"));
+        assertEquals(5, exec("def x = (short)4; def y = (char)1; return x | y"));
+        assertEquals(5, exec("def x = (char)4; def y = (char)1; return x | y"));
+        assertEquals(5, exec("def x = (int)4; def y = (char)1; return x | y"));
+        assertEquals(5L, exec("def x = (long)4; def y = (char)1; return x | y"));
+
+        assertEquals(5, exec("def x = (byte)4; def y = (int)1; return x | y"));
+        assertEquals(5, exec("def x = (short)4; def y = (int)1; return x | y"));
+        assertEquals(5, exec("def x = (char)4; def y = (int)1; return x | y"));
+        assertEquals(5, exec("def x = (int)4; def y = (int)1; return x | y"));
+        assertEquals(5L, exec("def x = (long)4; def y = (int)1; return x | y"));
+
+        assertEquals(5L, exec("def x = (byte)4; def y = (long)1; return x | y"));
+        assertEquals(5L, exec("def x = (short)4; def y = (long)1; return x | y"));
+        assertEquals(5L, exec("def x = (char)4; def y = (long)1; return x | y"));
+        assertEquals(5L, exec("def x = (int)4; def y = (long)1; return x | y"));
+        assertEquals(5L, exec("def x = (long)4; def y = (long)1; return x | y"));
+
+        assertEquals(5, exec("def x = (byte)4; def y = (byte)1; return x | y"));
+        assertEquals(5, exec("def x = (short)4; def y = (short)1; return x | y"));
+        assertEquals(5, exec("def x = (char)4; def y = (char)1; return x | y"));
+        assertEquals(5, exec("def x = (int)4; def y = (int)1; return x | y"));
+        assertEquals(5L, exec("def x = (long)4; def y = (long)1; return x | y"));
+        
+        assertEquals(true,  exec("def x = true;  def y = true; return x | y"));
+        assertEquals(true,  exec("def x = true;  def y = false; return x | y"));
+        assertEquals(true,  exec("def x = false; def y = true; return x | y"));
+        assertEquals(false, exec("def x = false; def y = false; return x | y"));
+    }
+    
+    public void testDefTypedLHS() {
+        expectScriptThrows(ClassCastException.class, () -> {
+            exec("float x = (float)4; def y = (byte)1; return x | y");
+        });
+        expectScriptThrows(ClassCastException.class, () -> {
+            exec("double x = (double)4; def y = (byte)1; return x | y");
+        });
+        assertEquals(5, exec("byte x = (byte)4; def y = (byte)1; return x | y"));
+        assertEquals(5, exec("short x = (short)4; def y = (byte)1; return x | y"));
+        assertEquals(5, exec("char x = (char)4; def y = (byte)1; return x | y"));
+        assertEquals(5, exec("int x = (int)4; def y = (byte)1; return x | y"));
+        assertEquals(5L, exec("long x = (long)4; def y = (byte)1; return x | y"));
+
+        assertEquals(5, exec("byte x = (byte)4; def y = (short)1; return x | y"));
+        assertEquals(5, exec("short x = (short)4; def y = (short)1; return x | y"));
+        assertEquals(5, exec("char x = (char)4; def y = (short)1; return x | y"));
+        assertEquals(5, exec("int x = (int)4; def y = (short)1; return x | y"));
+        assertEquals(5L, exec("long x = (long)4; def y = (short)1; return x | y"));
+
+        assertEquals(5, exec("byte x = (byte)4; def y = (char)1; return x | y"));
+        assertEquals(5, exec("short x = (short)4; def y = (char)1; return x | y"));
+        assertEquals(5, exec("char x = (char)4; def y = (char)1; return x | y"));
+        assertEquals(5, exec("int x = (int)4; def y = (char)1; return x | y"));
+        assertEquals(5L, exec("long x = (long)4; def y = (char)1; return x | y"));
+
+        assertEquals(5, exec("byte x = (byte)4; def y = (int)1; return x | y"));
+        assertEquals(5, exec("short x = (short)4; def y = (int)1; return x | y"));
+        assertEquals(5, exec("char x = (char)4; def y = (int)1; return x | y"));
+        assertEquals(5, exec("int x = (int)4; def y = (int)1; return x | y"));
+        assertEquals(5L, exec("long x = (long)4; def y = (int)1; return x | y"));
+
+        assertEquals(5L, exec("byte x = (byte)4; def y = (long)1; return x | y"));
+        assertEquals(5L, exec("short x = (short)4; def y = (long)1; return x | y"));
+        assertEquals(5L, exec("char x = (char)4; def y = (long)1; return x | y"));
+        assertEquals(5L, exec("int x = (int)4; def y = (long)1; return x | y"));
+        assertEquals(5L, exec("long x = (long)4; def y = (long)1; return x | y"));
+
+        assertEquals(5, exec("byte x = (byte)4; def y = (byte)1; return x | y"));
+        assertEquals(5, exec("short x = (short)4; def y = (short)1; return x | y"));
+        assertEquals(5, exec("char x = (char)4; def y = (char)1; return x | y"));
+        assertEquals(5, exec("int x = (int)4; def y = (int)1; return x | y"));
+        assertEquals(5L, exec("long x = (long)4; def y = (long)1; return x | y"));
+        
+        assertEquals(true,  exec("boolean x = true;  def y = true; return x | y"));
+        assertEquals(true,  exec("boolean x = true;  def y = false; return x | y"));
+        assertEquals(true,  exec("boolean x = false; def y = true; return x | y"));
+        assertEquals(false, exec("boolean x = false; def y = false; return x | y"));
+    }
+    
+    public void testDefTypedRHS() {
+        expectScriptThrows(ClassCastException.class, () -> {
+            exec("def x = (float)4; byte y = (byte)1; return x | y");
+        });
+        expectScriptThrows(ClassCastException.class, () -> {
+            exec("def x = (double)4; byte y = (byte)1; return x | y");
+        });
+        assertEquals(5, exec("def x = (byte)4; byte y = (byte)1; return x | y"));
+        assertEquals(5, exec("def x = (short)4; byte y = (byte)1; return x | y"));
+        assertEquals(5, exec("def x = (char)4; byte y = (byte)1; return x | y"));
+        assertEquals(5, exec("def x = (int)4; byte y = (byte)1; return x | y"));
+        assertEquals(5L, exec("def x = (long)4; byte y = (byte)1; return x | y"));
+
+        assertEquals(5, exec("def x = (byte)4; short y = (short)1; return x | y"));
+        assertEquals(5, exec("def x = (short)4; short y = (short)1; return x | y"));
+        assertEquals(5, exec("def x = (char)4; short y = (short)1; return x | y"));
+        assertEquals(5, exec("def x = (int)4; short y = (short)1; return x | y"));
+        assertEquals(5L, exec("def x = (long)4; short y = (short)1; return x | y"));
+
+        assertEquals(5, exec("def x = (byte)4; char y = (char)1; return x | y"));
+        assertEquals(5, exec("def x = (short)4; char y = (char)1; return x | y"));
+        assertEquals(5, exec("def x = (char)4; char y = (char)1; return x | y"));
+        assertEquals(5, exec("def x = (int)4; char y = (char)1; return x | y"));
+        assertEquals(5L, exec("def x = (long)4; char y = (char)1; return x | y"));
+
+        assertEquals(5, exec("def x = (byte)4; int y = (int)1; return x | y"));
+        assertEquals(5, exec("def x = (short)4; int y = (int)1; return x | y"));
+        assertEquals(5, exec("def x = (char)4; int y = (int)1; return x | y"));
+        assertEquals(5, exec("def x = (int)4; int y = (int)1; return x | y"));
+        assertEquals(5L, exec("def x = (long)4; int y = (int)1; return x | y"));
+
+        assertEquals(5L, exec("def x = (byte)4; long y = (long)1; return x | y"));
+        assertEquals(5L, exec("def x = (short)4; long y = (long)1; return x | y"));
+        assertEquals(5L, exec("def x = (char)4; long y = (long)1; return x | y"));
+        assertEquals(5L, exec("def x = (int)4; long y = (long)1; return x | y"));
+        assertEquals(5L, exec("def x = (long)4; long y = (long)1; return x | y"));
+
+        assertEquals(5, exec("def x = (byte)4; byte y = (byte)1; return x | y"));
+        assertEquals(5, exec("def x = (short)4; short y = (short)1; return x | y"));
+        assertEquals(5, exec("def x = (char)4; char y = (char)1; return x | y"));
+        assertEquals(5, exec("def x = (int)4; int y = (int)1; return x | y"));
+        assertEquals(5L, exec("def x = (long)4; long y = (long)1; return x | y"));
+        
+        assertEquals(true,  exec("def x = true;  boolean y = true; return x | y"));
+        assertEquals(true,  exec("def x = true;  boolean y = false; return x | y"));
+        assertEquals(true,  exec("def x = false; boolean y = true; return x | y"));
+        assertEquals(false, exec("def x = false; boolean y = false; return x | y"));
     }
 }

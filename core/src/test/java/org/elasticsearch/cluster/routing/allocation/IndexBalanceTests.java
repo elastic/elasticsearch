@@ -24,17 +24,22 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESAllocationTestCase;
 
+import static org.elasticsearch.cluster.ClusterName.DEFAULT;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -58,7 +63,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).addAsNew(metaData.index("test1")).build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(DEFAULT).metaData(metaData).routingTable(routingTable).build();
 
         assertThat(routingTable.index("test").shards().size(), equalTo(3));
         for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
@@ -188,7 +193,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).addAsNew(metaData.index("test1")).build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(DEFAULT).metaData(metaData).routingTable(routingTable).build();
 
         assertThat(routingTable.index("test").shards().size(), equalTo(3));
         for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
@@ -349,7 +354,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(DEFAULT).metaData(metaData).routingTable(routingTable).build();
 
         assertThat(routingTable.index("test").shards().size(), equalTo(3));
         for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
@@ -532,5 +537,78 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node2").shardsWithState("test1", STARTED).size(), equalTo(2));
         assertThat(routingNodes.node("node3").shardsWithState("test1", STARTED).size(), equalTo(2));
 
+    }
+
+    public void testBalanceShardsWithDifferentWeightsScenario1() {
+        AllocationService strategy = createAllocationService(Settings.builder()
+            .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+            .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
+            .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.0f)
+            .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1).build());
+
+        MetaData metaData = MetaData.builder()
+            .put(IndexMetaData.builder("small1").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
+            .put(IndexMetaData.builder("small2").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
+            .put(IndexMetaData.builder("small3").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
+            .put(IndexMetaData.builder("small4").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
+            .put(IndexMetaData.builder("large").settings(settings(Version.CURRENT)
+                .put(BalancedShardsAllocator.INDEX_SHARD_WEIGHT_MULTIPLIER_SETTING.getKey(), 2.0f)).numberOfShards(2).numberOfReplicas(0))
+            .build();
+
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        for (IndexMetaData indexMetaData : metaData) {
+            routingTableBuilder.addAsNew(indexMetaData);
+        }
+        ClusterState clusterState = startAllShards(strategy, ClusterState.builder(DEFAULT)
+            .nodes(DiscoveryNodes.builder()
+                .put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).put(newNode("node4")))
+            .metaData(metaData).routingTable(routingTableBuilder.build()).build());
+
+        for (RoutingNode routingNode : clusterState.getRoutingNodes()) {
+            assertThat(routingNode.size(), either(equalTo(2)).or(equalTo(3)));
+            assertEquals(routingNode.size() == 2, routingNode.shardsWithState("large", ShardRoutingState.STARTED).size() == 1);
+        }
+    }
+
+    public void testBalanceShardsWithDifferentWeightsScenario2() {
+        AllocationService strategy = createAllocationService(Settings.builder()
+            .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+            .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
+            .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.0f)
+            .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1).build());
+
+        MetaData metaData = MetaData.builder()
+            .put(IndexMetaData.builder("small").settings(settings(Version.CURRENT)
+                .put(BalancedShardsAllocator.INDEX_SHARD_WEIGHT_MULTIPLIER_SETTING.getKey(), 1.0f)).numberOfShards(2).numberOfReplicas(0))
+            .put(IndexMetaData.builder("medium").settings(settings(Version.CURRENT)
+                .put(BalancedShardsAllocator.INDEX_SHARD_WEIGHT_MULTIPLIER_SETTING.getKey(), 10.0f)).numberOfShards(2).numberOfReplicas(0))
+            .put(IndexMetaData.builder("large").settings(settings(Version.CURRENT)
+                .put(BalancedShardsAllocator.INDEX_SHARD_WEIGHT_MULTIPLIER_SETTING.getKey(), 100.0f)).numberOfShards(2).numberOfReplicas(0))
+            .build();
+
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        for (IndexMetaData indexMetaData : metaData) {
+            routingTableBuilder.addAsNew(indexMetaData);
+        }
+        ClusterState clusterState = startAllShards(strategy, ClusterState.builder(DEFAULT)
+            .nodes(DiscoveryNodes.builder()
+                .put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).put(newNode("node4")))
+            .metaData(metaData).routingTable(routingTableBuilder.build()).build());
+
+        for (RoutingNode routingNode : clusterState.getRoutingNodes()) {
+            assertThat(routingNode.size(), either(equalTo(1)).or(equalTo(2)));
+            assertEquals(routingNode.size() == 1, routingNode.shardsWithState("large", ShardRoutingState.STARTED).size() == 1);
+        }
+    }
+
+    protected ClusterState startAllShards(AllocationService strategy, ClusterState clusterState) {
+        RoutingAllocation.Result rerouteResult;
+        do {
+            rerouteResult = strategy.reroute(clusterState, "dummy reroute");
+            clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
+            rerouteResult = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+            clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
+        } while (rerouteResult.changed());
+        return clusterState;
     }
 }

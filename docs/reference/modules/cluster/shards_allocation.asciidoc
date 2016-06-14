@@ -98,7 +98,8 @@ of each node closer together by more then the `balance.threshold`.
 
      Defines the weight factor for shards allocated on a node
      (float). Defaults to `0.45f`.  Raising this raises the tendency to
-     equalize the number of shards across all nodes in the cluster.
+     equalize the number of shards across all nodes in the cluster. The
+     weight for shards can be adapted using an <<index-shard-weights,index-level setting>>.
 
 `cluster.routing.allocation.balance.index`::
 
@@ -115,3 +116,14 @@ of each node closer together by more then the `balance.threshold`.
 
 NOTE: Regardless of the result of the balancing algorithm, rebalancing might
 not be allowed due to forced awareness or allocation filtering.
+
+[float]
+[[index-shard-weights]]
+=== Index-level shard weights
+
+The index-level setting `index.shard.balance.weight_multiplier` can be used to give some shards more
+weight than others. The default weight multiplier is 1.0, and only multipliers greater than 1.0 are allowed.
+A multiplier of 5.0 means that shards of the respective index are attributed 5 times the weight of a regular
+shard during the shard balancing action. This is useful for example when only some of the indices in a cluster
+are getting a high percentage of the query load. By increasing the shard weight multiplier for these indices,
+the shards under load are more evenly distributed among all the nodes in the cluster.

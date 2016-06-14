@@ -39,7 +39,7 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 
 public abstract class XPackRestTestCase extends ESRestTestCase {
 
-    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("test_user", new SecuredString("changeme".toCharArray()));
+    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("elastic", new SecuredString("changeme".toCharArray()));
 
     public XPackRestTestCase(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

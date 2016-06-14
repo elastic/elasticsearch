@@ -211,7 +211,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
                     }
                 }
             } catch (Exception e) {
-                logger.debug("authentication failed for principal [{}]", e, request);
+                logger.debug("authentication failed for principal [{}], [{}] ", e, token.principal(), request);
                 throw request.exceptionProcessingRequest(e, token);
             } finally {
                 token.clearCredentials();

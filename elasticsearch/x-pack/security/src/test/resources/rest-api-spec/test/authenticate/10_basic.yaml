@@ -1,11 +1,29 @@
----
-"Test authenticate api":
+setup:
+  - skip:
+      features: headers
 
   - do:
       cluster.health:
           wait_for_status: yellow
+
   - do:
+      xpack.security.put_user:
+        username: "authenticate_user"
+        body:  >
+          {
+            "password" : "changeme",
+            "roles" : [ "superuser" ],
+            "full_name" : "Authenticate User"
+          }
+
+---
+"Test authenticate api":
+
+  - do:
+      headers:
+        Authorization: "Basic YXV0aGVudGljYXRlX3VzZXI6Y2hhbmdlbWU="
       xpack.security.authenticate: {}
 
-  - match: { username: "test_user" }
+  - match: { username: "authenticate_user" }
   - match: { roles.0:  "superuser" }
+  - match: { full_name: "Authenticate User" }

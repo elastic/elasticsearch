@@ -1,6 +1,6 @@
 {
   "xpack.security.get_role": {
-    "documentation": "Retrieve one or more roles from the native realm",
+    "documentation": "https://www.elastic.co/guide/en/x-pack/master/security-api-roles.html#security-api-get-role",
     "methods": [ "GET" ],
     "url": {
       "path": "/_xpack/security/role/{name}",

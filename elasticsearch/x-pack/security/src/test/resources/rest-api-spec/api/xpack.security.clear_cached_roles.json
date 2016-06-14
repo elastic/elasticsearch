@@ -1,13 +1,13 @@
 {
   "xpack.security.clear_cached_roles": {
-    "documentation": "Clears the internal caches for specified roles",
-    "methods": [ "PUT", "POST" ],
+    "documentation": "https://www.elastic.co/guide/en/x-pack/master/security-api-roles.html#security-api-clear-role-cache",
+    "methods": [ "POST" ],
     "url": {
       "path": "/_xpack/security/role/{name}/_clear_cache",
       "paths": [ "/_xpack/security/role/{name}/_clear_cache" ],
       "parts": {
         "name": {
-          "type" : "string",
+          "type" : "list",
           "description" : "Role name",
           "required" : true
         }

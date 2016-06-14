@@ -1,6 +1,6 @@
 {
   "xpack.security.get_user": {
-    "documentation": "Retrieve one or more users from the native realm",
+    "documentation": "https://www.elastic.co/guide/en/x-pack/master/security-api-users.html#security-api-get-user",
     "methods": [ "GET" ],
     "url": {
       "path": "/_xpack/security/user/{username}",

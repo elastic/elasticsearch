@@ -58,11 +58,19 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
     }
 
     public void testEmptyGetLicense() throws Exception {
-        final ActionFuture<GetLicenseResponse> getLicenseFuture =
-                new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).execute();
-        final GetLicenseResponse getLicenseResponse = getLicenseFuture.get();
-        assertNotNull(getLicenseResponse.license());
-        assertThat(getLicenseResponse.license().operationMode(), equalTo(License.OperationMode.TRIAL));
+        // trail license is added async, we should wait for it
+        assertBusy(() -> {
+            try {
+                final ActionFuture<GetLicenseResponse> getLicenseFuture =
+                        new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).execute();
+                final GetLicenseResponse getLicenseResponse;
+                getLicenseResponse = getLicenseFuture.get();
+                assertNotNull(getLicenseResponse.license());
+                assertThat(getLicenseResponse.license().operationMode(), equalTo(License.OperationMode.TRIAL));
+            } catch (Exception e) {
+                throw new RuntimeException("unexpected exception", e);
+            }
+        });
     }
 
     public void testPutLicense() throws Exception {

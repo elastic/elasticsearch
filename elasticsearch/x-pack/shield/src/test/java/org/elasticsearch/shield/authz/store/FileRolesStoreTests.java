@@ -17,6 +17,7 @@ import org.elasticsearch.shield.authz.permission.RunAsPermission;
 import org.elasticsearch.shield.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -257,7 +258,7 @@ public class FileRolesStoreTests extends ESTestCase {
                     .build();
 
             Environment env = new Environment(settings);
-            threadPool = new ThreadPool("test");
+            threadPool = new TestThreadPool("test");
             watcherService = new ResourceWatcherService(settings, threadPool);
             final CountDownLatch latch = new CountDownLatch(1);
             FileRolesStore store = new FileRolesStore(settings, env, watcherService, new RefreshListener() {

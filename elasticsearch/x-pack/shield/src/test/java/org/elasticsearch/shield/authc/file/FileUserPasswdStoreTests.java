@@ -16,6 +16,7 @@ import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
@@ -62,7 +63,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         env = new Environment(settings);
-        threadPool = new ThreadPool("test");
+        threadPool = new TestThreadPool("test");
     }
 
     @After

@@ -20,6 +20,7 @@ cluster:monitor/nodes/stats
 cluster:monitor/state
 cluster:monitor/stats
 cluster:monitor/task
+cluster:monitor/task/get
 cluster:monitor/tasks/lists
 cluster:monitor/xpack/watcher/stats
 indices:admin/aliases
@@ -42,6 +43,7 @@ indices:admin/open
 indices:admin/refresh
 indices:admin/settings/update
 indices:admin/shards/search_shards
+indices:admin/shrink
 indices:admin/template/delete
 indices:admin/template/get
 indices:admin/template/put

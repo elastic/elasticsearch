@@ -14,6 +14,7 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.junit.After;
@@ -39,7 +40,7 @@ public class IndexAuditTrailUpdateMappingTests extends ShieldIntegTestCase {
 
     @Before
     public void setup() {
-        threadPool = new ThreadPool("index audit trail update mapping tests");
+        threadPool = new TestThreadPool("index audit trail update mapping tests");
     }
 
     public void testMappingIsUpdated() throws Exception {

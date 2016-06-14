@@ -20,13 +20,18 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.common.init.LazyInitializationModule;
 import org.elasticsearch.xpack.watcher.actions.WatcherActionModule;
 import org.elasticsearch.xpack.watcher.client.WatcherClientModule;
 import org.elasticsearch.xpack.watcher.condition.ConditionModule;
 import org.elasticsearch.xpack.watcher.execution.ExecutionModule;
+import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
 import org.elasticsearch.xpack.watcher.history.HistoryModule;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.input.InputModule;
@@ -43,7 +48,6 @@ import org.elasticsearch.xpack.watcher.rest.action.RestWatcherStatsAction;
 import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
-import org.elasticsearch.xpack.watcher.support.clock.ClockModule;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.xpack.watcher.transform.TransformModule;
@@ -110,7 +114,6 @@ public class Watcher {
         modules.add(new WatcherModule(enabled, transportClient));
         if (enabled && transportClient == false) {
             modules.add(new WatchModule());
-            modules.add(new ClockModule());
             modules.add(new WatcherClientModule());
             modules.add(new TransformModule());
             modules.add(new TriggerModule(settings));
@@ -134,14 +137,7 @@ public class Watcher {
     }
 
     public Settings additionalSettings() {
-        if (enabled == false || transportClient) {
-            return Settings.EMPTY;
-        }
-        Settings additionalSettings = Settings.builder()
-                .put(HistoryModule.additionalSettings(settings))
-                .build();
-
-        return additionalSettings;
+        return Settings.EMPTY;
     }
 
     public void onModule(ScriptModule module) {
@@ -171,6 +167,20 @@ public class Watcher {
         module.registerSetting(Setting.simpleString("xpack.watcher.trigger.schedule.ticker.tick_interval", Setting.Property.NodeScope));
         module.registerSetting(Setting.simpleString("xpack.watcher.execution.scroll.timeout", Setting.Property.NodeScope));
         module.registerSetting(Setting.simpleString("xpack.watcher.start_immediately", Setting.Property.NodeScope));
+    }
+
+    public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
+        if (XPackPlugin.featureEnabled(settings, Watcher.NAME, true)) {
+            final FixedExecutorBuilder builder =
+                    new FixedExecutorBuilder(
+                            settings,
+                            InternalWatchExecutor.THREAD_POOL_NAME,
+                            5 * EsExecutors.boundedNumberOfProcessors(settings),
+                            1000,
+                            "xpack.watcher.thread_pool");
+            return Collections.singletonList(builder);
+        }
+        return Collections.emptyList();
     }
 
     public void onModule(NetworkModule module) {

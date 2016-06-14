@@ -7,6 +7,8 @@ package org.elasticsearch.shield.action.user;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,12 +19,14 @@ import java.io.IOException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
+ * Request to change a user's password.
  */
-public class ChangePasswordRequest extends ActionRequest<ChangePasswordRequest> implements UserRequest {
+public class ChangePasswordRequest extends ActionRequest<ChangePasswordRequest>
+        implements UserRequest, WriteRequest<ChangePasswordRequest> {
 
     private String username;
     private char[] passwordHash;
-    private boolean refresh = true;
+    private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
     @Override
     public ActionRequestValidationException validate() {
@@ -52,12 +56,19 @@ public class ChangePasswordRequest extends ActionRequest<ChangePasswordRequest> 
         this.passwordHash = passwordHash;
     }
 
-    public boolean refresh() {
-        return refresh;
+    /**
+     * Should this request trigger a refresh ({@linkplain RefreshPolicy#IMMEDIATE}, the default), wait for a refresh (
+     * {@linkplain RefreshPolicy#WAIT_UNTIL}), or proceed ignore refreshes entirely ({@linkplain RefreshPolicy#NONE}).
+     */
+    @Override
+    public RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
     }
 
-    public void refresh(boolean refresh) {
-        this.refresh = refresh;
+    @Override
+    public ChangePasswordRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
+        this.refreshPolicy = refreshPolicy;
+        return this;
     }
 
     @Override
@@ -70,6 +81,7 @@ public class ChangePasswordRequest extends ActionRequest<ChangePasswordRequest> 
         super.readFrom(in);
         username = in.readString();
         passwordHash = CharArrays.utf8BytesToChars(in.readBytesReference().array());
+        refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
     @Override
@@ -77,5 +89,6 @@ public class ChangePasswordRequest extends ActionRequest<ChangePasswordRequest> 
         super.writeTo(out);
         out.writeString(username);
         out.writeBytesReference(new BytesArray(CharArrays.toUtf8Bytes(passwordHash)));
+        refreshPolicy.writeTo(out);
     }
 }

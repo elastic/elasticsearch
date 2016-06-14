@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.Collections;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -94,10 +95,10 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
                         .addMapping("type1", "field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
         client().prepareIndex("test", "type1", "2").setSource("field2", "value2")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         SearchResponse response = client().filterWithHeader(
@@ -133,10 +134,10 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
                         .addMapping("type1", "field1", "type=text", "field2", "type=text")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
         client().prepareIndex("test", "type1", "2").setSource("field2", "value2")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         // Both users have the same role query, but user3 has access to field2 and not field1, which should result in zero hits:

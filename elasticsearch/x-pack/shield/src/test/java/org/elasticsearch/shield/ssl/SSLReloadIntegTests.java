@@ -32,6 +32,7 @@ import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.SocketException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -45,6 +46,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Integration tests for SSL reloading support
@@ -113,9 +115,10 @@ public class SSLReloadIntegTests extends ShieldIntegTestCase {
         InetSocketTransportAddress address = (InetSocketTransportAddress) internalCluster()
                 .getInstance(Transport.class, node).boundAddress().publishAddress();
         try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {
+            assertThat(socket.isConnected(), is(true));
             socket.startHandshake();
             fail("handshake should not have been successful!");
-        } catch (SSLHandshakeException expected) {
+        } catch (SSLHandshakeException | SocketException expected) {
         }
 
         KeyStore nodeStore = KeyStore.getInstance("jks");

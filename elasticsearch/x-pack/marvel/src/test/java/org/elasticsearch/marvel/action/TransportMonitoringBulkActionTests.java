@@ -30,6 +30,7 @@ import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -74,7 +75,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new ThreadPool(TransportMonitoringBulkActionTests.class.getSimpleName());
+        threadPool = new TestThreadPool(TransportMonitoringBulkActionTests.class.getSimpleName());
     }
 
     @AfterClass

@@ -98,7 +98,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     }
 
     public GeoGridAggregationBuilder shardSize(int shardSize) {
-        if (shardSize < -1 || shardSize == 0) {
+        if (shardSize <= 0) {
             throw new IllegalArgumentException(
                     "[shardSize] must be greater than 0. Found [" + shardSize + "] in [" + name + "]");
             }
@@ -140,7 +140,9 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(GeoHashGridParams.FIELD_PRECISION.getPreferredName(), precision);
         builder.field(GeoHashGridParams.FIELD_SIZE.getPreferredName(), requiredSize);
-        builder.field(GeoHashGridParams.FIELD_SHARD_SIZE.getPreferredName(), shardSize);
+        if (shardSize > -1) {
+            builder.field(GeoHashGridParams.FIELD_SHARD_SIZE.getPreferredName(), shardSize);
+        }
         return builder;
     }
 

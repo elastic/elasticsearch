@@ -236,13 +236,12 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
 
     // the main purpose of this test is to make sure we're not allocating 2GB of memory per shard
     public void testSizeIsZero() {
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> client()
                         .prepareSearch("idx").setTypes("high_card_type").addAggregation(terms("terms").field(SINGLE_VALUED_FIELD_NAME)
                                 .minDocCount(randomInt(1)).size(0).collectMode(randomFrom(SubAggCollectionMode.values())))
                         .execute().actionGet());
-        assertThat(exception.getDetailedMessage(),
-                containsString("parameters [required_size] and [shard_size] must be >0 in terms aggregation."));
+        assertThat(exception.getMessage(), containsString("[size] must be greater than 0. Found [0] in [terms]"));
     }
 
     public void testSingleValueField() throws Exception {
@@ -588,7 +587,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
         SearchResponse response = client().prepareSearch("idx_unmapped").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
-                        .size(randomInt(5))
+                        .size(randomIntBetween(1, 5))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 

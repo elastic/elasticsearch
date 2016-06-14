@@ -203,15 +203,14 @@ public class StringTermsTests extends AbstractTermsTestCase {
     // the main purpose of this test is to make sure we're not allocating 2GB of memory per shard
     public void testSizeIsZero() {
         final int minDocCount = randomInt(1);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> client()
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> client()
                 .prepareSearch("idx")
                 .setTypes("high_card_type")
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values())).minDocCount(minDocCount).size(0)).execute()
                 .actionGet());
-        assertThat(exception.getDetailedMessage(),
-                containsString("parameters [required_size] and [shard_size] must be >0 in terms aggregation."));
+        assertThat(exception.getMessage(), containsString("[size] must be greater than 0. Found [0] in [terms]"));
     }
 
     public void testSingleValueField() throws Exception {
@@ -756,7 +755,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
                 .prepareSearch("idx_unmapped")
                 .setTypes("type")
                 .addAggregation(
-                        terms("terms").executionHint(randomExecutionHint()).size(randomInt(5)).field(SINGLE_VALUED_FIELD_NAME)
+                        terms("terms").executionHint(randomExecutionHint()).size(randomIntBetween(1, 5)).field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))).execute().actionGet();
 
         assertSearchResponse(response);

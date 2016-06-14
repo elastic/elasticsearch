@@ -28,7 +28,6 @@ import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
@@ -250,7 +249,6 @@ import org.elasticsearch.search.fetch.source.FetchSourceSubPhase;
 import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.highlight.Highlighter;
-import org.elasticsearch.search.highlight.Highlighters;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
@@ -270,9 +268,8 @@ import java.util.Set;
  */
 public class SearchModule extends AbstractModule {
 
-    private final Highlighters highlighters = new Highlighters();
+    private final Highlighters highlighters;
     private final Suggesters suggesters;
-
     private final ParseFieldRegistry<ScoreFunctionParser<?>> scoreFunctionParserRegistry = new ParseFieldRegistry<>("score_function");
     private final IndicesQueriesRegistry queryParserRegistry = new IndicesQueriesRegistry();
     private final ParseFieldRegistry<Aggregator.Parser> aggregationParserRegistry = new ParseFieldRegistry<>("aggregation");
@@ -298,7 +295,7 @@ public class SearchModule extends AbstractModule {
         this.settings = settings;
         this.namedWriteableRegistry = namedWriteableRegistry;
         suggesters = new Suggesters(namedWriteableRegistry);
-
+        highlighters = new Highlighters(settings);
         registerBuiltinScoreFunctionParsers();
         registerBuiltinQueryParsers();
         registerBuiltinRescorers();
@@ -308,8 +305,8 @@ public class SearchModule extends AbstractModule {
         registerBuiltinMovingAverageModels();
     }
 
-    public void registerHighlighter(String key, Class<? extends Highlighter> clazz) {
-        highlighters.registerExtension(key, clazz);
+    public void registerHighlighter(String key, Highlighter highligher) {
+        highlighters.registerHighlighter(key, highligher);
     }
 
     public void registerSuggester(String key, Suggester<?> suggester) {
@@ -329,13 +326,6 @@ public class SearchModule extends AbstractModule {
             ParseField functionName) {
         scoreFunctionParserRegistry.register(parser, functionName);
         namedWriteableRegistry.register(ScoreFunctionBuilder.class, functionName.getPreferredName(), reader);
-    }
-
-    /**
-     * Fetch the registry of {@linkplain ScoreFunction}s. This is public so extensions can access the score functions.
-     */
-    public ParseFieldRegistry<ScoreFunctionParser<?>> getScoreFunctionParserRegistry() {
-        return scoreFunctionParserRegistry;
     }
 
     /**
@@ -441,10 +431,6 @@ public class SearchModule extends AbstractModule {
         namedWriteableRegistry.register(PipelineAggregatorBuilder.class, aggregationName.getPreferredName(), reader);
     }
 
-    public AggregatorParsers getAggregatorParsers() {
-        return aggregatorParsers;
-    }
-
     @Override
     protected void configure() {
         bind(IndicesQueriesRegistry.class).toInstance(queryParserRegistry);
@@ -473,7 +459,7 @@ public class SearchModule extends AbstractModule {
     }
 
     protected void configureHighlighters() {
-       highlighters.bind(binder());
+       binder().bind(Highlighters.class).toInstance(highlighters);
     }
 
     protected void configureAggs() {

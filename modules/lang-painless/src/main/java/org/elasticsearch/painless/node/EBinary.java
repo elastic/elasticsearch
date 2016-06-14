@@ -612,7 +612,7 @@ public final class EBinary extends AExpression {
             right.write(writer);
 
             if (promote.sort == Sort.DEF || (shiftDistance != null && shiftDistance.sort == Sort.DEF)) {
-                writer.writeDynamicBinaryInstruction(location, expected, left.actual, right.actual, operation);
+                writer.writeDynamicBinaryInstruction(location, actual, left.actual, right.actual, operation);
             } else {
                 writer.writeBinaryInstruction(location, actual, operation);
             }

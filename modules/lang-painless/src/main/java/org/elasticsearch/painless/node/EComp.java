@@ -491,7 +491,6 @@ public final class EComp extends AExpression {
 
                 break;
             case DEF:
-                // XXX: move this out, so we can populate descriptor with what we really have (instead of casts/boxing!)
                 org.objectweb.asm.Type booleanType = org.objectweb.asm.Type.getType(boolean.class);
                 org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(booleanType, left.actual.type, right.actual.type);
                 if (eq) {

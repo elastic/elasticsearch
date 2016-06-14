@@ -37,6 +37,7 @@ processResources {
 
 task buildZip(type:Zip, dependsOn: [jar]) {
   from 'build/resources/main/x-pack-extension-descriptor.properties'
+  from 'build/resources/main/x-pack-extension-security.policy'
   from project.jar
 }
 

@@ -353,7 +353,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
                                 .subAggregation(
                                         terms("field2").field("nested1.nested2.field2").order(Terms.Order.term(true))
                                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                                .size(0)
+                                                .size(10000)
                                                 .subAggregation(
                                                         reverseNested("nested1_to_field1").path("nested1")
                                                                 .subAggregation(

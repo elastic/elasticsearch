@@ -110,8 +110,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
      * (defaults to 10)
      */
     public TermsAggregationBuilder size(int size) {
-        if (size < 0) {
-            throw new IllegalArgumentException("[size] must be greater than or equal to 0. Found [" + size + "] in [" + name + "]");
+        if (size <= 0) {
+            throw new IllegalArgumentException("[size] must be greater than 0. Found [" + size + "] in [" + name + "]");
         }
         bucketCountThresholds.setRequiredSize(size);
         return this;
@@ -124,9 +124,9 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
      * results are.
      */
     public TermsAggregationBuilder shardSize(int shardSize) {
-        if (shardSize < 0) {
+        if (shardSize <= 0) {
             throw new IllegalArgumentException(
-                    "[shardSize] must be greater than or equal to 0. Found [" + shardSize + "] in [" + name + "]");
+                    "[shardSize] must be greater than 0. Found [" + shardSize + "] in [" + name + "]");
         }
         bucketCountThresholds.setShardSize(shardSize);
         return this;

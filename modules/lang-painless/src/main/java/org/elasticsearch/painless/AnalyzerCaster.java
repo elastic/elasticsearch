@@ -40,6 +40,10 @@ public final class AnalyzerCaster {
                     case DEF:
                         return new Cast(actual, Definition.DEF_TYPE, explicit, false, false, true, false);
                     case OBJECT:
+                        if (Definition.OBJECT_TYPE.equals(expected) && internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
                     case BOOL_OBJ:
                         if (internal)
                             return new Cast(actual, actual, explicit, false, false, false, true);
@@ -62,6 +66,10 @@ public final class AnalyzerCaster {
                     case DEF:
                         return new Cast(actual, Definition.DEF_TYPE, explicit, false, false, true, false);
                     case OBJECT:
+                        if (Definition.OBJECT_TYPE.equals(expected) && internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
                     case NUMBER:
                     case BYTE_OBJ:
                         if (internal)
@@ -117,6 +125,10 @@ public final class AnalyzerCaster {
                     case DEF:
                         return new Cast(actual, Definition.DEF_TYPE, explicit, false, false, true, false);
                     case OBJECT:
+                        if (Definition.OBJECT_TYPE.equals(expected) && internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
                     case NUMBER:
                     case SHORT_OBJ:
                         if (internal)
@@ -172,6 +184,10 @@ public final class AnalyzerCaster {
                     case DEF:
                         return new Cast(actual, Definition.DEF_TYPE, explicit, false, false, true, false);
                     case OBJECT:
+                        if (Definition.OBJECT_TYPE.equals(expected) && internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
                     case NUMBER:
                     case CHAR_OBJ:
                         if (internal)
@@ -229,6 +245,10 @@ public final class AnalyzerCaster {
                     case DEF:
                         return new Cast(actual, Definition.DEF_TYPE, explicit, false, false, true, false);
                     case OBJECT:
+                        if (Definition.OBJECT_TYPE.equals(expected) && internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
                     case NUMBER:
                     case INT_OBJ:
                         if (internal)
@@ -284,6 +304,10 @@ public final class AnalyzerCaster {
                     case DEF:
                         return new Cast(actual, Definition.DEF_TYPE, explicit, false, false, true, false);
                     case OBJECT:
+                        if (Definition.OBJECT_TYPE.equals(expected) && internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
                     case NUMBER:
                     case LONG_OBJ:
                         if (internal)
@@ -339,6 +363,10 @@ public final class AnalyzerCaster {
                     case DEF:
                         return new Cast(actual, Definition.DEF_TYPE, explicit, false, false, true, false);
                     case OBJECT:
+                        if (Definition.OBJECT_TYPE.equals(expected) && internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
                     case NUMBER:
                     case FLOAT_OBJ:
                         if (internal)
@@ -392,6 +420,10 @@ public final class AnalyzerCaster {
                     case DEF:
                         return new Cast(actual, Definition.DEF_TYPE, explicit, false, false, true, false);
                     case OBJECT:
+                        if (Definition.OBJECT_TYPE.equals(expected) && internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
                     case NUMBER:
                     case DOUBLE_OBJ:
                         if (internal)
@@ -432,6 +464,45 @@ public final class AnalyzerCaster {
 
                 break;
             case OBJECT:
+                if (Definition.OBJECT_TYPE.equals(actual))
+                    switch (expected.sort) {
+                        case BYTE:
+                            if (internal && explicit)
+                                return new Cast(actual, Definition.BYTE_OBJ_TYPE, true, false, true, false, false);
+
+                            break;
+                        case SHORT:
+                            if (internal && explicit)
+                                return new Cast(actual, Definition.SHORT_OBJ_TYPE, true, false, true, false, false);
+
+                            break;
+                        case CHAR:
+                            if (internal && explicit)
+                                return new Cast(actual, Definition.CHAR_OBJ_TYPE, true, false, true, false, false);
+
+                            break;
+                        case INT:
+                            if (internal && explicit)
+                                return new Cast(actual, Definition.INT_OBJ_TYPE, true, false, true, false, false);
+
+                            break;
+                        case LONG:
+                            if (internal && explicit)
+                                return new Cast(actual, Definition.LONG_OBJ_TYPE, true, false, true, false, false);
+
+                            break;
+                        case FLOAT:
+                            if (internal && explicit)
+                                return new Cast(actual, Definition.FLOAT_OBJ_TYPE, true, false, true, false, false);
+
+                            break;
+                        case DOUBLE:
+                            if (internal && explicit)
+                                return new Cast(actual, Definition.DOUBLE_OBJ_TYPE, true, false, true, false, false);
+
+                            break;
+                    }
+                break;
             case NUMBER:
                 switch (expected.sort) {
                     case BYTE:

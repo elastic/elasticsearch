@@ -54,8 +54,13 @@ IF "!current:~0,2%!" == "-D" (
 GOTO loop
 :breakloop
 
+SET path_props=-Des.path.home="%ES_HOME%"
+IF DEFINED CONF_DIR (
+  SET path_props=!path_props! -Des.path.conf="%CONF_DIR%"
+)
+
 SET HOSTNAME=%COMPUTERNAME%
 
-"%JAVA%" %ES_JAVA_OPTS% -Des.path.home="%ES_HOME%" !properties! -cp "%ES_HOME%/lib/*;" "org.elasticsearch.plugins.PluginCli" !args!
+"%JAVA%" %ES_JAVA_OPTS% !path_props! !properties! -cp "%ES_HOME%/lib/*;" "org.elasticsearch.plugins.PluginCli" !args!
 
 ENDLOCAL

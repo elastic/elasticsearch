@@ -49,7 +49,6 @@ public class RankEvalPlugin extends Plugin {
     }
 
     public void onModule(NetworkModule networkModule) {
-        //networkModule.registerRestHandler(RestRankEvalAction.class);
-
+        networkModule.registerRestHandler(RestRankEvalAction.class);
     }
 }

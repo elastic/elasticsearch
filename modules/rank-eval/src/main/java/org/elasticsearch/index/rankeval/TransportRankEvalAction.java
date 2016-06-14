@@ -31,6 +31,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.Template;
@@ -66,7 +67,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     public TransportRankEvalAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, ScriptService scriptService,
             AutoCreateIndex autoCreateIndex, Client client, TransportService transportService, SearchPhaseController searchPhaseController,
-            SearchTransportService searchTransportService) {
+            SearchTransportService searchTransportService, NamedWriteableRegistry namedWriteableRegistry) {
         super(settings, RankEvalAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 RankEvalRequest::new);
         this.searchPhaseController = searchPhaseController;
@@ -74,6 +75,8 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         this.searchTransportService = searchTransportService;
         this.clusterService = clusterService;
         this.actionFilters = actionFilters;
+
+        namedWriteableRegistry.register(RankedListQualityMetric.class, PrecisionAtN.NAME, PrecisionAtN::new);
     }
 
     @Override

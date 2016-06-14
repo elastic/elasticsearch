@@ -20,7 +20,6 @@
 package org.elasticsearch.action.quality;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtN;
@@ -34,33 +33,30 @@ import org.elasticsearch.index.rankeval.RankEvalResult;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedQuery;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.mustache.MustachePlugin;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
-import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.index.rankeval.PrecisionAtN.Rating;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, transportClientRatio = 0) // NORELEASE need to fix transport client use case
 public class PrecisionAtRequestTest  extends ESIntegTestCase {
-
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return pluginList(RankEvalPlugin.class);
+    }
+    
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(RankEvalPlugin.class);

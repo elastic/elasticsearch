@@ -41,7 +41,7 @@ public class PrecisionAtN implements RankedListQualityMetric {
     /** Number of results to check against a given set of relevant results. */
     private int n;
     
-    private static final String NAME = "precisionatn";
+    public static final String NAME = "precisionatn";
 
     public PrecisionAtN(StreamInput in) throws IOException {
         n = in.readInt();

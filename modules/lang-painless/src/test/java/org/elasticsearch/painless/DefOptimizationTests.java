@@ -178,4 +178,229 @@ public class DefOptimizationTests extends ScriptTestCase {
         });
         assertTrue(exception.getMessage().contains("Cannot cast java.lang.Double to java.lang.Integer"));
     }
+    
+    public void testMulOptLHS() {
+        assertBytecodeExists("int x = 1; def y = 2; return x * y", 
+                             "INVOKEDYNAMIC mul(ILjava/lang/Object;)Ljava/lang/Object;");
+    }
+    
+    public void testMulOptRHS() {
+        assertBytecodeExists("def x = 1; int y = 2; return x * y", 
+                             "INVOKEDYNAMIC mul(Ljava/lang/Object;I)Ljava/lang/Object;");
+    }
+    
+    public void testMulOptRet() {
+        assertBytecodeExists("def x = 1; def y = 2; double d = x * y", 
+                             "INVOKEDYNAMIC mul(Ljava/lang/Object;Ljava/lang/Object;)D");
+    }
+    
+    public void testDivOptLHS() {
+        assertBytecodeExists("int x = 1; def y = 2; return x / y", 
+                             "INVOKEDYNAMIC div(ILjava/lang/Object;)Ljava/lang/Object;");
+    }
+    
+    public void testDivOptRHS() {
+        assertBytecodeExists("def x = 1; int y = 2; return x / y", 
+                             "INVOKEDYNAMIC div(Ljava/lang/Object;I)Ljava/lang/Object;");
+    }
+    
+    public void testDivOptRet() {
+        assertBytecodeExists("def x = 1; def y = 2; double d = x / y", 
+                             "INVOKEDYNAMIC div(Ljava/lang/Object;Ljava/lang/Object;)D");
+    }
+    
+    public void testRemOptLHS() {
+        assertBytecodeExists("int x = 1; def y = 2; return x % y", 
+                             "INVOKEDYNAMIC rem(ILjava/lang/Object;)Ljava/lang/Object;");
+    }
+    
+    public void testRemOptRHS() {
+        assertBytecodeExists("def x = 1; int y = 2; return x % y", 
+                             "INVOKEDYNAMIC rem(Ljava/lang/Object;I)Ljava/lang/Object;");
+    }
+    
+    public void testRemOptRet() {
+        assertBytecodeExists("def x = 1; def y = 2; double d = x % y", 
+                             "INVOKEDYNAMIC rem(Ljava/lang/Object;Ljava/lang/Object;)D");
+    }
+    
+    public void testAddOptLHS() {
+        assertBytecodeExists("int x = 1; def y = 2; return x + y", 
+                             "INVOKEDYNAMIC add(ILjava/lang/Object;)Ljava/lang/Object;");
+    }
+    
+    public void testAddOptRHS() {
+        assertBytecodeExists("def x = 1; int y = 2; return x + y", 
+                             "INVOKEDYNAMIC add(Ljava/lang/Object;I)Ljava/lang/Object;");
+    }
+    
+    public void testAddOptRet() {
+        assertBytecodeExists("def x = 1; def y = 2; double d = x + y", 
+                             "INVOKEDYNAMIC add(Ljava/lang/Object;Ljava/lang/Object;)D");
+    }
+    
+    public void testSubOptLHS() {
+        assertBytecodeExists("int x = 1; def y = 2; return x - y", 
+                             "INVOKEDYNAMIC sub(ILjava/lang/Object;)Ljava/lang/Object;");
+    }
+    
+    public void testSubOptRHS() {
+        assertBytecodeExists("def x = 1; int y = 2; return x - y", 
+                             "INVOKEDYNAMIC sub(Ljava/lang/Object;I)Ljava/lang/Object;");
+    }
+    
+    public void testSubOptRet() {
+        assertBytecodeExists("def x = 1; def y = 2; double d = x - y", 
+                             "INVOKEDYNAMIC sub(Ljava/lang/Object;Ljava/lang/Object;)D");
+    }
+    
+    public void testLshOptLHS() {
+        assertBytecodeExists("int x = 1; def y = 2; return x << y", 
+                             "INVOKEDYNAMIC lsh(ILjava/lang/Object;)Ljava/lang/Object;");
+    }
+    
+    public void testLshOptRHS() {
+        assertBytecodeExists("def x = 1; int y = 2; return x << y", 
+                             "INVOKEDYNAMIC lsh(Ljava/lang/Object;I)Ljava/lang/Object;");
+    }
+    
+    public void testLshOptRet() {
+        assertBytecodeExists("def x = 1; def y = 2; double d = x << y", 
+                             "INVOKEDYNAMIC lsh(Ljava/lang/Object;Ljava/lang/Object;)D");
+    }
+    
+    public void testRshOptLHS() {
+        assertBytecodeExists("int x = 1; def y = 2; return x >> y", 
+                             "INVOKEDYNAMIC rsh(ILjava/lang/Object;)Ljava/lang/Object;");
+    }
+    
+    public void testRshOptRHS() {
+        assertBytecodeExists("def x = 1; int y = 2; return x >> y", 
+                             "INVOKEDYNAMIC rsh(Ljava/lang/Object;I)Ljava/lang/Object;");
+    }
+    
+    public void testRshOptRet() {
+        assertBytecodeExists("def x = 1; def y = 2; double d = x >> y", 
+                             "INVOKEDYNAMIC rsh(Ljava/lang/Object;Ljava/lang/Object;)D");
+    }
+    
+    public void testUshOptLHS() {
+        assertBytecodeExists("int x = 1; def y = 2; return x >>> y", 
+                             "INVOKEDYNAMIC ush(ILjava/lang/Object;)Ljava/lang/Object;");
+    }
+    
+    public void testUshOptRHS() {
+        assertBytecodeExists("def x = 1; int y = 2; return x >>> y", 
+                             "INVOKEDYNAMIC ush(Ljava/lang/Object;I)Ljava/lang/Object;");
+    }
+    
+    public void testUshOptRet() {
+        assertBytecodeExists("def x = 1; def y = 2; double d = x >>> y", 
+                             "INVOKEDYNAMIC ush(Ljava/lang/Object;Ljava/lang/Object;)D");
+    }
+    
+    public void testAndOptLHS() {
+        assertBytecodeExists("int x = 1; def y = 2; return x & y", 
+                             "INVOKEDYNAMIC and(ILjava/lang/Object;)Ljava/lang/Object;");
+    }
+    
+    public void testAndOptRHS() {
+        assertBytecodeExists("def x = 1; int y = 2; return x & y", 
+                             "INVOKEDYNAMIC and(Ljava/lang/Object;I)Ljava/lang/Object;");
+    }
+    
+    public void testAndOptRet() {
+        assertBytecodeExists("def x = 1; def y = 2; double d = x & y", 
+                             "INVOKEDYNAMIC and(Ljava/lang/Object;Ljava/lang/Object;)D");
+    }
+    
+    public void testOrOptLHS() {
+        assertBytecodeExists("int x = 1; def y = 2; return x | y", 
+                             "INVOKEDYNAMIC or(ILjava/lang/Object;)Ljava/lang/Object;");
+    }
+    
+    public void testOrOptRHS() {
+        assertBytecodeExists("def x = 1; int y = 2; return x | y", 
+                             "INVOKEDYNAMIC or(Ljava/lang/Object;I)Ljava/lang/Object;");
+    }
+    
+    public void testOrOptRet() {
+        assertBytecodeExists("def x = 1; def y = 2; double d = x | y", 
+                             "INVOKEDYNAMIC or(Ljava/lang/Object;Ljava/lang/Object;)D");
+    }
+    
+    public void testXorOptLHS() {
+        assertBytecodeExists("int x = 1; def y = 2; return x ^ y", 
+                             "INVOKEDYNAMIC xor(ILjava/lang/Object;)Ljava/lang/Object;");
+    }
+    
+    public void testXorOptRHS() {
+        assertBytecodeExists("def x = 1; int y = 2; return x ^ y", 
+                             "INVOKEDYNAMIC xor(Ljava/lang/Object;I)Ljava/lang/Object;");
+    }
+    
+    public void testXorOptRet() {
+        assertBytecodeExists("def x = 1; def y = 2; double d = x ^ y", 
+                             "INVOKEDYNAMIC xor(Ljava/lang/Object;Ljava/lang/Object;)D");
+    }
+    
+    public void testLtOptLHS() {
+        assertBytecodeExists("int x = 1; def y = 2; return x < y", 
+                             "INVOKEDYNAMIC lt(ILjava/lang/Object;)Z");
+    }
+    
+    public void testLtOptRHS() {
+        assertBytecodeExists("def x = 1; int y = 2; return x < y", 
+                             "INVOKEDYNAMIC lt(Ljava/lang/Object;I)Z");
+    }
+    
+    public void testLteOptLHS() {
+        assertBytecodeExists("int x = 1; def y = 2; return x <= y", 
+                             "INVOKEDYNAMIC lte(ILjava/lang/Object;)Z");
+    }
+    
+    public void testLteOptRHS() {
+        assertBytecodeExists("def x = 1; int y = 2; return x <= y", 
+                             "INVOKEDYNAMIC lte(Ljava/lang/Object;I)Z");
+    }
+    
+    public void testEqOptLHS() {
+        assertBytecodeExists("int x = 1; def y = 2; return x == y", 
+                             "INVOKEDYNAMIC eq(ILjava/lang/Object;)Z");
+    }
+    
+    public void testEqOptRHS() {
+        assertBytecodeExists("def x = 1; int y = 2; return x == y", 
+                             "INVOKEDYNAMIC eq(Ljava/lang/Object;I)Z");
+    }
+    
+    public void testNeqOptLHS() {
+        assertBytecodeExists("int x = 1; def y = 2; return x != y", 
+                             "INVOKEDYNAMIC eq(ILjava/lang/Object;)Z");
+    }
+    
+    public void testNeqOptRHS() {
+        assertBytecodeExists("def x = 1; int y = 2; return x != y", 
+                             "INVOKEDYNAMIC eq(Ljava/lang/Object;I)Z");
+    }
+    
+    public void testGteOptLHS() {
+        assertBytecodeExists("int x = 1; def y = 2; return x >= y", 
+                             "INVOKEDYNAMIC gte(ILjava/lang/Object;)Z");
+    }
+    
+    public void testGteOptRHS() {
+        assertBytecodeExists("def x = 1; int y = 2; return x >= y", 
+                             "INVOKEDYNAMIC gte(Ljava/lang/Object;I)Z");
+    }
+    
+    public void testGtOptLHS() {
+        assertBytecodeExists("int x = 1; def y = 2; return x > y", 
+                             "INVOKEDYNAMIC gt(ILjava/lang/Object;)Z");
+    }
+    
+    public void testGtOptRHS() {
+        assertBytecodeExists("def x = 1; int y = 2; return x > y", 
+                             "INVOKEDYNAMIC gt(Ljava/lang/Object;I)Z");
+    }
 }

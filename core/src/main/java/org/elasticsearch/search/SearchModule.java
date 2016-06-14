@@ -24,7 +24,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -92,7 +91,6 @@ import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.WeightBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.action.SearchTransportService;
-import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
@@ -236,12 +234,10 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregatorBuilder;
 import org.elasticsearch.search.controller.SearchPhaseController;
-import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsFetchSubPhase;
 import org.elasticsearch.search.fetch.matchedqueries.MatchedQueriesFetchSubPhase;
 import org.elasticsearch.search.fetch.parent.ParentFieldSubFetchPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
@@ -249,7 +245,6 @@ import org.elasticsearch.search.fetch.source.FetchSourceSubPhase;
 import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.highlight.Highlighter;
-import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -261,6 +256,7 @@ import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.Suggesters;
 
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -281,7 +277,7 @@ public class SearchModule extends AbstractModule {
     private final ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageModelParserRegistry = new ParseFieldRegistry<>(
             "moving_avg_model");
 
-    private final Set<Class<? extends FetchSubPhase>> fetchSubPhases = new HashSet<>();
+    private final Set<FetchSubPhase> fetchSubPhases = new HashSet<>();
 
     private final Settings settings;
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -303,6 +299,7 @@ public class SearchModule extends AbstractModule {
         registerBuiltinValueFormats();
         registerBuiltinSignificanceHeuristics();
         registerBuiltinMovingAverageModels();
+        registerBuiltinSubFetchPhases();
     }
 
     public void registerHighlighter(String key, Highlighter highligher) {
@@ -357,8 +354,19 @@ public class SearchModule extends AbstractModule {
         return queryParserRegistry;
     }
 
-    public void registerFetchSubPhase(Class<? extends FetchSubPhase> subPhase) {
-        fetchSubPhases.add(subPhase);
+    /**
+     * Registers a {@link FetchSubPhase} instance. This sub phase is executed when docuemnts are fetched for instanced to highlight
+     * documents.
+     */
+    public void registerFetchSubPhase(FetchSubPhase subPhase) {
+        fetchSubPhases.add(Objects.requireNonNull(subPhase, "FetchSubPhase must not be null"));
+    }
+
+    /**
+     * Returns the {@link Highlighter} registry
+     */
+    public Highlighters getHighlighters() {
+        return highlighters;
     }
 
     /**
@@ -437,29 +445,7 @@ public class SearchModule extends AbstractModule {
         bind(Suggesters.class).toInstance(suggesters);
         configureSearch();
         configureAggs();
-        configureHighlighters();
-        configureFetchSubPhase();
         configureShapes();
-    }
-
-    protected void configureFetchSubPhase() {
-        Multibinder<FetchSubPhase> fetchSubPhaseMultibinder = Multibinder.newSetBinder(binder(), FetchSubPhase.class);
-        fetchSubPhaseMultibinder.addBinding().to(ExplainFetchSubPhase.class);
-        fetchSubPhaseMultibinder.addBinding().to(FieldDataFieldsFetchSubPhase.class);
-        fetchSubPhaseMultibinder.addBinding().to(ScriptFieldsFetchSubPhase.class);
-        fetchSubPhaseMultibinder.addBinding().to(FetchSourceSubPhase.class);
-        fetchSubPhaseMultibinder.addBinding().to(VersionFetchSubPhase.class);
-        fetchSubPhaseMultibinder.addBinding().to(MatchedQueriesFetchSubPhase.class);
-        fetchSubPhaseMultibinder.addBinding().to(HighlightPhase.class);
-        fetchSubPhaseMultibinder.addBinding().to(ParentFieldSubFetchPhase.class);
-        for (Class<? extends FetchSubPhase> clazz : fetchSubPhases) {
-            fetchSubPhaseMultibinder.addBinding().to(clazz);
-        }
-        bind(InnerHitsFetchSubPhase.class).asEagerSingleton();
-    }
-
-    protected void configureHighlighters() {
-       binder().bind(Highlighters.class).toInstance(highlighters);
     }
 
     protected void configureAggs() {
@@ -541,18 +527,13 @@ public class SearchModule extends AbstractModule {
                 BucketSelectorPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerPipelineAggregation(SerialDiffPipelineAggregatorBuilder::new, SerialDiffPipelineAggregatorBuilder::parse,
                 SerialDiffPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
-
-        AggregationPhase aggPhase = new AggregationPhase();
         bind(AggregatorParsers.class).toInstance(aggregatorParsers);
-        bind(AggregationPhase.class).toInstance(aggPhase);
     }
 
     protected void configureSearch() {
         // configure search private classes...
-        bind(DfsPhase.class).asEagerSingleton();
-        bind(QueryPhase.class).asEagerSingleton();
         bind(SearchPhaseController.class).asEagerSingleton();
-        bind(FetchPhase.class).asEagerSingleton();
+        bind(FetchPhase.class).toInstance(new FetchPhase(fetchSubPhases));
         bind(SearchTransportService.class).asEagerSingleton();
         if (searchServiceImpl == SearchService.class) {
             bind(SearchService.class).asEagerSingleton();
@@ -621,6 +602,17 @@ public class SearchModule extends AbstractModule {
         registerMovingAverageModel(EwmaModel.NAME_FIELD, EwmaModel::new, EwmaModel.PARSER);
         registerMovingAverageModel(HoltLinearModel.NAME_FIELD, HoltLinearModel::new, HoltLinearModel.PARSER);
         registerMovingAverageModel(HoltWintersModel.NAME_FIELD, HoltWintersModel::new, HoltWintersModel.PARSER);
+    }
+
+    private void registerBuiltinSubFetchPhases() {
+        fetchSubPhases.add(new ExplainFetchSubPhase());
+        fetchSubPhases.add(new FieldDataFieldsFetchSubPhase());
+        fetchSubPhases.add(new ScriptFieldsFetchSubPhase());
+        fetchSubPhases.add(new FetchSourceSubPhase());
+        fetchSubPhases.add(new VersionFetchSubPhase());
+        fetchSubPhases.add(new MatchedQueriesFetchSubPhase());
+        fetchSubPhases.add(new HighlightPhase(settings, highlighters));
+        fetchSubPhases.add(new ParentFieldSubFetchPhase());
     }
 
     private void registerBuiltinQueryParsers() {

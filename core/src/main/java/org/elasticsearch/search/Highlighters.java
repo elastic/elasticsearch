@@ -34,7 +34,7 @@ public final class Highlighters {
 
     private final Map<String, Highlighter> parsers = new HashMap<>();
 
-    Highlighters(Settings settings) {
+    public Highlighters(Settings settings) {
         registerHighlighter("fvh",  new FastVectorHighlighter(settings));
         registerHighlighter("plain", new PlainHighlighter());
         registerHighlighter("postings", new PostingsHighlighter());

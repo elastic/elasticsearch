@@ -22,7 +22,6 @@ package org.elasticsearch.search.rescore;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -33,7 +32,6 @@ import java.io.IOException;
  */
 public class RescorePhase extends AbstractComponent implements SearchPhase {
 
-    @Inject
     public RescorePhase(Settings settings) {
         super(settings);
     }

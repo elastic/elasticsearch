@@ -219,19 +219,56 @@ public abstract class TimeZoneRounding extends Rounding {
         public long roundKey(long utcMillis) {
             long timeLocal = timeZone.convertUTCToLocal(utcMillis);
             long rounded = Rounding.Interval.roundValue(Rounding.Interval.roundKey(timeLocal, interval), interval);
-            try {
-                return timeZone.convertLocalToUTC(rounded, true, utcMillis);
-            } catch (IllegalInstantException e) {
+            long roundedUTC;
+            if (isInDSTGap(rounded) == false) {
+                roundedUTC  = timeZone.convertLocalToUTC(rounded, true, utcMillis);
+            } else {
                 /*
-                 * The rounded local time is illegal and landed in a DST gap. In
-                 * this case, we choose 1ms tick after the transition date. We
-                 * don't want the transition date itself because those dates,
-                 * when rounded themselves, fall into the previous interval.
-                 * This would violate the invariant that the rounding operation
-                 * should be idempotent.
+                 * Edge case where the rounded local time is illegal and landed
+                 * in a DST gap. In this case, we choose 1ms tick after the
+                 * transition date. We don't want the transition date itself
+                 * because those dates, when rounded themselves, fall into the
+                 * previous interval. This would violate the invariant that the
+                 * rounding operation should be idempotent.
                  */
-                return timeZone.previousTransition(utcMillis) + 1;
+                roundedUTC = timeZone.previousTransition(utcMillis) + 1;
             }
+            return roundedUTC;
+        }
+
+        /**
+         * Determine whether the local instant is a valid instant in the given
+         * time zone. The logic for this is taken from
+         * {@link DateTimeZone#convertLocalToUTC(long, boolean)} for the
+         * `strict` mode case, but instead of throwing an
+         * {@link IllegalInstantException}, which is costly, we want to return a
+         * flag indicating that the value is illegal in that time zone.
+         */
+        private boolean isInDSTGap(long instantLocal) {
+            if (timeZone.isFixed()) {
+                return false;
+            }
+            // get the offset at instantLocal (first estimate)
+            int offsetLocal = timeZone.getOffset(instantLocal);
+            // adjust instantLocal using the estimate and recalc the offset
+            int offset = timeZone.getOffset(instantLocal - offsetLocal);
+            // if the offsets differ, we must be near a DST boundary
+            if (offsetLocal != offset) {
+                // determine if we are in the DST gap
+                long nextLocal = timeZone.nextTransition(instantLocal - offsetLocal);
+                if (nextLocal == (instantLocal - offsetLocal)) {
+                    nextLocal = Long.MAX_VALUE;
+                }
+                long nextAdjusted = timeZone.nextTransition(instantLocal - offset);
+                if (nextAdjusted == (instantLocal - offset)) {
+                    nextAdjusted = Long.MAX_VALUE;
+                }
+                if (nextLocal != nextAdjusted) {
+                    // we are in the DST gap
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override

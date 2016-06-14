@@ -20,6 +20,7 @@ cluster:monitor/nodes/stats
 cluster:monitor/state
 cluster:monitor/stats
 cluster:monitor/task
+cluster:monitor/task/get
 cluster:monitor/tasks/lists
 cluster:monitor/xpack/watcher/stats
 indices:admin/aliases

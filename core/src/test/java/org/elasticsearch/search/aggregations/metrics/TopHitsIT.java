@@ -522,8 +522,8 @@ public class TopHitsIT extends ESIntegTestCase {
                 .setQuery(matchQuery("text", "term rare"))
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field("group")
-                                .order(Terms.Order.aggregation("max_score", false)).subAggregation(topHits("hits").size(1))
-                                .subAggregation(max("max_score").field("value"))).get();
+                                .order(Terms.Order.aggregation("hits", false)).subAggregation(topHits("hits").size(1)))
+                                .get();
         assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");

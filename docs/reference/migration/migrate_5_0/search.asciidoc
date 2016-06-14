@@ -185,3 +185,9 @@ This is now consistent for source filtering on other places in the search API.
 In the response for profiling queries, the `query_type` has been renamed to `type` and `lucene` has been renamed to
 `description`. These changes have been made so the response format is more friendly to supporting other types of profiling
 in the future.
+
+==== Search preference
+
+The <<search-request-preference,search preference>> `_only_node` has
+been removed. The same behavior can be achieved by using `_only_nodes`
+and specifying a single node ID.

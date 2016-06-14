@@ -27,10 +27,6 @@ The `preference` is a query string parameter which can be set to:
 	The operation will prefer to be executed on a local
 	allocated shard if possible.
 
-`_only_node:xyz`:: 
-	Restricts the search to execute only on a node with
-	the provided node id (`xyz` in this case).
-
 `_prefer_node:xyz`:: 
 	Prefers execution on the node with the provided
 	node id (`xyz` in this case) if applicable.

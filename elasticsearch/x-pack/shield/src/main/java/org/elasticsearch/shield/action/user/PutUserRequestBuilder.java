@@ -7,6 +7,7 @@ package org.elasticsearch.shield.action.user;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -15,17 +16,18 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.support.Validation;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.xpack.common.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, PutUserResponse, PutUserRequestBuilder> {
+public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, PutUserResponse, PutUserRequestBuilder>
+        implements WriteRequestBuilder<PutUserRequestBuilder> {
 
     private final Hasher hasher = Hasher.BCRYPT;
 
@@ -74,11 +76,6 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
 
     public PutUserRequestBuilder email(String email) {
         request.email(email);
-        return this;
-    }
-
-    public PutUserRequestBuilder refresh(boolean refresh) {
-        request.refresh(refresh);
         return this;
     }
 

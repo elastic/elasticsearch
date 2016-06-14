@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
@@ -53,7 +54,7 @@ public class InternalCryptoServiceTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         env = new Environment(settings);
-        threadPool = new ThreadPool("test");
+        threadPool = new TestThreadPool("test");
         watcherService = new ResourceWatcherService(settings, threadPool);
         watcherService.start();
     }

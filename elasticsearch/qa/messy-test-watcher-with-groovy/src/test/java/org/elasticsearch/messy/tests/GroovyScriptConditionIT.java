@@ -11,6 +11,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.watcher.condition.script.ExecutableScriptCondition;
 import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
@@ -49,7 +50,7 @@ public class GroovyScriptConditionIT extends AbstractWatcherIntegrationTestCase 
 
     @BeforeClass
     public static void startThreadPool() {
-        THREAD_POOL = new ThreadPool(GroovyScriptConditionIT.class.getSimpleName());
+        THREAD_POOL = new TestThreadPool(GroovyScriptConditionIT.class.getSimpleName());
     }
 
     @Before

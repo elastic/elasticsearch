@@ -217,7 +217,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
             return getSSLSettingsForPEMFiles("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.pem", "testnode",
                     Collections.singletonList("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.crt"),
                     Arrays.asList("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode-client-profile.crt",
-                            "/org/elasticsearch/shield/transport/ssl/certs/simple/activedir.crt",
+                            "/org/elasticsearch/shield/transport/ssl/certs/simple/active-directory-ca.crt",
                             "/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.crt",
                             "/org/elasticsearch/shield/transport/ssl/certs/simple/openldap.crt",
                             "/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.crt"),

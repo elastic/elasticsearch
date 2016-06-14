@@ -47,7 +47,7 @@ public class RestChangePasswordAction extends BaseRestHandler {
         }
 
         new SecurityClient(client).prepareChangePassword(username, request.content())
-                .refresh(request.paramAsBoolean("refresh", true))
+                .setRefreshPolicy(request.param("refresh"))
                 .execute(new RestBuilderListener<ChangePasswordResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(ChangePasswordResponse changePasswordResponse, XContentBuilder builder) throws

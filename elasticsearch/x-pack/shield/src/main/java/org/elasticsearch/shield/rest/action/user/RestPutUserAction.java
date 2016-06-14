@@ -37,7 +37,7 @@ public class RestPutUserAction extends BaseRestHandler {
     protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
         PutUserRequestBuilder requestBuilder = new SecurityClient(client).preparePutUser(request.param("username"), request.content());
         if (request.hasParam("refresh")) {
-            requestBuilder.refresh(request.paramAsBoolean("refresh", true));
+            requestBuilder.setRefreshPolicy(request.param("refresh"));
         }
         requestBuilder.execute(new RestBuilderListener<PutUserResponse>(channel) {
             @Override

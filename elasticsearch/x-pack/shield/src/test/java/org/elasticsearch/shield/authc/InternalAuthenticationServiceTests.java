@@ -94,6 +94,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         SecurityLicenseState shieldLicenseState = mock(SecurityLicenseState.class);
         when(shieldLicenseState.enabledRealmType()).thenReturn(EnabledRealmType.ALL);
+        when(shieldLicenseState.authenticationAndAuthorizationEnabled()).thenReturn(true);
         realms = new Realms(Settings.EMPTY, new Environment(settings), Collections.<String, Realm.Factory>emptyMap(), shieldLicenseState,
                 mock(ReservedRealm.class)) {
 

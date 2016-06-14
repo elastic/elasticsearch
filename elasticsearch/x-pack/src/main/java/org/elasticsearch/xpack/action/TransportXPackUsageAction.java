@@ -29,7 +29,7 @@ public class TransportXPackUsageAction extends HandledTransportAction<XPackUsage
     public TransportXPackUsageAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                      Set<XPackFeatureSet> featureSets) {
-        super(settings, XPackInfoAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
+        super(settings, XPackUsageAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 XPackUsageRequest::new);
         this.featureSets = featureSets;
     }

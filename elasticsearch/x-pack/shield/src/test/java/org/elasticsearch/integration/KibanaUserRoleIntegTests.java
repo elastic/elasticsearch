@@ -25,6 +25,7 @@ import org.elasticsearch.test.ShieldIntegTestCase;
 import java.util.Locale;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -183,7 +184,7 @@ public class KibanaUserRoleIntegTests extends ShieldIntegTestCase {
                 .setIndex(index)
                 .setType("dashboard")
                 .setSource("foo", "bar")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
         assertThat(response.isCreated(), is(true));
 

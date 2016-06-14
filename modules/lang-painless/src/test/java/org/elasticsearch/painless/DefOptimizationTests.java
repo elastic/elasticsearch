@@ -343,7 +343,22 @@ public class DefOptimizationTests extends ScriptTestCase {
         assertBytecodeExists("def x = 1; def y = 2; double d = x ^ y", 
                              "INVOKEDYNAMIC xor(Ljava/lang/Object;Ljava/lang/Object;)D");
     }
+
+    public void testBooleanXorOptLHS() {
+        assertBytecodeExists("boolean x = true; def y = true; return x ^ y", 
+                "INVOKEDYNAMIC xor(ZLjava/lang/Object;)Ljava/lang/Object;");
+    }
+
+    public void testBooleanXorOptRHS() {
+        assertBytecodeExists("def x = true; boolean y = true; return x ^ y", 
+                "INVOKEDYNAMIC xor(Ljava/lang/Object;Z)Ljava/lang/Object;");
+    }
     
+    public void testBooleanXorOptRet() {
+        assertBytecodeExists("def x = true; def y = true; boolean v = x ^ y", 
+                "INVOKEDYNAMIC xor(Ljava/lang/Object;Ljava/lang/Object;)Z");
+    }
+
     public void testLtOptLHS() {
         assertBytecodeExists("int x = 1; def y = 2; return x < y", 
                              "INVOKEDYNAMIC lt(ILjava/lang/Object;)Z");

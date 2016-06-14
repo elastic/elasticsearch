@@ -46,9 +46,6 @@ dependencies {
   signature "org.codehaus.mojo.signature:java17:1.0@signature"
 }
 
-compileJava.options.compilerArgs << '-target' << '1.7' << '-source' << '1.7' << '-Xlint:all,-path,-serial,-options'
-compileTestJava.options.compilerArgs << '-target' << '1.7' << '-source' << '1.7'
-
 forbiddenApisMain {
   //client does not depend on core, so only jdk signatures should be checked
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]

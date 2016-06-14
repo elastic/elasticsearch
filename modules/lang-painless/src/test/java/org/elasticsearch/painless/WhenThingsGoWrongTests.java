@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.regex.PatternSyntaxException;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsString;
 
 public class WhenThingsGoWrongTests extends ScriptTestCase {
     public void testNullPointer() {
@@ -224,7 +225,8 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         PatternSyntaxException e = expectScriptThrows(PatternSyntaxException.class, () -> {
             exec("/\\ujjjj/"); // Invalid unicode
         });
-        assertEquals("Illegal Unicode escape sequence near index 2\n\\ujjjj\n  ^", e.getMessage());
+        assertThat(e.getMessage(), containsString("Illegal Unicode escape sequence near index 2"));
+        assertThat(e.getMessage(), containsString("\\ujjjj"));
     }
 
 }

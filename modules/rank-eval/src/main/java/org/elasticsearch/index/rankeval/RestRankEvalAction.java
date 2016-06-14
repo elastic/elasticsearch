@@ -126,6 +126,61 @@ import org.elasticsearch.rest.RestRequest;
         }
     }
   } 
+
+ *
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * Output format:
+ * 
+ * General format:
+ * 
+ * 
+ {
+    "took": 59,
+    "timed_out": false,
+    "_shards": {
+        "total": 5,
+        "successful": 5,
+        "failed": 0
+    },
+    "rank_eval": [{
+        "spec_id": "... id_of_query_template_specification ...",
+        "quality_level": ... quality level ...,
+        "unknown_docs": [{
+            "user_request_id": [... list of unknown docs ...]
+        }]
+    }]
+} 
+
+ * 
+ * Example:
+ * 
+ * 
+ * 
+  {
+    "took": 59,
+    "timed_out": false,
+    "_shards": {
+        "total": 5,
+        "successful": 5,
+        "failed": 0
+    },
+    "rank_eval": [{
+        "spec_id": "huge_weight_on_city",
+        "quality_level": 0.4,
+        "unknown_docs": [{
+            "amsterdam_query": [5, 10, 23]
+        }, {
+            "berlin_query": [42]
+        }]
+    }]
+  }
+  
+  
  * */
 public class RestRankEvalAction extends BaseRestHandler {
 

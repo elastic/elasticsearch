@@ -56,7 +56,7 @@ default, the node coordinating the search process will request each shard to pro
 and once all shards respond, it will reduce the results to the final list that will then be returned to the client.
 This means that if the number of unique terms is greater than `size`, the returned list is slightly off and not accurate
 (it could be that the term counts are slightly off and it could even be that a term that should have been in the top
-size buckets was not returned). If set to `0`, the `size` will be set to `Integer.MAX_VALUE`.
+size buckets was not returned).
 
 [[search-aggregations-bucket-terms-aggregation-approximate-counts]]
 ==== Document counts are approximate
@@ -149,14 +149,11 @@ The `shard_size` parameter can be  used to minimize the extra work that comes wi
 it will determine how many terms the coordinating node will request from each shard. Once all the shards responded, the
 coordinating node will then reduce them to a final result which will be based on the `size` parameter - this way,
 one can increase the accuracy of the returned terms and avoid the overhead of streaming a big list of buckets back to
-the client. If set to `0`, the `shard_size` will be set to `Integer.MAX_VALUE`.
+the client.
 
 
 NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, elasticsearch will
         override it and reset it to be equal to `size`.
-
-It is possible to not limit the number of terms that are returned by setting `size` to `0`. Don't use this
-on high-cardinality fields as this will kill both your CPU since terms need to be return sorted, and your network.
 
 The default `shard_size` is a multiple of the `size` parameter which is dependant on the number of shards.
 
@@ -705,4 +702,4 @@ had a value.
 }
 --------------------------------------------------
 
-<1> Documents without a value in the `tags` field will fall into the same bucket as documents that have the value `N/A`. 
+<1> Documents without a value in the `tags` field will fall into the same bucket as documents that have the value `N/A`.

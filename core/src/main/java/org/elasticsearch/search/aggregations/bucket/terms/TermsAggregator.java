@@ -22,6 +22,8 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -39,6 +41,8 @@ import java.util.Map;
 import java.util.Set;
 
 public abstract class TermsAggregator extends BucketsAggregator {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TermsAggregator.class));
 
     public static class BucketCountThresholds {
         private Explicit<Long> minDocCount;
@@ -64,10 +68,14 @@ public abstract class TermsAggregator extends BucketsAggregator {
 
             if (shardSize.value() == 0) {
                 setShardSize(Integer.MAX_VALUE);
+                DEPRECATION_LOGGER.deprecated("shardSize of 0 in aggregations is deprecated and will be invalid in future versions. "
+                        + "Please specify a shardSize greater than 0");
             }
 
             if (requiredSize.value() == 0) {
                 setRequiredSize(Integer.MAX_VALUE);
+                DEPRECATION_LOGGER.deprecated("size of 0 in aggregations is deprecated and will be invalid in future versions. "
+                        + "Please specify a size greater than 0");
             }
             // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
             if (shardSize.value() < requiredSize.value()) {

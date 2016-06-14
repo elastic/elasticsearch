@@ -22,6 +22,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.spatial.util.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -53,6 +55,8 @@ import java.util.Map;
  * aggregation to focus in on a smaller area to avoid generating too many buckets and using too much RAM
  */
 public class GeoHashGridParser implements Aggregator.Parser {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(GeoHashGridParser.class));
 
     @Override
     public String type() {
@@ -92,10 +96,14 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
         if (shardSize == 0) {
             shardSize = Integer.MAX_VALUE;
+            DEPRECATION_LOGGER.deprecated("shardSize of 0 in aggregations is deprecated and will be invalid in future versions. "
+                    + "Please specify a shardSize greater than 0");
         }
 
         if (requiredSize == 0) {
             requiredSize = Integer.MAX_VALUE;
+            DEPRECATION_LOGGER.deprecated("size of 0 in aggregations is deprecated and will be invalid in future versions. "
+                    + "Please specify a size greater than 0");
         }
 
         if (shardSize < 0) {
@@ -131,6 +139,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
             final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize,
                     Collections.<InternalGeoHashGrid.Bucket> emptyList(), pipelineAggregators, metaData);
             return new NonCollectingAggregator(name, aggregationContext, parent, pipelineAggregators, metaData) {
+                @Override
                 public InternalAggregation buildEmptyAggregation() {
                     return aggregation;
                 }
@@ -151,8 +160,8 @@ public class GeoHashGridParser implements Aggregator.Parser {
         }
 
         private static class CellValues extends SortingNumericDocValues {
-            private MultiGeoPointValues geoValues;
-            private int precision;
+            private final MultiGeoPointValues geoValues;
+            private final int precision;
 
             protected CellValues(MultiGeoPointValues geoValues, int precision) {
                 this.geoValues = geoValues;

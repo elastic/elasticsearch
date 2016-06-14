@@ -55,7 +55,7 @@ And here is a sample response:
 
 `from`::
 
-    The starting from index of the hits to return. Defaults to `0`.
+    To retrieve hits from a certain offset. Defaults to `0`.
 
 `size`::
 

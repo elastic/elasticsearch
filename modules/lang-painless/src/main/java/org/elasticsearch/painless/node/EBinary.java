@@ -26,6 +26,7 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.Locals;
 
 /**
@@ -61,6 +62,10 @@ public final class EBinary extends AExpression {
             analyzeAdd(locals);
         } else if (operation == Operation.SUB) {
             analyzeSub(locals);
+        } else if (operation == Operation.FIND) {
+            analyzeRegexOp(locals);
+        } else if (operation == Operation.MATCH) {
+            analyzeRegexOp(locals);
         } else if (operation == Operation.LSH) {
             analyzeLSH(locals);
         } else if (operation == Operation.RSH) {
@@ -318,6 +323,21 @@ public final class EBinary extends AExpression {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
+    }
+
+    private void analyzeRegexOp(Locals variables) {
+        left.analyze(variables);
+        right.analyze(variables);
+
+        left.expected = Definition.STRING_TYPE;
+        right.expected = Definition.PATTERN_TYPE;
+
+        left = left.cast(variables);
+        right = right.cast(variables);
+
+        // It'd be nice to be able to do constant folding here but we can't because constants aren't flowing through EChain
+        promote = Definition.BOOLEAN_TYPE;
+        actual = Definition.BOOLEAN_TYPE;
     }
 
     private void analyzeLSH(Locals variables) {
@@ -607,6 +627,12 @@ public final class EBinary extends AExpression {
             if (!cat) {
                 writer.writeToStrings();
             }
+        } else if (operation == Operation.FIND) {
+            writeBuildMatcher(writer);
+            writer.invokeVirtual(Definition.MATCHER_TYPE.type, WriterConstants.MATCHER_FIND);
+        } else if (operation == Operation.MATCH) {
+            writeBuildMatcher(writer);
+            writer.invokeVirtual(Definition.MATCHER_TYPE.type, WriterConstants.MATCHER_MATCHES);
         } else {
             left.write(writer);
             right.write(writer);
@@ -619,5 +645,11 @@ public final class EBinary extends AExpression {
         }
 
         writer.writeBranch(tru, fals);
+    }
+
+    private void writeBuildMatcher(MethodWriter writer) {
+        right.write(writer);
+        left.write(writer);
+        writer.invokeVirtual(Definition.PATTERN_TYPE.type, WriterConstants.PATTERN_MATCHER);
     }
 }

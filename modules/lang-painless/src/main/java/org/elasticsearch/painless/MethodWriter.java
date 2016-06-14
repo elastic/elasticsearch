@@ -386,5 +386,4 @@ public final class MethodWriter extends GeneratorAdapter {
     public void visitEnd() {
         throw new AssertionError("Should never call this method on MethodWriter, use endMethod() instead");
     }
-
 }

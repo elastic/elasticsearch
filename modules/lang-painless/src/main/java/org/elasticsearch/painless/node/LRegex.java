@@ -34,8 +34,6 @@ import org.elasticsearch.painless.WriterConstants;
  * Represents a regex constant. All regexes are constants.
  */
 public final class LRegex extends ALink {
-    private static final Definition.Type PATTERN_TYPE = Definition.getType("Pattern");
-
     private final String pattern;
     private Constant constant;
 
@@ -60,8 +58,8 @@ public final class LRegex extends ALink {
             throw createError(new IllegalArgumentException("Regex constant may only be read [" + pattern + "]."));
         }
 
-        constant = locals.addConstant(location, PATTERN_TYPE, "regexAt$" + location.getOffset(), this::initializeConstant);
-        after = PATTERN_TYPE;
+        constant = locals.addConstant(location, Definition.PATTERN_TYPE, "regexAt$" + location.getOffset(), this::initializeConstant);
+        after = Definition.PATTERN_TYPE;
 
         return this;
     }
@@ -74,7 +72,7 @@ public final class LRegex extends ALink {
     @Override
     void load(MethodWriter writer) {
         writer.writeDebugInfo(location);
-        writer.getStatic(WriterConstants.CLASS_TYPE, constant.name, PATTERN_TYPE.type);
+        writer.getStatic(WriterConstants.CLASS_TYPE, constant.name, Definition.PATTERN_TYPE.type);
     }
 
     @Override
@@ -84,6 +82,6 @@ public final class LRegex extends ALink {
 
     private void initializeConstant(MethodWriter writer) {
         writer.push(pattern);
-        writer.invokeStatic(PATTERN_TYPE.type, WriterConstants.PATTERN_COMPILE);
+        writer.invokeStatic(Definition.PATTERN_TYPE.type, WriterConstants.PATTERN_COMPILE);
     }
 }

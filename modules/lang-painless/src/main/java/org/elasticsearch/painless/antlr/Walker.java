@@ -512,6 +512,10 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             operation = Operation.ADD;
         } else if (ctx.SUB() != null) {
             operation = Operation.SUB;
+        } else if (ctx.FIND() != null) {
+            operation = Operation.FIND;
+        } else if (ctx.MATCH() != null) {
+            operation = Operation.MATCH;
         } else if (ctx.LSH() != null) {
             operation = Operation.LSH;
         } else if (ctx.RSH() != null) {

@@ -87,6 +87,8 @@ public final class Definition {
     public static final Type DEF_TYPE = getType("def");
     public static final Type STRING_TYPE = getType("String");
     public static final Type EXCEPTION_TYPE = getType("Exception");
+    public static final Type PATTERN_TYPE = getType("Pattern");
+    public static final Type MATCHER_TYPE = getType("Matcher");
 
     public enum Sort {
         VOID(       void.class      , 0 , true  , false , false , false ),
@@ -772,7 +774,7 @@ public final class Definition {
 
         if (owner.staticMethods.containsKey(methodKey) || owner.methods.containsKey(methodKey)) {
             throw new IllegalArgumentException(
-                "Duplicate  method signature [" + methodKey + "] found within the struct [" + owner.name + "].");
+                "Duplicate method signature [" + methodKey + "] found within the struct [" + owner.name + "].");
         }
 
         final Class<?>[] classes = new Class<?>[args.length];

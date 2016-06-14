@@ -324,8 +324,8 @@ Looking at the previous example:
 --------------------------------------------------
 
 We see a single collector named `SimpleTopScoreDocCollector`.  This is the default "scoring and sorting" Collector
-used by Elasticsearch.  The `"reason"` field attempts to give an plain english description of the class name.  The
-`"time` is similar to the time in the Query tree: a wall-clock time inclusive of all children.  Similarly, `children` lists
+used by Elasticsearch.  The `"reason"` field attempts to give a plain english description of the class name.  The
+`"time"` is similar to the time in the Query tree: a wall-clock time inclusive of all children.  Similarly, `children` lists
 all sub-collectors.
 
 It should be noted that Collector times are **independent** from the Query times.  They are calculated, combined

@@ -264,41 +264,42 @@ public final class MethodWriter extends GeneratorAdapter {
 
     /** Writes a dynamic binary instruction: returnType, lhs, and rhs can be different */
     public void writeDynamicBinaryInstruction(Location location, Type returnType, Type lhs, Type rhs, Operation operation) {
-        org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(returnType.type, lhs.type, rhs.type);
+        org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(returnType.type, lhs.type, rhs.type);
+        String descriptor = methodType.getDescriptor();
         
         switch (operation) {
             case MUL:
-                invokeDynamic("mul", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                invokeDynamic("mul", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
                 break;
             case DIV:
-                invokeDynamic("div", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                invokeDynamic("div", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
                 break;
             case REM:
-                invokeDynamic("rem", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                invokeDynamic("rem", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
                 break;
             case ADD:
-                invokeDynamic("add", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                invokeDynamic("add", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
                 break;
             case SUB:
-                invokeDynamic("sub", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                invokeDynamic("sub", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
                 break;
             case LSH:
-                invokeDynamic("lsh", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
+                invokeDynamic("lsh", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
                 break;
             case USH:
-                invokeDynamic("ush", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
+                invokeDynamic("ush", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
                 break;
             case RSH:
-                invokeDynamic("rsh", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
+                invokeDynamic("rsh", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
                 break;
             case BWAND: 
-                invokeDynamic("and", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                invokeDynamic("and", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
                 break;
             case XOR:   
-                invokeDynamic("xor", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                invokeDynamic("xor", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
                 break;
             case BWOR:  
-                invokeDynamic("or", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                invokeDynamic("or", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
                 break;
             default:
                 throw location.createError(new IllegalStateException("Illegal tree structure."));

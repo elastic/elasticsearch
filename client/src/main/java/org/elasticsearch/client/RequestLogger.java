@@ -53,12 +53,11 @@ final class RequestLogger {
     /**
      * Logs a request that yielded a response
      */
-    static void logResponse(Log logger, String message, HttpUriRequest request, HttpHost host, HttpResponse httpResponse) {
+    static void logResponse(Log logger, HttpUriRequest request, HttpHost host, HttpResponse httpResponse) {
         if (logger.isDebugEnabled()) {
-            logger.debug(message + " [" + request.getMethod() + " " + host + request.getRequestLine().getUri() +
-                    "] [" + httpResponse.getStatusLine() + "]");
+            logger.debug("request [" + request.getMethod() + " " + host + request.getRequestLine().getUri() +
+                    "] returned [" + httpResponse.getStatusLine() + "]");
         }
-
         if (tracer.isTraceEnabled()) {
             String requestLine;
             try {
@@ -81,8 +80,8 @@ final class RequestLogger {
     /**
      * Logs a request that failed
      */
-    static void logFailedRequest(Log logger, String message, HttpUriRequest request, HttpHost host, IOException e) {
-        logger.debug(message + " [" + request.getMethod() + " " + host + request.getRequestLine().getUri() + "]", e);
+    static void logFailedRequest(Log logger, HttpUriRequest request, HttpHost host, IOException e) {
+        logger.debug("request [" + request.getMethod() + " " + host + request.getRequestLine().getUri() + "] failed", e);
         if (logger.isTraceEnabled()) {
             String traceRequest;
             try {

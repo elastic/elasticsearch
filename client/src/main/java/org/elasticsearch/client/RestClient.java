@@ -160,7 +160,7 @@ public final class RestClient implements Closeable {
             try {
                 httpResponse = client.execute(host, request);
             } catch(IOException e) {
-                RequestLogger.logFailedRequest(logger, "request failed", request, host, e);
+                RequestLogger.logFailedRequest(logger, request, host, e);
                 onFailure(host);
                 lastSeenException = addSuppressedException(lastSeenException, e);
                 continue;
@@ -168,11 +168,11 @@ public final class RestClient implements Closeable {
             Response response = new Response(request.getRequestLine(), host, httpResponse);
             int statusCode = response.getStatusLine().getStatusCode();
             if (statusCode < 300 || (request.getMethod().equals(HttpHead.METHOD_NAME) && statusCode == 404) ) {
-                RequestLogger.logResponse(logger, "request succeeded", request, host, httpResponse);
+                RequestLogger.logResponse(logger, request, host, httpResponse);
                 onSuccess(host);
                 return response;
             }
-            RequestLogger.logResponse(logger, "request failed", request, host, httpResponse);
+            RequestLogger.logResponse(logger, request, host, httpResponse);
             String responseBody;
             try {
                 if (response.getEntity() == null) {

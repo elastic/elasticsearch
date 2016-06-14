@@ -1773,7 +1773,7 @@ public final class InternalTestCluster extends TestCluster {
                 OperationRouting operationRouting = getInstanceFromNode(OperationRouting.class, node);
                 while (true) {
                     String routing = RandomStrings.randomAsciiOfLength(random, 10);
-                    final int targetShard = operationRouting.indexShards(clusterService.state(), index.getName(), type, null, routing).shardId().getId();
+                    final int targetShard = operationRouting.indexShards(clusterService.state(), index.getName(), null, routing).shardId().getId();
                     if (shard == targetShard) {
                         return routing;
                     }

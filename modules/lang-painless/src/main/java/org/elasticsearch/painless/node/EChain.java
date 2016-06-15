@@ -351,7 +351,7 @@ public final class EChain extends AExpression {
                     // write the operation instruction for compound assignment
                     if (promote.sort == Sort.DEF) {
                         writer.writeDynamicBinaryInstruction(location, promote, 
-                            Definition.DEF_TYPE, Definition.DEF_TYPE, operation);
+                            Definition.DEF_TYPE, Definition.DEF_TYPE, operation, true);
                     } else {
                         writer.writeBinaryInstruction(location, promote, operation);
                     }

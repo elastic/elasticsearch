@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.ObjectFloatHashMap;
-import com.carrotsearch.hppc.ObjectFloatMap;
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.Version;
@@ -234,34 +234,34 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
     }
 
     private void assertReplicaWeightBalance(ClusterState clusterState, float treshold) {
-        float totalWeight = 0.0f;
-        float lowestMultiplier = Float.POSITIVE_INFINITY;
-        float highestMultiplier = Float.NEGATIVE_INFINITY;
-        ObjectFloatMap<Index> weights = new ObjectFloatHashMap<>();
+        int totalWeight = 0;
+        int lowestWeight = Integer.MAX_VALUE;
+        int highestWeight = Integer.MIN_VALUE;
+        ObjectIntMap<Index> weights = new ObjectIntHashMap<>();
         for (IndexMetaData indexMetaData : clusterState.getMetaData()) {
-            float weightMultiplier = BalancedShardsAllocator.INDEX_BALANCE_SHARD_WEIGHT.get(indexMetaData.getSettings());
-            totalWeight += weightMultiplier * indexMetaData.getTotalNumberOfShards();
-            lowestMultiplier = Math.min(lowestMultiplier, weightMultiplier);
-            highestMultiplier = Math.max(highestMultiplier, weightMultiplier);
-            weights.put(indexMetaData.getIndex(), weightMultiplier);
+            int shardWeight = BalancedShardsAllocator.INDEX_BALANCE_SHARD_WEIGHT.get(indexMetaData.getSettings());
+            totalWeight += shardWeight * indexMetaData.getTotalNumberOfShards();
+            lowestWeight = Math.min(lowestWeight, shardWeight);
+            highestWeight = Math.max(highestWeight, shardWeight);
+            weights.put(indexMetaData.getIndex(), shardWeight);
         }
 
-        float avgWeight = totalWeight / clusterState.getRoutingNodes().size();
-        float diffMultiplier = highestMultiplier - lowestMultiplier;
-        final float minWeight = avgWeight - diffMultiplier - treshold;
-        final float maxWeight = avgWeight + diffMultiplier + treshold;
+        float avgWeight = ((float) totalWeight) / clusterState.getRoutingNodes().size();
+        int diffWeight = highestWeight - lowestWeight;
+        final float minWeight = avgWeight - diffWeight - treshold;
+        final float maxWeight = avgWeight + diffWeight + treshold;
 
-        logger.trace("multiplier diff is {}, minWeight is {}, maxWeight is {}", diffMultiplier, minWeight, maxWeight);
+        logger.trace("diffWeight is {}, minWeight is {}, maxWeight is {}", diffWeight, minWeight, maxWeight);
 
         for (RoutingNode node : clusterState.getRoutingNodes()) {
-            float nodeWeight = 0.0f;
+            int nodeWeight = 0;
             for (ShardRouting shardRouting : node.shardsWithState(STARTED)) {
                 nodeWeight += weights.get(shardRouting.index());
             }
             logger.trace("node weight is {}", nodeWeight);
 
-            assertThat(nodeWeight, Matchers.greaterThanOrEqualTo(minWeight));
-            assertThat(nodeWeight, Matchers.lessThanOrEqualTo(maxWeight));
+            assertThat((float) nodeWeight, Matchers.greaterThanOrEqualTo(minWeight));
+            assertThat((float) nodeWeight, Matchers.lessThanOrEqualTo(maxWeight));
         }
     }
 

@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -39,7 +38,6 @@ import java.util.Map;
  */
 public class SuggestPhase extends AbstractComponent implements SearchPhase {
 
-    @Inject
     public SuggestPhase(Settings settings) {
         super(settings);
     }

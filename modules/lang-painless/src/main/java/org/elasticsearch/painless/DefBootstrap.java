@@ -147,7 +147,7 @@ public final class DefBootstrap {
 
         /**
          * Called when a new type is encountered (or, when we have encountered more than {@code MAX_DEPTH}
-         * types at this call site and given up on caching using this fallback wand we switch to a
+         * types at this call site and given up on caching using this fallback and we switch to a
          * megamorphic cache using {@link ClassValue}).
          */
         @SuppressForbidden(reason = "slow path")

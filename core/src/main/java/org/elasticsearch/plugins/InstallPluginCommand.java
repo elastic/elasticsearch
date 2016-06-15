@@ -134,9 +134,6 @@ class InstallPluginCommand extends SettingCommand {
         }
     }
 
-    // protocols allowed for direct url installation
-    private static final List<String> URL_PROTOCOLS = Arrays.asList("http", "https", "file");
-
     private final OptionSpec<Void> batchOption;
     private final OptionSpec<String> arguments;
 

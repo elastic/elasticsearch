@@ -447,7 +447,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         return document;
     }
 
-    private static IndexSearcher createMultiDocumentSearcher(Analyzer analyzer, ParsedDocument doc) {
+    static IndexSearcher createMultiDocumentSearcher(Analyzer analyzer, ParsedDocument doc) {
         IndexReader[] memoryIndices = new IndexReader[doc.docs().size()];
         List<ParseContext.Document> docs = doc.docs();
         int rootDocIndex = docs.size() - 1;

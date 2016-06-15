@@ -76,7 +76,7 @@ public abstract class ScriptTestCase extends ESTestCase {
      */
     public void assertBytecodeExists(String script, String bytecode) {
         final String asm = Debugger.toString(script);
-        assertTrue("bytecode not found", asm.contains(bytecode));
+        assertTrue("bytecode not found, got: \n" + asm , asm.contains(bytecode));
     }
     
     /** Checks a specific exception class is thrown (boxed inside ScriptException) and returns it. */

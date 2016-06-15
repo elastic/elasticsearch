@@ -20,15 +20,10 @@
 package org.elasticsearch.index.cache.request;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.cache.RemovalListener;
-import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesRequestCache;
 
 /**
+ * Tracks the portion of the request cache in use for a particular shard.
  */
 public final class ShardRequestCache {
 

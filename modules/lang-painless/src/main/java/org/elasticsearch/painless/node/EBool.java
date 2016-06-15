@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -44,14 +44,14 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         left.expected = Definition.BOOLEAN_TYPE;
-        left.analyze(variables);
-        left = left.cast(variables);
+        left.analyze(locals);
+        left = left.cast(locals);
 
         right.expected = Definition.BOOLEAN_TYPE;
-        right.analyze(variables);
-        right = right.cast(variables);
+        right.analyze(locals);
+        right = right.cast(locals);
 
         if (left.constant != null && right.constant != null) {
             if (operation == Operation.AND) {

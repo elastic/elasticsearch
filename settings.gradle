@@ -48,11 +48,11 @@ List projects = [
   'qa:backwards-5.0',
   'qa:evil-tests',
   'qa:smoke-test-client',
-  'qa:smoke-test-multinode',
-  'qa:smoke-test-reindex-with-groovy',
-  'qa:smoke-test-plugins',
   'qa:smoke-test-ingest-with-all-dependencies',
   'qa:smoke-test-ingest-disabled',
+  'qa:smoke-test-multinode',
+  'qa:smoke-test-plugins',
+  'qa:smoke-test-reindex-with-painless',
   'qa:vagrant',
 ]
 

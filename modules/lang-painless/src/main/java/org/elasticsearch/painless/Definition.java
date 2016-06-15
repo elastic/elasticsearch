@@ -27,6 +27,7 @@ import java.io.InputStreamReader;
 import java.io.LineNumberReader;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -45,9 +46,9 @@ import java.util.Spliterator;
  * methods and fields during at both compile-time and runtime.
  */
 public final class Definition {
-    
+
     private static final List<String> DEFINITION_FILES = Collections.unmodifiableList(
-        Arrays.asList("org.elasticsearch.txt", 
+        Arrays.asList("org.elasticsearch.txt",
                       "java.lang.txt",
                       "java.math.txt",
                       "java.text.txt",
@@ -58,6 +59,7 @@ public final class Definition {
                       "java.time.zone.txt",
                       "java.util.txt",
                       "java.util.function.txt",
+                      "java.util.regex.txt",
                       "java.util.stream.txt",
                       "joda.time.txt"));
 
@@ -188,8 +190,8 @@ public final class Definition {
         public final int modifiers;
         public final MethodHandle handle;
 
-        private Method(String name, Struct owner, Type rtn, List<Type> arguments,
-                       org.objectweb.asm.commons.Method method, int modifiers, MethodHandle handle) {
+        public Method(String name, Struct owner, Type rtn, List<Type> arguments,
+                      org.objectweb.asm.commons.Method method, int modifiers, MethodHandle handle) {
             this.name = name;
             this.owner = owner;
             this.rtn = rtn;
@@ -197,6 +199,46 @@ public final class Definition {
             this.method = method;
             this.modifiers = modifiers;
             this.handle = handle;
+        }
+        
+        /** 
+         * Returns MethodType for this method.
+         * <p>
+         * This works even for user-defined Methods (where the MethodHandle is null).
+         */
+        public MethodType getMethodType() {
+            // we have a methodhandle already (e.g. whitelisted class)
+            // just return its type
+            if (handle != null) {
+                return handle.type();
+            }
+            // otherwise compute it
+            final Class<?> params[];
+            final Class<?> returnValue;
+            if (Modifier.isStatic(modifiers)) {
+                // static method: straightforward copy
+                params = new Class<?>[arguments.size()];
+                for (int i = 0; i < arguments.size(); i++) {
+                    params[i] = arguments.get(i).clazz;
+                }
+                returnValue = rtn.clazz;
+            } else if ("<init>".equals(name)) {
+                // constructor: returns the owner class
+                params = new Class<?>[arguments.size()];
+                for (int i = 0; i < arguments.size(); i++) {
+                    params[i] = arguments.get(i).clazz;
+                }
+                returnValue = owner.clazz;
+            } else {
+                // virtual/interface method: add receiver class
+                params = new Class<?>[1 + arguments.size()];
+                params[0] = owner.clazz;
+                for (int i = 0; i < arguments.size(); i++) {
+                    params[i + 1] = arguments.get(i).clazz;
+                }
+                returnValue = rtn.clazz;
+            }
+            return MethodType.methodType(returnValue, params);
         }
     }
 
@@ -286,7 +328,7 @@ public final class Definition {
 
         public final Map<String, Field> staticMembers;
         public final Map<String, Field> members;
-        
+
         private final SetOnce<Method> functionalMethod;
 
         private Struct(final String name, final Class<?> clazz, final org.objectweb.asm.Type type) {
@@ -300,8 +342,8 @@ public final class Definition {
 
             staticMembers = new HashMap<>();
             members = new HashMap<>();
-            
-            functionalMethod = new SetOnce<Method>();
+
+            functionalMethod = new SetOnce<>();
         }
 
         private Struct(final Struct struct) {
@@ -315,7 +357,7 @@ public final class Definition {
 
             staticMembers = Collections.unmodifiableMap(struct.staticMembers);
             members = Collections.unmodifiableMap(struct.members);
-            
+
             functionalMethod = struct.functionalMethod;
         }
 
@@ -342,8 +384,8 @@ public final class Definition {
         public int hashCode() {
             return name.hashCode();
         }
-        
-        /** 
+
+        /**
          * If this class is a functional interface according to JLS, returns its method.
          * Otherwise returns null.
          */
@@ -637,7 +679,7 @@ public final class Definition {
         final org.objectweb.asm.commons.Method asm = org.objectweb.asm.commons.Method.getMethod(reflect);
         final Type returnType = getTypeInternal("void");
         final MethodHandle handle;
-        
+
         try {
             handle = MethodHandles.publicLookup().in(owner.clazz).unreflectConstructor(reflect);
         } catch (final IllegalAccessException exception) {
@@ -645,7 +687,7 @@ public final class Definition {
                 " not found for class [" + owner.clazz.getName() + "]" +
                 " with arguments " + Arrays.toString(classes) + ".");
         }
-        
+
         final Method constructor = new Method(name, owner, returnType, Arrays.asList(args), asm, reflect.getModifiers(), handle);
 
         owner.constructors.put(methodKey, constructor);
@@ -755,7 +797,7 @@ public final class Definition {
                 " method [" + name + "]" +
                 " within the struct [" + owner.name + "].");
         }
-        
+
         final org.objectweb.asm.commons.Method asm = org.objectweb.asm.commons.Method.getMethod(reflect);
 
         MethodHandle handle;
@@ -856,7 +898,7 @@ public final class Definition {
                 throw new ClassCastException("Child struct [" + child.name + "]" +
                     " is not a super type of owner struct [" + owner.name + "] in copy.");
             }
-            
+
             for (Map.Entry<MethodKey,Method> kvPair : child.methods.entrySet()) {
                 MethodKey methodKey = kvPair.getKey();
                 Method method = kvPair.getValue();
@@ -890,8 +932,7 @@ public final class Definition {
                             throw new AssertionError(e);
                         }
                     }
-                    owner.methods.put(methodKey,
-                        new Method(method.name, owner, method.rtn, method.arguments, method.method, method.modifiers, method.handle));
+                    owner.methods.put(methodKey, method);
                 }
             }
 
@@ -954,7 +995,7 @@ public final class Definition {
 
         runtimeMap.put(struct.clazz, new RuntimeClass(methods, getters, setters));
     }
-    
+
     /** computes the functional interface method for a class, or returns null */
     private Method computeFunctionalInterfaceMethod(Struct clazz) {
         if (!clazz.clazz.isInterface()) {

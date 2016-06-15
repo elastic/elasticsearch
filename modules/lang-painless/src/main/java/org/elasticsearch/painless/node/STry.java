@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -43,7 +43,7 @@ public final class STry extends AStatement {
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         if (block == null) {
             throw createError(new IllegalArgumentException("Extraneous try statement."));
         }
@@ -52,9 +52,9 @@ public final class STry extends AStatement {
         block.inLoop = inLoop;
         block.lastLoop = lastLoop;
 
-        variables.incrementScope();
-        block.analyze(variables);
-        variables.decrementScope();
+        locals.incrementScope();
+        block.analyze(locals);
+        locals.decrementScope();
 
         methodEscape = block.methodEscape;
         loopEscape = block.loopEscape;
@@ -69,9 +69,9 @@ public final class STry extends AStatement {
             catc.inLoop = inLoop;
             catc.lastLoop = lastLoop;
 
-            variables.incrementScope();
-            catc.analyze(variables);
-            variables.decrementScope();
+            locals.incrementScope();
+            catc.analyze(locals);
+            locals.decrementScope();
 
             methodEscape &= catc.methodEscape;
             loopEscape &= catc.loopEscape;

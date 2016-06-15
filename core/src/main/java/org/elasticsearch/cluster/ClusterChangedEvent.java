@@ -148,18 +148,11 @@ public class ClusterChangedEvent {
      * has changed between the previous cluster state and the new cluster state.
      * Note that this is an object reference equality test, not an equals test.
      */
-    public boolean indexMetaDataChanged(IndexMetaData current) {
-        MetaData previousMetaData = previousState.metaData();
-        if (previousMetaData == null) {
-            return true;
-        }
-        IndexMetaData previousIndexMetaData = previousMetaData.index(current.getIndex());
+    public static boolean indexMetaDataChanged(IndexMetaData metaData1, IndexMetaData metaData2) {
+        assert metaData1 != null && metaData2 != null;
         // no need to check on version, since disco modules will make sure to use the
         // same instance if its a version match
-        if (previousIndexMetaData == current) {
-            return false;
-        }
-        return true;
+        return metaData1 != metaData2;
     }
 
     /**

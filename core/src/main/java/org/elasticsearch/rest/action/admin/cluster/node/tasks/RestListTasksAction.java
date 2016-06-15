@@ -19,8 +19,11 @@
 
 package org.elasticsearch.rest.action.admin.cluster.node.tasks;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -36,25 +39,24 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 
 public class RestListTasksAction extends BaseRestHandler {
+    private final ClusterService clusterService;
 
     @Inject
-    public RestListTasksAction(Settings settings, RestController controller, Client client) {
+    public RestListTasksAction(Settings settings, RestController controller, Client client, ClusterService clusterService) {
         super(settings, client);
+        this.clusterService = clusterService;
         controller.registerHandler(GET, "/_tasks", this);
-        controller.registerHandler(GET, "/_tasks/{taskId}", this);
     }
 
     public static ListTasksRequest generateListTasksRequest(RestRequest request) {
         boolean detailed = request.paramAsBoolean("detailed", false);
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("node_id"));
-        TaskId taskId = new TaskId(request.param("taskId", request.param("task_id")));
         String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
         TaskId parentTaskId = new TaskId(request.param("parent_task_id"));
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
         TimeValue timeout = request.paramAsTime("timeout", null);
 
         ListTasksRequest listTasksRequest = new ListTasksRequest();
-        listTasksRequest.setTaskId(taskId);
         listTasksRequest.setNodesIds(nodesIds);
         listTasksRequest.setDetailed(detailed);
         listTasksRequest.setActions(actions);
@@ -66,6 +68,27 @@ public class RestListTasksAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
-        client.admin().cluster().listTasks(generateListTasksRequest(request), new RestToXContentListener<>(channel));
+        ActionListener<ListTasksResponse> listener = nodeSettingListener(clusterService, new RestToXContentListener<>(channel));
+        client.admin().cluster().listTasks(generateListTasksRequest(request), listener);
+    }
+
+    /**
+     * Wrap the normal channel listener in one that sets the discovery nodes on the response so we can support all of it's toXContent
+     * formats.
+     */
+    public static <T extends ListTasksResponse> ActionListener<T> nodeSettingListener(ClusterService clusterService,
+            ActionListener<T> channelListener) {
+        return new ActionListener<T>() {
+            @Override
+            public void onResponse(T response) {
+                response.setDiscoveryNodes(clusterService.state().nodes());
+                channelListener.onResponse(response);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                channelListener.onFailure(e);
+            }
+        };
     }
 }

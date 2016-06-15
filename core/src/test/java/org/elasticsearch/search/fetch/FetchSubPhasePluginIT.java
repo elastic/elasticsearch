@@ -112,7 +112,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
 
         public void onModule(SearchModule searchModule) {
-            searchModule.registerFetchSubPhase(TermVectorsFetchSubPhase.class);
+            searchModule.registerFetchSubPhase(new TermVectorsFetchSubPhase());
         }
     }
 

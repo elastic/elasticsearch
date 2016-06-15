@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -40,9 +40,9 @@ public final class SDeclBlock extends AStatement {
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         for (SDeclaration declaration : declarations) {
-            declaration.analyze(variables);
+            declaration.analyze(locals);
         }
 
         statementCount = declarations.size();

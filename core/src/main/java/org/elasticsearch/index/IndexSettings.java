@@ -404,7 +404,7 @@ public final class IndexSettings {
      *
      * @return <code>true</code> iff any setting has been updated otherwise <code>false</code>.
      */
-    synchronized boolean updateIndexMetaData(IndexMetaData indexMetaData) {
+    public synchronized boolean updateIndexMetaData(IndexMetaData indexMetaData) {
         final Settings newSettings = indexMetaData.getSettings();
         if (version.equals(Version.indexCreated(newSettings)) == false) {
             throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + Version.indexCreated(newSettings));

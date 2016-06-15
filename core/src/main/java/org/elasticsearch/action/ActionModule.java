@@ -32,6 +32,8 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryAction;
@@ -141,7 +143,7 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.fieldstats.FieldStatsAction;
-import org.elasticsearch.action.fieldstats.TransportFieldStatsTransportAction;
+import org.elasticsearch.action.fieldstats.TransportFieldStatsAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -264,6 +266,7 @@ public class ActionModule extends AbstractModule {
         registerAction(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
         registerAction(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
         registerAction(ListTasksAction.INSTANCE, TransportListTasksAction.class);
+        registerAction(GetTaskAction.INSTANCE, TransportGetTaskAction.class);
         registerAction(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
 
         registerAction(ClusterAllocationExplainAction.INSTANCE, TransportClusterAllocationExplainAction.class);
@@ -341,7 +344,7 @@ public class ActionModule extends AbstractModule {
         registerAction(GetStoredScriptAction.INSTANCE, TransportGetStoredScriptAction.class);
         registerAction(DeleteStoredScriptAction.INSTANCE, TransportDeleteStoredScriptAction.class);
 
-        registerAction(FieldStatsAction.INSTANCE, TransportFieldStatsTransportAction.class);
+        registerAction(FieldStatsAction.INSTANCE, TransportFieldStatsAction.class);
 
         registerAction(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
         registerAction(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);

@@ -31,7 +31,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESTestCase;
 
@@ -74,11 +73,9 @@ public class StoreRecoveryTests extends ESTestCase {
         assertEquals(numFiles, targetNumFiles);
         assertEquals(indexStats.totalFileCount(), targetNumFiles);
         if (hardLinksSupported(createTempDir())) {
-            assertEquals("upgrade to HardlinkCopyDirectoryWrapper in Lucene 6.1", Version.LATEST, Version.LUCENE_6_0_1);
-            // assertEquals(indexStats.reusedFileCount(), targetNumFiles); -- uncomment this once upgraded to Lucene 6.1
-            assertEquals(indexStats.reusedFileCount(), 0);
+            assertEquals(targetNumFiles, indexStats.reusedFileCount());
         } else {
-            assertEquals(indexStats.reusedFileCount(), 0);
+            assertEquals(0, indexStats.reusedFileCount(), 0);
         }
         DirectoryReader reader = DirectoryReader.open(target);
         SegmentInfos segmentCommitInfos = SegmentInfos.readLatestCommit(target);

@@ -25,6 +25,8 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.Highlighters;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
@@ -44,7 +46,8 @@ public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
                 Mockito.mock(IndexSearcher.class))
                 .build();
 
-        PercolatorHighlightSubFetchPhase subFetchPhase = new PercolatorHighlightSubFetchPhase(null);
+        PercolatorHighlightSubFetchPhase subFetchPhase = new PercolatorHighlightSubFetchPhase(Settings.EMPTY,
+            new Highlighters(Settings.EMPTY));
         SearchContext searchContext = Mockito.mock(SearchContext.class);
         Mockito.when(searchContext.highlight()).thenReturn(new SearchContextHighlight(Collections.emptyList()));
         Mockito.when(searchContext.query()).thenReturn(new MatchAllDocsQuery());

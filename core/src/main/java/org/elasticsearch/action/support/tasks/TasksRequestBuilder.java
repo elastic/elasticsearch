@@ -22,6 +22,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.tasks.TaskId;
 
 /**
  * Builder for task-based requests
@@ -34,6 +35,15 @@ public class TasksRequestBuilder<
 
     protected TasksRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
         super(client, action, request);
+    }
+
+    /**
+     * Set the task to lookup.
+     */
+    @SuppressWarnings("unchecked")
+    public final RequestBuilder setTaskId(TaskId taskId) {
+        request.setTaskId(taskId);
+        return (RequestBuilder) this;
     }
 
     @SuppressWarnings("unchecked")

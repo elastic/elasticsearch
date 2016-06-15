@@ -45,6 +45,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -196,14 +197,15 @@ public class MasterFaultDetection extends FaultDetection {
 
     private void notifyMasterFailure(final DiscoveryNode masterNode, final Throwable cause, final String reason) {
         if (notifiedMasterFailure.compareAndSet(false, true)) {
-            threadPool.generic().execute(new Runnable() {
-                @Override
-                public void run() {
+            try {
+                threadPool.generic().execute(() -> {
                     for (Listener listener : listeners) {
                         listener.onMasterFailure(masterNode, cause, reason);
                     }
-                }
-            });
+                });
+            } catch (RejectedExecutionException e) {
+                logger.error("master failure notification was rejected, it's highly likely the node is shutting down", e);
+            }
             stop("master failure, " + reason);
         }
     }

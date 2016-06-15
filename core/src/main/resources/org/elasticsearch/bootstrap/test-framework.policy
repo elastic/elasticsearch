@@ -24,6 +24,8 @@
 grant codeBase "${codebase.securemock-1.2.jar}" {
   // needed to access ReflectionFactory (see below)
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
+  // needed for reflection in ibm jdk
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
   // needed to support creation of mocks
   permission java.lang.RuntimePermission "reflectionFactoryAccess";
   // needed for spy interception, etc
@@ -31,9 +33,11 @@ grant codeBase "${codebase.securemock-1.2.jar}" {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-grant codeBase "${codebase.lucene-test-framework-6.0.1.jar}" {
+grant codeBase "${codebase.lucene-test-framework-6.1.0-snapshot-3a57bea.jar}" {
   // needed by RamUsageTester
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  // needed for testing hardlinks in StoreRecoveryTests since we install MockFS
+  permission java.nio.file.LinkPermission "hard";
 };
 
 grant codeBase "${codebase.randomizedtesting-runner-2.3.2.jar}" {

@@ -77,6 +77,8 @@ public abstract class AbstractBaseReindexRestHandler<
 
             action.execute(internal, new BulkIndexByScrollResponseContentListener<>(channel, params));
             return;
+        } else {
+            internal.setShouldPersistResult(true);
         }
 
         /*

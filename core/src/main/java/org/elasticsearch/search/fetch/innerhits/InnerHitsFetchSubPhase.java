@@ -23,7 +23,6 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -41,10 +40,10 @@ import java.util.Map;
  */
 public class InnerHitsFetchSubPhase implements FetchSubPhase {
 
-    private FetchPhase fetchPhase;
+    private final FetchPhase fetchPhase;
 
-    @Inject
-    public InnerHitsFetchSubPhase() {
+    public InnerHitsFetchSubPhase(FetchPhase fetchPhase) {
+        this.fetchPhase = fetchPhase;
     }
 
     @Override
@@ -101,10 +100,5 @@ public class InnerHitsFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
-    }
-
-    // To get around cyclic dependency issue
-    public void setFetchPhase(FetchPhase fetchPhase) {
-        this.fetchPhase = fetchPhase;
     }
 }

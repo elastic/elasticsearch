@@ -28,15 +28,21 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.highlight.HighlightPhase;
+
+import java.util.Optional;
 
 public class PercolatorPlugin extends Plugin {
 
     public static final String NAME = "percolator";
 
     private final boolean transportClientMode;
+    private final Settings settings;
 
     public PercolatorPlugin(Settings settings) {
         this.transportClientMode = transportClientMode(settings);
+        this.settings = settings;
     }
 
     @Override
@@ -67,7 +73,7 @@ public class PercolatorPlugin extends Plugin {
 
     public void onModule(SearchModule module) {
         module.registerQuery(PercolateQueryBuilder::new, PercolateQueryBuilder::fromXContent, PercolateQueryBuilder.QUERY_NAME_FIELD);
-        module.registerFetchSubPhase(PercolatorHighlightSubFetchPhase.class);
+        module.registerFetchSubPhase(new PercolatorHighlightSubFetchPhase(settings, module.getHighlighters()));
     }
 
     public void onModule(SettingsModule module) {

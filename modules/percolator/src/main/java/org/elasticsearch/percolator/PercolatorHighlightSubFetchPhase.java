@@ -28,9 +28,10 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.search.Highlighters;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
@@ -46,13 +47,10 @@ import java.util.Map;
 
 // Highlighting in the case of the percolate query is a bit different, because the PercolateQuery itself doesn't get highlighted,
 // but the source of the PercolateQuery gets highlighted by each hit containing a query.
-public class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
+public class PercolatorHighlightSubFetchPhase extends HighlightPhase {
 
-    private final HighlightPhase highlightPhase;
-
-    @Inject
-    public PercolatorHighlightSubFetchPhase(HighlightPhase highlightPhase) {
-        this.highlightPhase = highlightPhase;
+    public PercolatorHighlightSubFetchPhase(Settings settings, Highlighters highlighters) {
+        super(settings, highlighters);
     }
 
     @Override
@@ -93,7 +91,7 @@ public class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                         percolatorLeafReaderContext, 0, percolatorIndexSearcher
                 );
                 hitContext.cache().clear();
-                highlightPhase.hitExecute(subSearchContext, hitContext);
+                super.hitExecute(subSearchContext, hitContext);
                 hit.highlightFields().putAll(hitContext.hit().getHighlightFields());
             }
         }

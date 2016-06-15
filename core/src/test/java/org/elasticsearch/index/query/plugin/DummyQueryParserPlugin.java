@@ -61,5 +61,15 @@ public class DummyQueryParserPlugin extends Plugin {
         public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
             return matchAllDocsQuery.createWeight(searcher, needsScores);
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            return sameClassAs(obj);
+        }
+
+        @Override
+        public int hashCode() {
+            return classHash();
+        }
     }
 }

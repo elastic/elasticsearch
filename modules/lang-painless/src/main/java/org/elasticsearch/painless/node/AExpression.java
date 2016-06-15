@@ -23,7 +23,7 @@ import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -106,7 +106,7 @@ public abstract class AExpression extends ANode {
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    abstract void analyze(Variables variables);
+    abstract void analyze(Locals locals);
 
     /**
      * Writes ASM based on the data collected during the analysis phase.
@@ -118,7 +118,7 @@ public abstract class AExpression extends ANode {
      * nodes with the constant variable set to a non-null value with {@link EConstant}.
      * @return The new child node for the parent node calling this method.
      */
-    AExpression cast(Variables variables) {
+    AExpression cast(Locals locals) {
         final Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit, internal);
 
         if (cast == null) {
@@ -136,7 +136,7 @@ public abstract class AExpression extends ANode {
                 // will already be the same.
 
                 EConstant econstant = new EConstant(location, constant);
-                econstant.analyze(variables);
+                econstant.analyze(locals);
 
                 if (!expected.equals(econstant.actual)) {
                     throw createError(new IllegalStateException("Illegal tree structure."));
@@ -170,7 +170,7 @@ public abstract class AExpression extends ANode {
                     constant = AnalyzerCaster.constCast(location, constant, cast);
 
                     EConstant econstant = new EConstant(location, constant);
-                    econstant.analyze(variables);
+                    econstant.analyze(locals);
 
                     if (!expected.equals(econstant.actual)) {
                         throw createError(new IllegalStateException("Illegal tree structure."));
@@ -201,7 +201,7 @@ public abstract class AExpression extends ANode {
                     // the EConstant will already be the same.
 
                     EConstant econstant = new EConstant(location, constant);
-                    econstant.analyze(variables);
+                    econstant.analyze(locals);
 
                     if (!actual.equals(econstant.actual)) {
                         throw createError(new IllegalStateException("Illegal tree structure."));

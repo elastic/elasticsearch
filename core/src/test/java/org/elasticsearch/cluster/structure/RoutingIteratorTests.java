@@ -43,6 +43,7 @@ import org.elasticsearch.test.ESAllocationTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
@@ -401,15 +402,23 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
         assertThat(shardIterators.iterator().next().nextOrNull().currentNodeId(), not(equalTo(firstRoundNodeId)));
 
-        shardIterators = operationRouting.searchShards(clusterState, new String[]{"test"}, null, "_shards:0;_prefer_node:node1");
+        shardIterators = operationRouting.searchShards(clusterState, new String[]{"test"}, null, "_shards:0;_prefer_nodes:node1");
         assertThat(shardIterators.size(), equalTo(1));
         assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
         assertThat(shardIterators.iterator().next().nextOrNull().currentNodeId(), equalTo("node1"));
 
-        shardIterators = operationRouting.searchShards(clusterState, new String[]{"test"}, null, "_shards:0;_prefer_node:node1");
+        shardIterators = operationRouting.searchShards(clusterState, new String[]{"test"}, null, "_shards:0;_prefer_nodes:node1,node2");
         assertThat(shardIterators.size(), equalTo(1));
-        assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
-        assertThat(shardIterators.iterator().next().nextOrNull().currentNodeId(), equalTo("node1"));
+        Iterator<ShardIterator> iterator = shardIterators.iterator();
+        final ShardIterator it = iterator.next();
+        assertThat(it.shardId().id(), equalTo(0));
+        final String firstNodeId = it.nextOrNull().currentNodeId();
+        assertThat(firstNodeId, anyOf(equalTo("node1"), equalTo("node2")));
+        if ("node1".equals(firstNodeId)) {
+            assertThat(it.nextOrNull().currentNodeId(), equalTo("node2"));
+        } else {
+            assertThat(it.nextOrNull().currentNodeId(), equalTo("node1"));
+        }
     }
 
     public void testReplicaShardPreferenceIters() throws Exception {

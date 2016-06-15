@@ -431,4 +431,29 @@ public class AdditionTests extends ScriptTestCase {
         assertEquals(15D, exec("def x = 5.0; x += 10; return x;"));
         assertEquals(-5D, exec("def x = 5.0; x += -10; return x;"));
     }
+    
+    public void testDefCompoundAssignmentRHS() {
+        // byte
+        assertEquals((byte) 15, exec("byte x = 5; def y = 10; x += y; return x;"));
+        assertEquals((byte) -5, exec("byte x = 5; def y = -10; x += y; return x;"));
+
+        // short
+        assertEquals((short) 15, exec("short x = 5; def y = 10; x += y; return x;"));
+        assertEquals((short) -5, exec("short x = 5; def y = -10; x += y; return x;"));
+        // char
+        assertEquals((char) 15, exec("char x = 5; def y = 10; x += y; return x;"));
+        assertEquals((char) 5, exec("char x = 10; def y = -5; x += y; return x;"));
+        // int
+        assertEquals(15, exec("int x = 5; def y = 10; x += y; return x;"));
+        assertEquals(-5, exec("int x = 5; def y = -10; x += y; return x;"));
+        // long
+        assertEquals(15L, exec("long x = 5; def y = 10; x += y; return x;"));
+        assertEquals(-5L, exec("long x = 5; def y = -10; x += y; return x;"));
+        // float
+        assertEquals(15F, exec("float x = 5f; def y = 10; x += y; return x;"));
+        assertEquals(-5F, exec("float x = 5f; def y = -10; x += y; return x;"));
+        // double
+        assertEquals(15D, exec("double x = 5.0; def y = 10; x += y; return x;"));
+        assertEquals(-5D, exec("double x = 5.0; def y = -10; x += y; return x;"));
+    }
 }

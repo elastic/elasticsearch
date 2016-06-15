@@ -1146,4 +1146,70 @@ public class DefMath {
     public static MethodHandle lookupGeneric(String name) {
         return TYPE_OP_MAPPING.get(Object.class).get(name);
     }
+    
+    
+    /**
+     * Slow dynamic cast: casts {@code returnValue} to the runtime type of {@code lhs}
+     * based upon inspection. If {@code lhs} is null, no cast takes place.
+     * This is used for the generic fallback case of compound assignment.
+     */
+    static Object dynamicCast(Object returnValue, Object lhs) {
+        if (lhs != null) {
+            Class<?> c = lhs.getClass();
+            if (c == Integer.class) {
+                return getNumber(returnValue).intValue();
+            } else if (c == Long.class) {
+                return getNumber(returnValue).longValue();
+            } else if (c == Double.class) {
+                return getNumber(returnValue).doubleValue();
+            } else if (c == Float.class) {
+                return getNumber(returnValue).floatValue();
+            } else if (c == Short.class) {
+                return getNumber(returnValue).shortValue();
+            } else if (c == Byte.class) {
+                return getNumber(returnValue).byteValue();
+            } else if (c == Character.class) {
+                return (char) getNumber(returnValue).intValue();
+            }
+            return lhs.getClass().cast(returnValue);
+        } else {
+            return returnValue;
+        }
+    }
+    
+    /** Slowly returns a Number for o. Just for supporting dynamicCast */
+    static Number getNumber(Object o) {
+        if (o instanceof Number) {
+            return (Number)o;
+        } else if (o instanceof Character) {
+            return Integer.valueOf((char)o);
+        } else {
+            throw new ClassCastException("Cannot convert [" + o.getClass() + "] to a Number");
+        }
+    }
+    
+    private static final MethodHandle DYNAMIC_CAST;
+    static {
+        final Lookup lookup = MethodHandles.lookup();
+        try {
+            DYNAMIC_CAST = lookup.findStatic(lookup.lookupClass(), 
+                                             "dynamicCast", 
+                                             MethodType.methodType(Object.class, Object.class, Object.class));
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /** Looks up generic method, with a dynamic cast to the receiver's type. (compound assignment) */
+    public static MethodHandle lookupGenericWithCast(String name) {
+        MethodHandle generic = lookupGeneric(name);
+        // adapt dynamic cast to the generic method
+        MethodHandle cast = DYNAMIC_CAST.asType(MethodType.methodType(generic.type().returnType(), 
+                                                                      generic.type().returnType(),
+                                                                      generic.type().parameterType(0)));
+        // drop the RHS parameter
+        cast = MethodHandles.dropArguments(cast, 2, generic.type().parameterType(1));
+        // combine: f(x,y) -> g(f(x,y), x, y);
+        return MethodHandles.foldArguments(cast, generic);
+    }
 }

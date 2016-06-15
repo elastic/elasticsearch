@@ -163,7 +163,11 @@ public interface IndicesPermission extends Permission, Iterable<IndicesPermissio
                 }
                 Set<String> roleFields = rolesFieldsByIndex.get(index);
                 if (roleFields != null) {
-                    roleFields = unmodifiableSet(roleFields);
+                    if (roleFields.contains("*")) {
+                        roleFields = null;
+                    } else {
+                        roleFields = unmodifiableSet(roleFields);
+                    }
                 }
                 indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(entry.getValue(), roleFields, roleQueries));
             }

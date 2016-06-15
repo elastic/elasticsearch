@@ -19,7 +19,9 @@ import org.elasticsearch.shield.authz.privilege.IndexPrivilege;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -70,6 +72,16 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertThat(permissions.getIndexPermissions("_index").getFields().size(), equalTo(1));
         assertThat(permissions.getIndexPermissions("_index").getFields().iterator().next(), equalTo("_field"));
+        assertThat(permissions.getIndexPermissions("_index").getQueries().size(), equalTo(1));
+        assertThat(permissions.getIndexPermissions("_index").getQueries().iterator().next(), equalTo(query));
+
+        // match all fields
+        List<String> allFields = randomFrom(Collections.singletonList("*"), Arrays.asList("foo", "*"),
+                Arrays.asList(randomAsciiOfLengthBetween(1, 10), "*"));
+        role = Role.builder("_role").add(allFields, query, IndexPrivilege.ALL, "_alias").build();
+        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), md);
+        assertThat(permissions.getIndexPermissions("_index"), notNullValue());
+        assertThat(permissions.getIndexPermissions("_index").getFields(), nullValue());
         assertThat(permissions.getIndexPermissions("_index").getQueries().size(), equalTo(1));
         assertThat(permissions.getIndexPermissions("_index").getQueries().iterator().next(), equalTo(query));
     }

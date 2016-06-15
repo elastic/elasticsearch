@@ -229,4 +229,9 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         assertThat(e.getMessage(), containsString("\\ujjjj"));
     }
 
+    public void testBadBoxingCast() {
+        expectScriptThrows(ClassCastException.class, () -> {
+            exec("BitSet bs = new BitSet(); bs.and(2);");
+        });
+    }
 }

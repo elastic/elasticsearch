@@ -17,9 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.test;
-
-import org.elasticsearch.test.ESTestCase;
+package org.elasticsearch.test;
 
 import junit.framework.TestCase;
 
@@ -30,21 +28,35 @@ public class NamingConventionsCheckBadClasses {
     public static final class NotImplementingTests {
     }
 
-    public static final class WrongName extends ESTestCase {
+    public static final class WrongName extends UnitTestCase {
+        /*
+         * Dummy test so the tests pass. We do this *and* skip the tests so anyone who jumps back to a branch without these tests can still
+         * compile without a failure. That is because clean doesn't actually clean these....
+         */
+        public void testDummy() {}
     }
 
-    public static abstract class DummyAbstractTests extends ESTestCase {
+    public static abstract class DummyAbstractTests extends UnitTestCase {
     }
 
     public interface DummyInterfaceTests {
     }
 
-    public static final class InnerTests extends ESTestCase {
+    public static final class InnerTests extends UnitTestCase {
+        public void testDummy() {}
     }
 
-    public static final class WrongNameTheSecond extends ESTestCase {
+    public static final class WrongNameTheSecond extends UnitTestCase {
+        public void testDummy() {}
     }
 
     public static final class PlainUnit extends TestCase {
+        public void testDummy() {}
+    }
+
+    public abstract static class UnitTestCase extends TestCase {
+    }
+
+    public abstract static class IntegTestCase extends UnitTestCase {
     }
 }

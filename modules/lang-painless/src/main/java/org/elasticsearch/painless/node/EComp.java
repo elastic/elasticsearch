@@ -42,6 +42,7 @@ public final class EComp extends AExpression {
     final Operation operation;
     AExpression left;
     AExpression right;
+    Type promotedType;
 
     public EComp(Location location, Operation operation, AExpression left, AExpression right) {
         super(location);
@@ -78,15 +79,20 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteEquality(left.actual, right.actual);
+        promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
-        if (promote == null) {
+        if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply equals [==] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        if (promotedType.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+        } else {
+            left.expected = promotedType;
+            right.expected = promotedType;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
@@ -96,7 +102,7 @@ public final class EComp extends AExpression {
         }
 
         if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
-            Sort sort = promote.sort;
+            Sort sort = promotedType.sort;
 
             if (sort == Sort.BOOL) {
                 constant = (boolean)left.constant == (boolean)right.constant;
@@ -124,15 +130,20 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteEquality(left.actual, right.actual);
+        promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
-        if (promote == null) {
+        if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply reference equals [===] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        if (promotedType.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+        } else {
+            left.expected = promotedType;
+            right.expected = promotedType;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
@@ -142,7 +153,7 @@ public final class EComp extends AExpression {
         }
 
         if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
-            Sort sort = promote.sort;
+            Sort sort = promotedType.sort;
 
             if (sort == Sort.BOOL) {
                 constant = (boolean)left.constant == (boolean)right.constant;
@@ -166,15 +177,20 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteEquality(left.actual, right.actual);
+        promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
-        if (promote == null) {
+        if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply not equals [!=] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        if (promotedType.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+        } else {
+            left.expected = promotedType;
+            right.expected = promotedType;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
@@ -184,7 +200,7 @@ public final class EComp extends AExpression {
         }
 
         if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
-            Sort sort = promote.sort;
+            Sort sort = promotedType.sort;
 
             if (sort == Sort.BOOL) {
                 constant = (boolean)left.constant != (boolean)right.constant;
@@ -212,15 +228,20 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteEquality(left.actual, right.actual);
+        promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
-        if (promote == null) {
+        if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply reference not equals [!==] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        if (promotedType.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+        } else {
+            left.expected = promotedType;
+            right.expected = promotedType;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
@@ -230,7 +251,7 @@ public final class EComp extends AExpression {
         }
 
         if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
-            Sort sort = promote.sort;
+            Sort sort = promotedType.sort;
 
             if (sort == Sort.BOOL) {
                 constant = (boolean)left.constant != (boolean)right.constant;
@@ -254,21 +275,26 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
-        if (promote == null) {
+        if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply greater than or equals [>=] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        if (promotedType.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+        } else {
+            left.expected = promotedType;
+            right.expected = promotedType;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = promote.sort;
+            Sort sort = promotedType.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant >= (int)right.constant;
@@ -290,21 +316,26 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
-        if (promote == null) {
+        if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply greater than [>] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        if (promotedType.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+        } else {
+            left.expected = promotedType;
+            right.expected = promotedType;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = promote.sort;
+            Sort sort = promotedType.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant > (int)right.constant;
@@ -326,21 +357,26 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
-        if (promote == null) {
+        if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply less than or equals [<=] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        if (promotedType.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+        } else {
+            left.expected = promotedType;
+            right.expected = promotedType;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = promote.sort;
+            Sort sort = promotedType.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant <= (int)right.constant;
@@ -362,21 +398,26 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
-        if (promote == null) {
+        if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply less than [>=] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        if (promotedType.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+        } else {
+            left.expected = promotedType;
+            right.expected = promotedType;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = promote.sort;
+            Sort sort = promotedType.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant < (int)right.constant;
@@ -399,8 +440,6 @@ public final class EComp extends AExpression {
         writer.writeDebugInfo(location);
 
         boolean branch = tru != null || fals != null;
-        org.objectweb.asm.Type rtype = right.actual.type;
-        Sort rsort = right.actual.sort;
 
         left.write(writer);
 
@@ -422,7 +461,7 @@ public final class EComp extends AExpression {
 
         boolean writejump = true;
 
-        switch (rsort) {
+        switch (promotedType.sort) {
             case VOID:
             case BYTE:
             case SHORT:
@@ -440,22 +479,20 @@ public final class EComp extends AExpression {
             case LONG:
             case FLOAT:
             case DOUBLE:
-                if      (eq)  writer.ifCmp(rtype, MethodWriter.EQ, jump);
-                else if (ne)  writer.ifCmp(rtype, MethodWriter.NE, jump);
-                else if (lt)  writer.ifCmp(rtype, MethodWriter.LT, jump);
-                else if (lte) writer.ifCmp(rtype, MethodWriter.LE, jump);
-                else if (gt)  writer.ifCmp(rtype, MethodWriter.GT, jump);
-                else if (gte) writer.ifCmp(rtype, MethodWriter.GE, jump);
+                if      (eq)  writer.ifCmp(promotedType.type, MethodWriter.EQ, jump);
+                else if (ne)  writer.ifCmp(promotedType.type, MethodWriter.NE, jump);
+                else if (lt)  writer.ifCmp(promotedType.type, MethodWriter.LT, jump);
+                else if (lte) writer.ifCmp(promotedType.type, MethodWriter.LE, jump);
+                else if (gt)  writer.ifCmp(promotedType.type, MethodWriter.GT, jump);
+                else if (gte) writer.ifCmp(promotedType.type, MethodWriter.GE, jump);
                 else {
                     throw createError(new IllegalStateException("Illegal tree structure."));
                 }
 
                 break;
             case DEF:
-                // XXX: move this out, so we can populate descriptor with what we really have (instead of casts/boxing!)
                 org.objectweb.asm.Type booleanType = org.objectweb.asm.Type.getType(boolean.class);
-                org.objectweb.asm.Type objectType = org.objectweb.asm.Type.getType(Object.class);
-                org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(booleanType, objectType, objectType);
+                org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(booleanType, left.actual.type, right.actual.type);
                 if (eq) {
                     if (right.isNull) {
                         writer.ifNull(jump);
@@ -463,7 +500,7 @@ public final class EComp extends AExpression {
                         writer.invokeDynamic("eq", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
                         writejump = false;
                     } else {
-                        writer.ifCmp(rtype, MethodWriter.EQ, jump);
+                        writer.ifCmp(promotedType.type, MethodWriter.EQ, jump);
                     }
                 } else if (ne) {
                     if (right.isNull) {
@@ -472,7 +509,7 @@ public final class EComp extends AExpression {
                         writer.invokeDynamic("eq", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
                         writer.ifZCmp(MethodWriter.EQ, jump);
                     } else {
-                        writer.ifCmp(rtype, MethodWriter.NE, jump);
+                        writer.ifCmp(promotedType.type, MethodWriter.NE, jump);
                     }
                 } else if (lt) {
                     writer.invokeDynamic("lt", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
@@ -508,7 +545,7 @@ public final class EComp extends AExpression {
 
                         writejump = false;
                     } else {
-                        writer.ifCmp(rtype, MethodWriter.EQ, jump);
+                        writer.ifCmp(promotedType.type, MethodWriter.EQ, jump);
                     }
                 } else if (ne) {
                     if (right.isNull) {
@@ -517,7 +554,7 @@ public final class EComp extends AExpression {
                         writer.invokeStatic(OBJECTS_TYPE, EQUALS);
                         writer.ifZCmp(MethodWriter.EQ, jump);
                     } else {
-                        writer.ifCmp(rtype, MethodWriter.NE, jump);
+                        writer.ifCmp(promotedType.type, MethodWriter.NE, jump);
                     }
                 } else {
                     throw createError(new IllegalStateException("Illegal tree structure."));

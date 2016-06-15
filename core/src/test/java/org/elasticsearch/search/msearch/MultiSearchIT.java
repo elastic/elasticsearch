@@ -63,7 +63,7 @@ public class MultiSearchIT extends ESIntegTestCase {
         }
         refresh();
 
-        int numSearchRequests = randomIntBetween(0, 64);
+        int numSearchRequests = randomIntBetween(1, 64);
         MultiSearchRequest request = new MultiSearchRequest();
         if (randomBoolean()) {
             request.maxConcurrentSearchRequests(randomIntBetween(1, numSearchRequests));

@@ -30,9 +30,9 @@ public enum  Preference {
     SHARDS("_shards"),
 
     /**
-     * Route to preferred node, if possible
+     * Route to preferred nodes, if possible
      */
-    PREFER_NODE("_prefer_node"),
+    PREFER_NODES("_prefer_nodes"),
 
     /**
      * Route to local node, if possible
@@ -93,8 +93,8 @@ public enum  Preference {
         switch (preferenceType) {
             case "_shards":
                 return SHARDS;
-            case "_prefer_node":
-                return PREFER_NODE;
+            case "_prefer_nodes":
+                return PREFER_NODES;
             case "_local":
                 return LOCAL;
             case "_primary":
@@ -116,6 +116,7 @@ public enum  Preference {
                 throw new IllegalArgumentException("no Preference for [" + preferenceType + "]");
         }
     }
+
 }
 
 

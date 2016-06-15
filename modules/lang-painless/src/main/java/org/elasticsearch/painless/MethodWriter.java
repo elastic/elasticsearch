@@ -262,6 +262,51 @@ public final class MethodWriter extends GeneratorAdapter {
         }
     }
 
+    /** Writes a dynamic binary instruction: returnType, lhs, and rhs can be different */
+    public void writeDynamicBinaryInstruction(Location location, Type returnType, Type lhs, Type rhs, Operation operation) {
+        org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(returnType.type, lhs.type, rhs.type);
+        String descriptor = methodType.getDescriptor();
+        
+        switch (operation) {
+            case MUL:
+                invokeDynamic("mul", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                break;
+            case DIV:
+                invokeDynamic("div", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                break;
+            case REM:
+                invokeDynamic("rem", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                break;
+            case ADD:
+                invokeDynamic("add", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                break;
+            case SUB:
+                invokeDynamic("sub", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                break;
+            case LSH:
+                invokeDynamic("lsh", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
+                break;
+            case USH:
+                invokeDynamic("ush", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
+                break;
+            case RSH:
+                invokeDynamic("rsh", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
+                break;
+            case BWAND: 
+                invokeDynamic("and", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                break;
+            case XOR:   
+                invokeDynamic("xor", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                break;
+            case BWOR:  
+                invokeDynamic("or", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                break;
+            default:
+                throw location.createError(new IllegalStateException("Illegal tree structure."));
+        }
+    }
+    
+    /** Writes a static binary instruction */
     public void writeBinaryInstruction(Location location, Type type, Operation operation) {
         final Sort sort = type.sort;
 
@@ -272,64 +317,20 @@ public final class MethodWriter extends GeneratorAdapter {
             throw location.createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        if (sort == Sort.DEF) {
-            // XXX: move this out, so we can populate descriptor with what we really have (instead of casts/boxing!)
-            org.objectweb.asm.Type objectType = org.objectweb.asm.Type.getType(Object.class);
-            org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(objectType, objectType, objectType);
-            
-            switch (operation) {
-                case MUL:
-                    invokeDynamic("mul", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
-                    break;
-                case DIV:
-                    invokeDynamic("div", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
-                    break;
-                case REM:
-                    invokeDynamic("rem", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
-                    break;
-                case ADD:
-                    invokeDynamic("add", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
-                    break;
-                case SUB:
-                    invokeDynamic("sub", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
-                    break;
-                case LSH:
-                    invokeDynamic("lsh", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
-                    break;
-                case USH:
-                    invokeDynamic("ush", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
-                    break;
-                case RSH:
-                    invokeDynamic("rsh", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
-                    break;
-                case BWAND: 
-                    invokeDynamic("and", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
-                    break;
-                case XOR:   
-                    invokeDynamic("xor", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
-                    break;
-                case BWOR:  
-                    invokeDynamic("or", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
-                    break;
-                default:
-                    throw location.createError(new IllegalStateException("Illegal tree structure."));
-            }
-        } else {
-            switch (operation) {
-                case MUL:   math(GeneratorAdapter.MUL,  type.type); break;
-                case DIV:   math(GeneratorAdapter.DIV,  type.type); break;
-                case REM:   math(GeneratorAdapter.REM,  type.type); break;
-                case ADD:   math(GeneratorAdapter.ADD,  type.type); break;
-                case SUB:   math(GeneratorAdapter.SUB,  type.type); break;
-                case LSH:   math(GeneratorAdapter.SHL,  type.type); break;
-                case USH:   math(GeneratorAdapter.USHR, type.type); break;
-                case RSH:   math(GeneratorAdapter.SHR,  type.type); break;
-                case BWAND: math(GeneratorAdapter.AND,  type.type); break;
-                case XOR:   math(GeneratorAdapter.XOR,  type.type); break;
-                case BWOR:  math(GeneratorAdapter.OR,   type.type); break;
-                default:
-                    throw location.createError(new IllegalStateException("Illegal tree structure."));
-            }
+        switch (operation) {
+            case MUL:   math(GeneratorAdapter.MUL,  type.type); break;
+            case DIV:   math(GeneratorAdapter.DIV,  type.type); break;
+            case REM:   math(GeneratorAdapter.REM,  type.type); break;
+            case ADD:   math(GeneratorAdapter.ADD,  type.type); break;
+            case SUB:   math(GeneratorAdapter.SUB,  type.type); break;
+            case LSH:   math(GeneratorAdapter.SHL,  type.type); break;
+            case USH:   math(GeneratorAdapter.USHR, type.type); break;
+            case RSH:   math(GeneratorAdapter.SHR,  type.type); break;
+            case BWAND: math(GeneratorAdapter.AND,  type.type); break;
+            case XOR:   math(GeneratorAdapter.XOR,  type.type); break;
+            case BWOR:  math(GeneratorAdapter.OR,   type.type); break;
+            default:
+                throw location.createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 

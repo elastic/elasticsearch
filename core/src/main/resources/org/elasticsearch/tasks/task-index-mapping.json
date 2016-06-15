@@ -1,5 +1,5 @@
 {
-  "result" : {
+  "task" : {
     "dynamic" : "strict",
     "properties" : {
       "task" : {

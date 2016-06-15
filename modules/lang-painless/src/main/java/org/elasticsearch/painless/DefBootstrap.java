@@ -259,19 +259,10 @@ public final class DefBootstrap {
         }
         
         private MethodHandle lookupGeneric() throws Throwable {
-            MethodHandle generic = DefMath.lookupGeneric(name);
             if ((flags & OPERATOR_COMPOUND_ASSIGNMENT) != 0) {
-                assert flavor == BINARY_OPERATOR || flavor == SHIFT_OPERATOR;
-                // adapt dynamic cast to the generic method and the callsite's return value
-                MethodHandle cast = DYNAMIC_CAST.asType(MethodType.methodType(type().returnType(), 
-                                                                              generic.type().returnType(),
-                                                                              generic.type().parameterType(0)));
-                // drop the RHS parameter
-                cast = MethodHandles.dropArguments(cast, 2, generic.type().parameterType(1));
-                // combine: f(x,y) -> g(f(x,y), x, y);
-                return MethodHandles.foldArguments(cast, generic);
+                return DefMath.lookupGenericWithCast(name);
             } else {
-                return generic;
+                return DefMath.lookupGeneric(name);
             }
         }
         
@@ -361,23 +352,9 @@ public final class DefBootstrap {
             return leftObject.getClass() == left && rightObject.getClass() == right;
         }
         
-        /**
-         * Slow dynamic cast: casts {@code returnValue} to the runtime type of {@code lhs}
-         * based upon inspection. If {@code lhs} is null, no cast takes place.
-         * This is used for the generic fallback case of compound assignment.
-         */
-        static Object dynamicCast(Object returnValue, Object lhs) {
-            if (lhs != null) {
-                return lhs.getClass().cast(returnValue);
-            } else {
-                return returnValue;
-            }
-        }
-        
         private static final MethodHandle CHECK_LHS;
         private static final MethodHandle CHECK_RHS;
         private static final MethodHandle CHECK_BOTH;
-        private static final MethodHandle DYNAMIC_CAST;
         private static final MethodHandle FALLBACK;
         static {
             final Lookup lookup = MethodHandles.lookup();
@@ -388,8 +365,6 @@ public final class DefBootstrap {
                                               MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class));
                 CHECK_BOTH = lookup.findStatic(lookup.lookupClass(), "checkBoth",
                                               MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class));
-                DYNAMIC_CAST = lookup.findStatic(lookup.lookupClass(), "dynamicCast", 
-                                              MethodType.methodType(Object.class, Object.class, Object.class));
                 FALLBACK = lookup.findVirtual(lookup.lookupClass(), "fallback",
                                               MethodType.methodType(Object.class, Object[].class));
             } catch (ReflectiveOperationException e) {

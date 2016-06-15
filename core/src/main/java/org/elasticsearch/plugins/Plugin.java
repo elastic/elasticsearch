@@ -23,12 +23,8 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.script.NativeScriptFactory;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
 import java.util.Collections;

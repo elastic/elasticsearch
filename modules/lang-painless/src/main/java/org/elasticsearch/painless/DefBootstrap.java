@@ -68,6 +68,15 @@ public final class DefBootstrap {
     public static final int BINARY_OPERATOR = 8;
     /** static bootstrap parameter indicating a shift operator, e.g. foo &gt;&gt; bar */
     public static final int SHIFT_OPERATOR = 9;
+    
+    // constants for the flags parameter of operators
+    /** 
+     * static bootstrap parameter indicating the binary operator allows nulls (e.g. == and +) 
+     * <p>
+     * requires additional {@link MethodHandles#catchException} guard, which will invoke
+     * the fallback if a null is encountered.
+     */
+    public static final int OPERATOR_ALLOWS_NULL = 1 << 0;
 
     /**
      * CallSite that implements the polymorphic inlining cache (PIC).
@@ -151,7 +160,7 @@ public final class DefBootstrap {
                     return DefMath.lookupUnary(args[0].getClass(), name);
                 case BINARY_OPERATOR:
                     if (args[0] == null || args[1] == null) {
-                        return getGeneric(flavor, name); // can handle nulls
+                        return getGeneric(flavor, name); // can handle nulls, if supported
                     } else {
                         return DefMath.lookupBinary(args[0].getClass(), args[1].getClass(), name);
                     }
@@ -225,7 +234,7 @@ public final class DefBootstrap {
             MethodHandle guard = MethodHandles.guardWithTest(test, target, getTarget());
             // very special cases, where even the receiver can be null (see JLS rules for string concat)
             // we wrap + with an NPE catcher, and use our generic method in that case.
-            if (flavor == BINARY_OPERATOR && "add".equals(name) || "eq".equals(name)) {
+            if (flavor == BINARY_OPERATOR && ((int)this.args[0] & OPERATOR_ALLOWS_NULL) != 0) {
                 MethodHandle handler = MethodHandles.dropArguments(getGeneric(flavor, name).asType(type()), 0, NullPointerException.class);
                 guard = MethodHandles.catchException(guard, NullPointerException.class, handler);
             }
@@ -286,6 +295,21 @@ public final class DefBootstrap {
                 }
                 if (args[0] instanceof String == false) {
                     throw new BootstrapMethodError("Illegal parameter for reference call: " + args[0]);
+                }
+                break;
+            case UNARY_OPERATOR:
+            case SHIFT_OPERATOR:
+            case BINARY_OPERATOR:
+                if (args.length != 1) {
+                    throw new BootstrapMethodError("Invalid number of parameters for operator call");
+                }
+                if (args[0] instanceof Integer == false) {
+                    throw new BootstrapMethodError("Illegal parameter for reference call: " + args[0]);
+                }
+                int flags = (int)args[0];
+                if ((flags & OPERATOR_ALLOWS_NULL) != 0 && flavor != BINARY_OPERATOR) {
+                    // we just don't need it anywhere else.
+                    throw new BootstrapMethodError("This parameter is only supported for BINARY_OPERATORs");
                 }
                 break;
             default:

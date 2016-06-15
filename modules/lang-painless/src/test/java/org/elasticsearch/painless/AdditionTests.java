@@ -370,6 +370,18 @@ public class AdditionTests extends ScriptTestCase {
         assertEquals(2D, exec("def x = (double)1; double y = (double)1; return x + y"));
     }
     
+    public void testDefNulls() {
+        expectScriptThrows(NullPointerException.class, () -> {
+            exec("def x = null; int y = 1; return x + y"); 
+        });
+        expectScriptThrows(NullPointerException.class, () -> {
+            exec("int x = 1; def y = null; return x + y"); 
+        });
+        expectScriptThrows(NullPointerException.class, () -> {
+            exec("def x = null; def y = 1; return x + y"); 
+        });
+    }
+    
     public void testCompoundAssignment() {
         // byte
         assertEquals((byte) 15, exec("byte x = 5; x += 10; return x;"));

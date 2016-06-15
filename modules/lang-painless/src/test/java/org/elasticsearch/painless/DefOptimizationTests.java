@@ -239,6 +239,25 @@ public class DefOptimizationTests extends ScriptTestCase {
                              "INVOKEDYNAMIC add(Ljava/lang/Object;Ljava/lang/Object;)D");
     }
     
+    // horrible, sorry
+    public void testAddOptNullGuards() {
+        // needs null guard
+        assertBytecodeHasPattern("def x = 1; def y = 2; return x + y", 
+                "(?s).*INVOKEDYNAMIC add.*arguments:\\s+" + DefBootstrap.BINARY_OPERATOR 
+                                                + ",\\s+" + DefBootstrap.OPERATOR_ALLOWS_NULL + ".*");
+        // still needs null guard, NPE is the wrong thing!
+        assertBytecodeHasPattern("def x = 1; def y = 2; double z = x + y", 
+                "(?s).*INVOKEDYNAMIC add.*arguments:\\s+" + DefBootstrap.BINARY_OPERATOR 
+                                                + ",\\s+" + DefBootstrap.OPERATOR_ALLOWS_NULL + ".*");
+        // a primitive argument is present: no null guard needed
+        assertBytecodeHasPattern("def x = 1; int y = 2; return x + y", 
+                "(?s).*INVOKEDYNAMIC add.*arguments:\\s+" + DefBootstrap.BINARY_OPERATOR 
+                                                + ",\\s+" + 0 + ".*");
+        assertBytecodeHasPattern("int x = 1; def y = 2; return x + y", 
+                "(?s).*INVOKEDYNAMIC add.*arguments:\\s+" + DefBootstrap.BINARY_OPERATOR 
+                                                + ",\\s+" + 0 + ".*");
+    }
+    
     public void testSubOptLHS() {
         assertBytecodeExists("int x = 1; def y = 2; return x - y", 
                              "INVOKEDYNAMIC sub(ILjava/lang/Object;)Ljava/lang/Object;");

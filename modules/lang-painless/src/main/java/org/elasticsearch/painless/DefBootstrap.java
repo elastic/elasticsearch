@@ -144,6 +144,32 @@ public final class DefBootstrap {
                 default: throw new AssertionError();
             }
         }
+        
+        /**
+         * Creates the {@link MethodHandle} for the megamorphic call site
+         * using {@link ClassValue} and {@link MethodHandles#exactInvoker(MethodType)}:
+         * <p>
+         * TODO: Remove the variable args and just use {@code type()}!
+         */
+        private MethodHandle createMegamorphicHandle(final Object[] callArgs) throws Throwable {
+            final MethodType type = type();
+            final ClassValue<MethodHandle> megamorphicCache = new ClassValue<MethodHandle>() {
+                @Override
+                protected MethodHandle computeValue(Class<?> receiverType) {
+                    // it's too stupid that we cannot throw checked exceptions... (use rethrow puzzler):
+                    try {
+                        return lookup(flavor, name, receiverType, callArgs).asType(type);
+                    } catch (Throwable t) {
+                        Def.rethrow(t);
+                        throw new AssertionError();
+                    }
+                }
+            };
+            MethodHandle cacheLookup = MEGAMORPHIC_LOOKUP.bindTo(megamorphicCache);
+            cacheLookup = MethodHandles.dropArguments(cacheLookup,
+                    1, type.parameterList().subList(1, type.parameterCount()));
+            return MethodHandles.foldArguments(MethodHandles.exactInvoker(type), cacheLookup);            
+        }
 
         /**
          * Called when a new type is encountered (or, when we have encountered more than {@code MAX_DEPTH}
@@ -152,41 +178,24 @@ public final class DefBootstrap {
          */
         @SuppressForbidden(reason = "slow path")
         Object fallback(final Object[] callArgs) throws Throwable {
-            final Class<?> receiver = callArgs[0].getClass();
-            final MethodType type = type();
-            
             if (depth >= MAX_DEPTH) {
                 // we revert the whole cache and build a new megamorphic one
-                // using ClassValue and MethodHandles.exactInvoker():
-                final ClassValue<MethodHandle> megamorphicCache = new ClassValue<MethodHandle>() {
-                    @Override
-                    protected MethodHandle computeValue(Class<?> receiverType) {
-                        // it's too stupid that we cannot throw checked exceptions... (use rethrow puzzler):
-                        try {
-                            return lookup(flavor, name, receiverType, callArgs).asType(type);
-                        } catch (Throwable t) {
-                            Def.rethrow(t);
-                            throw new AssertionError();
-                        }
-                    }
-                };
-                MethodHandle cacheLookup = MEGAMORPHIC_LOOKUP.bindTo(megamorphicCache);
-                cacheLookup = MethodHandles.dropArguments(cacheLookup,
-                        1, type.parameterList().subList(1, type.parameterCount()));
-                MethodHandle target = MethodHandles.foldArguments(MethodHandles.exactInvoker(type), cacheLookup);
+                final MethodHandle target = this.createMegamorphicHandle(callArgs);
+                
                 setTarget(target);
                 return target.invokeWithArguments(callArgs);                    
+            } else {
+                final Class<?> receiver = callArgs[0].getClass();
+                final MethodHandle target = lookup(flavor, name, receiver, callArgs).asType(type());
+    
+                MethodHandle test = CHECK_CLASS.bindTo(receiver);
+                MethodHandle guard = MethodHandles.guardWithTest(test, target, getTarget());
+                
+                depth++;
+    
+                setTarget(guard);
+                return target.invokeWithArguments(callArgs);
             }
-            
-            final MethodHandle target = lookup(flavor, name, receiver, callArgs).asType(type);
-
-            MethodHandle test = CHECK_CLASS.bindTo(receiver);
-            MethodHandle guard = MethodHandles.guardWithTest(test, target, getTarget());
-            
-            depth++;
-
-            setTarget(guard);
-            return target.invokeWithArguments(callArgs);
         }
 
         private static final MethodHandle CHECK_CLASS;

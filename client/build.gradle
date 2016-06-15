@@ -47,7 +47,6 @@ dependencies {
 forbiddenApisMain {
   //client does not depend on core, so only jdk signatures should be checked
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
-  targetCompatibility = 1.7
 }
 
 forbiddenApisTest {
@@ -56,7 +55,6 @@ forbiddenApisTest {
   bundledSignatures += 'jdk-internal'
   //client does not depend on core, so only jdk signatures should be checked
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
-  targetCompatibility = 1.7
 }
 
 //JarHell is part of es core, which we don't want to pull in

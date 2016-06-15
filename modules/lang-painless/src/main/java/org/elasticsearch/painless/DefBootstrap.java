@@ -122,41 +122,62 @@ public final class DefBootstrap {
         /**
          * Does a slow lookup against the whitelist.
          */
-        private MethodHandle lookup(int flavor, String name, Object[] args) throws Throwable {
+        private MethodHandle lookup(int flavor, String name, Class<?> receiver, Object[] callArgs) throws Throwable {
             switch(flavor) {
                 case METHOD_CALL:
-                    return Def.lookupMethod(lookup, type(), args[0].getClass(), name, args, (Long) this.args[0]);
+                    return Def.lookupMethod(lookup, type(), receiver, name, callArgs, (Long) this.args[0]);
                 case LOAD:
-                    return Def.lookupGetter(args[0].getClass(), name);
+                    return Def.lookupGetter(receiver, name);
                 case STORE:
-                    return Def.lookupSetter(args[0].getClass(), name);
+                    return Def.lookupSetter(receiver, name);
                 case ARRAY_LOAD:
-                    return Def.lookupArrayLoad(args[0].getClass());
+                    return Def.lookupArrayLoad(receiver);
                 case ARRAY_STORE:
-                    return Def.lookupArrayStore(args[0].getClass());
+                    return Def.lookupArrayStore(receiver);
                 case ITERATOR:
-                    return Def.lookupIterator(args[0].getClass());
+                    return Def.lookupIterator(receiver);
                 case REFERENCE:
-                    return Def.lookupReference(lookup, (String) this.args[0], args[0].getClass(), name);
+                    return Def.lookupReference(lookup, (String) this.args[0], receiver, name);
                 default: throw new AssertionError();
             }
         }
 
         /**
          * Called when a new type is encountered (or, when we have encountered more than {@code MAX_DEPTH}
-         * types at this call site and given up on caching).
+         * types at this call site and given up on caching using this fallback wand we switch to a
+         * megamorphic cache using {@link ClassValue}).
          */
         @SuppressForbidden(reason = "slow path")
-        Object fallback(Object[] args) throws Throwable {
+        Object fallback(final Object[] callArgs) throws Throwable {
+            final Class<?> receiver = callArgs[0].getClass();
+            final MethodType type = type();
+            
             if (depth >= MAX_DEPTH) {
-                // XXX: caching defeated: lookups up every time(!)
-                return lookup(flavor, name, args).invokeWithArguments(args);
+                // we revert the whole cache and build a new megamorphic one
+                // using ClassValue and MethodHandles.exactInvoker():
+                final ClassValue<MethodHandle> megamorphicCache = new ClassValue<MethodHandle>() {
+                    @Override
+                    protected MethodHandle computeValue(Class<?> receiverType) {
+                        try {
+                            return lookup(flavor, name, receiverType, callArgs).asType(type);
+                        } catch (Throwable e) {
+                            // XXX: fix that
+                            throw new RuntimeException(e);
+                        }
+                    }
+                };
+                MethodHandle cacheLookup = MEGAMORPHIC_LOOKUP.bindTo(megamorphicCache);
+                cacheLookup = MethodHandles.dropArguments(cacheLookup,
+                        0, type.parameterList().subList(1, type.parameterCount()));
+                cacheLookup = cacheLookup.asType(type.changeReturnType(MethodHandle.class));
+                MethodHandle target = MethodHandles.foldArguments(MethodHandles.exactInvoker(type), cacheLookup);
+                setTarget(target);
+                return target.invokeWithArguments(callArgs);                    
             }
             
-            final MethodType type = type();
-            final MethodHandle target = lookup(flavor, name, args).asType(type);
+            final MethodHandle target = lookup(flavor, name, receiver, callArgs).asType(type);
 
-            MethodHandle test = CHECK_CLASS.bindTo(args[0].getClass());
+            MethodHandle test = CHECK_CLASS.bindTo(receiver);
             test = test.asType(test.type().changeParameterType(0, type.parameterType(0)));
 
             MethodHandle guard = MethodHandles.guardWithTest(test, target, getTarget());
@@ -164,18 +185,24 @@ public final class DefBootstrap {
             depth++;
 
             setTarget(guard);
-            return target.invokeWithArguments(args);
+            return target.invokeWithArguments(callArgs);
         }
 
         private static final MethodHandle CHECK_CLASS;
         private static final MethodHandle FALLBACK;
+        private static final MethodHandle MEGAMORPHIC_LOOKUP;
         static {
             final Lookup lookup = MethodHandles.lookup();
             try {
                 CHECK_CLASS = lookup.findStatic(lookup.lookupClass(), "checkClass",
                                               MethodType.methodType(boolean.class, Class.class, Object.class));
                 FALLBACK = lookup.findVirtual(lookup.lookupClass(), "fallback",
-                                              MethodType.methodType(Object.class, Object[].class));
+                        MethodType.methodType(Object.class, Object[].class));
+                MethodHandle mh = MethodHandles.publicLookup().findVirtual(ClassValue.class, "get",
+                        MethodType.methodType(Object.class, Class.class));
+                mh = MethodHandles.filterArguments(mh, 1, 
+                        MethodHandles.publicLookup().findVirtual(Object.class, "getClass", MethodType.methodType(Class.class)));
+                MEGAMORPHIC_LOOKUP = mh;
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);
             }

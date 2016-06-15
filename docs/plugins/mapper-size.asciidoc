@@ -52,8 +52,7 @@ PUT my_index
 --------------------------
 // CONSOLE
 
-The value of the `_size` field is accessible in queries, aggregations, scripts,
-and when sorting:
+The value of the `_size` field is accessible in queries:
 
 [source,js]
 --------------------------
@@ -76,33 +75,10 @@ GET my_index/_search
         "gt": 10
       }
     }
-  },
-  "aggs": {
-    "Sizes": {
-      "terms": {
-        "field": "_size", <2>
-        "size": 10
-      }
-    }
-  },
-  "sort": [
-    {
-      "_size": { <3>
-        "order": "desc"
-      }
-    }
-  ],
-  "script_fields": {
-    "Size": {
-      "script": "doc['_size']"  <4>
-    }
   }
 }
 --------------------------
 // CONSOLE
+// TEST[continued]
 
 <1> Querying on the `_size` field
-<2> Aggregating on the `_size` field
-<3> Sorting on the `_size` field
-<4> Accessing the `_size` field in scripts (inline scripts must be modules-security-scripting.html#enable-dynamic-scripting[enabled] for this example to work)
-

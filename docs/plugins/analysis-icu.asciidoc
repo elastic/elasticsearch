@@ -161,6 +161,8 @@ PUT icu_sample
     }
 }
 
+GET _cluster/health?wait_for_status=yellow
+
 POST icu_sample/_analyze?analyzer=my_analyzer&text=Elasticsearch. Wow!
 --------------------------------------------------
 // CONSOLE
@@ -169,7 +171,6 @@ The above `analyze` request returns the following:
 
 [source,js]
 --------------------------------------------------
-# Result
 {
    "tokens": [
       {
@@ -182,7 +183,7 @@ The above `analyze` request returns the following:
    ]
 }
 --------------------------------------------------
-
+// TESTRESPONSE
 
 [[analysis-icu-normalization]]
 ==== ICU Normalization Token Filter
@@ -253,7 +254,7 @@ PUT icu_sample
       "analysis": {
         "analyzer": {
           "folded": {
-            "tokenizer": "icu",
+            "tokenizer": "icu_tokenizer",
             "filter": [
               "icu_folding"
             ]
@@ -358,6 +359,8 @@ PUT /my_index
     }
   }
 }
+
+GET _cluster/health?wait_for_status=yellow
 
 GET _search <3>
 {
@@ -477,6 +480,8 @@ PUT icu_sample
     }
   }
 }
+
+GET _cluster/health?wait_for_status=yellow
 
 GET icu_sample/_analyze?analyzer=latin
 {

@@ -134,7 +134,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
     private final BigArrays bigArrays;
 
-    private final DfsPhase dfsPhase;
+    private final DfsPhase dfsPhase = new DfsPhase();
 
     private final QueryPhase queryPhase;
 
@@ -158,8 +158,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
     @Inject
     public SearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService, IndicesService indicesService,
-                         ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, DfsPhase dfsPhase,
-                         QueryPhase queryPhase, FetchPhase fetchPhase, AggregatorParsers aggParsers, Suggesters suggesters) {
+                         ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays,
+                          FetchPhase fetchPhase, AggregatorParsers aggParsers, Suggesters suggesters) {
         super(settings);
         this.aggParsers = aggParsers;
         this.suggesters = suggesters;
@@ -169,8 +169,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.bigArrays = bigArrays;
-        this.dfsPhase = dfsPhase;
-        this.queryPhase = queryPhase;
+        this.queryPhase = new QueryPhase(settings);
         this.fetchPhase = fetchPhase;
 
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
@@ -257,8 +256,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     /**
      * Try to load the query results from the cache or execute the query phase directly if the cache cannot be used.
      */
-    private void loadOrExecuteQueryPhase(final ShardSearchRequest request, final SearchContext context,
-            final QueryPhase queryPhase) throws Exception {
+    private void loadOrExecuteQueryPhase(final ShardSearchRequest request, final SearchContext context) throws Exception {
         final boolean canCache = indicesService.canCache(request, context);
         if (canCache) {
             indicesService.loadIntoContext(request, context, queryPhase);
@@ -275,7 +273,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             long time = System.nanoTime();
             contextProcessing(context);
 
-            loadOrExecuteQueryPhase(request, context, queryPhase);
+            loadOrExecuteQueryPhase(request, context);
 
             if (context.queryResult().topDocs().scoreDocs.length == 0 && context.scrollContext() == null) {
                 freeContext(context.id());
@@ -367,7 +365,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             operationListener.onPreQueryPhase(context);
             long time = System.nanoTime();
             try {
-                loadOrExecuteQueryPhase(request, context, queryPhase);
+                loadOrExecuteQueryPhase(request, context);
             } catch (Throwable e) {
                 operationListener.onFailedQueryPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
@@ -826,9 +824,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             if (context.scrollContext() == null) {
                 throw new SearchContextException(context, "`slice` cannot be used outside of a scroll context");
             }
-            context.sliceFilter(source.slice().toFilter(queryShardContext,
-                context.shardTarget().getShardId().getId(),
-                queryShardContext.getIndexSettings().getNumberOfShards()));
+            context.sliceBuilder(source.slice());
         }
     }
 

@@ -22,7 +22,6 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
-import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -36,15 +35,7 @@ import java.util.Deque;
 import java.util.List;
 
 import static org.elasticsearch.painless.WriterConstants.CHAR_TO_STRING;
-import static org.elasticsearch.painless.WriterConstants.DEF_ADD_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_AND_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_DIV_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_LSH_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_MUL_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_OR_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_REM_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_RSH_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_SUB_CALL;
+import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_BOOLEAN;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_BYTE_EXPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_BYTE_IMPLICIT;
@@ -60,9 +51,7 @@ import static org.elasticsearch.painless.WriterConstants.DEF_TO_LONG_EXPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_LONG_IMPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_EXPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_USH_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
-import static org.elasticsearch.painless.WriterConstants.DEF_XOR_CALL;
 import static org.elasticsearch.painless.WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.MAX_INDY_STRING_CONCAT_ARGS;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
@@ -88,25 +77,16 @@ import static org.elasticsearch.painless.WriterConstants.UTILITY_TYPE;
  * shared by the nodes of the Painless tree.
  */
 public final class MethodWriter extends GeneratorAdapter {
-    private final ClassWriter parent;
     private final BitSet statements;
 
-    private final Deque<List<org.objectweb.asm.Type>> stringConcatArgs = (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ?
-            null : new ArrayDeque<>();
+    private final Deque<List<org.objectweb.asm.Type>> stringConcatArgs =
+        (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ?  null : new ArrayDeque<>();
 
-    MethodWriter(int access, Method method, ClassWriter cw, BitSet statements) {
+    public MethodWriter(int access, Method method, ClassWriter cw, BitSet statements) {
         super(Opcodes.ASM5, cw.visitMethod(access, method.getName(), method.getDescriptor(), null, null),
                 access, method.getName(), method.getDescriptor());
 
-        this.parent = cw;
         this.statements = statements;
-    }
-
-    /**
-     * @return A new {@link MethodWriter} with the specified access and signature.
-     */
-    MethodWriter newMethodWriter(int access, Method method) {
-        return new MethodWriter(access, method, parent, statements);
     }
 
     /**
@@ -282,6 +262,51 @@ public final class MethodWriter extends GeneratorAdapter {
         }
     }
 
+    /** Writes a dynamic binary instruction: returnType, lhs, and rhs can be different */
+    public void writeDynamicBinaryInstruction(Location location, Type returnType, Type lhs, Type rhs, Operation operation) {
+        org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(returnType.type, lhs.type, rhs.type);
+        String descriptor = methodType.getDescriptor();
+        
+        switch (operation) {
+            case MUL:
+                invokeDynamic("mul", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                break;
+            case DIV:
+                invokeDynamic("div", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                break;
+            case REM:
+                invokeDynamic("rem", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                break;
+            case ADD:
+                invokeDynamic("add", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                break;
+            case SUB:
+                invokeDynamic("sub", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                break;
+            case LSH:
+                invokeDynamic("lsh", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
+                break;
+            case USH:
+                invokeDynamic("ush", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
+                break;
+            case RSH:
+                invokeDynamic("rsh", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
+                break;
+            case BWAND: 
+                invokeDynamic("and", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                break;
+            case XOR:   
+                invokeDynamic("xor", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                break;
+            case BWOR:  
+                invokeDynamic("or", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                break;
+            default:
+                throw location.createError(new IllegalStateException("Illegal tree structure."));
+        }
+    }
+    
+    /** Writes a static binary instruction */
     public void writeBinaryInstruction(Location location, Type type, Operation operation) {
         final Sort sort = type.sort;
 
@@ -292,38 +317,20 @@ public final class MethodWriter extends GeneratorAdapter {
             throw location.createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        if (sort == Sort.DEF) {
-            switch (operation) {
-                case MUL:   invokeStatic(DEF_UTIL_TYPE, DEF_MUL_CALL); break;
-                case DIV:   invokeStatic(DEF_UTIL_TYPE, DEF_DIV_CALL); break;
-                case REM:   invokeStatic(DEF_UTIL_TYPE, DEF_REM_CALL); break;
-                case ADD:   invokeStatic(DEF_UTIL_TYPE, DEF_ADD_CALL); break;
-                case SUB:   invokeStatic(DEF_UTIL_TYPE, DEF_SUB_CALL); break;
-                case LSH:   invokeStatic(DEF_UTIL_TYPE, DEF_LSH_CALL); break;
-                case USH:   invokeStatic(DEF_UTIL_TYPE, DEF_RSH_CALL); break;
-                case RSH:   invokeStatic(DEF_UTIL_TYPE, DEF_USH_CALL); break;
-                case BWAND: invokeStatic(DEF_UTIL_TYPE, DEF_AND_CALL); break;
-                case XOR:   invokeStatic(DEF_UTIL_TYPE, DEF_XOR_CALL); break;
-                case BWOR:  invokeStatic(DEF_UTIL_TYPE, DEF_OR_CALL);  break;
-                default:
-                    throw location.createError(new IllegalStateException("Illegal tree structure."));
-            }
-        } else {
-            switch (operation) {
-                case MUL:   math(GeneratorAdapter.MUL,  type.type); break;
-                case DIV:   math(GeneratorAdapter.DIV,  type.type); break;
-                case REM:   math(GeneratorAdapter.REM,  type.type); break;
-                case ADD:   math(GeneratorAdapter.ADD,  type.type); break;
-                case SUB:   math(GeneratorAdapter.SUB,  type.type); break;
-                case LSH:   math(GeneratorAdapter.SHL,  type.type); break;
-                case USH:   math(GeneratorAdapter.USHR, type.type); break;
-                case RSH:   math(GeneratorAdapter.SHR,  type.type); break;
-                case BWAND: math(GeneratorAdapter.AND,  type.type); break;
-                case XOR:   math(GeneratorAdapter.XOR,  type.type); break;
-                case BWOR:  math(GeneratorAdapter.OR,   type.type); break;
-                default:
-                    throw location.createError(new IllegalStateException("Illegal tree structure."));
-            }
+        switch (operation) {
+            case MUL:   math(GeneratorAdapter.MUL,  type.type); break;
+            case DIV:   math(GeneratorAdapter.DIV,  type.type); break;
+            case REM:   math(GeneratorAdapter.REM,  type.type); break;
+            case ADD:   math(GeneratorAdapter.ADD,  type.type); break;
+            case SUB:   math(GeneratorAdapter.SUB,  type.type); break;
+            case LSH:   math(GeneratorAdapter.SHL,  type.type); break;
+            case USH:   math(GeneratorAdapter.USHR, type.type); break;
+            case RSH:   math(GeneratorAdapter.SHR,  type.type); break;
+            case BWAND: math(GeneratorAdapter.AND,  type.type); break;
+            case XOR:   math(GeneratorAdapter.XOR,  type.type); break;
+            case BWOR:  math(GeneratorAdapter.OR,   type.type); break;
+            default:
+                throw location.createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
@@ -356,11 +363,16 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     @Override
-    public void visitEnd() {
+    public void endMethod() {
         if (stringConcatArgs != null && !stringConcatArgs.isEmpty()) {
             throw new IllegalStateException("String concat bytecode not completed.");
         }
-        super.visitEnd();
+        super.endMethod();
+    }
+
+    @Override
+    public void visitEnd() {
+        throw new AssertionError("Should never call this method on MethodWriter, use endMethod() instead");
     }
 
 }

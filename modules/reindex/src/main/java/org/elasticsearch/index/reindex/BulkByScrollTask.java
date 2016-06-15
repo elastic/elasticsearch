@@ -168,10 +168,10 @@ public class BulkByScrollTask extends CancellableTask {
             noops = in.readVLong();
             bulkRetries = in.readVLong();
             searchRetries = in.readVLong();
-            throttled = TimeValue.readTimeValue(in);
+            throttled = new TimeValue(in);
             requestsPerSecond = in.readFloat();
             reasonCancelled = in.readOptionalString();
-            throttledUntil = TimeValue.readTimeValue(in);
+            throttledUntil = new TimeValue(in);
         }
 
         @Override

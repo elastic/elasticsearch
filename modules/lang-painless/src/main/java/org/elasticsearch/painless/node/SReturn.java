@@ -19,9 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -38,11 +37,11 @@ public final class SReturn extends AStatement {
     }
 
     @Override
-    void analyze(Variables variables) {
-        expression.expected = Definition.OBJECT_TYPE;
+    void analyze(Locals locals) {
+        expression.expected = locals.getReturnType();
         expression.internal = true;
-        expression.analyze(variables);
-        expression = expression.cast(variables);
+        expression.analyze(locals);
+        expression = expression.cast(locals);
 
         methodEscape = true;
         loopEscape = true;

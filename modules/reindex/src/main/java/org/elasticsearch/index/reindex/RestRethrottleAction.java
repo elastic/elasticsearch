@@ -19,7 +19,10 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -30,14 +33,18 @@ import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.tasks.TaskId;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.action.admin.cluster.node.tasks.RestListTasksAction.nodeSettingListener;
 
 public class RestRethrottleAction extends BaseRestHandler {
     private final TransportRethrottleAction action;
+    private final ClusterService clusterService;
 
     @Inject
-    public RestRethrottleAction(Settings settings, RestController controller, Client client, TransportRethrottleAction action) {
+    public RestRethrottleAction(Settings settings, RestController controller, Client client, TransportRethrottleAction action,
+            ClusterService clusterService) {
         super(settings, client);
         this.action = action;
+        this.clusterService = clusterService;
         controller.registerHandler(POST, "/_update_by_query/{taskId}/_rethrottle", this);
         controller.registerHandler(POST, "/_delete_by_query/{taskId}/_rethrottle", this);
         controller.registerHandler(POST, "/_reindex/{taskId}/_rethrottle", this);
@@ -52,6 +59,7 @@ public class RestRethrottleAction extends BaseRestHandler {
             throw new IllegalArgumentException("requests_per_second is a required parameter");
         }
         internalRequest.setRequestsPerSecond(requestsPerSecond);
-        action.execute(internalRequest, new RestToXContentListener<>(channel));
+        ActionListener<ListTasksResponse> listener = nodeSettingListener(clusterService, new RestToXContentListener<>(channel));
+        action.execute(internalRequest, listener);
     }
 }

@@ -24,14 +24,13 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
 
-import static org.elasticsearch.painless.WriterConstants.DEF_NEG_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_NOT_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
+import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 
 /**
  * Represents a unary math expression.
@@ -40,6 +39,7 @@ public final class EUnary extends AExpression {
 
     final Operation operation;
     AExpression child;
+    Type promote;
 
     public EUnary(Location location, Operation operation, AExpression child) {
         super(location);
@@ -49,21 +49,21 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         if (operation == Operation.NOT) {
-            analyzeNot(variables);
+            analyzeNot(locals);
         } else if (operation == Operation.BWNOT) {
-            analyzeBWNot(variables);
+            analyzeBWNot(locals);
         } else if (operation == Operation.ADD) {
-            analyzerAdd(variables);
+            analyzerAdd(locals);
         } else if (operation == Operation.SUB) {
-            analyzerSub(variables);
+            analyzerSub(locals);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
-    void analyzeNot(Variables variables) {
+    void analyzeNot(Locals variables) {
         child.expected = Definition.BOOLEAN_TYPE;
         child.analyze(variables);
         child = child.cast(variables);
@@ -75,10 +75,10 @@ public final class EUnary extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    void analyzeBWNot(Variables variables) {
+    void analyzeBWNot(Locals variables) {
         child.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteNumeric(child.actual, false);
+        promote = AnalyzerCaster.promoteNumeric(child.actual, false);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply not [~] to type [" + child.actual.name + "]."));
@@ -99,13 +99,17 @@ public final class EUnary extends AExpression {
             }
         }
 
-        actual = promote;
+        if (promote.sort == Sort.DEF && expected != null) {
+            actual = expected;
+        } else {
+            actual = promote;
+        }
     }
 
-    void analyzerAdd(Variables variables) {
+    void analyzerAdd(Locals variables) {
         child.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteNumeric(child.actual, true);
+        promote = AnalyzerCaster.promoteNumeric(child.actual, true);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply positive [+] to type [" + child.actual.name + "]."));
@@ -130,13 +134,17 @@ public final class EUnary extends AExpression {
             }
         }
 
-        actual = promote;
+        if (promote.sort == Sort.DEF && expected != null) {
+            actual = expected;
+        } else {
+            actual = promote;
+        }
     }
 
-    void analyzerSub(Variables variables) {
+    void analyzerSub(Locals variables) {
         child.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteNumeric(child.actual, true);
+        promote = AnalyzerCaster.promoteNumeric(child.actual, true);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply negative [-] to type [" + child.actual.name + "]."));
@@ -161,7 +169,11 @@ public final class EUnary extends AExpression {
             }
         }
 
-        actual = promote;
+        if (promote.sort == Sort.DEF && expected != null) {
+            actual = expected;
+        } else {
+            actual = promote;
+        }
     }
 
     @Override
@@ -187,14 +199,13 @@ public final class EUnary extends AExpression {
                 child.write(writer);
             }
         } else {
-            org.objectweb.asm.Type type = actual.type;
-            Sort sort = actual.sort;
-
+            Sort sort = promote.sort;
             child.write(writer);
 
             if (operation == Operation.BWNOT) {
                 if (sort == Sort.DEF) {
-                    writer.invokeStatic(DEF_UTIL_TYPE, DEF_NOT_CALL);
+                    org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actual.type, child.actual.type);
+                    writer.invokeDynamic("not", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.UNARY_OPERATOR);
                 } else {
                     if (sort == Sort.INT) {
                         writer.push(-1);
@@ -204,15 +215,21 @@ public final class EUnary extends AExpression {
                         throw createError(new IllegalStateException("Illegal tree structure."));
                     }
 
-                    writer.math(MethodWriter.XOR, type);
+                    writer.math(MethodWriter.XOR, actual.type);
                 }
             } else if (operation == Operation.SUB) {
                 if (sort == Sort.DEF) {
-                    writer.invokeStatic(DEF_UTIL_TYPE, DEF_NEG_CALL);
+                    org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actual.type, child.actual.type);
+                    writer.invokeDynamic("neg", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.UNARY_OPERATOR);
                 } else {
-                    writer.math(MethodWriter.NEG, type);
+                    writer.math(MethodWriter.NEG, actual.type);
                 }
-            } else if (operation != Operation.ADD) {
+            } else if (operation == Operation.ADD) {
+                if (sort == Sort.DEF) {
+                    org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actual.type, child.actual.type);
+                    writer.invokeDynamic("plus", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.UNARY_OPERATOR);
+                } 
+            } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
 

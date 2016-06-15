@@ -49,13 +49,83 @@ public class FunctionRef {
     public final Handle implMethodASM;
     
     /**
-     * Creates a new FunctionRef.
+     * Creates a new FunctionRef, which will resolve {@code type::call} from the whitelist.
      * @param expected interface type to implement.
      * @param type the left hand side of a method reference expression
      * @param call the right hand side of a method reference expression
+     * @param captures captured arguments
+     */    
+    public FunctionRef(Definition.Type expected, String type, String call, Class<?>... captures) {
+        this(expected, expected.struct.getFunctionalMethod(), lookup(expected, type, call, captures.length > 0), captures);
+    }
+
+    /**
+     * Creates a new FunctionRef (already resolved)
+     * @param expected interface type to implement
+     * @param method functional interface method
+     * @param impl implementation method
+     * @param captures captured arguments
+     */   
+    public FunctionRef(Definition.Type expected, Definition.Method method, Definition.Method impl, Class<?>... captures) {
+        // e.g. compareTo
+        invokedName = method.name;
+        // e.g. (Object)Comparator
+        invokedType = MethodType.methodType(expected.clazz, captures);
+        // e.g. (Object,Object)int
+        interfaceMethodType = method.getMethodType().dropParameterTypes(0, 1);
+
+        final int tag;
+        if ("<init>".equals(impl.name)) {
+            tag = Opcodes.H_NEWINVOKESPECIAL;
+        } else if (Modifier.isStatic(impl.modifiers)) {
+            tag = Opcodes.H_INVOKESTATIC;
+        } else if (impl.owner.clazz.isInterface()) {
+            tag = Opcodes.H_INVOKEINTERFACE;
+        } else {
+            tag = Opcodes.H_INVOKEVIRTUAL;
+        }
+        final String owner;
+        final boolean ownerIsInterface;
+        if (impl.owner == null) {
+            // owner == null: script class itself
+            ownerIsInterface = false;
+            owner = WriterConstants.CLASS_TYPE.getInternalName();
+        } else {
+            ownerIsInterface = impl.owner.clazz.isInterface();
+            owner = impl.owner.type.getInternalName();
+        }
+        implMethodASM = new Handle(tag, owner, impl.name, impl.method.getDescriptor(), ownerIsInterface);
+        implMethod = impl.handle;
+        
+        // remove any prepended captured arguments for the 'natural' signature.
+        samMethodType = impl.getMethodType().dropParameterTypes(0, captures.length);
+    }
+
+    /**
+     * Creates a new FunctionRef (low level). 
+     * <p>
+     * This will <b>not</b> set implMethodASM. It is for runtime use only.
      */
-    public FunctionRef(Definition.Type expected, String type, String call) {
-        boolean isCtorReference = "new".equals(call);
+    public FunctionRef(Definition.Type expected, Definition.Method method, MethodHandle impl, Class<?>... captures) {
+        // e.g. compareTo
+        invokedName = method.name;
+        // e.g. (Object)Comparator
+        invokedType = MethodType.methodType(expected.clazz, captures);
+        // e.g. (Object,Object)int
+        interfaceMethodType = method.getMethodType().dropParameterTypes(0, 1);
+
+        implMethod = impl;
+        
+        implMethodASM = null;
+        
+        // remove any prepended captured arguments for the 'natural' signature.
+        samMethodType = impl.type().dropParameterTypes(0, captures.length);
+    }
+
+    /** 
+     * Looks up {@code type::call} from the whitelist, and returns a matching method.
+     */
+    private static Definition.Method lookup(Definition.Type expected, String type, String call, boolean receiverCaptured) {
         // check its really a functional interface
         // for e.g. Comparable
         Method method = expected.struct.getFunctionalMethod();
@@ -63,24 +133,27 @@ public class FunctionRef {
             throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                "to [" + expected.name + "], not a functional interface");
         }
-        // e.g. compareTo
-        invokedName = method.name;
-        // e.g. (Object)Comparator
-        invokedType = MethodType.methodType(expected.clazz);
-        // e.g. (Object,Object)int
-        interfaceMethodType = method.handle.type().dropParameterTypes(0, 1);
+
         // lookup requested method
         Definition.Struct struct = Definition.getType(type).struct;
         final Definition.Method impl;
         // ctor ref
-        if (isCtorReference) {
+        if ("new".equals(call)) {
             impl = struct.constructors.get(new Definition.MethodKey("<init>", method.arguments.size()));
         } else {
             // look for a static impl first
             Definition.Method staticImpl = struct.staticMethods.get(new Definition.MethodKey(call, method.arguments.size()));
             if (staticImpl == null) {
                 // otherwise a virtual impl
-                impl = struct.methods.get(new Definition.MethodKey(call, method.arguments.size()-1));
+                final int arity;
+                if (receiverCaptured) {
+                    // receiver captured
+                    arity = method.arguments.size();
+                } else {
+                    // receiver passed
+                    arity = method.arguments.size() - 1;
+                }
+                impl = struct.methods.get(new Definition.MethodKey(call, arity));
             } else {
                 impl = staticImpl;
             }
@@ -89,27 +162,9 @@ public class FunctionRef {
             throw new IllegalArgumentException("Unknown reference [" + type + "::" + call + "] matching " +
                                                "[" + expected + "]");
         }
-        
-        final int tag;
-        if (isCtorReference) {
-            tag = Opcodes.H_NEWINVOKESPECIAL;
-        } else if (Modifier.isStatic(impl.modifiers)) {
-            tag = Opcodes.H_INVOKESTATIC;
-        } else {
-            tag = Opcodes.H_INVOKEVIRTUAL;
-        }
-        implMethodASM = new Handle(tag, struct.type.getInternalName(), impl.name, impl.method.getDescriptor());
-        implMethod = impl.handle;
-        if (isCtorReference) {
-            samMethodType = MethodType.methodType(interfaceMethodType.returnType(), impl.handle.type().parameterArray());
-        } else if (Modifier.isStatic(impl.modifiers)) {
-            samMethodType = impl.handle.type();
-        } else {
-            // ensure the receiver type is exact and not a superclass type
-            samMethodType = impl.handle.type().changeParameterType(0, struct.clazz);
-        }
+        return impl;
     }
-    
+
     /** Returns true if you should ask LambdaMetaFactory to construct a bridge for the interface signature */
     public boolean needsBridges() {
         // currently if the interface differs, we ask for a bridge, but maybe we should do smarter checking?

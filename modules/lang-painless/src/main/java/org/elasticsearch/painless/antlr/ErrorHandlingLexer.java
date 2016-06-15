@@ -33,6 +33,8 @@ final class ErrorHandlingLexer extends PainlessLexer {
     ErrorHandlingLexer(CharStream charStream, String sourceName) {
         super(charStream);
         this.sourceName = sourceName;
+        // Replace the TokenFactory with a stashing wrapper so we can do token-level lookbehind for regex detection
+        _factory = new StashingTokenFactory<>(_factory);
     }
 
     @Override

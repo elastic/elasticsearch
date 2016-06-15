@@ -1,5 +1,4 @@
 /*
-/*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
@@ -46,6 +45,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.SortedSet;
@@ -125,6 +125,44 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
             createRepo("unsupportedrepo", version, repo);
             assertUnsupportedIndexFailsToRestore(repo, snapshot);
         }
+    }
+
+    public void testRestoreSnapshotWithMissingChecksum() throws Exception {
+        final String repo = "test_repo";
+        final String snapshot = "test_1";
+        final String indexName = "index-2.3.4";
+        final String repoFileId = "missing-checksum-repo-2.3.4";
+        Path repoFile = getBwcIndicesPath().resolve(repoFileId + ".zip");
+        URI repoFileUri = repoFile.toUri();
+        URI repoJarUri = new URI("jar:" + repoFileUri.toString() + "!/repo/");
+        logger.info("-->  creating repository [{}] for repo file [{}]", repo, repoFileId);
+        assertAcked(client().admin().cluster().preparePutRepository(repo)
+                                              .setType("url")
+                                              .setSettings(Settings.builder().put("url", repoJarUri.toString())));
+
+        logger.info("--> get snapshot and check its indices");
+        GetSnapshotsResponse getSnapshotsResponse = client().admin().cluster().prepareGetSnapshots(repo).setSnapshots(snapshot).get();
+        assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(1));
+        SnapshotInfo snapshotInfo = getSnapshotsResponse.getSnapshots().get(0);
+        assertThat(snapshotInfo.indices(), equalTo(Arrays.asList(indexName)));
+
+        logger.info("--> restoring snapshot");
+        RestoreSnapshotResponse response = client().admin().cluster().prepareRestoreSnapshot(repo, snapshot).setRestoreGlobalState(true).setWaitForCompletion(true).get();
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        RestoreInfo restoreInfo = response.getRestoreInfo();
+        assertThat(restoreInfo.successfulShards(), greaterThan(0));
+        assertThat(restoreInfo.successfulShards(), equalTo(restoreInfo.totalShards()));
+        assertThat(restoreInfo.failedShards(), equalTo(0));
+        String index = restoreInfo.indices().get(0);
+        assertThat(index, equalTo(indexName));
+
+        logger.info("--> check search");
+        SearchResponse searchResponse = client().prepareSearch(index).get();
+        assertThat(searchResponse.getHits().totalHits(), greaterThan(0L));
+
+        logger.info("--> cleanup");
+        cluster().wipeIndices(restoreInfo.indices().toArray(new String[restoreInfo.indices().size()]));
+        cluster().wipeTemplates();
     }
 
     private List<String> repoVersions() throws Exception {

@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
@@ -42,7 +42,7 @@ public final class LBrace extends ALink {
     }
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
         if (before == null) {
             throw createError(new IllegalArgumentException("Illegal array access made without target."));
         }
@@ -51,18 +51,18 @@ public final class LBrace extends ALink {
 
         if (sort == Sort.ARRAY) {
             index.expected = Definition.INT_TYPE;
-            index.analyze(variables);
-            index = index.cast(variables);
+            index.analyze(locals);
+            index = index.cast(locals);
 
             after = Definition.getType(before.struct, before.dimensions - 1);
 
             return this;
         } else if (sort == Sort.DEF) {
-            return new LDefArray(location, index).copy(this).analyze(variables);
+            return new LDefArray(location, index).copy(this).analyze(locals);
         } else if (Map.class.isAssignableFrom(before.clazz)) {
-            return new LMapShortcut(location, index).copy(this).analyze(variables);
+            return new LMapShortcut(location, index).copy(this).analyze(locals);
         } else if (List.class.isAssignableFrom(before.clazz)) {
-            return new LListShortcut(location, index).copy(this).analyze(variables);
+            return new LListShortcut(location, index).copy(this).analyze(locals);
         }
 
         throw createError(new IllegalArgumentException("Illegal array access on type [" + before.name + "]."));

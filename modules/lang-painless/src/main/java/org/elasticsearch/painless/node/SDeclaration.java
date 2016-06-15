@@ -22,8 +22,8 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.Variables.Variable;
+import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Locals.Variable;
 import org.objectweb.asm.Opcodes;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -47,7 +47,7 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         final Type type;
 
         try {
@@ -58,11 +58,11 @@ public final class SDeclaration extends AStatement {
 
         if (expression != null) {
             expression.expected = type;
-            expression.analyze(variables);
-            expression = expression.cast(variables);
+            expression.analyze(locals);
+            expression = expression.cast(locals);
         }
 
-        variable = variables.addVariable(location, type, name, false, false);
+        variable = locals.addVariable(location, type, name, false, false);
     }
 
     @Override

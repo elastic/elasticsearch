@@ -27,8 +27,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public abstract class BaseXContentTestCase extends ESTestCase {
 
     public abstract XContentType xcontentType();
@@ -136,5 +134,26 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertEquals(Token.VALUE_NULL, parser.nextToken());
         assertEquals(Token.END_OBJECT, parser.nextToken());
         assertNull(parser.nextToken());
+
+        os = new ByteArrayOutputStream();
+        try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
+            generator.writeStartObject();
+            generator.writeFieldName("test");
+            generator.writeRawValue(new BytesArray(rawData));
+            generator.writeEndObject();
+        }
+
+        parser = xcontentType().xContent().createParser(os.toByteArray());
+        assertEquals(Token.START_OBJECT, parser.nextToken());
+        assertEquals(Token.FIELD_NAME, parser.nextToken());
+        assertEquals("test", parser.currentName());
+        assertEquals(Token.START_OBJECT, parser.nextToken());
+        assertEquals(Token.FIELD_NAME, parser.nextToken());
+        assertEquals("foo", parser.currentName());
+        assertEquals(Token.VALUE_NULL, parser.nextToken());
+        assertEquals(Token.END_OBJECT, parser.nextToken());
+        assertEquals(Token.END_OBJECT, parser.nextToken());
+        assertNull(parser.nextToken());
+
     }
 }

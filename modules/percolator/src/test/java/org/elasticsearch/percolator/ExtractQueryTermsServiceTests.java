@@ -32,6 +32,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
@@ -360,6 +361,28 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         BooleanQuery bq2 = builder.build();
         UnsupportedQueryException e = expectThrows(UnsupportedQueryException.class, () -> extractQueryTerms(bq2));
         assertThat(e.getUnsupportedQuery(), sameInstance(unsupportedQuery));
+    }
+
+    public void testExtractQueryMetadata_disjunctionMaxQuery() {
+        TermQuery termQuery1 = new TermQuery(new Term("_field", "_term1"));
+        TermQuery termQuery2 = new TermQuery(new Term("_field", "_term2"));
+        TermQuery termQuery3 = new TermQuery(new Term("_field", "_term3"));
+        TermQuery termQuery4 = new TermQuery(new Term("_field", "_term4"));
+        DisjunctionMaxQuery disjunctionMaxQuery = new DisjunctionMaxQuery(
+                Arrays.asList(termQuery1, termQuery2, termQuery3, termQuery4), 0.1f
+        );
+
+        List<Term> terms = new ArrayList<>(extractQueryTerms(disjunctionMaxQuery));
+        Collections.sort(terms);
+        assertThat(terms.size(), equalTo(4));
+        assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
+        assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
+        assertThat(terms.get(1).field(), equalTo(termQuery2.getTerm().field()));
+        assertThat(terms.get(1).bytes(), equalTo(termQuery2.getTerm().bytes()));
+        assertThat(terms.get(2).field(), equalTo(termQuery3.getTerm().field()));
+        assertThat(terms.get(2).bytes(), equalTo(termQuery3.getTerm().bytes()));
+        assertThat(terms.get(3).field(), equalTo(termQuery4.getTerm().field()));
+        assertThat(terms.get(3).bytes(), equalTo(termQuery4.getTerm().bytes()));
     }
 
     public void testCreateQueryMetadataQuery() throws Exception {

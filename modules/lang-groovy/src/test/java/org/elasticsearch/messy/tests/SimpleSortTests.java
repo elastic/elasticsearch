@@ -23,6 +23,7 @@ package org.elasticsearch.messy.tests;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -41,7 +42,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-import static org.apache.lucene.spatial.util.GeoEncodingUtils.TOLERANCE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -218,7 +218,7 @@ public class SimpleSortTests extends ESIntegTestCase {
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(20L));
         for (int i = 0; i < 10; i++) {
-            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Double) searchResponse.getHits().getAt(i).field("min").value(), closeTo(i, TOLERANCE));
+            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Double) searchResponse.getHits().getAt(i).field("min").value(), closeTo(i, GeoUtils.TOLERANCE));
         }
     }
 

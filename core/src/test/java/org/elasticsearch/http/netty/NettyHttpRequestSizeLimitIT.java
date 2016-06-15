@@ -29,12 +29,12 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.jboss.netty.handler.codec.http.HttpResponse;
 import org.jboss.netty.handler.codec.http.HttpResponseStatus;
 
 import java.util.Collection;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -54,7 +54,6 @@ public class NettyHttpRequestSizeLimitIT extends ESIntegTestCase {
             .build();
     }
 
-    @TestLogging("_root:DEBUG,org.elasticsearch.common.breaker:TRACE,org.elasticsearch.test:TRACE,org.elasticsearch.transport:TRACE")
     public void testLimitsInFlightRequests() throws Exception {
         ensureGreen();
 
@@ -90,9 +89,36 @@ public class NettyHttpRequestSizeLimitIT extends ESIntegTestCase {
         }
     }
 
-    private void assertAtLeastOnceExpectedStatus(Collection<HttpResponse> responses, HttpResponseStatus expectedStatus) {
-        long countResponseErrors = responses.stream().filter(r -> r.getStatus().equals(expectedStatus)).count();
-        assertThat(countResponseErrors, greaterThan(0L));
+    @AwaitsFix(bugUrl = "muted while investigating")
+    public void testDoesNotLimitExcludedRequests() throws Exception {
+        ensureGreen();
 
+        @SuppressWarnings("unchecked")
+        Tuple<String, CharSequence>[] requestUris = new Tuple[1500];
+        for (int i = 0; i < requestUris.length; i++) {
+            requestUris[i] = Tuple.tuple("/_cluster/settings",
+                "{ \"transient\": {\"indices.ttl.interval\": \"40s\" } }");
+        }
+
+        HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
+        InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress
+            ().boundAddresses());
+
+        try (NettyHttpClient nettyHttpClient = new NettyHttpClient()) {
+            Collection<HttpResponse> responses = nettyHttpClient.put(inetSocketTransportAddress.address(), requestUris);
+            assertThat(responses, hasSize(requestUris.length));
+            assertAllInExpectedStatus(responses, HttpResponseStatus.OK);
+        }
+    }
+
+    private void assertAtLeastOnceExpectedStatus(Collection<HttpResponse> responses, HttpResponseStatus expectedStatus) {
+        long countExpectedStatus = responses.stream().filter(r -> r.getStatus().equals(expectedStatus)).count();
+        assertThat("Expected at least one request with status [" + expectedStatus + "]", countExpectedStatus, greaterThan(0L));
+    }
+
+    private void assertAllInExpectedStatus(Collection<HttpResponse> responses, HttpResponseStatus expectedStatus) {
+        long countUnexpectedStatus = responses.stream().filter(r -> r.getStatus().equals(expectedStatus) == false).count();
+        assertThat("Expected all requests with status [" + expectedStatus + "] but [" + countUnexpectedStatus +
+            "] requests had a different one", countUnexpectedStatus, equalTo(0L));
     }
 }

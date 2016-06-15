@@ -71,6 +71,10 @@ against the `test2` index.
 The `search_type` can be set in a similar manner to globally apply to
 all search requests.
 
+The msearch's `max_concurrent_searches` request parameter can be used to control
+the maximum number of concurrent searches the multi search api will execute.
+This default is based on the number of data nodes and the default search thread pool size.
+
 [float]
 [[msearch-security]]
 === Security

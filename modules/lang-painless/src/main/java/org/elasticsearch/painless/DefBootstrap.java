@@ -241,19 +241,21 @@ public final class DefBootstrap {
             switch(flavor) {
                 case UNARY_OPERATOR:
                 case SHIFT_OPERATOR:
-                    if ((flags & OPERATOR_COMPOUND_ASSIGNMENT) != 0) {
-                        return lookupGeneric(); // XXX: optimize better.
-                    }
                     // shifts are treated as unary, as java allows long arguments without a cast (but bits are ignored)
-                    return DefMath.lookupUnary(args[0].getClass(), name);
-                case BINARY_OPERATOR:
+                    MethodHandle unary = DefMath.lookupUnary(args[0].getClass(), name);
                     if ((flags & OPERATOR_COMPOUND_ASSIGNMENT) != 0) {
-                        return lookupGeneric(); // XXX: optimize better.
+                        unary = DefMath.cast(args[0].getClass(), unary);
                     }
+                    return unary;
+                case BINARY_OPERATOR:
                     if (args[0] == null || args[1] == null) {
-                        return lookupGeneric(); // can handle nulls, if supported
+                        return lookupGeneric(); // can handle nulls, casts if supported
                     } else {
-                        return DefMath.lookupBinary(args[0].getClass(), args[1].getClass(), name);
+                        MethodHandle binary = DefMath.lookupBinary(args[0].getClass(), args[1].getClass(), name);
+                        if ((flags & OPERATOR_COMPOUND_ASSIGNMENT) != 0) {
+                            binary = DefMath.cast(args[0].getClass(), binary);
+                        }
+                        return binary;
                     }
                 default: throw new AssertionError();
             }

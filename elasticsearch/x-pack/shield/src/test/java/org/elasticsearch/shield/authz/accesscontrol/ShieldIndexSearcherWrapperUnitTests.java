@@ -133,7 +133,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
 
         FieldSubsetReader.FieldSubsetDirectoryReader result =
                 (FieldSubsetReader.FieldSubsetDirectoryReader) shieldIndexSearcherWrapper.wrap(esIn);
-        assertThat(result.getFieldNames().size(), equalTo(11));
+        assertThat(result.getFieldNames().size(), equalTo(12));
         assertThat(result.getFieldNames().contains("_uid"), is(true));
         assertThat(result.getFieldNames().contains("_id"), is(true));
         assertThat(result.getFieldNames().contains("_version"), is(true));
@@ -145,6 +145,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         assertThat(result.getFieldNames().contains("_ttl"), is(true));
         assertThat(result.getFieldNames().contains("_size"), is(true));
         assertThat(result.getFieldNames().contains("_index"), is(true));
+        assertThat(result.getFieldNames().contains("_field_names"), is(true));
         // _all contains actual user data and therefor can't be included by default
         assertThat(result.getFieldNames().contains("_all"), is(false));
     }
@@ -467,6 +468,16 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         @Override
         public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
             return new CreateScorerOnceWeight(query.createWeight(searcher, needsScores));
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return sameClassAs(obj) && query.equals(((CreateScorerOnceQuery) obj).query);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * classHash() + query.hashCode();
         }
     }
 

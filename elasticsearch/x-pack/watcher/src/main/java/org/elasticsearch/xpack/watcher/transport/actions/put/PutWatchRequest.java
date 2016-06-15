@@ -114,6 +114,7 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
         super.readFrom(in);
         id = in.readString();
         source = in.readBytesReference();
+        active = in.readBoolean();
     }
 
     @Override
@@ -121,6 +122,7 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
         super.writeTo(out);
         out.writeString(id);
         out.writeBytesReference(source);
+        out.writeBoolean(active);
     }
 
 }

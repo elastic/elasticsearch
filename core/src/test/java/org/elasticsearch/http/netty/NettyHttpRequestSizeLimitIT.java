@@ -92,6 +92,7 @@ public class NettyHttpRequestSizeLimitIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "muted while investigating")
     public void testDoesNotLimitExcludedRequests() throws Exception {
         ensureGreen();
 

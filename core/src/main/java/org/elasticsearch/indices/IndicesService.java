@@ -1121,11 +1121,15 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
      * @param shard the shard to use with the cache key
      * @param searcher searcher to use to lookup the field stats
      * @param field the actual field
+     * @param useCache should this request use the cache?
      */
-    public FieldStats<?> getFieldStats(IndexShard shard, Engine.Searcher searcher, String field) throws Exception {
+    public FieldStats<?> getFieldStats(IndexShard shard, Engine.Searcher searcher, String field, boolean useCache) throws Exception {
         MappedFieldType fieldType = shard.mapperService().fullName(field);
         if (fieldType == null) {
             return null;
+        }
+        if (useCache == false) {
+            return fieldType.stats(searcher.reader());
         }
         BytesReference cacheKey = new BytesArray("fieldstats:" + field);
         BytesReference statsRef = cacheShardLevelResult(shard, searcher.getDirectoryReader(), cacheKey, out -> {

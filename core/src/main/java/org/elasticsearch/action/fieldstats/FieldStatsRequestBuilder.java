@@ -45,4 +45,9 @@ public class FieldStatsRequestBuilder extends
         request().level(level);
         return this;
     }
+
+    public FieldStatsRequestBuilder setUseCache(boolean useCache) {
+        request().setUseCache(useCache);
+        return this;
+    }
 }

@@ -49,7 +49,7 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
         Map<Integer, SnapshotIndexShardStatus> indexShards = new HashMap<>();
         stats = new SnapshotStats();
         for (SnapshotIndexShardStatus shard : shards) {
-            indexShards.put(shard.getShardId(), shard);
+            indexShards.put(shard.getShardId().getId(), shard);
             stats.add(shard.getStats());
         }
         shardsStats = new SnapshotShardsStats(shards);

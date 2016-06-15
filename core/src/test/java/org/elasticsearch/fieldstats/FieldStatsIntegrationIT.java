@@ -487,6 +487,11 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
         assertEquals(200, fieldStats.getAllFieldStats().get("value").getDocCount());
         // Because we refreshed the index we don't have any more hits in the cache. This is read from the index.
         assertEquals(oldHitCount, indexStats.getHitCount());
+
+        // We can also turn off the cache entirely
+        fieldStats = client().prepareFieldStats().setFields("value").get();
+        assertEquals(200, fieldStats.getAllFieldStats().get("value").getDocCount());
+        assertEquals(oldHitCount, indexStats.getHitCount());
     }
 
     private void indexRange(String index, long from, long to) throws Exception {

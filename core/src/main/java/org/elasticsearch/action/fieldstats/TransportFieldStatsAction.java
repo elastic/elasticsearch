@@ -187,16 +187,15 @@ public class TransportFieldStatsAction extends
         ShardId shardId = request.shardId();
         Map<String, FieldStats<?>> fieldStats = new HashMap<>();
         IndexService indexServices = indicesService.indexServiceSafe(shardId.getIndex());
-        MapperService mapperService = indexServices.mapperService();
         IndexShard shard = indexServices.getShard(shardId.id());
         try (Engine.Searcher searcher = shard.acquireSearcher("fieldstats")) {
             // Resolve patterns and deduplicate
             Set<String> fieldNames = new HashSet<>();
             for (String field : request.getFields()) {
-                fieldNames.addAll(mapperService.simpleMatchToIndexNames(field));
+                fieldNames.addAll(shard.mapperService().simpleMatchToIndexNames(field));
             }
             for (String field : fieldNames) {
-                FieldStats<?> stats = indicesService.getFieldStats(shard, searcher, field);
+                FieldStats<?> stats = indicesService.getFieldStats(shard, searcher, field, request.shouldUseCache());
                 if (stats != null) {
                     fieldStats.put(field, stats);
                 }

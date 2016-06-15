@@ -91,6 +91,11 @@ public class RestClusterStateAction extends BaseRestHandler {
         });
     }
 
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
+
     static final class Fields {
         static final XContentBuilderString CLUSTER_NAME = new XContentBuilderString("cluster_name");
     }

@@ -78,6 +78,11 @@ public class RestFilterChainTests extends ESTestCase {
             public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
                 channel.sendResponse(new TestResponse());
             }
+
+            @Override
+            public boolean canTripCircuitBreaker() {
+                return true;
+            }
         });
 
         FakeRestRequest fakeRestRequest = new FakeRestRequest();
@@ -136,6 +141,11 @@ public class RestFilterChainTests extends ESTestCase {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
                 channel.sendResponse(new TestResponse());
+            }
+
+            @Override
+            public boolean canTripCircuitBreaker() {
+                return true;
             }
         });
 

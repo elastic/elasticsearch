@@ -58,4 +58,9 @@ public class RestCancelTasksAction extends BaseRestHandler {
         cancelTasksRequest.setParentTaskId(parentTaskId);
         client.admin().cluster().cancelTasks(cancelTasksRequest, new RestToXContentListener<CancelTasksResponse>(channel));
     }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
 }

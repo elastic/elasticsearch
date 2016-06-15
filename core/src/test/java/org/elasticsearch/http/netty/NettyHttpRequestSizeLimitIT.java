@@ -35,6 +35,7 @@ import org.junit.Test;
 
 import java.util.Collection;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -91,15 +92,44 @@ public class NettyHttpRequestSizeLimitIT extends ESIntegTestCase {
         }
     }
 
+    public void testDoesNotLimitExcludedRequests() throws Exception {
+        ensureGreen();
+
+        @SuppressWarnings("unchecked")
+        Tuple<String, CharSequence>[] requestUris = new Tuple[1500];
+        for (int i = 0; i < requestUris.length; i++) {
+            requestUris[i] = Tuple.tuple("/_cluster/settings", (CharSequence) "{ \"transient\": {\"indices.ttl.interval\": \"40s\" } }");
+        }
+
+        HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
+        InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress
+            ().boundAddresses());
+
+        try (NettyHttpClient nettyHttpClient = new NettyHttpClient()) {
+            Collection<HttpResponse> responses = nettyHttpClient.put(inetSocketTransportAddress.address(), requestUris);
+            assertThat(responses, hasSize(requestUris.length));
+            assertAllInExpectedStatus(responses, HttpResponseStatus.OK);
+        }
+    }
+
     private void assertAtLeastOnceExpectedStatus(Collection<HttpResponse> responses, HttpResponseStatus expectedStatus) {
         long countResponseErrors = 0;
         for (HttpResponse response : responses) {
-            System.err.println(response.getStatus());
             if (response.getStatus().equals(expectedStatus)) {
                 countResponseErrors++;
             }
         }
-        assertThat(countResponseErrors, greaterThan(0L));
+        assertThat("Expected at least one request with status [" + expectedStatus + "]", countResponseErrors, greaterThan(0L));
+    }
 
+    private void assertAllInExpectedStatus(Collection<HttpResponse> responses, HttpResponseStatus expectedStatus) {
+        long countUnexpectedStatus = 0;
+        for (HttpResponse response : responses) {
+            if (response.getStatus().equals(expectedStatus) == false) {
+                countUnexpectedStatus++;
+            }
+        }
+        assertThat("Expected all requests with status [" + expectedStatus + "] but [" + countUnexpectedStatus +
+            "] requests had a different one", countUnexpectedStatus, equalTo(0L));
     }
 }

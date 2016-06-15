@@ -72,4 +72,9 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
             }
         });
     }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
 }

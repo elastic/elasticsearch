@@ -25,4 +25,6 @@ package org.elasticsearch.rest;
 public interface RestHandler {
 
     void handleRequest(RestRequest request, RestChannel channel) throws Exception;
+
+    boolean canTripCircuitBreaker();
 }

@@ -70,6 +70,11 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
         });
     }
 
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
+
     public static ClearIndicesCacheRequest fromRequest(final RestRequest request, ClearIndicesCacheRequest clearIndicesCacheRequest, ParseFieldMatcher parseFieldMatcher) {
 
         for (Map.Entry<String, String> entry : request.params().entrySet()) {

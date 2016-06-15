@@ -72,11 +72,21 @@ public class HttpServerTests extends ESTestCase {
             public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK));
             }
+
+            @Override
+            public boolean canTripCircuitBreaker() {
+                return true;
+            }
         });
         restController.registerHandler(RestRequest.Method.GET, "/error", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
                 throw new IllegalArgumentException("test error");
+            }
+
+            @Override
+            public boolean canTripCircuitBreaker() {
+                return true;
             }
         });
 

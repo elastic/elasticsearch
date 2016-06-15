@@ -110,4 +110,9 @@ public class RestNodesInfoAction extends BaseRestHandler {
             }
         });
     }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
 }

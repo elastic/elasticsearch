@@ -65,4 +65,9 @@ public class RestListTasksAction extends BaseRestHandler {
         listTasksRequest.setTimeout(timeout);
         client.admin().cluster().listTasks(listTasksRequest, new RestToXContentListener<ListTasksResponse>(channel));
     }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
 }

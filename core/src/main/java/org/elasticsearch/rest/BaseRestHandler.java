@@ -56,6 +56,11 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
 
     protected abstract void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception;
 
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return true;
+    }
+
     static final class HeadersAndContextCopyClient extends FilterClient {
 
         private final RestRequest restRequest;

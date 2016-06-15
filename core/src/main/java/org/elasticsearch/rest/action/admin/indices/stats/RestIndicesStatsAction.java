@@ -117,4 +117,9 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             }
         });
     }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
 }

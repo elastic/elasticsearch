@@ -103,4 +103,9 @@ public class RestNodesInfoAction extends BaseRestHandler {
 
         client.admin().cluster().nodesInfo(nodesInfoRequest, new NodesResponseRestListener<>(channel));
     }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
 }

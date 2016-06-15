@@ -108,7 +108,11 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> implement
         RestChannel responseChannel = channel;
         try {
             int contentLength = request.content().length();
-            inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
+            if (restController.canTripCircuitBreaker(request)) {
+                inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
+            } else {
+                inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
+            }
             // iff we could reserve bytes for the request we need to send the response also over this channel
             responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
             restController.dispatchRequest(request, responseChannel, threadContext);

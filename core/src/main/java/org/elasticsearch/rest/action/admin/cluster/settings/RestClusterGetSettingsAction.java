@@ -72,6 +72,11 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
         });
     }
 
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
+
     private XContentBuilder renderResponse(ClusterState state, boolean renderDefaults, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
 

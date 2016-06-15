@@ -47,4 +47,9 @@ public class RestClusterStatsAction extends BaseRestHandler {
         clusterStatsRequest.timeout(request.param("timeout"));
         client.admin().cluster().clusterStats(clusterStatsRequest, new NodesResponseRestListener<>(channel));
     }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
 }

@@ -101,9 +101,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             }
             for (IndexShardRoutingTable routing : indexShardRoutingTables) {
                 final int shardId = routing.shardId().id();
-                ClusterShardHealth shardHealth = new ClusterShardHealth(shardId,
-                                                                        routing,
-                                                                        indexMetaData.activeAllocationIds(shardId).isEmpty());
+                ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, routing, indexMetaData);
                 if (request.shardStatuses().contains(shardHealth.getStatus())) {
                     shardIdsToFetch.add(routing.shardId());
                 }

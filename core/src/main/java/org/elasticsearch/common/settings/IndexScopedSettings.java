@@ -134,6 +134,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING,
         BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
         IndexModule.INDEX_STORE_TYPE_SETTING,
+        IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
         IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
         IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING,
         PrimaryShardAllocator.INDEX_RECOVERY_INITIAL_SHARDS_SETTING,

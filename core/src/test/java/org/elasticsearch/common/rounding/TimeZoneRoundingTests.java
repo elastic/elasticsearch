@@ -19,9 +19,12 @@
 
 package org.elasticsearch.common.rounding;
 
+import org.elasticsearch.common.rounding.TimeZoneRounding.TimeIntervalRounding;
+import org.elasticsearch.common.rounding.TimeZoneRounding.TimeUnitRounding;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeConstants;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 
@@ -29,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -208,66 +212,151 @@ public class TimeZoneRoundingTests extends ESTestCase {
     }
 
     /**
-     * randomized test on TimeUnitRounding with random time units and time zone offsets
+     * Randomized test on TimeUnitRounding.
+     * Test uses random {@link DateTimeUnit} and {@link DateTimeZone} and often (50% of the time) chooses
+     * test dates that are exactly on or close to offset changes (e.g. DST) in the chosen time zone.
+     *
+     * It rounds the test date down and up and performs various checks on the rounding unit interval that is
+     * defined by this. Assumptions tested are described in {@link #assertInterval(long, long, long, TimeZoneRounding)}
      */
     public void testTimeZoneRoundingRandom() {
         for (int i = 0; i < 1000; ++i) {
             DateTimeUnit timeUnit = randomTimeUnit();
-            TimeZoneRounding rounding;
-            int timezoneOffset = randomIntBetween(-23, 23);
-            rounding = new TimeZoneRounding.TimeUnitRounding(timeUnit, DateTimeZone.forOffsetHours(timezoneOffset));
-            long date = Math.abs(randomLong() % ((long) 10e11));
+            DateTimeZone timezone = randomDateTimeZone();
+            TimeZoneRounding rounding = new TimeZoneRounding.TimeUnitRounding(timeUnit, timezone);
+            long date = Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
+            long unitMillis = timeUnit.field(timezone).getDurationField().getUnitMillis();
+            if (randomBoolean()) {
+                nastyDate(date, timezone, unitMillis);
+            }
             final long roundedDate = rounding.round(date);
             final long nextRoundingValue = rounding.nextRoundingValue(roundedDate);
-            assertThat("Rounding should be idempotent", roundedDate, equalTo(rounding.round(roundedDate)));
-            assertThat("Rounded value smaller or equal than unrounded, regardless of timezone", roundedDate, lessThanOrEqualTo(date));
-            assertThat("NextRounding value should be greater than date", nextRoundingValue, greaterThan(roundedDate));
-            assertThat("NextRounding value should be a rounded date", nextRoundingValue, equalTo(rounding.round(nextRoundingValue)));
+
+            assertInterval(roundedDate, date, nextRoundingValue, rounding);
+
+            // check correct unit interval width for units smaller than a day, they should be fixed size except for transitions
+            if (unitMillis <= DateTimeConstants.MILLIS_PER_DAY) {
+                // if the interval defined didn't cross timezone offset transition, it should cover unitMillis width
+                if (timezone.getOffset(roundedDate - 1) == timezone.getOffset(nextRoundingValue + 1)) {
+                    assertThat("unit interval width not as expected for [" + timeUnit + "], [" + timezone + "] at "
+                            + new DateTime(roundedDate), nextRoundingValue - roundedDate, equalTo(unitMillis));
+                }
+            }
         }
     }
 
     /**
-     * Test that nextRoundingValue() for hour rounding (and smaller) is equally spaced (see #18326)
-     * Start at a random date in a random time zone, then find the next zone offset transition (if any).
-     * From there, check that when we advance by using rounding#nextRoundingValue(), we always advance by the same
-     * amount of milliseconds.
+     * To be even more nasty, go to a transition in the selected time zone.
+     * In one third of the cases stay there, otherwise go half a unit back or forth
      */
-    public void testSubHourNextRoundingEquallySpaced() {
-        DateTimeUnit unit = randomFrom(new DateTimeUnit[] { DateTimeUnit.HOUR_OF_DAY, DateTimeUnit.MINUTES_OF_HOUR,
-                DateTimeUnit.SECOND_OF_MINUTE });
-        DateTimeZone timezone = randomDateTimeZone();
-        TimeZoneRounding rounding = new TimeZoneRounding.TimeUnitRounding(unit, timezone);
-        // move the random date to transition for timezones that have offset change due to dst transition
-        long nextTransition = timezone.nextTransition(Math.abs(randomLong() % ((long) 10e11)));
-        final long millisPerUnit = unit.field().getDurationField().getUnitMillis();
-        // start ten units before transition
-        long roundedDate = rounding.round(nextTransition - (10 * millisPerUnit));
-        while (roundedDate < nextTransition + 10 * millisPerUnit) {
-            long delta = rounding.nextRoundingValue(roundedDate) - roundedDate;
-            assertEquals("Difference between rounded values not equally spaced for [" + unit.name() + "], [" + timezone + "] at "
-                    + new DateTime(roundedDate), millisPerUnit, delta);
-            roundedDate = rounding.nextRoundingValue(roundedDate);
+    private static long nastyDate(long initialDate, DateTimeZone timezone, long unitMillis) {
+        long date = timezone.nextTransition(initialDate);
+        if (randomBoolean()) {
+            return date + (randomLong() % unitMillis);  // positive and negative offset possible
+        } else {
+            return date;
         }
     }
 
     /**
-     * randomized test on TimeIntervalRounding with random interval and time zone offsets
+     * test DST end with interval rounding
+     * CET: 25 October 2015, 03:00:00 clocks were turned backward 1 hour to 25 October 2015, 02:00:00 local standard time
+     */
+    public void testTimeIntervalCET_DST_End() {
+        long interval = TimeUnit.MINUTES.toMillis(20);
+        TimeZoneRounding rounding = new TimeIntervalRounding(interval, DateTimeZone.forID("CET"));
+
+        assertThat(rounding.round(time("2015-10-25T01:55:00+02:00")), equalTo(time("2015-10-25T01:40:00+02:00")));
+        assertThat(rounding.round(time("2015-10-25T02:15:00+02:00")), equalTo(time("2015-10-25T02:00:00+02:00")));
+        assertThat(rounding.round(time("2015-10-25T02:35:00+02:00")), equalTo(time("2015-10-25T02:20:00+02:00")));
+        assertThat(rounding.round(time("2015-10-25T02:55:00+02:00")), equalTo(time("2015-10-25T02:40:00+02:00")));
+        // after DST shift
+        assertThat(rounding.round(time("2015-10-25T02:15:00+01:00")), equalTo(time("2015-10-25T02:00:00+01:00")));
+        assertThat(rounding.round(time("2015-10-25T02:35:00+01:00")), equalTo(time("2015-10-25T02:20:00+01:00")));
+        assertThat(rounding.round(time("2015-10-25T02:55:00+01:00")), equalTo(time("2015-10-25T02:40:00+01:00")));
+        assertThat(rounding.round(time("2015-10-25T03:15:00+01:00")), equalTo(time("2015-10-25T03:00:00+01:00")));
+    }
+
+    /**
+     * test DST start with interval rounding
+     * CET: 27 March 2016, 02:00:00 clocks were turned forward 1 hour to 27 March 2016, 03:00:00 local daylight time
+     */
+    public void testTimeIntervalCET_DST_Start() {
+        long interval = TimeUnit.MINUTES.toMillis(20);
+        TimeZoneRounding rounding = new TimeIntervalRounding(interval, DateTimeZone.forID("CET"));
+        // test DST start
+        assertThat(rounding.round(time("2016-03-27T01:55:00+01:00")), equalTo(time("2016-03-27T01:40:00+01:00")));
+        assertThat(rounding.round(time("2016-03-27T02:00:00+01:00")), equalTo(time("2016-03-27T03:00:00+02:00")));
+        assertThat(rounding.round(time("2016-03-27T03:15:00+02:00")), equalTo(time("2016-03-27T03:00:00+02:00")));
+        assertThat(rounding.round(time("2016-03-27T03:35:00+02:00")), equalTo(time("2016-03-27T03:20:00+02:00")));
+    }
+
+    /**
+     * test DST start with offset not fitting interval, e.g. Asia/Kathmandu
+     * adding 15min on 1986-01-01T00:00:00 the interval from
+     * 1986-01-01T00:15:00+05:45 to 1986-01-01T00:20:00+05:45 to only be 5min
+     * long
+     */
+    public void testTimeInterval_Kathmandu_DST_Start() {
+        long interval = TimeUnit.MINUTES.toMillis(20);
+        TimeZoneRounding rounding = new TimeIntervalRounding(interval, DateTimeZone.forID("Asia/Kathmandu"));
+        assertThat(rounding.round(time("1985-12-31T23:55:00+05:30")), equalTo(time("1985-12-31T23:40:00+05:30")));
+        assertThat(rounding.round(time("1986-01-01T00:16:00+05:45")), equalTo(time("1986-01-01T00:15:00+05:45")));
+        assertThat(time("1986-01-01T00:15:00+05:45") - time("1985-12-31T23:40:00+05:30"), equalTo(TimeUnit.MINUTES.toMillis(20)));
+        assertThat(rounding.round(time("1986-01-01T00:26:00+05:45")), equalTo(time("1986-01-01T00:20:00+05:45")));
+        assertThat(time("1986-01-01T00:20:00+05:45") - time("1986-01-01T00:15:00+05:45"), equalTo(TimeUnit.MINUTES.toMillis(5)));
+        assertThat(rounding.round(time("1986-01-01T00:46:00+05:45")), equalTo(time("1986-01-01T00:40:00+05:45")));
+        assertThat(time("1986-01-01T00:40:00+05:45") - time("1986-01-01T00:20:00+05:45"), equalTo(TimeUnit.MINUTES.toMillis(20)));
+    }
+
+    /**
+     * Special test for intervals that don't fit evenly into rounding interval.
+     * In this case, when interval crosses DST transition point, rounding in local
+     * time can land in a DST gap which results in wrong UTC rounding values.
+     */
+    public void testIntervalRounding_NotDivisibleInteval() {
+        DateTimeZone tz = DateTimeZone.forID("CET");
+        long interval = TimeUnit.MINUTES.toMillis(14);
+        TimeZoneRounding rounding = new TimeZoneRounding.TimeIntervalRounding(interval, tz);
+
+        assertThat(rounding.round(time("2016-03-27T01:41:00+01:00")), equalTo(time("2016-03-27T01:30:00+01:00")));
+        assertThat(rounding.round(time("2016-03-27T01:51:00+01:00")), equalTo(time("2016-03-27T01:44:00+01:00")));
+        assertThat(rounding.round(time("2016-03-27T01:59:00+01:00")), equalTo(time("2016-03-27T01:58:00+01:00")));
+        assertThat(rounding.round(time("2016-03-27T03:05:00+02:00")), equalTo(time("2016-03-27T03:00:00+02:00")));
+        assertThat(rounding.round(time("2016-03-27T03:12:00+02:00")), equalTo(time("2016-03-27T03:08:00+02:00")));
+        assertThat(rounding.round(time("2016-03-27T03:25:00+02:00")), equalTo(time("2016-03-27T03:22:00+02:00")));
+        assertThat(rounding.round(time("2016-03-27T03:39:00+02:00")), equalTo(time("2016-03-27T03:36:00+02:00")));
+    }
+
+    /**
+     * randomized test on {@link TimeIntervalRounding} with random interval and time zone offsets
      */
     public void testIntervalRoundingRandom() {
-        for (int i = 0; i < 1000; ++i) {
-            // max random interval is a year, can be negative
-            long interval = Math.abs(randomLong() % (TimeUnit.DAYS.toMillis(365)));
-            TimeZoneRounding rounding;
-            int timezoneOffset = randomIntBetween(-23, 23);
-            rounding = new TimeZoneRounding.TimeIntervalRounding(interval, DateTimeZone.forOffsetHours(timezoneOffset));
-            long date = Math.abs(randomLong() % ((long) 10e11));
-            final long roundedDate = rounding.round(date);
-            final long nextRoundingValue = rounding.nextRoundingValue(roundedDate);
-            assertThat("Rounding should be idempotent", roundedDate, equalTo(rounding.round(roundedDate)));
-            assertThat("Rounded value smaller or equal than unrounded, regardless of timezone", roundedDate, lessThanOrEqualTo(date));
-            assertThat("NextRounding value should be greater than date", nextRoundingValue, greaterThan(roundedDate));
-            assertThat("NextRounding value should be interval from rounded value", nextRoundingValue - roundedDate, equalTo(interval));
-            assertThat("NextRounding value should be a rounded date", nextRoundingValue, equalTo(rounding.round(nextRoundingValue)));
+        for (int i = 0; i < 1000; i++) {
+            TimeUnit unit = randomFrom(new TimeUnit[] {TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS});
+            long interval = unit.toMillis(randomIntBetween(1, 365));
+            DateTimeZone tz = randomDateTimeZone();
+            TimeZoneRounding rounding = new TimeZoneRounding.TimeIntervalRounding(interval, tz);
+            long date = Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
+            try {
+                final long roundedDate = rounding.round(date);
+                final long nextRoundingValue = rounding.nextRoundingValue(roundedDate);
+                assertThat("Rounding should be idempotent", roundedDate, equalTo(rounding.round(roundedDate)));
+                assertThat("Rounded value smaller or equal than unrounded", roundedDate, lessThanOrEqualTo(date));
+                assertThat("Values smaller than rounded value should round further down", rounding.round(roundedDate - 1),
+                        lessThan(roundedDate));
+
+                if (tz.isFixed()) {
+                    assertThat("NextRounding value should be greater than date", nextRoundingValue, greaterThan(roundedDate));
+                    assertThat("NextRounding value should be interval from rounded value", nextRoundingValue - roundedDate,
+                            equalTo(interval));
+                    assertThat("NextRounding value should be a rounded date", nextRoundingValue,
+                            equalTo(rounding.round(nextRoundingValue)));
+                }
+            } catch (AssertionError e) {
+                logger.error("Rounding error at {}, timezone {}, interval: {},", new DateTime(date, tz), tz, interval);
+                throw e;
+            }
         }
     }
 
@@ -324,20 +413,135 @@ public class TimeZoneRoundingTests extends ESTestCase {
         }
     }
 
-    private DateTimeUnit randomTimeUnit() {
+    public void testEdgeCasesTransition() {
+        {
+            // standard +/-1 hour DST transition, CET
+            DateTimeUnit timeUnit = DateTimeUnit.HOUR_OF_DAY;
+            DateTimeZone timezone = DateTimeZone.forID("CET");
+            TimeZoneRounding rounding = new TimeZoneRounding.TimeUnitRounding(timeUnit, timezone);
+
+            // 29 Mar 2015 - Daylight Saving Time Started
+            // at 02:00:00 clocks were turned forward 1 hour to 03:00:00
+            assertInterval(time("2015-03-29T00:00:00.000+01:00"), time("2015-03-29T01:00:00.000+01:00"), rounding, 60);
+            assertInterval(time("2015-03-29T01:00:00.000+01:00"), time("2015-03-29T03:00:00.000+02:00"), rounding, 60);
+            assertInterval(time("2015-03-29T03:00:00.000+02:00"), time("2015-03-29T04:00:00.000+02:00"), rounding, 60);
+
+            // 25 Oct 2015 - Daylight Saving Time Ended
+            // at 03:00:00 clocks were turned backward 1 hour to 02:00:00
+            assertInterval(time("2015-10-25T01:00:00.000+02:00"), time("2015-10-25T02:00:00.000+02:00"), rounding, 60);
+            assertInterval(time("2015-10-25T02:00:00.000+02:00"), time("2015-10-25T02:00:00.000+01:00"), rounding, 60);
+            assertInterval(time("2015-10-25T02:00:00.000+01:00"), time("2015-10-25T03:00:00.000+01:00"), rounding, 60);
+        }
+
+        {
+            // time zone "Asia/Kathmandu"
+            // 1 Jan 1986 - Time Zone Change (IST → NPT), at 00:00:00 clocks were turned forward 00:15 minutes
+            //
+            // hour rounding is stable before 1985-12-31T23:00:00.000 and after 1986-01-01T01:00:00.000+05:45
+            // the interval between is 105 minutes long because the hour after transition starts at 00:15
+            // which is not a round value for hourly rounding
+            DateTimeUnit timeUnit = DateTimeUnit.HOUR_OF_DAY;
+            DateTimeZone timezone = DateTimeZone.forID("Asia/Kathmandu");
+            TimeZoneRounding rounding = new TimeZoneRounding.TimeUnitRounding(timeUnit, timezone);
+
+            assertInterval(time("1985-12-31T22:00:00.000+05:30"), time("1985-12-31T23:00:00.000+05:30"), rounding, 60);
+            assertInterval(time("1985-12-31T23:00:00.000+05:30"), time("1986-01-01T01:00:00.000+05:45"), rounding, 105);
+            assertInterval(time("1986-01-01T01:00:00.000+05:45"), time("1986-01-01T02:00:00.000+05:45"), rounding, 60);
+        }
+
+        {
+            // time zone "Australia/Lord_Howe"
+            // 3 Mar 1991 - Daylight Saving Time Ended
+            // at 02:00:00 clocks were turned backward 0:30 hours to Sunday, 3 March 1991, 01:30:00
+            DateTimeUnit timeUnit = DateTimeUnit.HOUR_OF_DAY;
+            DateTimeZone timezone = DateTimeZone.forID("Australia/Lord_Howe");
+            TimeZoneRounding rounding = new TimeZoneRounding.TimeUnitRounding(timeUnit, timezone);
+
+            assertInterval(time("1991-03-03T00:00:00.000+11:00"), time("1991-03-03T01:00:00.000+11:00"), rounding, 60);
+            assertInterval(time("1991-03-03T01:00:00.000+11:00"), time("1991-03-03T02:00:00.000+10:30"), rounding, 90);
+            assertInterval(time("1991-03-03T02:00:00.000+10:30"), time("1991-03-03T03:00:00.000+10:30"), rounding, 60);
+
+            // 27 Oct 1991 - Daylight Saving Time Started
+            // at 02:00:00 clocks were turned forward 0:30 hours to 02:30:00
+            assertInterval(time("1991-10-27T00:00:00.000+10:30"), time("1991-10-27T01:00:00.000+10:30"), rounding, 60);
+            // the interval containing the switch time is 90 minutes long
+            assertInterval(time("1991-10-27T01:00:00.000+10:30"), time("1991-10-27T03:00:00.000+11:00"), rounding, 90);
+            assertInterval(time("1991-10-27T03:00:00.000+11:00"), time("1991-10-27T04:00:00.000+11:00"), rounding, 60);
+        }
+
+        {
+            // time zone "Pacific/Chatham"
+            // 5 Apr 2015 - Daylight Saving Time Ended
+            // at 03:45:00 clocks were turned backward 1 hour to 02:45:00
+            DateTimeUnit timeUnit = DateTimeUnit.HOUR_OF_DAY;
+            DateTimeZone timezone = DateTimeZone.forID("Pacific/Chatham");
+            TimeZoneRounding rounding = new TimeZoneRounding.TimeUnitRounding(timeUnit, timezone);
+
+            assertInterval(time("2015-04-05T02:00:00.000+13:45"), time("2015-04-05T03:00:00.000+13:45"), rounding, 60);
+            assertInterval(time("2015-04-05T03:00:00.000+13:45"), time("2015-04-05T03:00:00.000+12:45"), rounding, 60);
+            assertInterval(time("2015-04-05T03:00:00.000+12:45"), time("2015-04-05T04:00:00.000+12:45"), rounding, 60);
+
+            // 27 Sep 2015 - Daylight Saving Time Started
+            // at 02:45:00 clocks were turned forward 1 hour to 03:45:00
+
+            assertInterval(time("2015-09-27T01:00:00.000+12:45"), time("2015-09-27T02:00:00.000+12:45"), rounding, 60);
+            assertInterval(time("2015-09-27T02:00:00.000+12:45"), time("2015-09-27T04:00:00.000+13:45"), rounding, 60);
+            assertInterval(time("2015-09-27T04:00:00.000+13:45"), time("2015-09-27T05:00:00.000+13:45"), rounding, 60);
+        }
+    }
+
+    private static void assertInterval(long rounded, long nextRoundingValue, TimeZoneRounding rounding, int minutes) {
+        assertInterval(rounded, dateBetween(rounded, nextRoundingValue), nextRoundingValue, rounding);
+        assertEquals(DateTimeConstants.MILLIS_PER_MINUTE * minutes, nextRoundingValue - rounded);
+    }
+
+    /**
+     * perform a number on assertions and checks on {@link TimeUnitRounding} intervals
+     * @param rounded the expected low end of the rounding interval
+     * @param unrounded a date in the interval to be checked for rounding
+     * @param nextRoundingValue the expected upper end of the rounding interval
+     * @param rounding the rounding instance
+     */
+    private static void assertInterval(long rounded, long unrounded, long nextRoundingValue, TimeZoneRounding rounding) {
+        assert rounded <= unrounded && unrounded <= nextRoundingValue;
+        assertThat("rounding should be idempotent " + rounding, rounded, equalTo(rounding.round(rounded)));
+        assertThat("rounded value smaller or equal than unrounded" + rounding, rounded, lessThanOrEqualTo(unrounded));
+        assertThat("values less than rounded should round further down" + rounding, rounding.round(rounded - 1), lessThan(rounded));
+        assertThat("nextRounding value should be greater than date" + rounding, nextRoundingValue, greaterThan(unrounded));
+        assertThat("nextRounding value should be a rounded date" + rounding, nextRoundingValue, equalTo(rounding.round(nextRoundingValue)));
+        assertThat("values above nextRounding should round down there" + rounding, rounding.round(nextRoundingValue + 1),
+                equalTo(nextRoundingValue));
+
+        long dateBetween = dateBetween(rounded, nextRoundingValue);
+        assertThat("dateBetween should round down to roundedDate" + rounding, rounding.round(dateBetween), equalTo(rounded));
+        assertThat("dateBetween should round up to nextRoundingValue" + rounding, rounding.nextRoundingValue(dateBetween),
+                equalTo(nextRoundingValue));
+    }
+
+    private static long dateBetween(long lower, long upper) {
+        long dateBetween = lower + Math.abs((randomLong() % (upper - lower)));
+        assert lower <= dateBetween && dateBetween <= upper;
+        return dateBetween;
+    }
+
+    private static DateTimeUnit randomTimeUnit() {
         byte id = (byte) randomIntBetween(1, 8);
         return DateTimeUnit.resolve(id);
     }
 
-    private String toUTCDateString(long time) {
+    private static String toUTCDateString(long time) {
         return new DateTime(time, DateTimeZone.UTC).toString();
     }
 
-    private long utc(String time) {
+    private static long utc(String time) {
         return time(time, DateTimeZone.UTC);
     }
 
-    private long time(String time, DateTimeZone zone) {
+    private static long time(String time) {
+        return ISODateTimeFormat.dateOptionalTimeParser().parseMillis(time);
+    }
+
+    private static long time(String time, DateTimeZone zone) {
         return ISODateTimeFormat.dateOptionalTimeParser().withZone(zone).parseMillis(time);
     }
 }

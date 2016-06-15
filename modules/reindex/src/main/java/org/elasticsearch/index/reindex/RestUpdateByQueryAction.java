@@ -52,7 +52,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
 
     @Override
     protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
-        handleRequest(request, channel, false, true, false);
+        handleRequest(request, channel, false, true);
     }
 
     @Override

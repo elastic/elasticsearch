@@ -33,16 +33,14 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
-/**
- *
- */
 public class OperationRouting extends AbstractComponent {
-
 
     private final AwarenessAllocationDecider awarenessAllocationDecider;
 
@@ -52,11 +50,11 @@ public class OperationRouting extends AbstractComponent {
         this.awarenessAllocationDecider = awarenessAllocationDecider;
     }
 
-    public ShardIterator indexShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing) {
+    public ShardIterator indexShards(ClusterState clusterState, String index, String id, @Nullable String routing) {
         return shards(clusterState, index, id, routing).shardsIt();
     }
 
-    public ShardIterator getShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing, @Nullable String preference) {
+    public ShardIterator getShards(ClusterState clusterState, String index, String id, @Nullable String routing, @Nullable String preference) {
         return preferenceActiveShardIterator(shards(clusterState, index, id, routing), clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference);
     }
 
@@ -158,10 +156,14 @@ public class OperationRouting extends AbstractComponent {
             }
             preferenceType = Preference.parse(preference);
             switch (preferenceType) {
-                case PREFER_NODE:
-                    return indexShard.preferNodeActiveInitializingShardsIt(preference.substring(Preference.PREFER_NODE.type().length() + 1));
+                case PREFER_NODES:
+                    final Set<String> nodesIds =
+                            Arrays.stream(
+                                    preference.substring(Preference.PREFER_NODES.type().length() + 1).split(",")
+                            ).collect(Collectors.toSet());
+                    return indexShard.preferNodeActiveInitializingShardsIt(nodesIds);
                 case LOCAL:
-                    return indexShard.preferNodeActiveInitializingShardsIt(localNodeId);
+                    return indexShard.preferNodeActiveInitializingShardsIt(Collections.singleton(localNodeId));
                 case PRIMARY:
                     return indexShard.primaryActiveInitializingShardIt();
                 case REPLICA:
@@ -218,14 +220,16 @@ public class OperationRouting extends AbstractComponent {
         return new ShardId(indexMetaData.getIndex(), generateShardId(indexMetaData, id, routing));
     }
 
-    private int generateShardId(IndexMetaData indexMetaData, String id, @Nullable String routing) {
+    static int generateShardId(IndexMetaData indexMetaData, String id, @Nullable String routing) {
         final int hash;
         if (routing == null) {
             hash = Murmur3HashFunction.hash(id);
         } else {
             hash = Murmur3HashFunction.hash(routing);
         }
-        return Math.floorMod(hash, indexMetaData.getNumberOfShards());
+        // we don't use IMD#getNumberOfShards since the index might have been shrunk such that we need to use the size
+        // of original index to hash documents
+        return Math.floorMod(hash, indexMetaData.getRoutingNumShards()) / indexMetaData.getRoutingFactor();
     }
 
     private void ensureNodeIdExists(DiscoveryNodes nodes, String nodeId) {

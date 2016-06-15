@@ -64,7 +64,7 @@ public abstract class AbstractBaseReindexRestHandler<
     }
 
     protected void handleRequest(RestRequest request, RestChannel channel,
-                                 boolean includeCreated, boolean includeUpdated, boolean includeDeleted) throws IOException {
+                                 boolean includeCreated, boolean includeUpdated) throws IOException {
 
         // Build the internal request
         Request internal = setCommonOptions(request, buildRequest(request));
@@ -74,10 +74,11 @@ public abstract class AbstractBaseReindexRestHandler<
             Map<String, String> params = new HashMap<>();
             params.put(BulkByScrollTask.Status.INCLUDE_CREATED, Boolean.toString(includeCreated));
             params.put(BulkByScrollTask.Status.INCLUDE_UPDATED, Boolean.toString(includeUpdated));
-            params.put(BulkByScrollTask.Status.INCLUDE_DELETED, Boolean.toString(includeDeleted));
 
             action.execute(internal, new BulkIndexByScrollResponseContentListener<>(channel, params));
             return;
+        } else {
+            internal.setShouldPersistResult(true);
         }
 
         /*

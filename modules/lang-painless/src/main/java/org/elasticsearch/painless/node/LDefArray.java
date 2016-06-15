@@ -20,8 +20,9 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Type;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -34,17 +35,17 @@ final class LDefArray extends ALink implements IDefLink {
 
     AExpression index;
 
-    LDefArray(int line, int offset, String location, AExpression index) {
-        super(line, offset, location, 2);
+    LDefArray(Location location, AExpression index) {
+        super(location, 2);
 
         this.index = index;
     }
 
     @Override
-    ALink analyze(Variables variables) {
-        index.analyze(variables);
+    ALink analyze(Locals locals) {
+        index.analyze(locals);
         index.expected = index.actual;
-        index = index.cast(variables);
+        index = index.cast(locals);
 
         after = Definition.DEF_TYPE;
 
@@ -58,15 +59,17 @@ final class LDefArray extends ALink implements IDefLink {
 
     @Override
     void load(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+        writer.writeDebugInfo(location);
+
         String desc = Type.getMethodDescriptor(after.type, Definition.DEF_TYPE.type, index.actual.type);
-        writer.invokeDynamic("arrayLoad", desc, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.ARRAY_LOAD);
+        writer.invokeDynamic("arrayLoad", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_LOAD);
     }
 
     @Override
     void store(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+        writer.writeDebugInfo(location);
+
         String desc = Type.getMethodDescriptor(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, index.actual.type, after.type);
-        writer.invokeDynamic("arrayStore", desc, DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.ARRAY_STORE);
+        writer.invokeDynamic("arrayStore", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_STORE);
     }
 }

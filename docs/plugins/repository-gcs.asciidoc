@@ -82,7 +82,7 @@ https://console.cloud.google.com/compute/[Compute Engine console].
 To indicate that a repository should use the built-in authentication,
 the repository `service_account` setting must be set to `_default_`:
 
-[source,json]
+[source,js]
 ----
 PUT _snapshot/my_gcs_repository_on_compute_engine
 {
@@ -94,6 +94,7 @@ PUT _snapshot/my_gcs_repository_on_compute_engine
 }
 ----
 // CONSOLE
+// TEST[skip:we don't have gcs setup while testing this]
 
 NOTE: The Compute Engine VM must be allowed to use the Storage service. This can be done only at VM
 creation time, when "Storage" access can be configured to "Read/Write" permission. Check your
@@ -115,7 +116,7 @@ To create a service account file:
 
 A service account file looks like this:
 
-[source,json]
+[source,js]
 ----
 {
   "type": "service_account",
@@ -136,7 +137,7 @@ every node of the cluster.
 
 To indicate that a repository should use a service account file:
 
-[source,json]
+[source,js]
 ----
 PUT _snapshot/my_gcs_repository
 {
@@ -148,7 +149,7 @@ PUT _snapshot/my_gcs_repository
 }
 ----
 // CONSOLE
-
+// TEST[skip:we don't have gcs setup while testing this]
 
 [[repository-gcs-bucket-permission]]
 ===== Set Bucket Permission
@@ -157,7 +158,7 @@ The service account used to access the bucket must have the "Writer" access to t
 
 1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console]
 2. Select your project
-3. Got to the [https://console.cloud.google.com/storage/browser]Storage Browser
+3. Got to the https://console.cloud.google.com/storage/browser[Storage Browser]
 4. Select the bucket and "Edit bucket permission"
 5. The service account must be configured as a "User" with "Writer" access
 
@@ -168,7 +169,7 @@ The service account used to access the bucket must have the "Writer" access to t
 Once everything is installed and every node is started, you can create a new repository that
 uses Google Cloud Storage to store snapshots:
 
-[source,json]
+[source,js]
 ----
 PUT _snapshot/my_gcs_repository
 {
@@ -180,6 +181,7 @@ PUT _snapshot/my_gcs_repository
 }
 ----
 // CONSOLE
+// TEST[skip:we don't have gcs setup while testing this]
 
 The following settings are supported:
 

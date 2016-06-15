@@ -37,12 +37,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.InnerHitBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A query that uses a filters with a script associated with them to compute the
@@ -431,15 +433,13 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         return this;
     }
 
-
-
     @Override
     protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
         InnerHitBuilder.extractInnerHits(query(), innerHits);
     }
 
-    public static FunctionScoreQueryBuilder fromXContent(ParseFieldRegistry<ScoreFunctionParser<?>> scoreFunctionsRegistry,
-                                                         QueryParseContext parseContext) throws IOException {
+    public static Optional<FunctionScoreQueryBuilder> fromXContent(ParseFieldRegistry<ScoreFunctionParser<?>> scoreFunctionsRegistry,
+            QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         QueryBuilder query = null;
@@ -468,7 +468,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                         throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. [query] is already defined.",
                                 NAME);
                     }
-                    query = parseContext.parseInnerQueryBuilder();
+                    query = parseContext.parseInnerQueryBuilder().orElse(QueryBuilders.matchAllQuery());
                 } else {
                     if (singleFunctionFound) {
                         throw new ParsingException(parser.getTokenLocation(),
@@ -556,7 +556,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         }
         functionScoreQueryBuilder.boost(boost);
         functionScoreQueryBuilder.queryName(queryName);
-        return functionScoreQueryBuilder;
+        return Optional.of(functionScoreQueryBuilder);
     }
 
     private static void handleMisplacedFunctionsDeclaration(XContentLocation contentLocation, String errorString) {
@@ -584,7 +584,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if (parseContext.getParseFieldMatcher().match(currentFieldName, FILTER_FIELD)) {
-                            filter = parseContext.parseInnerQueryBuilder();
+                            filter = parseContext.parseInnerQueryBuilder().orElse(QueryBuilders.matchAllQuery());
                         } else {
                             if (scoreFunction != null) {
                                 throw new ParsingException(parser.getTokenLocation(),

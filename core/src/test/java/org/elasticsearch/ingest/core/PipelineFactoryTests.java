@@ -23,8 +23,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.ingest.TestTemplateService;
-import org.elasticsearch.ingest.processor.FailProcessor;
-import org.elasticsearch.ingest.processor.SetProcessor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -32,9 +30,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.prefs.PreferencesFactory;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PipelineFactoryTests extends ESTestCase {
@@ -45,7 +43,8 @@ public class PipelineFactoryTests extends ESTestCase {
         processorConfig0.put(AbstractProcessorFactory.TAG_KEY, "first-processor");
         Map<String, Object> pipelineConfig = new HashMap<>();
         pipelineConfig.put(Pipeline.DESCRIPTION_KEY, "_description");
-        pipelineConfig.put(Pipeline.PROCESSORS_KEY, Arrays.asList(Collections.singletonMap("test", processorConfig0), Collections.singletonMap("test", processorConfig1)));
+        pipelineConfig.put(Pipeline.PROCESSORS_KEY,
+                Arrays.asList(Collections.singletonMap("test", processorConfig0), Collections.singletonMap("test", processorConfig1)));
         Pipeline.Factory factory = new Pipeline.Factory();
         ProcessorsRegistry processorRegistry = createProcessorRegistry(Collections.singletonMap("test", new TestProcessor.Factory()));
         Pipeline pipeline = factory.create("_id", pipelineConfig, processorRegistry);
@@ -87,6 +86,28 @@ public class PipelineFactoryTests extends ESTestCase {
         assertThat(pipeline.getOnFailureProcessors().get(0).getType(), equalTo("test-processor"));
     }
 
+    public void testCreateWithPipelineIgnoreFailure() throws Exception {
+        Map<String, Object> processorConfig = new HashMap<>();
+        processorConfig.put("ignore_failure", true);
+
+        ProcessorsRegistry processorRegistry = createProcessorRegistry(Collections.singletonMap("test", new TestProcessor.Factory()));
+        Pipeline.Factory factory = new Pipeline.Factory();
+        Map<String, Object> pipelineConfig = new HashMap<>();
+        pipelineConfig.put(Pipeline.DESCRIPTION_KEY, "_description");
+        pipelineConfig.put(Pipeline.PROCESSORS_KEY,
+                Collections.singletonList(Collections.singletonMap("test", processorConfig)));
+
+        Pipeline pipeline = factory.create("_id", pipelineConfig, processorRegistry);
+        assertThat(pipeline.getId(), equalTo("_id"));
+        assertThat(pipeline.getDescription(), equalTo("_description"));
+        assertThat(pipeline.getProcessors().size(), equalTo(1));
+        assertThat(pipeline.getOnFailureProcessors().size(), equalTo(0));
+
+        CompoundProcessor processor = (CompoundProcessor) pipeline.getProcessors().get(0);
+        assertThat(processor.isIgnoreFailure(), is(true));
+        assertThat(processor.getProcessors().get(0).getType(), equalTo("test-processor"));
+    }
+
     public void testCreateUnusedProcessorOptions() throws Exception {
         Map<String, Object> processorConfig = new HashMap<>();
         processorConfig.put("unused", "value");
@@ -121,7 +142,8 @@ public class PipelineFactoryTests extends ESTestCase {
     public void testFlattenProcessors() throws Exception {
         TestProcessor testProcessor = new TestProcessor(ingestDocument -> {});
         CompoundProcessor processor1 = new CompoundProcessor(testProcessor, testProcessor);
-        CompoundProcessor processor2 = new CompoundProcessor(Collections.singletonList(testProcessor), Collections.singletonList(testProcessor));
+        CompoundProcessor processor2 =
+                new CompoundProcessor(false, Collections.singletonList(testProcessor), Collections.singletonList(testProcessor));
         Pipeline pipeline = new Pipeline("_id", "_description", new CompoundProcessor(processor1, processor2));
         List<Processor> flattened = pipeline.flattenAllProcessors();
         assertThat(flattened.size(), equalTo(4));

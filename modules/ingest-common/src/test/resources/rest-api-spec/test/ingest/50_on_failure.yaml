@@ -1,0 +1,148 @@
+---
+"Test Pipeline With On Failure Block":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "_executed",
+                  "value" : true
+                }
+              },
+              {
+                "date" : {
+                  "field" : "date",
+                  "target_field" : "date",
+                  "formats" : ["yyyy"]
+                }
+              }
+            ],
+            "on_failure" : [
+              {
+                "set" : {
+                  "field" : "_failed",
+                  "value" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {field1: "value1"}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.field1: "value1" }
+  - match: { _source._executed: true }
+  - match: { _source._failed: true }
+
+---
+"Test Pipeline With Nested Processor On Failures":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "rename" : {
+                  "field" : "foofield",
+                  "target_field" : "field1",
+                  "on_failure" : [
+                    {
+                      "set" : {
+                        "field" : "foofield",
+                        "value" : "exists"
+                      }
+                    },
+                    {
+                      "rename" : {
+                        "field" : "foofield2",
+                        "target_field" : "field1",
+                        "on_failure" : [
+                          {
+                            "set" : {
+                            "field" : "foofield2",
+                            "value" : "ran"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {field1: "value1"}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.field1: "value1" }
+  - match: { _source.foofield: "exists" }
+  - match: { _source.foofield2: "ran" }
+
+---
+"Test pipeline with ignore_failure in a processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "fail" : {
+                  "message" : "_message",
+                  "ignore_failure": true
+                }
+              },
+              {
+                "set" : {
+                  "field" : "field",
+                  "value" : "value"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.field: "value" }

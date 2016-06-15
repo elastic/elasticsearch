@@ -202,8 +202,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -232,8 +231,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -281,8 +279,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .order(Order.count(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
@@ -313,8 +310,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .order(Order.term(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
@@ -345,8 +341,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .order(Order.term(false))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
@@ -377,8 +372,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .order(Order.aggregation("sortAgg", true))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
@@ -411,8 +405,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(STRING_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .order(Order.aggregation("sortAgg", false))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
@@ -445,8 +438,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -475,8 +467,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -524,8 +515,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .order(Order.count(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
@@ -556,8 +546,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .order(Order.term(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
@@ -588,8 +577,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .order(Order.term(false))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
@@ -620,8 +608,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .order(Order.aggregation("sortAgg", true))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
@@ -654,8 +641,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(LONG_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .order(Order.aggregation("sortAgg", false))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(DOUBLE_FIELD_NAME)))
@@ -688,8 +674,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -718,8 +703,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -767,8 +751,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .order(Order.count(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
@@ -799,8 +782,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .order(Order.term(true))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
@@ -831,8 +813,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .order(Order.term(false))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
@@ -863,8 +844,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .order(Order.aggregation("sortAgg", true))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))
@@ -897,8 +877,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                         .executionHint(randomExecutionHint())
                         .field(DOUBLE_FIELD_NAME)
                         .showTermDocCountError(true)
-                        .size(0)
-                        .shardSize(0)
+                        .size(10000).shardSize(10000)
                         .order(Order.aggregation("sortAgg", false))
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sortAgg").field(LONG_FIELD_NAME)))

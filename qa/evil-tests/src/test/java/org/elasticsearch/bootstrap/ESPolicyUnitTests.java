@@ -64,6 +64,7 @@ public class ESPolicyUnitTests extends ESTestCase {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         PermissionCollection noPermissions = new Permissions();
         ESPolicy policy = new ESPolicy(noPermissions, Collections.emptyMap(), true);
-        assertFalse(policy.implies(new ProtectionDomain(new CodeSource(null, (Certificate[])null), noPermissions), new FilePermission("foo", "read")));
+        assertFalse(policy.implies(new ProtectionDomain(new CodeSource(null, (Certificate[]) null), noPermissions),
+                new FilePermission("foo", "read")));
     }
 }

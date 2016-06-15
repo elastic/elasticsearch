@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -53,7 +54,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> implements DocumentRequest<UpdateRequest> {
+public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
+        implements DocumentRequest<UpdateRequest>, WriteRequest<UpdateRequest> {
 
     private String type;
     private String id;
@@ -72,7 +74,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     private VersionType versionType = VersionType.INTERNAL;
     private int retryOnConflict = 0;
 
-    private boolean refresh = false;
+    private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
@@ -422,18 +424,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this.versionType;
     }
 
-    /**
-     * Should a refresh be executed post this update operation causing the operation to
-     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
-    public UpdateRequest refresh(boolean refresh) {
-        this.refresh = refresh;
+    @Override
+    public UpdateRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
+        this.refreshPolicy = refreshPolicy;
         return this;
     }
 
-    public boolean refresh() {
-        return this.refresh;
+    @Override
+    public RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
     }
 
     public WriteConsistencyLevel consistencyLevel() {
@@ -730,7 +729,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             script = new Script(in);
         }
         retryOnConflict = in.readVInt();
-        refresh = in.readBoolean();
+        refreshPolicy = RefreshPolicy.readFrom(in);
         if (in.readBoolean()) {
             doc = new IndexRequest();
             doc.readFrom(in);
@@ -767,7 +766,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             script.writeTo(out);
         }
         out.writeVInt(retryOnConflict);
-        out.writeBoolean(refresh);
+        refreshPolicy.writeTo(out);
         if (doc == null) {
             out.writeBoolean(false);
         } else {

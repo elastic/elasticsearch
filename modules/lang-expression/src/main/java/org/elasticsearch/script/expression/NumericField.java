@@ -33,8 +33,12 @@ final class NumericField {
     // supported variables
     static final String VALUE_VARIABLE          = "value";
     static final String EMPTY_VARIABLE          = "empty";
+    static final String LENGTH_VARIABLE         = "length";
     
     // supported methods
+    static final String GETVALUE_METHOD         = "getValue";
+    static final String ISEMPTY_METHOD          = "isEmpty";
+    static final String SIZE_METHOD             = "size";
     static final String MINIMUM_METHOD          = "min";
     static final String MAXIMUM_METHOD          = "max";
     static final String AVERAGE_METHOD          = "avg";
@@ -48,6 +52,8 @@ final class NumericField {
                 return new FieldDataValueSource(fieldData, MultiValueMode.MIN);
             case EMPTY_VARIABLE:
                 return new EmptyMemberValueSource(fieldData);
+            case LENGTH_VARIABLE:
+                return new CountMethodValueSource(fieldData);
             default:
                 throw new IllegalArgumentException("Member variable [" + variable + "] does not exist for " + 
                                                    "numeric field [" + fieldName + "].");
@@ -56,6 +62,12 @@ final class NumericField {
     
     static ValueSource getMethod(IndexFieldData<?> fieldData, String fieldName, String method) {
         switch (method) {
+            case GETVALUE_METHOD:
+                return new FieldDataValueSource(fieldData, MultiValueMode.MIN);
+            case ISEMPTY_METHOD:
+                return new EmptyMemberValueSource(fieldData);
+            case SIZE_METHOD:
+                return new CountMethodValueSource(fieldData);
             case MINIMUM_METHOD:
                 return new FieldDataValueSource(fieldData, MultiValueMode.MIN);
             case MAXIMUM_METHOD:

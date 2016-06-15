@@ -196,8 +196,8 @@ configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.nam
       into('bin') {
         with copySpec {
           with binFiles
-          from('../src/main/resources') {
-            include 'bin/*.bat'
+          from('../src/main/resources/bin') {
+            include '*.bat'
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
           }
           MavenFilteringHack.filter(it, expansions)

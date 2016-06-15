@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -127,7 +128,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         builder.endObject();
     }
 
-    public static IdsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<IdsQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         List<String> ids = new ArrayList<>();
         List<String> types = new ArrayList<>();
@@ -191,7 +192,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         IdsQueryBuilder query = new IdsQueryBuilder(types.toArray(new String[types.size()]));
         query.addIds(ids.toArray(new String[ids.size()]));
         query.boost(boost).queryName(queryName);
-        return query;
+        return Optional.of(query);
     }
 
 

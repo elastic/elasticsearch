@@ -58,7 +58,7 @@ public final class HighlightUtils {
         } else {
             SourceLookup sourceLookup = searchContext.lookup().source();
             sourceLookup.setSegmentAndDocument(hitContext.readerContext(), hitContext.docId());
-            textsToHighlight = sourceLookup.extractRawValues(hitContext.getSourcePath(mapper.fieldType().name()));
+            textsToHighlight = sourceLookup.extractRawValues(mapper.fieldType().name());
         }
         assert textsToHighlight != null;
         return textsToHighlight;

@@ -20,15 +20,13 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -36,7 +34,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import java.io.IOException;
 import java.util.Objects;
 
-public class FilterAggregationBuilder extends AggregationBuilder<FilterAggregationBuilder> {
+public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterAggregationBuilder> {
     public static final String NAME = InternalFilter.TYPE.name();
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
@@ -55,11 +53,7 @@ public class FilterAggregationBuilder extends AggregationBuilder<FilterAggregati
         if (filter == null) {
             throw new IllegalArgumentException("[filter] must not be null: [" + name + "]");
         }
-        if (filter instanceof EmptyQueryBuilder) {
-            this.filter = new MatchAllQueryBuilder();
-        } else {
-            this.filter = filter;
-        }
+        this.filter = filter;
     }
 
     /**
@@ -89,17 +83,10 @@ public class FilterAggregationBuilder extends AggregationBuilder<FilterAggregati
         return builder;
     }
 
-    public static FilterAggregationBuilder parse(String aggregationName, QueryParseContext context)
-            throws IOException {
-        QueryBuilder filter = context.parseInnerQueryBuilder();
-
-        if (filter == null) {
-            throw new ParsingException(null, "filter cannot be null in filter aggregation [{}]", aggregationName);
-        }
-
+    public static FilterAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        QueryBuilder filter = context.parseInnerQueryBuilder().orElse(new MatchAllQueryBuilder());
         return new FilterAggregationBuilder(aggregationName, filter);
     }
-
 
     @Override
     protected int doHashCode() {

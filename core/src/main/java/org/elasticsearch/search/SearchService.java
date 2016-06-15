@@ -33,10 +33,8 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -134,11 +132,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
     private final ScriptService scriptService;
 
-    private final PageCacheRecycler pageCacheRecycler;
-
     private final BigArrays bigArrays;
 
-    private final DfsPhase dfsPhase;
+    private final DfsPhase dfsPhase = new DfsPhase();
 
     private final QueryPhase queryPhase;
 
@@ -162,8 +158,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
     @Inject
     public SearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService, IndicesService indicesService,
-                         ThreadPool threadPool, ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase,
-                         QueryPhase queryPhase, FetchPhase fetchPhase, AggregatorParsers aggParsers, Suggesters suggesters) {
+                         ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays,
+                          FetchPhase fetchPhase, AggregatorParsers aggParsers, Suggesters suggesters) {
         super(settings);
         this.aggParsers = aggParsers;
         this.suggesters = suggesters;
@@ -172,10 +168,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.scriptService = scriptService;
-        this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
-        this.dfsPhase = dfsPhase;
-        this.queryPhase = queryPhase;
+        this.queryPhase = new QueryPhase(settings);
         this.fetchPhase = fetchPhase;
 
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
@@ -262,8 +256,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     /**
      * Try to load the query results from the cache or execute the query phase directly if the cache cannot be used.
      */
-    private void loadOrExecuteQueryPhase(final ShardSearchRequest request, final SearchContext context,
-            final QueryPhase queryPhase) throws Exception {
+    private void loadOrExecuteQueryPhase(final ShardSearchRequest request, final SearchContext context) throws Exception {
         final boolean canCache = indicesService.canCache(request, context);
         if (canCache) {
             indicesService.loadIntoContext(request, context, queryPhase);
@@ -280,7 +273,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             long time = System.nanoTime();
             contextProcessing(context);
 
-            loadOrExecuteQueryPhase(request, context, queryPhase);
+            loadOrExecuteQueryPhase(request, context);
 
             if (context.queryResult().topDocs().scoreDocs.length == 0 && context.scrollContext() == null) {
                 freeContext(context.id());
@@ -372,7 +365,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             operationListener.onPreQueryPhase(context);
             long time = System.nanoTime();
             try {
-                loadOrExecuteQueryPhase(request, context, queryPhase);
+                loadOrExecuteQueryPhase(request, context);
             } catch (Throwable e) {
                 operationListener.onFailedQueryPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
@@ -548,17 +541,17 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
         DefaultSearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher,
                 indexService,
-                indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
+                indexShard, scriptService, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
                 defaultSearchTimeout, fetchPhase);
         SearchContext.setCurrent(context);
-        request.rewrite(context.getQueryShardContext());
-        // reset that we have used nowInMillis from the context since it may
-        // have been rewritten so its no longer in the query and the request can
-        // be cached. If it is still present in the request (e.g. in a range
-        // aggregation) it will still be caught when the aggregation is
-        // evaluated.
-        context.resetNowInMillisUsed();
         try {
+            request.rewrite(context.getQueryShardContext());
+            // reset that we have used nowInMillis from the context since it may
+            // have been rewritten so its no longer in the query and the request can
+            // be cached. If it is still present in the request (e.g. in a range
+            // aggregation) it will still be caught when the aggregation is
+            // evaluated.
+            context.resetNowInMillisUsed();
             if (request.scroll() != null) {
                 context.scrollContext(new ScrollContext());
                 context.scrollContext().scroll = request.scroll();
@@ -825,6 +818,13 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             }
             FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter());
             context.searchAfter(fieldDoc);
+        }
+
+        if (source.slice() != null) {
+            if (context.scrollContext() == null) {
+                throw new SearchContextException(context, "`slice` cannot be used outside of a scroll context");
+            }
+            context.sliceBuilder(source.slice());
         }
     }
 

@@ -70,24 +70,20 @@ public class ConditionalTests extends ScriptTestCase {
     }
 
     public void testIncompatibleAssignment() {
-        try {
+        expectScriptThrows(ClassCastException.class, () -> {
             exec("boolean x = false; byte z = x ? 2 : 4.0F; return z;");
-            fail("expected class cast exception");
-        } catch (ClassCastException expected) {}
+        });
 
-        try {
+        expectScriptThrows(ClassCastException.class, () -> {
             exec("boolean x = false; Map z = x ? 4 : (byte)7; return z;");
-            fail("expected class cast exception");
-        } catch (ClassCastException expected) {}
+        });
 
-        try {
+        expectScriptThrows(ClassCastException.class, () -> {
             exec("boolean x = false; Map z = x ? new HashMap() : new ArrayList(); return z;");
-            fail("expected class cast exception");
-        } catch (ClassCastException expected) {}
+        });
 
-        try {
+        expectScriptThrows(ClassCastException.class, () -> {
             exec("boolean x = false; int y = 2; byte z = x ? y : 7; return z;");
-            fail("expected class cast exception");
-        } catch (ClassCastException expected) {}
+        });
     }
 }

@@ -50,7 +50,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
@@ -67,6 +67,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -80,6 +81,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -92,7 +94,7 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 /**
  *
  */
-public final class IndexService extends AbstractIndexComponent implements IndexComponent, Iterable<IndexShard> {
+public class IndexService extends AbstractIndexComponent implements IndicesClusterStateService.AllocatedIndex<IndexShard> {
 
     private final IndexEventListener eventListener;
     private final AnalysisService analysisService;
@@ -183,8 +185,8 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     /**
      * Return the shard with the provided id, or null if there is no such shard.
      */
-    @Nullable
-    public IndexShard getShardOrNull(int shardId) {
+    @Override
+    public @Nullable IndexShard getShardOrNull(int shardId) {
         return shards.get(shardId);
     }
 
@@ -358,6 +360,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         return primary == false && IndexMetaData.isIndexUsingShadowReplicas(indexSettings);
     }
 
+    @Override
     public synchronized void removeShard(int shardId, String reason) {
         final ShardId sId = new ShardId(index(), shardId);
         final IndexShard indexShard;
@@ -467,6 +470,11 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
 
     List<SearchOperationListener> getSearchOperationListener() { // pkg private for testing
         return searchOperationListeners;
+    }
+
+    @Override
+    public boolean updateMapping(IndexMetaData indexMetaData) throws IOException {
+        return mapperService().updateMapping(indexMetaData);
     }
 
     private class StoreCloseListener implements Store.OnClose {
@@ -601,8 +609,11 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         try {
             byte[] filterSource = alias.filter().uncompressed();
             try (XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource)) {
-                ParsedQuery parsedFilter = shardContext.toFilter(shardContext.newParseContext(parser).parseInnerQueryBuilder());
-                return parsedFilter == null ? null : parsedFilter.query();
+                Optional<QueryBuilder> innerQueryBuilder = shardContext.newParseContext(parser).parseInnerQueryBuilder();
+                if (innerQueryBuilder.isPresent()) {
+                    return shardContext.toFilter(innerQueryBuilder.get()).query();
+                }
+                return null;
             }
         } catch (IOException ex) {
             throw new AliasFilterParsingException(shardContext.index(), alias.getAlias(), "Invalid alias filter", ex);
@@ -613,6 +624,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         return indexSettings.getIndexMetaData();
     }
 
+    @Override
     public synchronized void updateMetaData(final IndexMetaData metadata) {
         final Translog.Durability oldTranslogDurability = indexSettings.getTranslogDurability();
         if (indexSettings.updateIndexMetaData(metadata)) {

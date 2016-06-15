@@ -19,9 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -31,26 +32,29 @@ public final class SExpression extends AStatement {
 
     AExpression expression;
 
-    public SExpression(int line, int offset, String location, AExpression expression) {
-        super(line, offset, location);
+    public SExpression(Location location, AExpression expression) {
+        super(location);
 
         this.expression = expression;
     }
 
     @Override
-    void analyze(Variables variables) {
-        expression.read = lastSource;
-        expression.analyze(variables);
+    void analyze(Locals locals) {
+        Type rtnType = locals.getReturnType();
+        boolean isVoid = rtnType.sort == Sort.VOID;
+
+        expression.read = lastSource && !isVoid;
+        expression.analyze(locals);
 
         if (!lastSource && !expression.statement) {
-            throw new IllegalArgumentException(error("Not a statement."));
+            throw createError(new IllegalArgumentException("Not a statement."));
         }
 
-        final boolean rtn = lastSource && expression.actual.sort != Sort.VOID;
+        boolean rtn = lastSource && !isVoid && expression.actual.sort != Sort.VOID;
 
-        expression.expected = rtn ? Definition.OBJECT_TYPE : expression.actual;
+        expression.expected = rtn ? rtnType : expression.actual;
         expression.internal = rtn;
-        expression = expression.cast(variables);
+        expression = expression.cast(locals);
 
         methodEscape = rtn;
         loopEscape = rtn;
@@ -60,7 +64,7 @@ public final class SExpression extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writer.writeStatementOffset(offset);
+        writer.writeStatementOffset(location);
         expression.write(writer);
 
         if (methodEscape) {

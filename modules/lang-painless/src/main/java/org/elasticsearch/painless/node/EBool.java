@@ -20,8 +20,9 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -34,8 +35,8 @@ public final class EBool extends AExpression {
     AExpression left;
     AExpression right;
 
-    public EBool(int line, int offset, String location, Operation operation, AExpression left, AExpression right) {
-        super(line, offset, location);
+    public EBool(Location location, Operation operation, AExpression left, AExpression right) {
+        super(location);
 
         this.operation = operation;
         this.left = left;
@@ -43,14 +44,14 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         left.expected = Definition.BOOLEAN_TYPE;
-        left.analyze(variables);
-        left = left.cast(variables);
+        left.analyze(locals);
+        left = left.cast(locals);
 
         right.expected = Definition.BOOLEAN_TYPE;
-        right.analyze(variables);
-        right = right.cast(variables);
+        right.analyze(locals);
+        right = right.cast(locals);
 
         if (left.constant != null && right.constant != null) {
             if (operation == Operation.AND) {
@@ -58,7 +59,7 @@ public final class EBool extends AExpression {
             } else if (operation == Operation.OR) {
                 constant = (boolean)left.constant || (boolean)right.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
@@ -95,7 +96,7 @@ public final class EBool extends AExpression {
                     writer.mark(localtru);
                 }
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         } else {
             if (operation == Operation.AND) {
@@ -131,7 +132,7 @@ public final class EBool extends AExpression {
                 writer.push(false);
                 writer.mark(end);
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
     }

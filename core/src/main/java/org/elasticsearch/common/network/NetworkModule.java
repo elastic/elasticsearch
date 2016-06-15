@@ -49,6 +49,7 @@ import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotT
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.node.stats.RestNodesStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestCancelTasksAction;
+import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestGetTaskAction;
 import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestListTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.delete.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepositoriesAction;
@@ -72,6 +73,7 @@ import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestGetStoredSc
 import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestPutSearchTemplateAction;
 import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestPutStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.tasks.RestPendingClusterTasksAction;
+import org.elasticsearch.rest.action.admin.indices.RestShrinkIndexAction;
 import org.elasticsearch.rest.action.admin.indices.alias.RestIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.delete.RestIndexDeleteAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.get.RestGetAliasesAction;
@@ -145,6 +147,7 @@ import org.elasticsearch.rest.action.suggest.RestSuggestAction;
 import org.elasticsearch.rest.action.termvectors.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.termvectors.RestTermVectorsAction;
 import org.elasticsearch.rest.action.update.RestUpdateAction;
+import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -209,6 +212,7 @@ public class NetworkModule extends AbstractModule {
         RestIndexPutAliasAction.class,
         RestIndicesAliasesAction.class,
         RestCreateIndexAction.class,
+        RestShrinkIndexAction.class,
         RestDeleteIndexAction.class,
         RestCloseIndexAction.class,
         RestOpenIndexAction.class,
@@ -275,6 +279,7 @@ public class NetworkModule extends AbstractModule {
 
         // Tasks API
         RestListTasksAction.class,
+        RestGetTaskAction.class,
         RestCancelTasksAction.class,
 
         // Ingest API
@@ -337,6 +342,7 @@ public class NetworkModule extends AbstractModule {
         registerTransport(LOCAL_TRANSPORT, LocalTransport.class);
         registerTransport(NETTY_TRANSPORT, NettyTransport.class);
         registerTaskStatus(ReplicationTask.Status.NAME, ReplicationTask.Status::new);
+        registerTaskStatus(RawTaskStatus.NAME, RawTaskStatus::new);
         registerBuiltinAllocationCommands();
 
         if (transportClient == false) {

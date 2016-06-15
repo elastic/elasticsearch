@@ -91,6 +91,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        if (request.hasParam("max_concurrent_searches")) {
+            multiSearchRequest.maxConcurrentSearchRequests(request.paramAsInt("max_concurrent_searches", 0));
+        }
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));
@@ -157,7 +160,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
                         Object value = entry.getValue();
                         if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
                             if (!allowExplicitIndex) {
-                                throw new IllegalArgumentException("explicit index in multi percolate is not allowed");
+                                throw new IllegalArgumentException("explicit index in multi search is not allowed");
                             }
                             searchRequest.indices(nodeStringArrayValue(value));
                         } else if ("type".equals(entry.getKey()) || "types".equals(entry.getKey())) {

@@ -19,8 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Collections;
@@ -34,26 +35,26 @@ public final class STry extends AStatement {
     final SBlock block;
     final List<SCatch> catches;
 
-    public STry(int line, int offset, String location, SBlock block, List<SCatch> traps) {
-        super(line, offset, location);
+    public STry(Location location, SBlock block, List<SCatch> catches) {
+        super(location);
 
         this.block = block;
-        this.catches = Collections.unmodifiableList(traps);
+        this.catches = Collections.unmodifiableList(catches);
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         if (block == null) {
-            throw new IllegalArgumentException(error("Extraneous try statement."));
+            throw createError(new IllegalArgumentException("Extraneous try statement."));
         }
 
         block.lastSource = lastSource;
         block.inLoop = inLoop;
         block.lastLoop = lastLoop;
 
-        variables.incrementScope();
-        block.analyze(variables);
-        variables.decrementScope();
+        locals.incrementScope();
+        block.analyze(locals);
+        locals.decrementScope();
 
         methodEscape = block.methodEscape;
         loopEscape = block.loopEscape;
@@ -68,9 +69,9 @@ public final class STry extends AStatement {
             catc.inLoop = inLoop;
             catc.lastLoop = lastLoop;
 
-            variables.incrementScope();
-            catc.analyze(variables);
-            variables.decrementScope();
+            locals.incrementScope();
+            catc.analyze(locals);
+            locals.decrementScope();
 
             methodEscape &= catc.methodEscape;
             loopEscape &= catc.loopEscape;
@@ -86,7 +87,8 @@ public final class STry extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writer.writeStatementOffset(offset);
+        writer.writeStatementOffset(location);
+
         Label begin = new Label();
         Label end = new Label();
         Label exception = new Label();

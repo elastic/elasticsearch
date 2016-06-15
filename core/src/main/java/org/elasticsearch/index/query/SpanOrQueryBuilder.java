@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Span query that matches the union of its clauses. Maps to {@link SpanOrQuery}.
@@ -99,7 +100,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
         builder.endObject();
     }
 
-    public static SpanOrQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<SpanOrQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -115,11 +116,11 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (parseContext.getParseFieldMatcher().match(currentFieldName, CLAUSES_FIELD)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        QueryBuilder query = parseContext.parseInnerQueryBuilder();
-                        if (!(query instanceof SpanQueryBuilder)) {
+                        Optional<QueryBuilder> query = parseContext.parseInnerQueryBuilder();
+                        if (query.isPresent() == false || query.get() instanceof SpanQueryBuilder == false) {
                             throw new ParsingException(parser.getTokenLocation(), "spanOr [clauses] must be of type span query");
                         }
-                        clauses.add((SpanQueryBuilder) query);
+                        clauses.add((SpanQueryBuilder) query.get());
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_or] query does not support [" + currentFieldName + "]");
@@ -145,7 +146,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
         }
         queryBuilder.boost(boost);
         queryBuilder.queryName(queryName);
-        return queryBuilder;
+        return Optional.of(queryBuilder);
     }
 
     @Override

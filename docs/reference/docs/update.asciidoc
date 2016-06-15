@@ -235,9 +235,8 @@ The write consistency of the index/delete operation.
 
 `refresh`::
 
-Refresh the relevant primary and replica shards (not the whole index)
-immediately after the operation occurs, so that the updated document appears
-in search results  immediately.
+Control when the changes made by this request are visible to search. See
+<<docs-refresh>>.
 
 `fields`::
 

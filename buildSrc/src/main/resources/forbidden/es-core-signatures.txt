@@ -92,3 +92,8 @@ org.joda.time.DateTime#<init>(int, int, int, int, int, int)
 org.joda.time.DateTime#<init>(int, int, int, int, int, int, int)
 org.joda.time.DateTime#now()
 org.joda.time.DateTimeZone#getDefault()
+
+@defaultMessage Don't use MethodHandles in slow ways, except in tests.
+java.lang.invoke.MethodHandle#invoke(java.lang.Object[])
+java.lang.invoke.MethodHandle#invokeWithArguments(java.lang.Object[])
+java.lang.invoke.MethodHandle#invokeWithArguments(java.util.List)

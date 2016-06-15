@@ -26,7 +26,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClientModule;
 import org.elasticsearch.cluster.ClusterModule;
@@ -62,6 +61,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -97,7 +97,8 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
-import org.elasticsearch.tasks.TaskResultsService;
+import org.elasticsearch.tasks.TaskPersistenceService;
+import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportService;
@@ -210,11 +211,12 @@ public class Node implements Closeable {
             throw new IllegalStateException("Failed to created node environment", ex);
         }
         final NetworkService networkService = new NetworkService(settings);
-        final ThreadPool threadPool = new ThreadPool(settings);
+        final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
+        final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder[0]));
+
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         boolean success = false;
         try {
-            final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new Version.Module(version));
             modules.add(new CircuitBreakerModule(settings));
@@ -222,6 +224,7 @@ public class Node implements Closeable {
             for (Module pluginModule : pluginsService.nodeModules()) {
                 modules.add(pluginModule);
             }
+            final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             modules.add(new PluginsModule(pluginsService));
             SettingsModule settingsModule = new SettingsModule(this.settings);
             modules.add(settingsModule);
@@ -232,7 +235,8 @@ public class Node implements Closeable {
             modules.add(scriptModule);
             modules.add(new NodeEnvironmentModule(nodeEnvironment));
             modules.add(new ClusterNameModule(this.settings));
-            modules.add(new ThreadPoolModule(threadPool));
+            final ThreadPoolModule threadPoolModule = new ThreadPoolModule(threadPool);
+            modules.add(threadPoolModule);
             modules.add(new DiscoveryModule(this.settings));
             modules.add(new ClusterModule(this.settings));
             modules.add(new IndicesModule());
@@ -246,11 +250,14 @@ public class Node implements Closeable {
             modules.add(new AnalysisModule(environment));
 
             pluginsService.processModules(modules);
+
             scriptModule.prepareSettings(settingsModule);
+
+            threadPoolModule.prepareSettings(settingsModule);
+
             injector = modules.createInjector();
 
             client = injector.getInstance(Client.class);
-            threadPool.setClusterSettings(injector.getInstance(ClusterSettings.class));
             success = true;
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to bind service", ex);
@@ -333,7 +340,7 @@ public class Node implements Closeable {
 
         // Start the transport service now so the publish address will be added to the local disco node in ClusterService
         TransportService transportService = injector.getInstance(TransportService.class);
-        transportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskResultsService.class));
+        transportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskPersistenceService.class));
         transportService.start();
 
         validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress());
@@ -526,7 +533,7 @@ public class Node implements Closeable {
 
 
         toClose.add(injector.getInstance(NodeEnvironment.class));
-        toClose.add(injector.getInstance(PageCacheRecycler.class));
+        toClose.add(injector.getInstance(BigArrays.class));
 
         if (logger.isTraceEnabled()) {
             logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint());

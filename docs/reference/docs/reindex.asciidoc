@@ -30,6 +30,7 @@ That will return something like this:
   "timed_out": false,
   "created": 120,
   "updated": 0,
+  "deleted": 0,
   "batches": 1,
   "version_conflicts": 0,
   "noops": 0,
@@ -237,12 +238,30 @@ POST _reindex
     "version_type": "external"
   },
   "script": {
-    "script": "if (ctx._source.foo == 'bar') {ctx._version++; ctx._source.remove('foo')}"
+    "inline": "if (ctx._source.foo == 'bar') {ctx._version++; ctx._source.remove('foo')}"
   }
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
+
+Just as in `_update_by_query`, you can set `ctx.op` to change the
+operation that is executed on the destination index:
+
+`noop`::
+
+Set `ctx.op = "noop"` if your script decides that the document doesn't have
+to be indexed in the destination index. This no operation will be reported
+in the `noop` counter in the <<docs-reindex-response-body, response body>>.
+
+`delete`::
+
+Set `ctx.op = "delete"` if your script decides that the document must be
+ deleted from the destination index. The deletion will be reported in the
+ `deleted` counter in the <<docs-reindex-response-body, response body>>.
+
+Setting `ctx.op` to anything else is an error. Setting any
+other field in `ctx` is an error.
 
 Think of the possibilities! Just be careful! With great power.... You can
 change:
@@ -356,10 +375,11 @@ parameter which causes just the shard that received the new data to be indexed.
 
 If the request contains `wait_for_completion=false` then Elasticsearch will
 perform some preflight checks, launch the request, and then return a `task`
-which can be used with <<docs-reindex-task-api,Tasks APIs>> to cancel or get
-the status of the task. For now, once the request is finished the task is gone
-and the only place to look for the ultimate result of the task is in the
-Elasticsearch log file. This will be fixed soon.
+which can be used with <<docs-reindex-task-api,Tasks APIs>>
+to cancel or get the status of the task. Elasticsearch will also create a
+record of this task as a document at `.tasks/task/${taskId}`. This is yours
+to keep or remove as you see fit. When you are done with it, delete it so
+Elasticsearch can reclaim the space it uses.
 
 `consistency` controls how many copies of a shard must respond to each write
 request. `timeout` controls how long each write request waits for unavailable
@@ -377,6 +397,7 @@ starting the next set. This is "bursty" instead of "smooth". The default is
 `unlimited` which is also the only non-number value that it accepts.
 
 [float]
+[[docs-reindex-response-body]]
 === Response body
 
 The JSON response looks like this:
@@ -437,7 +458,7 @@ from aborting the operation.
 [[docs-reindex-task-api]]
 === Works with the Task API
 
-While Reindex is running you can fetch their status using the
+You can fetch the status of all running reindex requests with the
 <<tasks,Task API>>:
 
 [source,js]
@@ -494,6 +515,22 @@ with the important addition of the `total` field. `total` is the total number
 of operations that the reindex expects to perform. You can estimate the
 progress by adding the `updated`, `created`, and `deleted` fields. The request
 will finish when their sum is equal to the `total` field.
+
+With the task id you can look up the task directly:
+
+[source,js]
+--------------------------------------------------
+GET /_tasks/taskId:1
+--------------------------------------------------
+// CONSOLE
+// TEST[catch:missing]
+
+The advantage of this API is that it integrates with `wait_for_completion=false`
+to transparently return the status of completed tasks. If the task is completed
+and `wait_for_completion=false` was set on it them it'll come back with a
+`results` or an `error` field. The cost of this feature is the document that
+`wait_for_completion=false` creates at `.tasks/task/${taskId}`. It is up to
+you to delete that document.
 
 
 [float]

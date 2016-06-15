@@ -160,6 +160,7 @@ subprojects {
     them as external dependencies so the build plugin that we use can be used
     to build elasticsearch plugins outside of the elasticsearch source tree. */
   ext.projectSubstitutions = [
+    "org.elasticsearch.gradle:build-tools:${version}": ':build-tools',
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
     "org.elasticsearch:elasticsearch:${version}": ':core',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
@@ -257,7 +258,6 @@ allprojects {
 
 idea {
   project {
-    languageLevel = org.elasticsearch.gradle.BuildPlugin.minimumJava.toString()
     vcs = 'Git'
   }
 }
@@ -304,9 +304,10 @@ allprojects {
     into '.settings'
   }
   // otherwise .settings is not nuked entirely
-  tasks.cleanEclipse {
+  task wipeEclipseSettings(type: Delete) {
     delete '.settings'
   }
+  tasks.cleanEclipse.dependsOn(wipeEclipseSettings)
   // otherwise the eclipse merging is *super confusing*
   tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 }

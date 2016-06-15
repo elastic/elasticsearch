@@ -272,6 +272,6 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         XContentParser sourceParser = PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent()
                 .createParser(actual.bytes, actual.offset, actual.length);
         QueryParseContext qsc = indexService.newQueryShardContext().newParseContext(sourceParser);
-        assertThat(qsc.parseInnerQueryBuilder(), equalTo(expected));
+        assertThat(qsc.parseInnerQueryBuilder().get(), equalTo(expected));
     }
 }

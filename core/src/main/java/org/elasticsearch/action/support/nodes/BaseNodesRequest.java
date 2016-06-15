@@ -82,20 +82,13 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         nodesIds = in.readStringArray();
-        if (in.readBoolean()) {
-            timeout = TimeValue.readTimeValue(in);
-        }
+        timeout = in.readOptionalWriteable(TimeValue::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(nodesIds);
-        if (timeout == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            timeout.writeTo(out);
-        }
+        out.writeOptionalWriteable(timeout);
     }
 }

@@ -20,7 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -73,8 +74,8 @@ public abstract class ALink extends ANode {
      */
     String string = null;
 
-    ALink(int line, int offset, String location, int size) {
-        super(line, offset, location);
+    ALink(Location location, int size) {
+        super(location);
 
         this.size = size;
     }
@@ -85,7 +86,7 @@ public abstract class ALink extends ANode {
      * def or a shortcut is used. Otherwise, returns itself.  This will be
      * updated into the {@link EChain} node's list of links.
      */
-    abstract ALink analyze(Variables variables);
+    abstract ALink analyze(Locals locals);
 
     /**
      * Write values before a load/store occurs such as an array index.

@@ -454,6 +454,7 @@ class Calendar -> java.util.Calendar extends Comparable,Object {
   void clear()
   void clear(int)
   def clone()
+  int compareTo(Calendar)
   int get(int)
   int getActualMaximum(int)
   int getActualMinimum(int)
@@ -491,6 +492,7 @@ class Calendar -> java.util.Calendar extends Comparable,Object {
   void setTimeInMillis(long)
   void setTimeZone(TimeZone)
   void setWeekDate(int,int,int)
+  Instant toInstant()
 }
 
 class Calendar.Builder -> java.util.Calendar$Builder extends Object {
@@ -583,6 +585,8 @@ class Date -> java.util.Date extends Comparable,Object {
   boolean after(Date)
   boolean before(Date)
   def clone()
+  int compareTo(Date)
+  Date from(Instant)
   long getTime()
   void setTime(long)
 }
@@ -641,9 +645,11 @@ class GregorianCalendar -> java.util.GregorianCalendar extends Calendar,Comparab
   GregorianCalendar <init>(int,int,int,int,int,int)
   GregorianCalendar <init>(TimeZone)
   GregorianCalendar <init>(TimeZone,Locale)
+  GregorianCalendar from(ZonedDateTime)
   Date getGregorianChange()
   boolean isLeapYear(int)
   void setGregorianChange(Date)
+  ZonedDateTime toZonedDateTime()
 }
 
 class HashMap -> java.util.HashMap extends AbstractMap,Map,Object {
@@ -976,6 +982,8 @@ class TimeZone -> java.util.TimeZone extends Object {
   boolean hasSameRules(TimeZone)
   boolean inDaylightTime(Date)
   boolean observesDaylightTime()
+  void setRawOffset(int)
+  ZoneId toZoneId()
   boolean useDaylightTime()
 }
 
@@ -993,6 +1001,7 @@ class TreeSet -> java.util.TreeSet extends AbstractSet,NavigableSet,SortedSet,Se
 
 class UUID -> java.util.UUID extends Comparable,Object {
   UUID <init>(long,long)
+  int compareTo(UUID)
   int clockSequence()
   UUID fromString(String)
   long getLeastSignificantBits()
@@ -1048,101 +1057,101 @@ class Locale.FilteringMode -> java.util.Locale$FilteringMode extends Enum,Compar
 
 #### Exceptions
 
-class ConcurrentModificationException -> java.util.ConcurrentModificationException extends RuntimeException,Exception {
+class ConcurrentModificationException -> java.util.ConcurrentModificationException extends RuntimeException,Exception,Object {
   ConcurrentModificationException <init>()
   ConcurrentModificationException <init>(String)
 }
 
-class DuplicateFormatFlagsException -> java.util.DuplicateFormatFlagsException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception {
+class DuplicateFormatFlagsException -> java.util.DuplicateFormatFlagsException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
   DuplicateFormatFlagsException <init>(String)
   String getFlags()
 }
 
-class EmptyStackException -> java.util.EmptyStackException extends RuntimeException,Exception {
+class EmptyStackException -> java.util.EmptyStackException extends RuntimeException,Exception,Object {
   EmptyStackException <init>()
 }
 
-class FormatFlagsConversionMismatchException -> java.util.FormatFlagsConversionMismatchException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception {
+class FormatFlagsConversionMismatchException -> java.util.FormatFlagsConversionMismatchException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
   FormatFlagsConversionMismatchException <init>(String,char)
   char getConversion()
   String getFlags()
 }
 
-class FormatterClosedException -> java.util.FormatterClosedException extends IllegalStateException,RuntimeException,Exception {
+class FormatterClosedException -> java.util.FormatterClosedException extends IllegalStateException,RuntimeException,Exception,Object {
   FormatterClosedException <init>()
 }
 
-class IllegalFormatCodePointException -> java.util.IllegalFormatCodePointException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception {
+class IllegalFormatCodePointException -> java.util.IllegalFormatCodePointException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
   IllegalFormatCodePointException <init>(int)
   int getCodePoint()
 }
 
-class IllegalFormatConversionException -> java.util.IllegalFormatConversionException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception {
+class IllegalFormatConversionException -> java.util.IllegalFormatConversionException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
   char getConversion()
 }
 
-class IllegalFormatException -> java.util.IllegalFormatException extends IllegalArgumentException,RuntimeException,Exception {
+class IllegalFormatException -> java.util.IllegalFormatException extends IllegalArgumentException,RuntimeException,Exception,Object {
 }
 
-class IllegalFormatFlagsException -> java.util.IllegalFormatFlagsException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception {
+class IllegalFormatFlagsException -> java.util.IllegalFormatFlagsException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
   IllegalFormatFlagsException <init>(String)
   String getFlags()
 }
 
-class IllegalFormatPrecisionException -> java.util.IllegalFormatPrecisionException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception {
+class IllegalFormatPrecisionException -> java.util.IllegalFormatPrecisionException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
   IllegalFormatPrecisionException <init>(int)
   int getPrecision()
 }
 
-class IllegalFormatWidthException -> java.util.IllegalFormatWidthException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception {
+class IllegalFormatWidthException -> java.util.IllegalFormatWidthException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
   IllegalFormatWidthException <init>(int)
   int getWidth()
 }
 
-class IllformedLocaleException -> java.util.IllformedLocaleException extends RuntimeException,Exception {
+class IllformedLocaleException -> java.util.IllformedLocaleException extends RuntimeException,Exception,Object {
   IllformedLocaleException <init>()
   IllformedLocaleException <init>(String)
   IllformedLocaleException <init>(String,int)
   int getErrorIndex()
 }
 
-class InputMismatchException -> java.util.InputMismatchException extends NoSuchElementException,RuntimeException,Exception {
+class InputMismatchException -> java.util.InputMismatchException extends NoSuchElementException,RuntimeException,Exception,Object {
   InputMismatchException <init>()
   InputMismatchException <init>(String)
 }
 
-class MissingFormatArgumentException -> java.util.MissingFormatArgumentException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception {
+class MissingFormatArgumentException -> java.util.MissingFormatArgumentException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
   MissingFormatArgumentException <init>(String)
   String getFormatSpecifier()
 }
 
-class MissingFormatWidthException -> java.util.MissingFormatWidthException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception {
+class MissingFormatWidthException -> java.util.MissingFormatWidthException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
   MissingFormatWidthException <init>(String)
   String getFormatSpecifier()
 }
 
-class MissingResourceException -> java.util.MissingResourceException extends RuntimeException,Exception {
+class MissingResourceException -> java.util.MissingResourceException extends RuntimeException,Exception,Object {
   MissingResourceException <init>(String,String,String)
   String getClassName()
   String getKey()
 }
 
-class NoSuchElementException -> java.util.NoSuchElementException extends RuntimeException,Exception {
+class NoSuchElementException -> java.util.NoSuchElementException extends RuntimeException,Exception,Object {
   NoSuchElementException <init>()
   NoSuchElementException <init>(String)
 }
 
-class TooManyListenersException -> java.util.TooManyListenersException extends Exception {
+class TooManyListenersException -> java.util.TooManyListenersException extends Exception,Object {
   TooManyListenersException <init>()
   TooManyListenersException <init>(String)
 }
 
-class UnknownFormatConversionException -> java.util.UnknownFormatConversionException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception {
+class UnknownFormatConversionException -> java.util.UnknownFormatConversionException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
   UnknownFormatConversionException <init>(String)
   String getConversion()
 }
 
-class UnknownFormatFlagsException -> java.util.UnknownFormatFlagsException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception {
+class UnknownFormatFlagsException -> java.util.UnknownFormatFlagsException extends IllegalFormatException,IllegalArgumentException,RuntimeException,Exception,Object {
   UnknownFormatFlagsException <init>(String)
   String getFlags()
 }

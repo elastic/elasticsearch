@@ -31,11 +31,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.IngestInfo;
 import org.elasticsearch.ingest.core.Pipeline;
+import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.ingest.core.ProcessorInfo;
-import org.elasticsearch.ingest.processor.RemoveProcessor;
-import org.elasticsearch.ingest.processor.SetProcessor;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -60,8 +60,45 @@ public class PipelineStoreTests extends ESTestCase {
     public void init() throws Exception {
         store = new PipelineStore(Settings.EMPTY);
         ProcessorsRegistry.Builder registryBuilder = new ProcessorsRegistry.Builder();
-        registryBuilder.registerProcessor("set", (templateService, registry) -> new SetProcessor.Factory(TestTemplateService.instance()));
-        registryBuilder.registerProcessor("remove", (templateService, registry) -> new RemoveProcessor.Factory(TestTemplateService.instance()));
+        registryBuilder.registerProcessor("set", (templateService, registry) -> config -> {
+            String field = (String) config.remove("field");
+            String value = (String) config.remove("value");
+            return new Processor() {
+                @Override
+                public void execute(IngestDocument ingestDocument) throws Exception {
+                    ingestDocument.setFieldValue(field, value);
+                }
+
+                @Override
+                public String getType() {
+                    return "set";
+                }
+
+                @Override
+                public String getTag() {
+                    return null;
+                }
+            };
+        });
+        registryBuilder.registerProcessor("remove", (templateService, registry) -> config -> {
+            String field = (String) config.remove("field");
+            return new Processor() {
+                @Override
+                public void execute(IngestDocument ingestDocument) throws Exception {
+                    ingestDocument.removeField(field);
+                }
+
+                @Override
+                public String getType() {
+                    return "remove";
+                }
+
+                @Override
+                public String getTag() {
+                    return null;
+                }
+            };
+        });
         store.buildProcessorFactoryRegistry(registryBuilder, null);
     }
 
@@ -190,7 +227,8 @@ public class PipelineStoreTests extends ESTestCase {
         assertThat(pipeline, nullValue());
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
 
-        PutPipelineRequest putRequest = new PutPipelineRequest(id, new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"));
+        PutPipelineRequest putRequest = new PutPipelineRequest(id,
+                new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"));
         clusterState = store.innerPut(putRequest, clusterState);
         store.innerUpdatePipelines(clusterState);
         pipeline = store.get(id);
@@ -208,7 +246,8 @@ public class PipelineStoreTests extends ESTestCase {
     }
 
     public void testValidate() throws Exception {
-        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}},{\"remove\" : {\"field\": \"_field\"}}]}"));
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray(
+                "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}},{\"remove\" : {\"field\": \"_field\"}}]}"));
 
         DiscoveryNode node1 = new DiscoveryNode("_node_id1", new LocalTransportAddress("_id"),
                 emptyMap(), emptySet(), Version.CURRENT);
@@ -230,7 +269,8 @@ public class PipelineStoreTests extends ESTestCase {
     }
 
     public void testValidateNoIngestInfo() throws Exception {
-        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"));
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray(
+                "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"));
         try {
             store.validatePipeline(Collections.emptyMap(), putRequest);
             fail("exception expected");

@@ -24,6 +24,8 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 
+import java.io.IOException;
+
 public class AzureTestUtils {
     /**
      * Read settings from file when running integration tests with ThirdParty annotation.
@@ -36,7 +38,11 @@ public class AzureTestUtils {
         // if explicit, just load it and don't load from env
         try {
             if (Strings.hasText(System.getProperty("tests.config"))) {
-                settings.loadFromPath(PathUtils.get((System.getProperty("tests.config"))));
+                try {
+                    settings.loadFromPath(PathUtils.get((System.getProperty("tests.config"))));
+                } catch (IOException e) {
+                    throw new IllegalArgumentException("could not load azure tests config", e);
+                }
             } else {
                 throw new IllegalStateException("to run integration tests, you need to set -Dtests.thirdparty=true and " +
                     "-Dtests.config=/path/to/elasticsearch.yml");

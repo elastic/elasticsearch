@@ -57,6 +57,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.singleton;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -456,7 +457,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
         client().prepareIndex("my-index", "my-type1", "1")
                 .setRouting("1")
                 .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         SearchResponse searchResponse = client().prepareSearch("my-index")
@@ -473,7 +474,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
     public void testSearchFieldsNonLeafField() throws Exception {
         client().prepareIndex("my-index", "my-type1", "1")
                 .setSource(jsonBuilder().startObject().startObject("field1").field("field2", "value1").endObject().endObject())
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         assertFailures(client().prepareSearch("my-index").setTypes("my-type1").addField("field1"),
@@ -536,7 +537,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
                 .endObject().bytes();
 
         client().prepareIndex("my-index", "my-type1", "1").setSource(source).get();
-        client().prepareIndex("my-index", "my-type2", "1").setRefresh(true).setSource(source).get();
+        client().prepareIndex("my-index", "my-type2", "1").setRefreshPolicy(IMMEDIATE).setSource(source).get();
 
 
         String field = "field1.field2.field3.field4";

@@ -60,6 +60,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
 
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
+    public static final QueryBuilder DEFAULT_INNER_HIT_QUERY = new MatchAllQueryBuilder();
 
     private final static ObjectParser<InnerHitBuilder, QueryParseContext> PARSER = new ObjectParser<>("inner_hits", InnerHitBuilder::new);
 
@@ -131,7 +132,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
     private boolean trackScores;
 
     private List<String> fieldNames;
-    private QueryBuilder query = new MatchAllQueryBuilder();
+    private QueryBuilder query = DEFAULT_INNER_HIT_QUERY;
     private List<SortBuilder<?>> sorts;
     private List<String> fieldDataFields;
     private Set<ScriptField> scriptFields;
@@ -394,7 +395,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         return this;
     }
 
-    public InnerHitBuilder addSort(SortBuilder sort) {
+    public InnerHitBuilder addSort(SortBuilder<?> sort) {
         if (sorts == null) {
             sorts = new ArrayList<>();
         }

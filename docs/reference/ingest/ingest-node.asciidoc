@@ -566,6 +566,30 @@ the index to which failed documents get sent.
 }
 --------------------------------------------------
 
+Alternatively instead of defining behaviour in case of processor failure, it is also possible
+to ignore a failure and continue with the next processor by specifying the `ignore_failure` setting.
+
+In case in the example below the field `foo` doesn't exist the failure will be caught and the pipeline
+continues to execute, which in this case means that the pipeline does nothing.
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "my first pipeline with handled exceptions",
+  "processors" : [
+    {
+      "rename" : {
+        "field" : "foo",
+        "target_field" : "bar",
+        "ignore_failure" : true
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+The `ignore_failure` can be set on any processor and defaults to `false`.
+
 [float]
 [[accessing-error-metadata]]
 === Accessing Error Metadata From Processors Handling Exceptions
@@ -720,7 +744,7 @@ in the same order they were defined as part of the processor definition.
 | Name                   | Required  | Default             | Description
 | `field`                | yes       | -                   | The field to get the date from.
 | `target_field`         | no        | @timestamp          | The field that will hold the parsed date.
-| `match_formats`        | yes       | -                   | An array of the expected date formats. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
+| `formats`              | yes       | -                   | An array of the expected date formats. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
 | `timezone`             | no        | UTC                 | The timezone to use when parsing the date.
 | `locale`               | no        | ENGLISH             | The locale to use when parsing the date, relevant when parsing month names or week days.
 |======
@@ -736,7 +760,7 @@ Here is an example that adds the parsed date to the `timestamp` field based on t
       "date" : {
         "field" : "initial_date",
         "target_field" : "timestamp",
-        "match_formats" : ["dd/MM/yyyy hh:mm:ss"],
+        "formats" : ["dd/MM/yyyy hh:mm:ss"],
         "timezone" : "Europe/Amsterdam"
       }
     }
@@ -798,7 +822,7 @@ This is because the date is being rounded by month.
 | Name                   | Required  | Default                      | Description
 | `field`                | yes       | -                            | The field to get the date or timestamp from.
 | `index_name_prefix`    | no        | -                            | A prefix of the index name to be prepended before the printed date.
-| `date_rounding`        | yes       | -                            | How to round the date when formatting the date into the index name. Valid values are: `y` (year), `m` (month), `w` (week), `d` (day), `h` (hour), `m` (minute) and `s` (second).
+| `date_rounding`        | yes       | -                            | How to round the date when formatting the date into the index name. Valid values are: `y` (year), `M` (month), `w` (week), `d` (day), `h` (hour), `m` (minute) and `s` (second).
 | `date_formats `        | no        | yyyy-MM-dd'T'HH:mm:ss.SSSZ   | An array of the expected date formats for parsing dates / timestamps in the document being preprocessed. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
 | `timezone`             | no        | UTC                          | The timezone to use when parsing the date and when date math index supports resolves expressions into concrete index names.
 | `locale`               | no        | ENGLISH                      | The locale to use when parsing the date from the document being preprocessed, relevant when parsing month names or week days.

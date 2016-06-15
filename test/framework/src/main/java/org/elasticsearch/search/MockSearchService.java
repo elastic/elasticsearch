@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -29,10 +28,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -84,11 +81,10 @@ public class MockSearchService extends SearchService {
 
     @Inject
     public MockSearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService,
-            IndicesService indicesService, ThreadPool threadPool, ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
-            BigArrays bigArrays, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase,
-            AggregatorParsers aggParsers, Suggesters suggesters) {
-        super(settings, clusterSettings, clusterService, indicesService, threadPool, scriptService, pageCacheRecycler, bigArrays, dfsPhase,
-                queryPhase, fetchPhase, aggParsers, suggesters);
+            IndicesService indicesService, ThreadPool threadPool, ScriptService scriptService,
+            BigArrays bigArrays, FetchPhase fetchPhase, AggregatorParsers aggParsers, Suggesters suggesters) {
+        super(settings, clusterSettings, clusterService, indicesService, threadPool, scriptService, bigArrays,
+                fetchPhase, aggParsers, suggesters);
     }
 
     @Override

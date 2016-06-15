@@ -20,7 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -30,33 +31,33 @@ public final class EDecimal extends AExpression {
 
     final String value;
 
-    public EDecimal(int line, int offset, String location, String value) {
-        super(line, offset, location);
+    public EDecimal(Location location, String value) {
+        super(location);
 
         this.value = value;
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         if (value.endsWith("f") || value.endsWith("F")) {
             try {
                 constant = Float.parseFloat(value.substring(0, value.length() - 1));
                 actual = Definition.FLOAT_TYPE;
             } catch (NumberFormatException exception) {
-                throw new IllegalArgumentException(error("Invalid float constant [" + value + "]."));
+                throw createError(new IllegalArgumentException("Invalid float constant [" + value + "]."));
             }
         } else {
             try {
                 constant = Double.parseDouble(value);
                 actual = Definition.DOUBLE_TYPE;
             } catch (NumberFormatException exception) {
-                throw new IllegalArgumentException(error("Invalid double constant [" + value + "]."));
+                throw createError(new IllegalArgumentException("Invalid double constant [" + value + "]."));
             }
         }
     }
 
     @Override
     void write(MethodWriter writer) {
-        throw new IllegalArgumentException(error("Illegal tree structure."));
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

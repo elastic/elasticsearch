@@ -35,6 +35,6 @@ public class CustomHighlighterPlugin extends Plugin {
     }
 
     public void onModule(SearchModule highlightModule) {
-        highlightModule.registerHighlighter("test-custom", CustomHighlighter.class);
+        highlightModule.registerHighlighter("test-custom", new CustomHighlighter());
     }
 }

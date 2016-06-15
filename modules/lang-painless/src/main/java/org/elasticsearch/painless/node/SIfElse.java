@@ -20,7 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -33,8 +34,8 @@ public final class SIfElse extends AStatement {
     final SBlock ifblock;
     final SBlock elseblock;
 
-    public SIfElse(int line, int offset, String location, AExpression condition, SBlock ifblock, SBlock elseblock) {
-        super(line, offset, location);
+    public SIfElse(Location location, AExpression condition, SBlock ifblock, SBlock elseblock) {
+        super(location);
 
         this.condition = condition;
         this.ifblock = ifblock;
@@ -42,42 +43,42 @@ public final class SIfElse extends AStatement {
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         condition.expected = Definition.BOOLEAN_TYPE;
-        condition.analyze(variables);
-        condition = condition.cast(variables);
+        condition.analyze(locals);
+        condition = condition.cast(locals);
 
         if (condition.constant != null) {
-            throw new IllegalArgumentException(error("Extraneous if statement."));
+            throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
         if (ifblock == null) {
-            throw new IllegalArgumentException(error("Extraneous if statement."));
+            throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
         ifblock.lastSource = lastSource;
         ifblock.inLoop = inLoop;
         ifblock.lastLoop = lastLoop;
 
-        variables.incrementScope();
-        ifblock.analyze(variables);
-        variables.decrementScope();
+        locals.incrementScope();
+        ifblock.analyze(locals);
+        locals.decrementScope();
 
         anyContinue = ifblock.anyContinue;
         anyBreak = ifblock.anyBreak;
         statementCount = ifblock.statementCount;
 
         if (elseblock == null) {
-            throw new IllegalArgumentException(error("Extraneous else statement."));
+            throw createError(new IllegalArgumentException("Extraneous else statement."));
         }
 
         elseblock.lastSource = lastSource;
         elseblock.inLoop = inLoop;
         elseblock.lastLoop = lastLoop;
 
-        variables.incrementScope();
-        elseblock.analyze(variables);
-        variables.decrementScope();
+        locals.incrementScope();
+        elseblock.analyze(locals);
+        locals.decrementScope();
 
         methodEscape = ifblock.methodEscape && elseblock.methodEscape;
         loopEscape = ifblock.loopEscape && elseblock.loopEscape;
@@ -89,7 +90,8 @@ public final class SIfElse extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        writer.writeStatementOffset(offset);
+        writer.writeStatementOffset(location);
+
         Label end = new Label();
         Label fals = elseblock != null ? new Label() : end;
 

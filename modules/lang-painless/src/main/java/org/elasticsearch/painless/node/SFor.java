@@ -20,7 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -29,60 +30,57 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class SFor extends AStatement {
 
-    final int maxLoopCounter;
     ANode initializer;
     AExpression condition;
     AExpression afterthought;
     final SBlock block;
 
-    public SFor(int line, int offset, String location, int maxLoopCounter,
-                ANode initializer, AExpression condition, AExpression afterthought, SBlock block) {
-        super(line, offset, location);
+    public SFor(Location location, ANode initializer, AExpression condition, AExpression afterthought, SBlock block) {
+        super(location);
 
         this.initializer = initializer;
         this.condition = condition;
         this.afterthought = afterthought;
         this.block = block;
-        this.maxLoopCounter = maxLoopCounter;
     }
 
     @Override
-    void analyze(Variables variables) {
-        variables.incrementScope();
+    void analyze(Locals locals) {
+        locals.incrementScope();
 
         boolean continuous = false;
 
         if (initializer != null) {
-            if (initializer instanceof SDeclBlock) {
-                ((SDeclBlock)initializer).analyze(variables);
+            if (initializer instanceof AStatement) {
+                ((AStatement)initializer).analyze(locals);
             } else if (initializer instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializer;
 
                 initializer.read = false;
-                initializer.analyze(variables);
+                initializer.analyze(locals);
 
                 if (!initializer.statement) {
-                    throw new IllegalArgumentException(initializer.error("Not a statement."));
+                    throw createError(new IllegalArgumentException("Not a statement."));
                 }
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
         if (condition != null) {
             condition.expected = Definition.BOOLEAN_TYPE;
-            condition.analyze(variables);
-            condition = condition.cast(variables);
+            condition.analyze(locals);
+            condition = condition.cast(locals);
 
             if (condition.constant != null) {
                 continuous = (boolean)condition.constant;
 
                 if (!continuous) {
-                    throw new IllegalArgumentException(error("Extraneous for loop."));
+                    throw createError(new IllegalArgumentException("Extraneous for loop."));
                 }
 
                 if (block == null) {
-                    throw new IllegalArgumentException(error("For loop has no escape."));
+                    throw createError(new IllegalArgumentException("For loop has no escape."));
                 }
             }
         } else {
@@ -91,10 +89,10 @@ public final class SFor extends AStatement {
 
         if (afterthought != null) {
             afterthought.read = false;
-            afterthought.analyze(variables);
+            afterthought.analyze(locals);
 
             if (!afterthought.statement) {
-                throw new IllegalArgumentException(afterthought.error("Not a statement."));
+                throw createError(new IllegalArgumentException("Not a statement."));
             }
         }
 
@@ -102,10 +100,10 @@ public final class SFor extends AStatement {
             block.beginLoop = true;
             block.inLoop = true;
 
-            block.analyze(variables);
+            block.analyze(locals);
 
             if (block.loopEscape && !block.anyContinue) {
-                throw new IllegalArgumentException(error("Extraneous for loop."));
+                throw createError(new IllegalArgumentException("Extraneous for loop."));
             }
 
             if (continuous && !block.anyBreak) {
@@ -118,16 +116,17 @@ public final class SFor extends AStatement {
 
         statementCount = 1;
 
-        if (maxLoopCounter > 0) {
-            loopCounterSlot = variables.getVariable(location, "#loop").slot;
+        if (locals.getMaxLoopCounter() > 0) {
+            loopCounterSlot = locals.getVariable(location, "#loop").slot;
         }
 
-        variables.decrementScope();
+        locals.decrementScope();
     }
 
     @Override
     void write(MethodWriter writer) {
-        writer.writeStatementOffset(offset);
+        writer.writeStatementOffset(location);
+
         Label start = new Label();
         Label begin = afterthought == null ? start : new Label();
         Label end = new Label();
@@ -159,10 +158,10 @@ public final class SFor extends AStatement {
                 ++statementCount;
             }
 
-            writer.writeLoopCounter(loopCounterSlot, statementCount, offset);
+            writer.writeLoopCounter(loopCounterSlot, statementCount, location);
             block.write(writer);
         } else {
-            writer.writeLoopCounter(loopCounterSlot, 1, offset);
+            writer.writeLoopCounter(loopCounterSlot, 1, location);
         }
 
         if (afterthought != null) {

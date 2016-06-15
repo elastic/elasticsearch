@@ -63,11 +63,11 @@ public class RetryTests extends ESSingleNodeTestCase {
     protected Settings nodeSettings() {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings());
         // Use pools of size 1 so we can block them
-        settings.put("threadpool.bulk.size", 1);
-        settings.put("threadpool.search.size", 1);
+        settings.put("thread_pool.bulk.size", 1);
+        settings.put("thread_pool.search.size", 1);
         // Use queues of size 1 because size 0 is broken and because search requests need the queue to function
-        settings.put("threadpool.bulk.queue_size", 1);
-        settings.put("threadpool.search.queue_size", 1);
+        settings.put("thread_pool.bulk.queue_size", 1);
+        settings.put("thread_pool.search.queue_size", 1);
         return settings.build();
     }
 
@@ -107,8 +107,8 @@ public class RetryTests extends ESSingleNodeTestCase {
                 matcher().deleted(DOC_COUNT));
     }
 
-    private void testCase(String action, AbstractBulkByScrollRequestBuilder<?, BulkIndexByScrollResponse, ?> request,
-            BulkIndexByScrollResponseMatcher matcher) throws Exception {
+    private void testCase(String action, AbstractBulkByScrollRequestBuilder<?, ?> request, BulkIndexByScrollResponseMatcher matcher)
+            throws Exception {
         logger.info("Blocking search");
         CyclicBarrier initialSearchBlock = blockExecutor(ThreadPool.Names.SEARCH);
 

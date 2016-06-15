@@ -81,25 +81,6 @@ public interface FetchSubPhase {
             return cache;
         }
 
-        public String getSourcePath(String sourcePath) {
-            SearchHit.NestedIdentity nested = hit().getNestedIdentity();
-            if (nested != null) {
-                // in case of nested we need to figure out what is the _source field from the perspective
-                // of the nested hit it self. The nested _source is isolated and the root and potentially parent objects
-                // are gone
-                StringBuilder nestedPath = new StringBuilder();
-                for (; nested != null; nested = nested.getChild()) {
-                    nestedPath.append(nested.getField());
-                }
-
-                assert sourcePath.startsWith(nestedPath.toString());
-                int startIndex = nestedPath.length() + 1; // the path until the deepest nested object + '.'
-                return sourcePath.substring(startIndex);
-            } else {
-                return sourcePath;
-            }
-        }
-
     }
 
     default Map<String, ? extends SearchParseElement> parseElements() {

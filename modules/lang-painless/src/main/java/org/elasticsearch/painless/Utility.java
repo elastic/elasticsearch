@@ -37,13 +37,5 @@ public class Utility {
         return value.charAt(0);
     }
 
-    public static boolean checkEquals(final Object left, final Object right) {
-        if (left != null) {
-            return left.equals(right);
-        }
-
-        return right == null || right.equals(null);
-    }
-
     private Utility() {}
 }

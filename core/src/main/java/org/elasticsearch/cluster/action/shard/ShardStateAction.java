@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -301,13 +301,11 @@ public class ShardStateAction extends AbstractComponent {
                 }
             }
 
-            RoutingNodes.RoutingNodeIterator routingNodeIterator =
-                currentState.getRoutingNodes().routingNodeIter(task.getShardRouting().currentNodeId());
-            if (routingNodeIterator != null) {
-                for (ShardRouting maybe : routingNodeIterator) {
-                    if (task.getShardRouting().isSameAllocation(maybe)) {
-                        return ValidationResult.VALID;
-                    }
+            RoutingNode routingNode = currentState.getRoutingNodes().node(task.getShardRouting().currentNodeId());
+            if (routingNode != null) {
+                ShardRouting maybe = routingNode.getByShardId(task.getShardRouting().shardId());
+                if (maybe != null && maybe.isSameAllocation(task.getShardRouting())) {
+                    return ValidationResult.VALID;
                 }
             }
             return ValidationResult.SHARD_MISSING;

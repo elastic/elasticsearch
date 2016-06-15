@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -721,11 +722,13 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     }
                     assert decision != null && minNode != null || decision == null && minNode == null;
                     if (minNode != null) {
-                        long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                        final long shardSize = DiskThresholdDecider.getExpectedShardSize(shard, allocation,
+                            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                         if (decision.type() == Type.YES) {
                             if (logger.isTraceEnabled()) {
                                 logger.trace("Assigned shard [{}] to [{}]", shard, minNode.getNodeId());
                             }
+
                             shard = routingNodes.initialize(shard, minNode.getNodeId(), null, shardSize);
                             minNode.addShard(shard);
                             changed = true;

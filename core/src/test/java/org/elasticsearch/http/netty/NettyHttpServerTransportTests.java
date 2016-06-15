@@ -19,7 +19,6 @@
 
 package org.elasticsearch.http.netty;
 
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.http.netty.cors.CorsConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.junit.After;
@@ -50,15 +50,13 @@ import static org.hamcrest.Matchers.equalTo;
 public class NettyHttpServerTransportTests extends ESTestCase {
     private NetworkService networkService;
     private ThreadPool threadPool;
-    private MockPageCacheRecycler mockPageCacheRecycler;
     private MockBigArrays bigArrays;
 
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Settings.EMPTY);
-        threadPool = new ThreadPool("test");
-        mockPageCacheRecycler = new MockPageCacheRecycler(Settings.EMPTY, threadPool);
-        bigArrays = new MockBigArrays(mockPageCacheRecycler, new NoneCircuitBreakerService());
+        threadPool = new TestThreadPool("test");
+        bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
     }
 
     @After
@@ -68,7 +66,6 @@ public class NettyHttpServerTransportTests extends ESTestCase {
         }
         threadPool = null;
         networkService = null;
-        mockPageCacheRecycler = null;
         bigArrays = null;
     }
 

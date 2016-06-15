@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -72,7 +73,7 @@ public class ClusterStateHealthTests extends ESTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new ThreadPool("ClusterStateHealthTests");
+        threadPool = new TestThreadPool("ClusterStateHealthTests");
     }
 
     @Override
@@ -170,7 +171,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             BytesStreamOutput out = new BytesStreamOutput();
             clusterStateHealth.writeTo(out);
             StreamInput in = StreamInput.wrap(out.bytes());
-            clusterStateHealth = ClusterStateHealth.readClusterHealth(in);
+            clusterStateHealth = new ClusterStateHealth(in);
         }
         return clusterStateHealth;
     }

@@ -20,7 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -29,44 +30,42 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class SDo extends AStatement {
 
-    final int maxLoopCounter;
     final SBlock block;
     AExpression condition;
 
-    public SDo(int line, int offset, String location, int maxLoopCounter, SBlock block, AExpression condition) {
-        super(line, offset, location);
+    public SDo(Location location, SBlock block, AExpression condition) {
+        super(location);
 
         this.condition = condition;
         this.block = block;
-        this.maxLoopCounter = maxLoopCounter;
     }
 
     @Override
-    void analyze(Variables variables) {
-        variables.incrementScope();
+    void analyze(Locals locals) {
+        locals.incrementScope();
 
         if (block == null) {
-            throw new IllegalArgumentException(error("Extraneous do while loop."));
+            throw createError(new IllegalArgumentException("Extraneous do while loop."));
         }
 
         block.beginLoop = true;
         block.inLoop = true;
 
-        block.analyze(variables);
+        block.analyze(locals);
 
         if (block.loopEscape && !block.anyContinue) {
-            throw new IllegalArgumentException(error("Extraneous do while loop."));
+            throw createError(new IllegalArgumentException("Extraneous do while loop."));
         }
 
         condition.expected = Definition.BOOLEAN_TYPE;
-        condition.analyze(variables);
-        condition = condition.cast(variables);
+        condition.analyze(locals);
+        condition = condition.cast(locals);
 
         if (condition.constant != null) {
             final boolean continuous = (boolean)condition.constant;
 
             if (!continuous) {
-                throw new IllegalArgumentException(error("Extraneous do while loop."));
+                throw createError(new IllegalArgumentException("Extraneous do while loop."));
             }
 
             if (!block.anyBreak) {
@@ -77,16 +76,17 @@ public final class SDo extends AStatement {
 
         statementCount = 1;
 
-        if (maxLoopCounter > 0) {
-            loopCounterSlot = variables.getVariable(location, "#loop").slot;
+        if (locals.getMaxLoopCounter() > 0) {
+            loopCounterSlot = locals.getVariable(location, "#loop").slot;
         }
 
-        variables.decrementScope();
+        locals.decrementScope();
     }
 
     @Override
     void write(MethodWriter writer) {
-        writer.writeStatementOffset(offset);
+        writer.writeStatementOffset(location);
+
         Label start = new Label();
         Label begin = new Label();
         Label end = new Label();
@@ -102,7 +102,7 @@ public final class SDo extends AStatement {
         condition.fals = end;
         condition.write(writer);
 
-        writer.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount), offset);
+        writer.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount), location);
 
         writer.goTo(start);
         writer.mark(end);

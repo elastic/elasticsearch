@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -84,9 +85,9 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     }
 
     public GeoGridAggregationBuilder size(int size) {
-        if (size < -1) {
+        if (size <= 0) {
             throw new IllegalArgumentException(
-                    "[size] must be greater than or equal to 0. Found [" + shardSize + "] in [" + name + "]");
+                    "[size] must be greater than 0. Found [" + size + "] in [" + name + "]");
         }
         this.requiredSize = size;
         return this;
@@ -97,9 +98,9 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     }
 
     public GeoGridAggregationBuilder shardSize(int shardSize) {
-        if (shardSize < -1) {
+        if (shardSize <= 0) {
             throw new IllegalArgumentException(
-                    "[shardSize] must be greater than or equal to 0. Found [" + shardSize + "] in [" + name + "]");
+                    "[shardSize] must be greater than 0. Found [" + shardSize + "] in [" + name + "]");
             }
         this.shardSize = shardSize;
         return this;
@@ -114,18 +115,18 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
             ValuesSourceConfig<ValuesSource.GeoPoint> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
                     throws IOException {
         int shardSize = this.shardSize;
-        if (shardSize == 0) {
-            shardSize = Integer.MAX_VALUE;
-        }
 
         int requiredSize = this.requiredSize;
-        if (requiredSize == 0) {
-            requiredSize = Integer.MAX_VALUE;
-        }
 
         if (shardSize < 0) {
-            // Use default heuristic to avoid any wrong-ranking caused by distributed counting
+            // Use default heuristic to avoid any wrong-ranking caused by
+            // distributed counting
             shardSize = BucketUtils.suggestShardSideQueueSize(requiredSize, context.searchContext().numberOfShards());
+        }
+
+        if (requiredSize <= 0 || shardSize <= 0) {
+            throw new ElasticsearchException(
+                    "parameters [required_size] and [shard_size] must be >0 in geohash_grid aggregation [" + name + "].");
         }
 
         if (shardSize < requiredSize) {
@@ -139,7 +140,9 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(GeoHashGridParams.FIELD_PRECISION.getPreferredName(), precision);
         builder.field(GeoHashGridParams.FIELD_SIZE.getPreferredName(), requiredSize);
-        builder.field(GeoHashGridParams.FIELD_SHARD_SIZE.getPreferredName(), shardSize);
+        if (shardSize > -1) {
+            builder.field(GeoHashGridParams.FIELD_SHARD_SIZE.getPreferredName(), shardSize);
+        }
         return builder;
     }
 

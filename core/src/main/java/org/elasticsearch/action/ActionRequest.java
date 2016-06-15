@@ -39,6 +39,9 @@ public abstract class ActionRequest<Request extends ActionRequest<Request>> exte
 
     public abstract ActionRequestValidationException validate();
 
+    /**
+     * Should this task persist its result after it has finished?
+     */
     public boolean getShouldPersistResult() {
         return false;
     }

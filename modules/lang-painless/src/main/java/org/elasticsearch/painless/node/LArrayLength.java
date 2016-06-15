@@ -20,7 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -30,24 +31,24 @@ public final class LArrayLength extends ALink {
 
     final String value;
 
-    LArrayLength(int line, int offset, String location, String value) {
-        super(line, offset, location, -1);
+    LArrayLength(Location location, String value) {
+        super(location, -1);
 
         this.value = value;
     }
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
         if ("length".equals(value)) {
             if (!load) {
-                throw new IllegalArgumentException(error("Must read array field [length]."));
+                throw createError(new IllegalArgumentException("Must read array field [length]."));
             } else if (store) {
-                throw new IllegalArgumentException(error("Cannot write to read-only array field [length]."));
+                throw createError(new IllegalArgumentException("Cannot write to read-only array field [length]."));
             }
 
             after = Definition.INT_TYPE;
         } else {
-            throw new IllegalArgumentException(error("Illegal field access [" + value + "]."));
+            throw createError(new IllegalArgumentException("Illegal field access [" + value + "]."));
         }
 
         return this;
@@ -60,12 +61,12 @@ public final class LArrayLength extends ALink {
 
     @Override
     void load(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+        writer.writeDebugInfo(location);
         writer.arrayLength();
     }
 
     @Override
     void store(MethodWriter writer) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

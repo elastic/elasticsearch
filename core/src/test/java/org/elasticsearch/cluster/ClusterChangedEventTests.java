@@ -140,24 +140,24 @@ public class ClusterChangedEventTests extends ESTestCase {
      */
     public void testIndexMetaDataChange() {
         final int numNodesInCluster = 3;
-        final ClusterState originalState = createState(numNodesInCluster, randomBoolean(), initialIndices);
-        final ClusterState newState = originalState; // doesn't matter for this test, just need a non-null value
-        final ClusterChangedEvent event = new ClusterChangedEvent("_na_", originalState, newState);
+        final ClusterState state = createState(numNodesInCluster, randomBoolean(), initialIndices);
 
         // test when its not the same IndexMetaData
         final Index index = initialIndices.get(0);
-        final IndexMetaData originalIndexMeta = originalState.metaData().index(index);
+        final IndexMetaData originalIndexMeta = state.metaData().index(index);
         // make sure the metadata is actually on the cluster state
         assertNotNull("IndexMetaData for " + index + " should exist on the cluster state", originalIndexMeta);
         IndexMetaData newIndexMeta = createIndexMetadata(index, originalIndexMeta.getVersion() + 1);
-        assertTrue("IndexMetaData with different version numbers must be considered changed", event.indexMetaDataChanged(newIndexMeta));
+        assertTrue("IndexMetaData with different version numbers must be considered changed",
+            ClusterChangedEvent.indexMetaDataChanged(originalIndexMeta, newIndexMeta));
 
         // test when it doesn't exist
         newIndexMeta = createIndexMetadata(new Index("doesntexist", UUIDs.randomBase64UUID()));
-        assertTrue("IndexMetaData that didn't previously exist should be considered changed", event.indexMetaDataChanged(newIndexMeta));
+        assertTrue("IndexMetaData that didn't previously exist should be considered changed",
+            ClusterChangedEvent.indexMetaDataChanged(originalIndexMeta, newIndexMeta));
 
         // test when its the same IndexMetaData
-        assertFalse("IndexMetaData should be the same", event.indexMetaDataChanged(originalIndexMeta));
+        assertFalse("IndexMetaData should be the same", ClusterChangedEvent.indexMetaDataChanged(originalIndexMeta, originalIndexMeta));
     }
 
     /**

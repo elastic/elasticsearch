@@ -56,6 +56,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
@@ -153,6 +154,10 @@ public class InternalEngine extends Engine {
             this.versionMap.setManager(searcherManager);
             // don't allow commits until we are done with recovering
             allowCommits.compareAndSet(true, openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
+            if (engineConfig.getRefreshListeners() != null) {
+                searcherManager.addListener(engineConfig.getRefreshListeners());
+                engineConfig.getRefreshListeners().setTranslog(translog);
+            }
             success = true;
         } finally {
             if (success == false) {
@@ -336,7 +341,7 @@ public class InternalEngine extends Engine {
         final boolean created;
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            if (index.origin() == Operation.Origin.RECOVERY) {
+            if (index.origin().isRecovery()) {
                 // Don't throttle recovery operations
                 created = innerIndex(index);
             } else {
@@ -371,7 +376,7 @@ public class InternalEngine extends Engine {
 
             long expectedVersion = index.version();
             if (isVersionConflictForWrites(index, currentVersion, deleted, expectedVersion)) {
-                if (index.origin() != Operation.Origin.RECOVERY) {
+                if (!index.origin().isRecovery()) {
                     throw new VersionConflictEngineException(shardId, index.type(), index.id(),
                         index.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
                 }
@@ -389,10 +394,19 @@ public class InternalEngine extends Engine {
             } else {
                 created = update(index, versionValue, indexWriter);
             }
-            Translog.Location translogLocation = translog.add(new Translog.Index(index));
 
-            versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
-            index.setTranslogLocation(translogLocation);
+            if (index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+                final Translog.Location translogLocation = translog.add(new Translog.Index(index));
+                index.setTranslogLocation(translogLocation);
+                versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, index.getTranslogLocation()));
+            } else {
+                // we do not replay in to the translog, so there is no
+                // translog location; that is okay because real-time
+                // gets are not possible during recovery and we will
+                // flush when the recovery is complete
+                versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, null));
+            }
+
             return created;
         }
     }
@@ -467,7 +481,7 @@ public class InternalEngine extends Engine {
             long updatedVersion;
             long expectedVersion = delete.version();
             if (delete.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
-                if (delete.origin() == Operation.Origin.RECOVERY) {
+                if (delete.origin().isRecovery()) {
                     return;
                 } else {
                     throw new VersionConflictEngineException(shardId, delete.type(), delete.id(),
@@ -489,9 +503,18 @@ public class InternalEngine extends Engine {
             }
 
             delete.updateVersion(updatedVersion, found);
-            Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-            versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), translogLocation));
-            delete.setTranslogLocation(translogLocation);
+
+            if (delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+                final Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
+                delete.setTranslogLocation(translogLocation);
+                versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), delete.getTranslogLocation()));
+            } else {
+                // we do not replay in to the translog, so there is no
+                // translog location; that is okay because real-time
+                // gets are not possible during recovery and we will
+                // flush when the recovery is complete
+                versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), null));
+            }
         }
     }
 
@@ -832,7 +855,6 @@ public class InternalEngine extends Engine {
     protected final void writerSegmentStats(SegmentsStats stats) {
         stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
         stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
-        stats.addIndexWriterMaxMemoryInBytes((long) (indexWriter.getConfig().getRAMBufferSizeMB() * 1024 * 1024));
     }
 
     @Override
@@ -1125,5 +1147,12 @@ public class InternalEngine extends Engine {
 
     public MergeStats getMergeStats() {
         return mergeScheduler.stats();
+    }
+
+    @Override
+    public DocsStats getDocStats() {
+        final int numDocs = indexWriter.numDocs();
+        final int maxDoc = indexWriter.maxDoc();
+        return new DocsStats(numDocs, maxDoc-numDocs);
     }
 }

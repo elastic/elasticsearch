@@ -1261,13 +1261,13 @@ Renames an existing field. If the field doesn't exist or the new name is already
 [[script-processor]]
 === Script Processor
 
-Script Processor allows inline, stored, and file scripts to be executed within Ingest Pipelines.
+Allows inline, stored, and file scripts to be executed within ingest pipelines.
 
-Scripts use Elasticsearch's Script Service to compile the processor's script for each document. This
-allows updates to stored scripts and the changes will be reflected upon the next run of the processor. The
-downside for doing this is that the processor relies on these script's compiled sources be cached. Be aware
-of the size of your script cache's max size. You can increase the size by updating the `script.cache.max_size` settings
-option.
+See <<modules-scripting-using, How to use scripts>> to learn more about writing scripts. The Script Processor
+leverages caching of compiled scripts for improved performance. Since the
+script specified within the processor is potentially re-compiled per document, it is important
+to understand how script caching works. To learn more about
+caching see <<modules-scripting-using-caching, Script Caching>>.
 
 [[script-options]]
 .Script Options
@@ -1281,13 +1281,18 @@ option.
 | `inline`               | no        | -       | An inline script to be executed
 |======
 
+You can access the current ingest document from within the script context by using the `ctx` variable.
+
+The following example sets a new field called `field_a_plus_b` to be the sum of two existing
+numeric fields `field_a` and `field_b`:
+
 [source,js]
 --------------------------------------------------
 {
   "script": {
-    "field": "field_32",
+    "field": "field_a_plus_b",
     "lang": "painless",
-    "inline": "return 32"
+    "inline": "return ctx.field_a + ctx.field_b"
   }
 }
 --------------------------------------------------

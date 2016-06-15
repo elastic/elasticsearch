@@ -118,7 +118,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         for (int i = 0; i < numberOfIndices; i++) {
             IndexMetaData.Builder index = IndexMetaData.builder("test" + i)
                 .settings(settings(Version.CURRENT)
-                    .put(BalancedShardsAllocator.INDEX_BALANCE_SHARD_WEIGHT.getKey(), randomIntBetween(1, 20) * 1.0f))
+                    .put(BalancedShardsAllocator.INDEX_BALANCE_SHARD_WEIGHT.getKey(), randomIntBetween(1, 20)))
                 .numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas);
             metaDataBuilder = metaDataBuilder.put(index);
         }

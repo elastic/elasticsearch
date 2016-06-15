@@ -871,7 +871,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             return routingNode;
         }
 
-        public float totalShardWeight() {
+        public int totalShardWeight() {
             return totalShardWeight;
         }
 

@@ -552,7 +552,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
             .put(IndexMetaData.builder("small3").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
             .put(IndexMetaData.builder("small4").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
             .put(IndexMetaData.builder("large").settings(settings(Version.CURRENT)
-                .put(BalancedShardsAllocator.INDEX_BALANCE_SHARD_WEIGHT.getKey(), 2.0f)).numberOfShards(2).numberOfReplicas(0))
+                .put(BalancedShardsAllocator.INDEX_BALANCE_SHARD_WEIGHT.getKey(), 2)).numberOfShards(2).numberOfReplicas(0))
             .build();
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
@@ -579,11 +579,11 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         MetaData metaData = MetaData.builder()
             .put(IndexMetaData.builder("small").settings(settings(Version.CURRENT)
-                .put(BalancedShardsAllocator.INDEX_BALANCE_SHARD_WEIGHT.getKey(), 1.0f)).numberOfShards(2).numberOfReplicas(0))
+                .put(BalancedShardsAllocator.INDEX_BALANCE_SHARD_WEIGHT.getKey(), 1)).numberOfShards(2).numberOfReplicas(0))
             .put(IndexMetaData.builder("medium").settings(settings(Version.CURRENT)
-                .put(BalancedShardsAllocator.INDEX_BALANCE_SHARD_WEIGHT.getKey(), 10.0f)).numberOfShards(2).numberOfReplicas(0))
+                .put(BalancedShardsAllocator.INDEX_BALANCE_SHARD_WEIGHT.getKey(), 10)).numberOfShards(2).numberOfReplicas(0))
             .put(IndexMetaData.builder("large").settings(settings(Version.CURRENT)
-                .put(BalancedShardsAllocator.INDEX_BALANCE_SHARD_WEIGHT.getKey(), 100.0f)).numberOfShards(2).numberOfReplicas(0))
+                .put(BalancedShardsAllocator.INDEX_BALANCE_SHARD_WEIGHT.getKey(), 100)).numberOfShards(2).numberOfReplicas(0))
             .build();
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();

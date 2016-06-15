@@ -48,5 +48,8 @@ public interface NativeScriptFactory {
      */
     boolean needsScores();
 
+    /**
+     * Returns the name of the script factory
+     */
     String getName();
 }

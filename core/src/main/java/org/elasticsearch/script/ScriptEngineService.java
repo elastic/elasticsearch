@@ -56,6 +56,9 @@ public interface ScriptEngineService extends Closeable {
      * */
     void scriptRemoved(@Nullable CompiledScript script);
 
+    /**
+     * Returns <code>true</code> if this scripting engine can safely accept inline scripts by default. The default is <code>false</code>
+     */
     default boolean isInlineScriptEnabled() {
         return false;
     }

@@ -41,16 +41,6 @@ public class DateScriptMocks {
      */
     public static class DateScriptsMockPlugin extends Plugin {
 
-        @Override
-        public String name() {
-            return "DateScriptMocks";
-        }
-
-        @Override
-        public String description() {
-            return "A mock script plugin.";
-        }
-
         public void onModule(ScriptModule module) {
             module.registerScript(ExtractFieldScript.NAME, ExtractFieldScriptFactory.class);
             module.registerScript(PlusOneMonthScript.NAME, PlusOneMonthScriptFactory.class);

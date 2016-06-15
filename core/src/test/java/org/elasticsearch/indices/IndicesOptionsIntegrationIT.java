@@ -588,15 +588,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     }
 
     public static final class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "index-a-setting";
-        }
-
-        @Override
-        public String description() {
-            return "a plugin that adds a dynamic tst setting";
-        }
 
         private static final Setting<String> INDEX_A =
             new Setting<>("index.a", "", Function.identity(), Property.Dynamic, Property.IndexScope);

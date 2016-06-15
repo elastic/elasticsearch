@@ -357,17 +357,6 @@ public class AvgIT extends AbstractNumericTestCase {
      * Mock plugin for the {@link ExtractFieldScriptEngine}
      */
     public static class ExtractFieldScriptPlugin extends Plugin {
-
-        @Override
-        public String name() {
-            return ExtractFieldScriptEngine.NAME;
-        }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + AvgIT.class;
-        }
-
         public void onModule(ScriptModule module) {
             module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractFieldScriptEngine.class, ExtractFieldScriptEngine.NAME, true));
         }
@@ -477,17 +466,6 @@ public class AvgIT extends AbstractNumericTestCase {
      * Mock plugin for the {@link FieldValueScriptEngine}
      */
     public static class FieldValueScriptPlugin extends Plugin {
-
-        @Override
-        public String name() {
-            return FieldValueScriptEngine.NAME;
-        }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + AvgIT.class;
-        }
-
         public void onModule(ScriptModule module) {
             module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.NAME, true));
         }

@@ -156,17 +156,9 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
                 Setting.doubleSetting(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
             public static final Setting<Double> EXCEPTION_LOW_LEVEL_RATIO_SETTING =
                 Setting.doubleSetting(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
-            @Override
-            public String name() {
-                return "random-exception-reader-wrapper";
-            }
             public void onModule(SettingsModule module) {
                 module.registerSetting(EXCEPTION_TOP_LEVEL_RATIO_SETTING);
                 module.registerSetting(EXCEPTION_LOW_LEVEL_RATIO_SETTING);
-            }
-            @Override
-            public String description() {
-                return "a mock reader wrapper that throws random exceptions for testing";
             }
             public void onModule(MockEngineFactoryPlugin.MockEngineReaderModule module) {
                 module.setReaderClass(RandomExceptionDirectoryReaderWrapper.class);

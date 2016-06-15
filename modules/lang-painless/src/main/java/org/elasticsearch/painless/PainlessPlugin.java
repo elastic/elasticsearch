@@ -34,16 +34,6 @@ public final class PainlessPlugin extends Plugin {
         Definition.VOID_TYPE.hashCode();
     }
 
-    @Override
-    public String name() {
-        return "lang-painless";
-    }
-
-    @Override
-    public String description() {
-        return "Painless scripting language for Elasticsearch";
-    }
-
     public void onModule(final ScriptModule module) {
         module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(
                         PainlessScriptEngineService.class, PainlessScriptEngineService.NAME, true));

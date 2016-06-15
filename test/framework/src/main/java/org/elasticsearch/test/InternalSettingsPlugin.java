@@ -25,15 +25,6 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 
 public final class InternalSettingsPlugin extends Plugin {
-    @Override
-    public String name() {
-        return "internal-settings-plugin";
-    }
-
-    @Override
-    public String description() {
-        return "a plugin that allows to set values for internal settings which are can't be set via the ordinary API without this plugin installed";
-    }
 
     public static final Setting<Integer> VERSION_CREATED =
         Setting.intSetting("index.version.created", 0, Property.IndexScope, Property.NodeScope);

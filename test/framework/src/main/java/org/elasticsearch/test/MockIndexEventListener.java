@@ -52,14 +52,6 @@ public final class MockIndexEventListener {
 
     public static class TestPlugin extends Plugin {
         private final TestEventListener listener = new TestEventListener();
-        @Override
-        public String name() {
-            return "mock-index-listener";
-        }
-        @Override
-        public String description() {
-            return "a mock index listener for testing only";
-        }
 
         /**
          * For tests to pass in to fail on listener invocation

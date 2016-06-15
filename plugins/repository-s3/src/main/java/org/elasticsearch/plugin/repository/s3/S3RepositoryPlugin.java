@@ -63,16 +63,6 @@ public class S3RepositoryPlugin extends Plugin {
     }
 
     @Override
-    public String name() {
-        return "repository-s3";
-    }
-
-    @Override
-    public String description() {
-        return "S3 Repository Plugin";
-    }
-
-    @Override
     public Collection<Module> nodeModules() {
         Collection<Module> modules = new ArrayList<>();
         modules.add(new S3Module());

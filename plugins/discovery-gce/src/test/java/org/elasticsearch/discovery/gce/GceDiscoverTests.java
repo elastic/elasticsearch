@@ -64,16 +64,6 @@ public class GceDiscoverTests extends ESIntegTestCase {
 
     public static class TestPlugin extends Plugin {
 
-        @Override
-        public String name() {
-            return "GceDiscoverTests";
-        }
-
-        @Override
-        public String description() {
-            return "GceDiscoverTests";
-        }
-
         public void onModule(SettingsModule module) {
             module.registerSetting(GceComputeServiceImpl.GCE_HOST);
             module.registerSetting(GceComputeServiceImpl.GCE_ROOT_URL);

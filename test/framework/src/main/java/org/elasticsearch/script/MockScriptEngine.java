@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A dummy script engine used for testing. Scripts must be a number. Many 
+ * A dummy script engine used for testing. Scripts must be a number. Many
  * tests rely on the fact this thing returns a String as its compiled form.
  * they even try to serialize it over the network!
  */
@@ -51,22 +51,8 @@ public class MockScriptEngine implements ScriptEngineService {
             this.params = params;
         }
     }
-    
+
     public static class TestPlugin extends Plugin {
-
-        public TestPlugin() {
-        }
-
-        @Override
-        public String name() {
-            return NAME;
-        }
-
-        @Override
-        public String description() {
-            return "Mock script engine for integration tests";
-        }
-
         public void onModule(ScriptModule module) {
             module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class,
                             MockScriptEngine.NAME, true));
@@ -91,7 +77,7 @@ public class MockScriptEngine implements ScriptEngineService {
 
     @Override
     public ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
-        assert compiledScript.compiled() instanceof MockCompiledScript 
+        assert compiledScript.compiled() instanceof MockCompiledScript
           : "do NOT pass compiled scripts from other engines to me, I will fail your test, got: " + compiledScript;
         return new AbstractExecutableScript() {
             @Override

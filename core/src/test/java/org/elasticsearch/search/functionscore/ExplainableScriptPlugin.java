@@ -23,18 +23,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 
 public class ExplainableScriptPlugin extends Plugin {
-
-    public ExplainableScriptPlugin() {}
-    @Override
-    public String name() {
-        return "native-explainable-script";
-    }
-
-    @Override
-    public String description() {
-        return "Native explainable script";
-    }
-
     public void onModule(ScriptModule module) {
         module.registerScript("native_explainable_script", ExplainableScriptIT.MyNativeScriptFactory.class);
     }

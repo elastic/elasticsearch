@@ -153,16 +153,6 @@ public class ScriptFieldIT extends ESIntegTestCase {
 
     public static class CustomScriptPlugin extends Plugin {
 
-        @Override
-        public String name() {
-            return "custom_script";
-        }
-
-        @Override
-        public String description() {
-            return "script ";
-        }
-
         public void onModule(ScriptModule scriptModule) {
             scriptModule.registerScript("int", IntArrayScriptFactory.class);
             scriptModule.registerScript("long", LongArrayScriptFactory.class);

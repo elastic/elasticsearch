@@ -62,16 +62,6 @@ public class MockRepository extends FsRepository {
         public static final Setting<String> PASSWORD_SETTING =
             Setting.simpleString("secret.mock.password", Property.NodeScope, Property.Filtered);
 
-        @Override
-        public String name() {
-            return "mock-repository";
-        }
-
-        @Override
-        public String description() {
-            return "Mock Repository";
-        }
-
         public void onModule(RepositoriesModule repositoriesModule) {
             repositoriesModule.registerRepository("mock", MockRepository.class, BlobStoreIndexShardRepository.class);
         }

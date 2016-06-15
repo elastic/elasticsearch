@@ -26,16 +26,6 @@ import org.elasticsearch.plugins.Plugin;
 public class ReindexPlugin extends Plugin {
     public static final String NAME = "reindex";
 
-    @Override
-    public String name() {
-        return NAME;
-    }
-
-    @Override
-    public String description() {
-        return "The Reindex module adds APIs to reindex from one index to another or update documents in place.";
-    }
-
     public void onModule(ActionModule actionModule) {
         actionModule.registerAction(ReindexAction.INSTANCE, TransportReindexAction.class);
         actionModule.registerAction(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class);

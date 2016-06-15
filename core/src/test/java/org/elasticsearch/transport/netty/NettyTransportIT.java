@@ -86,14 +86,6 @@ public class NettyTransportIT extends ESIntegTestCase {
     public static final class ExceptionThrowingNettyTransport extends NettyTransport {
 
         public static class TestPlugin extends Plugin {
-            @Override
-            public String name() {
-                return "exception-throwing-netty-transport";
-            }
-            @Override
-            public String description() {
-                return "an exception throwing transport for testing";
-            }
             public void onModule(NetworkModule module) {
                 module.registerTransport("exception-throwing", ExceptionThrowingNettyTransport.class);
             }

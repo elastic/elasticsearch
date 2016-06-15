@@ -23,19 +23,7 @@ import org.elasticsearch.index.analysis.PhoneticTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.Plugin;
 
-/**
- */
 public class AnalysisPhoneticPlugin extends Plugin {
-
-    @Override
-    public String name() {
-        return "analysis-phonetic";
-    }
-
-    @Override
-    public String description() {
-        return "Phonetic analysis support";
-    }
 
     public void onModule(AnalysisModule module) {
         module.registerTokenFilter("phonetic", PhoneticTokenFilterFactory::new);

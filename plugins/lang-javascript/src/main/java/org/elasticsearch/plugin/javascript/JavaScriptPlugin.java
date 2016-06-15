@@ -34,16 +34,6 @@ public class JavaScriptPlugin extends Plugin {
         JavaScriptScriptEngineService.init();
     }
 
-    @Override
-    public String name() {
-        return "lang-javascript";
-    }
-
-    @Override
-    public String description() {
-        return "JavaScript plugin allowing to add javascript scripting support";
-    }
-
     public void onModule(ScriptModule module) {
         module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(JavaScriptScriptEngineService.class, JavaScriptScriptEngineService.NAME));
     }

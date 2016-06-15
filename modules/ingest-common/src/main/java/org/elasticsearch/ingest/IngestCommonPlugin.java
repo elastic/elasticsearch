@@ -41,16 +41,6 @@ public class IngestCommonPlugin extends Plugin {
         this.builtinPatterns = loadBuiltinPatterns();
     }
 
-    @Override
-    public String name() {
-        return NAME;
-    }
-
-    @Override
-    public String description() {
-        return "Module for ingest processors that do not require additional security permissions or have large dependencies and resources";
-    }
-
     public void onModule(NodeModule nodeModule) {
         nodeModule.registerProcessor(DateProcessor.TYPE, (registry) -> new DateProcessor.Factory());
         nodeModule.registerProcessor(SetProcessor.TYPE, (registry) -> new SetProcessor.Factory(registry.getTemplateService()));

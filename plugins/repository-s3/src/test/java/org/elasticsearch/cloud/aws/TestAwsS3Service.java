@@ -29,14 +29,6 @@ import java.util.IdentityHashMap;
 
 public class TestAwsS3Service extends InternalAwsS3Service {
     public static class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "mock-s3-service";
-        }
-        @Override
-        public String description() {
-            return "plugs in mock s3 service";
-        }
         public void onModule(S3Module s3Module) {
             S3Module.s3ServiceImpl = TestAwsS3Service.class;
         }

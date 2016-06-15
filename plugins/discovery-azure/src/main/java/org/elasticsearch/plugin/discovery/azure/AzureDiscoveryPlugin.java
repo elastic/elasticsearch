@@ -46,16 +46,6 @@ public class AzureDiscoveryPlugin extends Plugin {
     }
 
     @Override
-    public String name() {
-        return "discovery-azure";
-    }
-
-    @Override
-    public String description() {
-        return "Azure Discovery Plugin";
-    }
-
-    @Override
     public Collection<Module> nodeModules() {
         return Collections.singletonList((Module) new AzureDiscoveryModule(settings));
     }

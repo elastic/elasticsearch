@@ -24,20 +24,7 @@ import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.python.PythonScriptEngineService;
 
-/**
- *
- */
 public class PythonPlugin extends Plugin {
-
-    @Override
-    public String name() {
-        return "lang-python";
-    }
-
-    @Override
-    public String description() {
-        return "Adds support for writing scripts in Python";
-    }
 
     public void onModule(ScriptModule module) {
         module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(PythonScriptEngineService.class, PythonScriptEngineService.NAME));

@@ -211,17 +211,6 @@ public class ValueCountIT extends ESIntegTestCase {
      * Mock plugin for the {@link FieldValueScriptEngine}
      */
     public static class FieldValueScriptPlugin extends Plugin {
-
-        @Override
-        public String name() {
-            return FieldValueScriptEngine.NAME;
-        }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + ValueCountIT.class;
-        }
-
         public void onModule(ScriptModule module) {
             module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.NAME, true));
         }

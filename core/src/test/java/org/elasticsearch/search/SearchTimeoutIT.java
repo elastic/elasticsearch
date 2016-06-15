@@ -65,15 +65,6 @@ public class SearchTimeoutIT extends ESIntegTestCase {
     }
 
     public static class ScriptedTimeoutPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "test-scripted-search-timeout";
-        }
-
-        @Override
-        public String description() {
-            return "Test for scripted timeouts on searches";
-        }
 
         public void onModule(ScriptModule module) {
             module.registerScript(NativeTestScriptedTimeout.TEST_NATIVE_SCRIPT_TIMEOUT, NativeTestScriptedTimeout.Factory.class);

@@ -47,14 +47,6 @@ import java.util.Random;
 public class AssertingLocalTransport extends LocalTransport {
 
     public static class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "asserting-local-transport";
-        }
-        @Override
-        public String description() {
-            return "an asserting transport for testing";
-        }
         public void onModule(NetworkModule module) {
             module.registerTransport("mock", AssertingLocalTransport.class);
         }

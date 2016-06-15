@@ -32,16 +32,6 @@ public class MapperAttachmentsPlugin extends Plugin {
     private static ESLogger logger = ESLoggerFactory.getLogger("mapper.attachment");
     private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
-    @Override
-    public String name() {
-        return "mapper-attachments";
-    }
-
-    @Override
-    public String description() {
-        return "Adds the attachment type allowing to parse difference attachment formats";
-    }
-
     public void onModule(SettingsModule settingsModule) {
         deprecationLogger.deprecated("[mapper-attachments] plugin has been deprecated and will be replaced by [ingest-attachment] plugin.");
         settingsModule.registerSetting(AttachmentMapper.INDEX_ATTACHMENT_DETECT_LANGUAGE_SETTING);

@@ -218,16 +218,6 @@ public class IpRangeIT extends ESIntegTestCase {
 
     public static class DummyScriptPlugin extends Plugin {
 
-        @Override
-        public String name() {
-            return "DummyScriptPlugin";
-        }
-
-        @Override
-        public String description() {
-            return "A mock script plugin.";
-        }
-
         public void onModule(ScriptModule module) {
             module.registerScript(DummyScript.NAME, DummyScriptFactory.class);
         }

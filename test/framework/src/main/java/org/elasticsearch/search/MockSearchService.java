@@ -39,14 +39,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class MockSearchService extends SearchService {
     public static class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "mock-search-service";
-        }
-        @Override
-        public String description() {
-            return "a mock search service for testing";
-        }
         public void onModule(SearchModule module) {
             module.searchServiceImpl = MockSearchService.class;
         }

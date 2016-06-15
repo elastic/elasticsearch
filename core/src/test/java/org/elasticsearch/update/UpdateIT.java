@@ -79,20 +79,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class UpdateIT extends ESIntegTestCase {
 
     public static class PutFieldValuesScriptPlugin extends Plugin {
-
-        public PutFieldValuesScriptPlugin() {
-        }
-
-        @Override
-        public String name() {
-            return PutFieldValuesScriptEngine.NAME;
-        }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + UpdateIT.class;
-        }
-
         public void onModule(ScriptModule module) {
             module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(PutFieldValuesScriptEngine.class, PutFieldValuesScriptEngine.NAME, true));
         }
@@ -166,20 +152,6 @@ public class UpdateIT extends ESIntegTestCase {
     }
 
     public static class FieldIncrementScriptPlugin extends Plugin {
-
-        public FieldIncrementScriptPlugin() {
-        }
-
-        @Override
-        public String name() {
-            return FieldIncrementScriptEngine.NAME;
-        }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + UpdateIT.class;
-        }
-
         public void onModule(ScriptModule module) {
             module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldIncrementScriptEngine.class, FieldIncrementScriptEngine.NAME, true));
         }
@@ -246,20 +218,6 @@ public class UpdateIT extends ESIntegTestCase {
     }
 
     public static class ScriptedUpsertScriptPlugin extends Plugin {
-
-        public ScriptedUpsertScriptPlugin() {
-        }
-
-        @Override
-        public String name() {
-            return ScriptedUpsertScriptEngine.NAME;
-        }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + UpdateIT.class + ".testScriptedUpsert";
-        }
-
         public void onModule(ScriptModule module) {
             module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ScriptedUpsertScriptEngine.class, ScriptedUpsertScriptEngine.NAME, true));
         }
@@ -326,20 +284,6 @@ public class UpdateIT extends ESIntegTestCase {
     }
 
     public static class ExtractContextInSourceScriptPlugin extends Plugin {
-
-        public ExtractContextInSourceScriptPlugin() {
-        }
-
-        @Override
-        public String name() {
-            return ExtractContextInSourceScriptEngine.NAME;
-        }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + UpdateIT.class;
-        }
-
         public void onModule(ScriptModule module) {
             module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractContextInSourceScriptEngine.class, ExtractContextInSourceScriptEngine.NAME, true));
         }

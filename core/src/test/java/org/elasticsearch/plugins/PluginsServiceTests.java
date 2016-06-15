@@ -33,27 +33,11 @@ import java.util.Arrays;
 public class PluginsServiceTests extends ESTestCase {
     public static class AdditionalSettingsPlugin1 extends Plugin {
         @Override
-        public String name() {
-            return "additional-settings1";
-        }
-        @Override
-        public String description() {
-            return "adds additional setting 'foo.bar'";
-        }
-        @Override
         public Settings additionalSettings() {
             return Settings.builder().put("foo.bar", "1").put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.MMAPFS.getSettingsKey()).build();
         }
     }
     public static class AdditionalSettingsPlugin2 extends Plugin {
-        @Override
-        public String name() {
-            return "additional-settings2";
-        }
-        @Override
-        public String description() {
-            return "adds additional setting 'foo.bar'";
-        }
         @Override
         public Settings additionalSettings() {
             return Settings.builder().put("foo.bar", "2").build();
@@ -61,15 +45,6 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public static class FailOnModule extends Plugin {
-        @Override
-        public String name() {
-            return "fail-on-module";
-        }
-        @Override
-        public String description() {
-            return "fails in onModule";
-        }
-
         public void onModule(BrokenModule brokenModule) {
             throw new IllegalStateException("boom");
         }
@@ -108,8 +83,8 @@ public class PluginsServiceTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             String msg = e.getMessage();
             assertTrue(msg, msg.contains("Cannot have additional setting [foo.bar]"));
-            assertTrue(msg, msg.contains("plugin [additional-settings1]"));
-            assertTrue(msg, msg.contains("plugin [additional-settings2]"));
+            assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin1.class.getName()));
+            assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin2.class.getName()));
         }
     }
 

@@ -35,6 +35,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Comparator source for string/binary values.
@@ -111,7 +112,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                 public void setTopValue(BytesRef topValue) {
                     // symetric of value(int): if we need to feed the comparator with <tt>null</tt>
                     // if we overrode the value with MAX_TERM in value(int)
-                    if (topValue == missingBytes && (sortMissingFirst(missingValue) || sortMissingLast(missingValue))) {
+                    if (Objects.equals(topValue, missingBytes) && (sortMissingFirst(missingValue) || sortMissingLast(missingValue))) {
                         topValue = null;
                     }
                     super.setTopValue(topValue);

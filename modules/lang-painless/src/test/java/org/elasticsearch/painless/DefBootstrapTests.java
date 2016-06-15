@@ -107,7 +107,7 @@ public class DefBootstrapTests extends ESTestCase {
     // test operators with null guards
 
     public void testNullGuardAdd() throws Throwable {
-        DefBootstrap.PIC site = (DefBootstrap.PIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
+        DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
                                                                "add", 
                                                                MethodType.methodType(Object.class, Object.class, Object.class),
                                                                DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
@@ -116,7 +116,7 @@ public class DefBootstrapTests extends ESTestCase {
     }
     
     public void testNullGuardAddWhenCached() throws Throwable {
-        DefBootstrap.PIC site = (DefBootstrap.PIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
+        DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
                                                                "add", 
                                                                MethodType.methodType(Object.class, Object.class, Object.class),
                                                                DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
@@ -126,7 +126,7 @@ public class DefBootstrapTests extends ESTestCase {
     }
     
     public void testNullGuardEq() throws Throwable {
-        DefBootstrap.PIC site = (DefBootstrap.PIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
+        DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
                                                                "eq", 
                                                                MethodType.methodType(boolean.class, Object.class, Object.class),
                                                                DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
@@ -136,7 +136,7 @@ public class DefBootstrapTests extends ESTestCase {
     }
     
     public void testNullGuardEqWhenCached() throws Throwable {
-        DefBootstrap.PIC site = (DefBootstrap.PIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
+        DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
                                                                "eq", 
                                                                MethodType.methodType(boolean.class, Object.class, Object.class),
                                                                DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
@@ -151,7 +151,7 @@ public class DefBootstrapTests extends ESTestCase {
     // and can be disabled in some circumstances.
     
     public void testNoNullGuardAdd() throws Throwable {
-        DefBootstrap.PIC site = (DefBootstrap.PIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
+        DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
                                                                "add", 
                                                                MethodType.methodType(Object.class, int.class, Object.class),
                                                                DefBootstrap.BINARY_OPERATOR, 0);
@@ -162,7 +162,7 @@ public class DefBootstrapTests extends ESTestCase {
     }
     
     public void testNoNullGuardAddWhenCached() throws Throwable {
-        DefBootstrap.PIC site = (DefBootstrap.PIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
+        DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
                                                                "add", 
                                                                MethodType.methodType(Object.class, int.class, Object.class),
                                                                DefBootstrap.BINARY_OPERATOR, 0);

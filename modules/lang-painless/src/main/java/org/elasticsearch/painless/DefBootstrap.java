@@ -77,6 +77,12 @@ public final class DefBootstrap {
      * the fallback if a null is encountered.
      */
     public static final int OPERATOR_ALLOWS_NULL = 1 << 0;
+    
+    /**
+     * static bootstrap parameter indicating the binary operator is part of compound assignment (e.g. +=).
+     * 
+     */
+    public static final int OPERATOR_COMPOUND_ASSIGNMENT = 1 << 1;
 
     /**
      * CallSite that implements the polymorphic inlining cache (PIC).
@@ -97,14 +103,8 @@ public final class DefBootstrap {
             this.name = name;
             this.flavor = flavor;
             this.args = args;
-            
-            // For operators use a monomorphic cache, fallback is fast.
-            // Just start with a depth of MAX-1, to keep it a constant.
-            if (flavor == UNARY_OPERATOR || flavor == BINARY_OPERATOR || flavor == SHIFT_OPERATOR) {
-                depth = MAX_DEPTH - 1;
-            }
 
-            final MethodHandle fallback = FALLBACK.bindTo(this)
+            MethodHandle fallback = FALLBACK.bindTo(this)
               .asCollector(Object[].class, type.parameterCount())
               .asType(type);
 
@@ -117,22 +117,6 @@ public final class DefBootstrap {
          */
         static boolean checkClass(Class<?> clazz, Object receiver) {
             return receiver.getClass() == clazz;
-        }
-        
-        /**
-         * guard method for inline caching: checks the receiver's class and the first argument
-         * are the same as the cached receiver and first argument.
-         */
-        static boolean checkBinary(Class<?> left, Class<?> right, Object leftObject, Object rightObject) {
-            return leftObject.getClass() == left && rightObject.getClass() == right;
-        }
-        
-        /**
-         * guard method for inline caching: checks the first argument is the same
-         * as the cached first argument.
-         */
-        static boolean checkBinaryArg(Class<?> left, Class<?> right, Object leftObject, Object rightObject) {
-            return rightObject.getClass() == right;
         }
 
         /**
@@ -154,31 +138,7 @@ public final class DefBootstrap {
                     return Def.lookupIterator(args[0].getClass());
                 case REFERENCE:
                     return Def.lookupReference(lookup, (String) this.args[0], args[0].getClass(), name);
-                case UNARY_OPERATOR:
-                case SHIFT_OPERATOR:
-                    // shifts are treated as unary, as java allows long arguments without a cast (but bits are ignored)
-                    return DefMath.lookupUnary(args[0].getClass(), name);
-                case BINARY_OPERATOR:
-                    if (args[0] == null || args[1] == null) {
-                        return getGeneric(flavor, name); // can handle nulls, if supported
-                    } else {
-                        return DefMath.lookupBinary(args[0].getClass(), args[1].getClass(), name);
-                    }
                 default: throw new AssertionError();
-            }
-        }
-        
-        /**
-         * Installs a permanent, generic solution that works with any parameter types, if possible.
-         */
-        private MethodHandle getGeneric(int flavor, String name) throws Throwable {
-            switch(flavor) {
-                case UNARY_OPERATOR:
-                case BINARY_OPERATOR:
-                case SHIFT_OPERATOR:
-                    return DefMath.lookupGeneric(name);
-                default:
-                    return null;
             }
         }
 
@@ -189,14 +149,92 @@ public final class DefBootstrap {
         @SuppressForbidden(reason = "slow path")
         Object fallback(Object[] args) throws Throwable {
             if (depth >= MAX_DEPTH) {
+                // XXX: caching defeated: lookups up every time(!)
+                return lookup(flavor, name, args).invokeWithArguments(args);
+            }
+            
+            final MethodType type = type();
+            final MethodHandle target = lookup(flavor, name, args).asType(type);
+
+            MethodHandle test = CHECK_CLASS.bindTo(args[0].getClass());
+            test = test.asType(test.type().changeParameterType(0, type.parameterType(0)));
+
+            MethodHandle guard = MethodHandles.guardWithTest(test, target, getTarget());
+            
+            depth++;
+
+            setTarget(guard);
+            return target.invokeWithArguments(args);
+        }
+
+        private static final MethodHandle CHECK_CLASS;
+        private static final MethodHandle FALLBACK;
+        static {
+            final Lookup lookup = MethodHandles.lookup();
+            try {
+                CHECK_CLASS = lookup.findStatic(lookup.lookupClass(), "checkClass",
+                                              MethodType.methodType(boolean.class, Class.class, Object.class));
+                FALLBACK = lookup.findVirtual(lookup.lookupClass(), "fallback",
+                                              MethodType.methodType(Object.class, Object[].class));
+            } catch (ReflectiveOperationException e) {
+                throw new AssertionError(e);
+            }
+        }
+    }
+    
+    /**
+     * CallSite that implements the monomorphic inlining cache (for operators).
+     */
+    static final class MIC extends MutableCallSite {
+        private boolean initialized;
+        
+        private final String name;
+        private final int flavor;
+        private final int flags;
+
+        MIC(String name, MethodType type, int flavor, int flags) {
+            super(type);
+            this.name = name;
+            this.flavor = flavor;
+            this.flags = flags;
+            
+            MethodHandle fallback = FALLBACK.bindTo(this)
+              .asCollector(Object[].class, type.parameterCount())
+              .asType(type);
+
+            setTarget(fallback);
+        }
+        
+        /**
+         * Does a slow lookup for the operator
+         */
+        private MethodHandle lookup(int flavor, String name, Object[] args) throws Throwable {
+            switch(flavor) {
+                case UNARY_OPERATOR:
+                case SHIFT_OPERATOR:
+                    // shifts are treated as unary, as java allows long arguments without a cast (but bits are ignored)
+                    return DefMath.lookupUnary(args[0].getClass(), name);
+                case BINARY_OPERATOR:
+                    if (args[0] == null || args[1] == null) {
+                        return DefMath.lookupGeneric(name); // can handle nulls, if supported
+                    } else {
+                        return DefMath.lookupBinary(args[0].getClass(), args[1].getClass(), name);
+                    }
+                default: throw new AssertionError();
+            }
+        }
+        
+        /**
+         * Called when a new type is encountered (or, when we have encountered more than {@code MAX_DEPTH}
+         * types at this call site and given up on caching).
+         */
+        @SuppressForbidden(reason = "slow path")
+        Object fallback(Object[] args) throws Throwable {
+            if (initialized) {
                 // caching defeated
-                MethodHandle generic = getGeneric(flavor, name);
-                if (generic != null) {
-                    setTarget(generic.asType(type()));
-                    return generic.invokeWithArguments(args);
-                } else {
-                    return lookup(flavor, name, args).invokeWithArguments(args);
-                }
+                MethodHandle generic = DefMath.lookupGeneric(name);
+                setTarget(generic.asType(type()));
+                return generic.invokeWithArguments(args);
             }
             
             final MethodType type = type();
@@ -209,24 +247,25 @@ public final class DefBootstrap {
                 Class<?> clazz1 = args[1] == null ? null : args[1].getClass();
                 if (type.parameterType(1) != Object.class) {
                     // case 1: only the receiver is unknown, just check that
-                    MethodHandle unaryTest = CHECK_CLASS.bindTo(clazz0);
+                    MethodHandle unaryTest = CHECK_LHS.bindTo(clazz0);
                     test = unaryTest.asType(unaryTest.type()
                                             .changeParameterType(0, type.parameterType(0)));
                 } else if (type.parameterType(0) != Object.class) {
                     // case 2: only the argument is unknown, just check that
-                    MethodHandle unaryTest = CHECK_BINARY_ARG.bindTo(clazz0).bindTo(clazz1);
+                    MethodHandle unaryTest = CHECK_RHS.bindTo(clazz0).bindTo(clazz1);
                     test = unaryTest.asType(unaryTest.type()
                                             .changeParameterType(0, type.parameterType(0))
                                             .changeParameterType(1, type.parameterType(1)));
                 } else {
                     // case 3: check both receiver and argument
-                    MethodHandle binaryTest = CHECK_BINARY.bindTo(clazz0).bindTo(clazz1);
+                    MethodHandle binaryTest = CHECK_BOTH.bindTo(clazz0).bindTo(clazz1);
                     test = binaryTest.asType(binaryTest.type()
                                             .changeParameterType(0, type.parameterType(0))
                                             .changeParameterType(1, type.parameterType(1)));
                 }
             } else {
-                MethodHandle receiverTest = CHECK_CLASS.bindTo(args[0].getClass());
+                // unary operator
+                MethodHandle receiverTest = CHECK_LHS.bindTo(args[0].getClass());
                 test = receiverTest.asType(receiverTest.type()
                                         .changeParameterType(0, type.parameterType(0)));
             }
@@ -234,29 +273,56 @@ public final class DefBootstrap {
             MethodHandle guard = MethodHandles.guardWithTest(test, target, getTarget());
             // very special cases, where even the receiver can be null (see JLS rules for string concat)
             // we wrap + with an NPE catcher, and use our generic method in that case.
-            if (flavor == BINARY_OPERATOR && ((int)this.args[0] & OPERATOR_ALLOWS_NULL) != 0) {
-                MethodHandle handler = MethodHandles.dropArguments(getGeneric(flavor, name).asType(type()), 0, NullPointerException.class);
+            if (flavor == BINARY_OPERATOR && (flags & OPERATOR_ALLOWS_NULL) != 0) {
+                MethodHandle handler = MethodHandles.dropArguments(DefMath.lookupGeneric(name).asType(type()), 
+                                                                   0, 
+                                                                   NullPointerException.class);
                 guard = MethodHandles.catchException(guard, NullPointerException.class, handler);
             }
             
-            depth++;
+            initialized = true;
 
             setTarget(guard);
             return target.invokeWithArguments(args);
         }
-
-        private static final MethodHandle CHECK_CLASS;
-        private static final MethodHandle CHECK_BINARY;
-        private static final MethodHandle CHECK_BINARY_ARG;
+        
+        /**
+         * guard method for inline caching: checks the receiver's class is the same
+         * as the cached class
+         */
+        static boolean checkLHS(Class<?> clazz, Object leftObject) {
+            return leftObject.getClass() == clazz;
+        }
+        
+        
+        /**
+         * guard method for inline caching: checks the first argument is the same
+         * as the cached first argument.
+         */
+        static boolean checkRHS(Class<?> left, Class<?> right, Object leftObject, Object rightObject) {
+            return rightObject.getClass() == right;
+        }
+        
+        /**
+         * guard method for inline caching: checks the receiver's class and the first argument
+         * are the same as the cached receiver and first argument.
+         */
+        static boolean checkBoth(Class<?> left, Class<?> right, Object leftObject, Object rightObject) {
+            return leftObject.getClass() == left && rightObject.getClass() == right;
+        }
+        
+        private static final MethodHandle CHECK_LHS;
+        private static final MethodHandle CHECK_RHS;
+        private static final MethodHandle CHECK_BOTH;
         private static final MethodHandle FALLBACK;
         static {
             final Lookup lookup = MethodHandles.lookup();
             try {
-                CHECK_CLASS = lookup.findStatic(lookup.lookupClass(), "checkClass",
+                CHECK_LHS = lookup.findStatic(lookup.lookupClass(), "checkLHS",
                                               MethodType.methodType(boolean.class, Class.class, Object.class));
-                CHECK_BINARY = lookup.findStatic(lookup.lookupClass(), "checkBinary",
+                CHECK_RHS = lookup.findStatic(lookup.lookupClass(), "checkRHS",
                                               MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class));
-                CHECK_BINARY_ARG = lookup.findStatic(lookup.lookupClass(), "checkBinaryArg",
+                CHECK_BOTH = lookup.findStatic(lookup.lookupClass(), "checkBoth",
                                               MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class));
                 FALLBACK = lookup.findVirtual(lookup.lookupClass(), "fallback",
                                               MethodType.methodType(Object.class, Object[].class));
@@ -277,6 +343,7 @@ public final class DefBootstrap {
     public static CallSite bootstrap(Lookup lookup, String name, MethodType type, int flavor, Object... args) {
         // validate arguments
         switch(flavor) {
+            // "function-call" like things get a polymorphic cache
             case METHOD_CALL:
                 if (args.length != 1) {
                     throw new BootstrapMethodError("Invalid number of parameters for method call");
@@ -288,7 +355,16 @@ public final class DefBootstrap {
                 if (Long.bitCount(recipe) > type.parameterCount()) {
                     throw new BootstrapMethodError("Illegal recipe for method call: too many bits");
                 }
-                break;
+                return new PIC(lookup, name, type, flavor, args);
+            case LOAD:
+            case STORE:
+            case ARRAY_LOAD:
+            case ARRAY_STORE:
+            case ITERATOR:
+                if (args.length > 0) {
+                    throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
+                }
+                return new PIC(lookup, name, type, flavor, args);
             case REFERENCE:
                 if (args.length != 1) {
                     throw new BootstrapMethodError("Invalid number of parameters for reference call");
@@ -296,7 +372,9 @@ public final class DefBootstrap {
                 if (args[0] instanceof String == false) {
                     throw new BootstrapMethodError("Illegal parameter for reference call: " + args[0]);
                 }
-                break;
+                return new PIC(lookup, name, type, flavor, args);
+
+            // operators get monomorphic cache, with a generic impl for a fallback
             case UNARY_OPERATOR:
             case SHIFT_OPERATOR:
             case BINARY_OPERATOR:
@@ -311,14 +389,9 @@ public final class DefBootstrap {
                     // we just don't need it anywhere else.
                     throw new BootstrapMethodError("This parameter is only supported for BINARY_OPERATORs");
                 }
-                break;
+                return new MIC(name, type, flavor, flags);
             default:
-                if (args.length > 0) {
-                    throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
-                }
-                break;
+                throw new BootstrapMethodError("Illegal static bootstrap parameter for flavor: " + flavor);
         }
-        return new PIC(lookup, name, type, flavor, args);
     }
-
 }

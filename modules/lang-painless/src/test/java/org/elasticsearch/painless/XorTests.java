@@ -229,18 +229,10 @@ public class XorTests extends ScriptTestCase {
         assertEquals(true, exec("boolean x = true; x ^= false; return x;"));
         assertEquals(true, exec("boolean x = false; x ^= true; return x;"));
         assertEquals(false, exec("boolean x = false; x ^= false; return x;"));
-        assertEquals(false, exec("def x = true; x ^= true; return x;"));
-        assertEquals(true, exec("def x = true; x ^= false; return x;"));
-        assertEquals(true, exec("def x = false; x ^= true; return x;"));
-        assertEquals(false, exec("def x = false; x ^= false; return x;"));
         assertEquals(false, exec("boolean[] x = new boolean[1]; x[0] = true; x[0] ^= true; return x[0];"));
         assertEquals(true, exec("boolean[] x = new boolean[1]; x[0] = true; x[0] ^= false; return x[0];"));
         assertEquals(true, exec("boolean[] x = new boolean[1]; x[0] = false; x[0] ^= true; return x[0];"));
         assertEquals(false, exec("boolean[] x = new boolean[1]; x[0] = false; x[0] ^= false; return x[0];"));
-        assertEquals(false, exec("def[] x = new def[1]; x[0] = true; x[0] ^= true; return x[0];"));
-        assertEquals(true, exec("def[] x = new def[1]; x[0] = true; x[0] ^= false; return x[0];"));
-        assertEquals(true, exec("def[] x = new def[1]; x[0] = false; x[0] ^= true; return x[0];"));
-        assertEquals(false, exec("def[] x = new def[1]; x[0] = false; x[0] ^= false; return x[0];"));
 
         // byte
         assertEquals((byte) (13 ^ 14), exec("byte x = 13; x ^= 14; return x;"));
@@ -266,6 +258,44 @@ public class XorTests extends ScriptTestCase {
         });
         expectScriptThrows(ClassCastException.class, () -> {
             exec("int x = 4; double y = 1; x ^= y");
+        });
+    }
+    
+    public void testCompoundAssignmentDef() {
+        // boolean
+        assertEquals(false, exec("def x = true; x ^= true; return x;"));
+        assertEquals(true, exec("def x = true; x ^= false; return x;"));
+        assertEquals(true, exec("def x = false; x ^= true; return x;"));
+        assertEquals(false, exec("def x = false; x ^= false; return x;"));
+        assertEquals(false, exec("def[] x = new def[1]; x[0] = true; x[0] ^= true; return x[0];"));
+        assertEquals(true, exec("def[] x = new def[1]; x[0] = true; x[0] ^= false; return x[0];"));
+        assertEquals(true, exec("def[] x = new def[1]; x[0] = false; x[0] ^= true; return x[0];"));
+        assertEquals(false, exec("def[] x = new def[1]; x[0] = false; x[0] ^= false; return x[0];"));
+
+        // byte
+        assertEquals((byte) (13 ^ 14), exec("def x = (byte)13; x ^= 14; return x;"));
+        // short
+        assertEquals((short) (13 ^ 14), exec("def x = (short)13; x ^= 14; return x;"));
+        // char
+        assertEquals((char) (13 ^ 14), exec("def x = (char)13; x ^= 14; return x;"));
+        // int
+        assertEquals(13 ^ 14, exec("def x = 13; x ^= 14; return x;"));
+        // long
+        assertEquals((long) (13 ^ 14), exec("def x = 13L; x ^= 14; return x;"));
+    }
+    
+    public void testDefBogusCompoundAssignment() {
+        expectScriptThrows(ClassCastException.class, () -> {
+            exec("def x = 4F; int y = 1; x ^= y");
+        });
+        expectScriptThrows(ClassCastException.class, () -> {
+            exec("def x = 4D; int y = 1; x ^= y");
+        });
+        expectScriptThrows(ClassCastException.class, () -> {
+            exec("int x = 4; def y = (float)1; x ^= y");
+        });
+        expectScriptThrows(ClassCastException.class, () -> {
+            exec("int x = 4; def y = (double)1; x ^= y");
         });
     }
 }

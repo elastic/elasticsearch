@@ -263,7 +263,8 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     /** Writes a dynamic binary instruction: returnType, lhs, and rhs can be different */
-    public void writeDynamicBinaryInstruction(Location location, Type returnType, Type lhs, Type rhs, Operation operation, boolean compoundAssignment) {
+    public void writeDynamicBinaryInstruction(Location location, Type returnType, Type lhs, Type rhs, 
+                                              Operation operation, boolean compoundAssignment) {
         org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(returnType.type, lhs.type, rhs.type);
         String descriptor = methodType.getDescriptor();
         

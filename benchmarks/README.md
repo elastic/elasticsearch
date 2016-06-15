@@ -16,7 +16,6 @@ Just run `gradle :benchmarks:jmh` from the project root directory. It will build
 ## Running Microbenchmarks
 
 Benchmarks are always run via Gradle with `gradle :benchmarks:jmh`.
-```
  
 Running via an IDE is not supported as the results are meaningless (we have no control over the JVM running the benchmarks).
 

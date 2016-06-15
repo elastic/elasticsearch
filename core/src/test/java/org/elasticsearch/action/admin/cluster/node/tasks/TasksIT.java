@@ -467,6 +467,9 @@ public class TasksIT extends ESIntegTestCase {
         try {
             taskId = waitForTestTaskStartOnAllNodes();
 
+            // Wait for the task to start
+            assertBusy(() -> client().admin().cluster().prepareGetTask(taskId).get());
+
             // Spin up a request to wait for that task to finish
             waitResponseFuture = wait.apply(taskId);
         } finally {

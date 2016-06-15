@@ -27,7 +27,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TemplateServiceIT extends AbstractMustacheTestCase {
+public class TemplateServiceIT extends AbstractScriptTestCase {
 
     public void testTemplates() {
         Map<String, Object> model = new HashMap<>();

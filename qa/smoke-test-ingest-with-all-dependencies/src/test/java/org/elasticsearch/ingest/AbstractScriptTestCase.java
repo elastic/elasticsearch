@@ -29,10 +29,12 @@ import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+import org.mockito.internal.util.collections.Sets;
 
+import java.util.Arrays;
 import java.util.Collections;
 
-public abstract class AbstractMustacheTestCase extends ESTestCase {
+public abstract class AbstractScriptTestCase extends ESTestCase {
 
     protected TemplateService templateService;
 
@@ -43,14 +45,13 @@ public abstract class AbstractMustacheTestCase extends ESTestCase {
             .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
             .build();
         MustacheScriptEngineService mustache = new MustacheScriptEngineService(settings);
-        ScriptEngineRegistry scriptEngineRegistry =
-                new ScriptEngineRegistry(Collections.singletonList(
-                                new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class,
-                                                                                  MustacheScriptEngineService.NAME,
-                                                                                  true)));
+
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(
+            new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.NAME, true)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        ScriptService scriptService = new ScriptService(settings, new Environment(settings), Collections.singleton(mustache), null,
+
+        ScriptService scriptService = new ScriptService(settings, new Environment(settings), Sets.newSet(mustache), null,
                 scriptEngineRegistry, scriptContextRegistry, scriptSettings);
         templateService = new InternalTemplateService(scriptService);
     }

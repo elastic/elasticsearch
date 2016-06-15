@@ -1258,6 +1258,46 @@ Renames an existing field. If the field doesn't exist or the new name is already
 }
 --------------------------------------------------
 
+[[script-processor]]
+=== Script Processor
+
+Allows inline, stored, and file scripts to be executed within ingest pipelines.
+
+See <<modules-scripting-using, How to use scripts>> to learn more about writing scripts. The Script Processor
+leverages caching of compiled scripts for improved performance. Since the
+script specified within the processor is potentially re-compiled per document, it is important
+to understand how script caching works. To learn more about
+caching see <<modules-scripting-using-caching, Script Caching>>.
+
+[[script-options]]
+.Script Options
+[options="header"]
+|======
+| Name                   | Required  | Default | Description
+| `field`                | yes       | -       | The field to set
+| `lang`                 | no        | -       | The scripting language
+| `file`                 | no        | -       | The script file to refer to
+| `id`                   | no        | -       | The stored script id to refer to
+| `inline`               | no        | -       | An inline script to be executed
+|======
+
+You can access the current ingest document from within the script context by using the `ctx` variable.
+
+The following example sets a new field called `field_a_plus_b` to be the sum of two existing
+numeric fields `field_a` and `field_b`:
+
+[source,js]
+--------------------------------------------------
+{
+  "script": {
+    "field": "field_a_plus_b",
+    "lang": "painless",
+    "inline": "return ctx.field_a + ctx.field_b"
+  }
+}
+--------------------------------------------------
+
+
 [[set-processor]]
 === Set Processor
 Sets one field and associates it with the specified value. If the field already exists,

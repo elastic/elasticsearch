@@ -38,7 +38,7 @@ public class IngestTestPlugin extends Plugin {
     }
 
     public void onModule(NodeModule nodeModule) {
-        nodeModule.registerProcessor("test", (templateService, registry) -> config ->
+        nodeModule.registerProcessor("test", (registry) -> config ->
                 new TestProcessor("id", "test", doc -> {
                     doc.setFieldValue("processed", true);
                     if (doc.hasField("fail") && doc.getFieldValue("fail", Boolean.class)) {

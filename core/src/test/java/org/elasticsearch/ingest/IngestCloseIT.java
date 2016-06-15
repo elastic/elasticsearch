@@ -65,7 +65,7 @@ public class IngestCloseIT extends ESSingleNodeTestCase {
         }
 
         public void onModule(NodeModule nodeModule) {
-            nodeModule.registerProcessor("test", (templateService, registry) -> new Factory());
+            nodeModule.registerProcessor("test", (registry) -> new Factory());
         }
     }
 

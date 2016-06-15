@@ -160,16 +160,12 @@ public class FetchPhase implements SearchPhase {
             hits[index] = searchHit;
             hitContext.reset(searchHit, subReaderContext, subDocId, context.searcher());
             for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-                if (fetchSubPhase.hitExecutionNeeded(context)) {
-                    fetchSubPhase.hitExecute(context, hitContext);
-                }
+                fetchSubPhase.hitExecute(context, hitContext);
             }
         }
 
         for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-            if (fetchSubPhase.hitsExecutionNeeded(context)) {
-                fetchSubPhase.hitsExecute(context, hits);
-            }
+            fetchSubPhase.hitsExecute(context, hits);
         }
 
         context.fetchResult().hits(new InternalSearchHits(hits, context.queryResult().topDocs().totalHits, context.queryResult().topDocs().getMaxScore()));

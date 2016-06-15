@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -31,6 +30,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
@@ -38,7 +38,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 
@@ -111,7 +110,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                                 currentNode, nodeWithHighestMatch);
                         UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
                             "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node ["+ nodeWithHighestMatch + "]",
-                            null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false);
+                            null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false, UnassignedInfo.AllocationStatus.NO_ATTEMPT);
                         // don't cancel shard in the loop as it will cause a ConcurrentModificationException
                         recoveriesToCancel.add(new Tuple<>(shard, unassignedInfo));
                         changed = true;
@@ -143,9 +142,10 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             }
 
             // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
-            if (canBeAllocatedToAtLeastOneNode(shard, allocation) == false) {
+            Decision decision = canBeAllocatedToAtLeastOneNode(shard, allocation);
+            if (decision.type() != Decision.Type.YES) {
                 logger.trace("{}: ignoring allocation, can't be allocated on any node", shard);
-                unassignedIterator.removeAndIgnore();
+                changed |= unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.fromDecision(decision));
                 continue;
             }
 
@@ -153,7 +153,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             if (shardStores.hasData() == false) {
                 logger.trace("{}: ignoring allocation, still fetching shard stores", shard);
                 allocation.setHasPendingAsyncFetch();
-                unassignedIterator.removeAndIgnore();
+                changed |= unassignedIterator.removeAndIgnore(AllocationStatus.FETCHING_SHARD_DATA);
                 continue; // still fetching
             }
 
@@ -174,11 +174,11 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             if (matchingNodes.getNodeWithHighestMatch() != null) {
                 RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.getNodeWithHighestMatch().getId());
                 // we only check on THROTTLE since we checked before before on NO
-                Decision decision = allocation.deciders().canAllocate(shard, nodeWithHighestMatch, allocation);
+                decision = allocation.deciders().canAllocate(shard, nodeWithHighestMatch, allocation);
                 if (decision.type() == Decision.Type.THROTTLE) {
                     logger.debug("[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store", shard.index(), shard.id(), shard, nodeWithHighestMatch.node());
                     // we are throttling this, but we have enough to allocate to this node, ignore it for now
-                    unassignedIterator.removeAndIgnore();
+                    changed |= unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.fromDecision(decision));
                 } else {
                     logger.debug("[{}][{}]: allocating [{}] to [{}] in order to reuse its unallocated persistent store", shard.index(), shard.id(), shard, nodeWithHighestMatch.node());
                     // we found a match
@@ -187,7 +187,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 }
             } else if (matchingNodes.hasAnyData() == false) {
                 // if we didn't manage to find *any* data (regardless of matching sizes), check if the allocation of the replica shard needs to be delayed
-                ignoreUnassignedIfDelayed(unassignedIterator, shard);
+                changed |= ignoreUnassignedIfDelayed(unassignedIterator, shard);
             }
         }
         return changed;
@@ -203,22 +203,25 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
      *
      * @param unassignedIterator iterator over unassigned shards
      * @param shard the shard which might be delayed
+     * @return true iff there was a change to the unassigned info
      */
-    public void ignoreUnassignedIfDelayed(RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator, ShardRouting shard) {
+    public boolean ignoreUnassignedIfDelayed(RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator, ShardRouting shard) {
         if (shard.unassignedInfo().isDelayed()) {
             logger.debug("{}: allocation of [{}] is delayed", shard.shardId(), shard);
-            /**
-             * mark it as changed, since we want to kick a publishing to schedule future allocation,
-             * see {@link org.elasticsearch.cluster.routing.RoutingService#clusterChanged(ClusterChangedEvent)}).
-             */
-            unassignedIterator.removeAndIgnore();
+            return unassignedIterator.removeAndIgnore(AllocationStatus.DELAYED_ALLOCATION);
         }
+        return false;
     }
 
     /**
-     * Can the shard be allocated on at least one node based on the allocation deciders.
+     * Determines if the shard can be allocated on at least one node based on the allocation deciders.
+     *
+     * Returns the best allocation decision for allocating the shard on any node (i.e. YES if at least one
+     * node decided YES, THROTTLE if at least one node decided THROTTLE, and NO if none of the nodes decided
+     * YES or THROTTLE.
      */
-    private boolean canBeAllocatedToAtLeastOneNode(ShardRouting shard, RoutingAllocation allocation) {
+    private Decision canBeAllocatedToAtLeastOneNode(ShardRouting shard, RoutingAllocation allocation) {
+        Decision madeDecision = Decision.NO;
         for (ObjectCursor<DiscoveryNode> cursor : allocation.nodes().getDataNodes().values()) {
             RoutingNode node = allocation.routingNodes().node(cursor.value.getId());
             if (node == null) {
@@ -228,10 +231,12 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             // cases for only allocating a replica after a primary
             Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
             if (decision.type() == Decision.Type.YES) {
-                return true;
+                return decision;
+            } else if (madeDecision.type() == Decision.Type.NO && decision.type() == Decision.Type.THROTTLE) {
+                madeDecision = decision;
             }
         }
-        return false;
+        return madeDecision;
     }
 
     /**

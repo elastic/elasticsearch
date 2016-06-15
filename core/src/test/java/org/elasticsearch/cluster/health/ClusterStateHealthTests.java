@@ -82,7 +82,7 @@ public class ClusterStateHealthTests extends ESTestCase {
     private TransportService transportService;
 
     @BeforeClass
-    public static void beforeClass() {
+    public static void setupThreadPool() {
         threadPool = new TestThreadPool("ClusterStateHealthTests");
     }
 
@@ -104,7 +104,7 @@ public class ClusterStateHealthTests extends ESTestCase {
     }
 
     @AfterClass
-    public static void afterClass() {
+    public static void terminateThreadPool() {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
     }
@@ -296,7 +296,6 @@ public class ClusterStateHealthTests extends ESTestCase {
                                                                        .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()))
                                                          .numberOfShards(numberOfShards)
                                                          .numberOfReplicas(numberOfReplicas)
-                                                         .state(IndexMetaData.State.OPEN)
                                                          .build();
         final MetaData metaData = MetaData.builder().put(indexMetaData, true).build();
         final RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetaData).build();

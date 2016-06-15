@@ -59,7 +59,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             Integer.toString(DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES),
             (s) -> Setting.parseInt(s, 0, "cluster.routing.allocation.node_concurrent_recoveries"),
             Property.Dynamic, Property.NodeScope);
-    public static final Setting<Integer>  CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING =
+    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING =
         Setting.intSetting("cluster.routing.allocation.node_initial_primaries_recoveries",
             DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES, 0,
             Property.Dynamic, Property.NodeScope);

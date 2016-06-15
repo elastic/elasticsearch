@@ -344,5 +344,19 @@ public class TransportNodesListGatewayStartedShards extends
             result = 31 * result + (storeException != null ? storeException.hashCode() : 0);
             return result;
         }
+
+        @Override
+        public String toString() {
+            StringBuilder buf = new StringBuilder();
+            buf.append("NodeGatewayStartedShards[")
+               .append("allocationId=").append(allocationId)
+               .append(",primary=").append(primary)
+               .append(",legacyVersion=").append(legacyVersion);
+            if (storeException != null) {
+                buf.append(",storeException=").append(storeException);
+            }
+            buf.append("]");
+            return buf.toString();
+        }
     }
 }

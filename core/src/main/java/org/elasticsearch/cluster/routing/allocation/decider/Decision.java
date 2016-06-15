@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -29,11 +30,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * This abstract class defining basic {@link Decision} used during shard
  * allocation process.
- * 
+ *
  * @see AllocationDecider
  */
 public abstract class Decision implements ToXContent {
@@ -44,7 +46,7 @@ public abstract class Decision implements ToXContent {
     public static final Decision THROTTLE = new Single(Type.THROTTLE);
 
     /**
-     * Creates a simple decision 
+     * Creates a simple decision
      * @param type {@link Type} of the decision
      * @param label label for the Decider that produced this decision
      * @param explanation explanation of the decision
@@ -95,10 +97,10 @@ public abstract class Decision implements ToXContent {
     }
 
     /**
-     * This enumeration defines the 
-     * possible types of decisions 
+     * This enumeration defines the
+     * possible types of decisions
      */
-    public static enum Type {
+    public enum Type {
         YES,
         NO,
         THROTTLE;
@@ -144,6 +146,7 @@ public abstract class Decision implements ToXContent {
      */
     public abstract Type type();
 
+    @Nullable
     public abstract String label();
 
     /**
@@ -166,7 +169,7 @@ public abstract class Decision implements ToXContent {
         }
 
         /**
-         * Creates a new {@link Single} decision of a given type 
+         * Creates a new {@link Single} decision of a given type
          * @param type {@link Type} of the decision
          */
         public Single(Type type) {
@@ -175,12 +178,12 @@ public abstract class Decision implements ToXContent {
 
         /**
          * Creates a new {@link Single} decision of a given type
-         *  
+         *
          * @param type {@link Type} of the decision
          * @param explanation An explanation of this {@link Decision}
          * @param explanationParams A set of additional parameters
          */
-        public Single(Type type, String label, String explanation, Object... explanationParams) {
+        public Single(Type type, @Nullable String label, @Nullable String explanation, @Nullable Object... explanationParams) {
             this.type = type;
             this.label = label;
             this.explanation = explanation;
@@ -193,6 +196,7 @@ public abstract class Decision implements ToXContent {
         }
 
         @Override
+        @Nullable
         public String label() {
             return this.label;
         }
@@ -205,6 +209,7 @@ public abstract class Decision implements ToXContent {
         /**
          * Returns the explanation string, fully formatted. Only formats the string once
          */
+        @Nullable
         public String getExplanation() {
             if (explanationString == null && explanation != null) {
                 explanationString = String.format(Locale.ROOT, explanation, explanationParams);
@@ -224,15 +229,16 @@ public abstract class Decision implements ToXContent {
 
             Decision.Single s = (Decision.Single) object;
             return this.type == s.type &&
-                    this.label.equals(s.label) &&
-                    this.getExplanation().equals(s.getExplanation());
+                       Objects.equals(label, s.label) &&
+                       Objects.equals(getExplanation(), s.getExplanation());
         }
 
         @Override
         public int hashCode() {
-            int result = this.type.hashCode();
-            result = 31 * result + this.label.hashCode();
-            result = 31 * result + this.getExplanation().hashCode();
+            int result = type.hashCode();
+            result = 31 * result + (label == null ? 0 : label.hashCode());
+            String explanationStr = getExplanation();
+            result = 31 * result + (explanationStr == null ? 0 : explanationStr.hashCode());
             return result;
         }
 
@@ -288,6 +294,7 @@ public abstract class Decision implements ToXContent {
         }
 
         @Override
+        @Nullable
         public String label() {
             // Multi decisions have no labels
             return null;

@@ -25,6 +25,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.Tuple;
@@ -641,14 +642,27 @@ public class RoutingNodes implements Iterable<RoutingNode> {
          * Should be used with caution, typically,
          * the correct usage is to removeAndIgnore from the iterator.
          * @see #ignored()
-         * @see UnassignedIterator#removeAndIgnore()
+         * @see UnassignedIterator#removeAndIgnore(AllocationStatus)
          * @see #isIgnoredEmpty()
+         * @return true iff the decision caused a change to the unassigned info
          */
-        public void ignoreShard(ShardRouting shard) {
+        public boolean ignoreShard(ShardRouting shard, AllocationStatus allocationStatus) {
+            boolean changed = false;
             if (shard.primary()) {
                 ignoredPrimaries++;
+                UnassignedInfo currInfo = shard.unassignedInfo();
+                assert currInfo != null;
+                if (allocationStatus.equals(currInfo.getLastAllocationStatus()) == false) {
+                    UnassignedInfo newInfo = new UnassignedInfo(currInfo.getReason(), currInfo.getMessage(), currInfo.getFailure(),
+                                                                currInfo.getNumFailedAllocations(), currInfo.getUnassignedTimeInNanos(),
+                                                                currInfo.getUnassignedTimeInMillis(), currInfo.isDelayed(),
+                                                                allocationStatus);
+                    shard = shard.updateUnassignedInfo(newInfo);
+                    changed = true;
+                }
             }
             ignored.add(shard);
+            return changed;
         }
 
         public class UnassignedIterator implements Iterator<ShardRouting> {
@@ -685,10 +699,13 @@ public class RoutingNodes implements Iterable<RoutingNode> {
              * will be added back to unassigned once the metadata is constructed again).
              * Typically this is used when an allocation decision prevents a shard from being allocated such
              * that subsequent consumers of this API won't try to allocate this shard again.
+             *
+             * @param attempt the result of the allocation attempt
+             * @return true iff the decision caused an update to the unassigned info
              */
-            public void removeAndIgnore() {
+            public boolean removeAndIgnore(AllocationStatus attempt) {
                 innerRemove();
-                ignoreShard(current);
+                return ignoreShard(current, attempt);
             }
 
             private void updateShardRouting(ShardRouting shardRouting) {
@@ -721,7 +738,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             }
 
             /**
-             * Unsupported operation, just there for the interface. Use {@link #removeAndIgnore()} or
+             * Unsupported operation, just there for the interface. Use {@link #removeAndIgnore(AllocationStatus)} or
              * {@link #initialize(String, String, long)}.
              */
             @Override
@@ -747,8 +764,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         /**
          * Returns <code>true</code> iff any unassigned shards are marked as temporarily ignored.
-         * @see UnassignedShards#ignoreShard(ShardRouting)
-         * @see UnassignedIterator#removeAndIgnore()
+         * @see UnassignedShards#ignoreShard(ShardRouting, AllocationStatus)
+         * @see UnassignedIterator#removeAndIgnore(AllocationStatus)
          */
         public boolean isIgnoredEmpty() {
             return ignored.isEmpty();
@@ -878,6 +895,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         assert inactiveShardCount == routingNodes.inactiveShardCount :
                 "Inactive Shard count [" + inactiveShardCount + "] but RoutingNodes returned inactive shards [" + routingNodes.inactiveShardCount + "]";
         assert routingNodes.getRelocatingShardCount() == relocating : "Relocating shards mismatch [" + routingNodes.getRelocatingShardCount() + "] but expected [" + relocating + "]";
+
         return true;
     }
 

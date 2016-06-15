@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.Set;
+import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
 
 public class RoutingTableGenerator {
     private static int node_id = 1;
@@ -62,11 +62,11 @@ public class RoutingTableGenerator {
         final String index = indexMetaData.getIndex().getName();
         IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(new ShardId(index, "_na_", shardId));
         ShardRouting shardRouting = genShardRouting(index, shardId, true);
-        counter.update(shardRouting, indexMetaData.activeAllocationIds(shardId));
+        counter.update(shardRouting, indexMetaData);
         builder.addShard(shardRouting);
         for (int replicas = indexMetaData.getNumberOfReplicas(); replicas > 0; replicas--) {
             shardRouting = genShardRouting(index, shardId, false);
-            counter.update(shardRouting, indexMetaData.activeAllocationIds(shardId));
+            counter.update(shardRouting, indexMetaData);
             builder.addShard(shardRouting);
         }
 
@@ -104,7 +104,7 @@ public class RoutingTableGenerator {
             return ClusterHealthStatus.GREEN;
         }
 
-        public void update(ShardRouting shardRouting, Set<String> allocationIds) {
+        public void update(ShardRouting shardRouting, IndexMetaData indexMetaData) {
             if (shardRouting.active()) {
                 active++;
                 if (shardRouting.primary()) {
@@ -118,9 +118,9 @@ public class RoutingTableGenerator {
 
             if (shardRouting.primary()) {
                 primaryInactive++;
-                inactivePrimaryCausesRed =
-                    UnassignedInfo.unassignedPrimaryShardHealth(shardRouting.unassignedInfo(), allocationIds.isEmpty())
-                        == ClusterHealthStatus.RED;
+                if (inactivePrimaryCausesRed == false) {
+                    inactivePrimaryCausesRed = getInactivePrimaryHealth(shardRouting, indexMetaData) == ClusterHealthStatus.RED;
+                }
             }
             if (shardRouting.initializing()) {
                 initializing++;

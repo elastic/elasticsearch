@@ -190,4 +190,9 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
             return result.bytes();
         }
     }
+
+    @Override
+    public boolean isInlineScriptEnabled() {
+        return true;
+    }
 }

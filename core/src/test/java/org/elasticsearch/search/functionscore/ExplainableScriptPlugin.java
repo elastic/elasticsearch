@@ -20,9 +20,14 @@
 package org.elasticsearch.search.functionscore;
 
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.ScriptModule;
 
-public class ExplainableScriptPlugin extends Plugin {
+import java.util.Collections;
+import java.util.List;
+
+public class ExplainableScriptPlugin extends Plugin implements ScriptPlugin {
 
     public ExplainableScriptPlugin() {}
     @Override
@@ -35,7 +40,9 @@ public class ExplainableScriptPlugin extends Plugin {
         return "Native explainable script";
     }
 
-    public void onModule(ScriptModule module) {
-        module.registerScript("native_explainable_script", ExplainableScriptIT.MyNativeScriptFactory.class);
+
+    @Override
+    public List<NativeScriptFactory> getScriptFactories() {
+        return Collections.singletonList(new ExplainableScriptIT.MyNativeScriptFactory());
     }
 }

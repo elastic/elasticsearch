@@ -71,9 +71,7 @@ public class ScriptModesTests extends ESTestCase {
                 //add the native engine just to make sure it gets filtered out
                 new NativeScriptEngineService(Settings.EMPTY, Collections.<String, NativeScriptFactory>emptyMap()),
                 new CustomScriptEngineService()));
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(
-            new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class, NativeScriptEngineService.NAME),
-            new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.NAME)));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngines.values());
         scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         checkedSettings = new HashSet<>();
         assertAllSettingsWereChecked = true;

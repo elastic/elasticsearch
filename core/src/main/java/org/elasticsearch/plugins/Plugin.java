@@ -23,6 +23,10 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.script.NativeScriptFactory;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -83,6 +87,14 @@ public abstract class Plugin {
      */
     @Deprecated
     public final void onModule(IndexModule indexModule) {}
+
+    /**
+     * Old-style guice scripting extension point.
+     *
+     * @deprecated implement {@link ScriptPlugin} instead
+     */
+    @Deprecated
+    public final void onModule(ScriptModule module) {}
 
     /**
      * Provides the list of this plugin's custom thread pools, empty if

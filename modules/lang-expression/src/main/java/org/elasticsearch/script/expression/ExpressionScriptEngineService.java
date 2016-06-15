@@ -122,7 +122,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
         // instead of complicating SimpleBindings (which should stay simple)
         SimpleBindings bindings = new SimpleBindings();
         ReplaceableConstValueSource specialValue = null;
-        
+
         for (String variable : expr.variables) {
             try {
                 if (variable.equals("_score")) {
@@ -191,10 +191,10 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                     }
 
                     IndexFieldData<?> fieldData = lookup.doc().fieldDataService().getForField(fieldType);
-                    
+
                     // delegate valuesource creation based on field's type
                     // there are three types of "fields" to expressions, and each one has a different "api" of variables and methods.
-                    
+
                     final ValueSource valueSource;
                     if (fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType) {
                         // geo
@@ -203,7 +203,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                         } else {
                             valueSource = GeoField.getMethod(fieldData, fieldname, methodname);
                         }
-                    } else if (fieldType instanceof LegacyDateFieldMapper.DateFieldType || 
+                    } else if (fieldType instanceof LegacyDateFieldMapper.DateFieldType ||
                             fieldType instanceof DateFieldMapper.DateFieldType) {
                         if (dateAccessor) {
                             // date object
@@ -230,7 +230,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                     } else {
                         throw new ParseException("Field [" + fieldname + "] must be numeric, date, or geopoint", 5);
                     }
-                    
+
                     bindings.add(variable, valueSource);
                 }
             } catch (Exception e) {
@@ -238,11 +238,11 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                 throw convertToScriptException("link error", expr.sourceText, variable, e);
             }
         }
-        
+
         final boolean needsScores = expr.getSortField(bindings, false).needsScores();
         return new ExpressionSearchScript(compiledScript, bindings, specialValue, needsScores);
     }
-    
+
     /**
      * converts a ParseException at compile-time or link-time to a ScriptException
      */
@@ -272,5 +272,10 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     @Override
     public void scriptRemoved(CompiledScript script) {
         // Nothing to do
+    }
+
+    @Override
+    public boolean isInlineScriptEnabled() {
+        return true;
     }
 }

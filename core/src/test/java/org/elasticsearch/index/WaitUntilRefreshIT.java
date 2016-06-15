@@ -30,6 +30,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
@@ -40,6 +41,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
@@ -171,7 +174,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
         return singleton(DeletePlzPlugin.class);
     }
 
-    public static class DeletePlzPlugin extends Plugin {
+    public static class DeletePlzPlugin extends Plugin implements ScriptPlugin {
         @Override
         public String name() {
             return "delete_please";
@@ -182,8 +185,9 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
             return "adds a script that converts any update into a delete for testing";
         }
 
-        public void onModule(ScriptModule scriptModule) {
-            scriptModule.registerScript("delete_plz", DeletePlzFactory.class);
+        @Override
+        public List<NativeScriptFactory> getScriptFactories() {
+            return Collections.singletonList(new DeletePlzFactory());
         }
     }
 
@@ -212,6 +216,11 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
         @Override
         public boolean needsScores() {
             return false;
+        }
+
+        @Override
+        public String getName() {
+            return "delete_plz";
         }
     }
 }

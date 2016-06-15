@@ -38,7 +38,7 @@ public class ScriptSettingsTests extends ESTestCase {
 
     public void testDefaultLanguageIsGroovy() {
         ScriptEngineRegistry scriptEngineRegistry =
-                new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.NAME, true)));
+                new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngineService()));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         assertThat(scriptSettings.getDefaultScriptLanguageSetting().get(Settings.EMPTY), equalTo("groovy"));
@@ -46,7 +46,7 @@ public class ScriptSettingsTests extends ESTestCase {
 
     public void testCustomDefaultLanguage() {
         ScriptEngineRegistry scriptEngineRegistry =
-            new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.NAME, true)));
+            new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngineService()));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         String defaultLanguage = CustomScriptEngineService.NAME;
@@ -56,7 +56,7 @@ public class ScriptSettingsTests extends ESTestCase {
 
     public void testInvalidDefaultLanguage() {
         ScriptEngineRegistry scriptEngineRegistry =
-            new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.NAME, true)));
+            new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngineService()));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         Settings settings = Settings.builder().put("script.default_lang", "C++").build();

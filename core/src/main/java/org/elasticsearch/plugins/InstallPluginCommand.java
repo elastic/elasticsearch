@@ -134,6 +134,9 @@ class InstallPluginCommand extends SettingCommand {
         }
     }
 
+    // protocols allowed for direct url installation
+    private static final List<String> URL_PROTOCOLS = Arrays.asList("http", "https", "file");
+
     private final OptionSpec<Void> batchOption;
     private final OptionSpec<String> arguments;
 
@@ -237,6 +240,10 @@ class InstallPluginCommand extends SettingCommand {
         }
 
         // fall back to plain old URL
+        if (pluginId.contains("://") == false) {
+            // definitely not a valid url, so assume it is a plugin name
+            throw new UserError(ExitCodes.USAGE, "Unknown plugin " + pluginId);
+        }
         terminal.println("-> Downloading " + URLDecoder.decode(pluginId, "UTF-8"));
         return downloadZip(terminal, pluginId, tmpDir);
     }

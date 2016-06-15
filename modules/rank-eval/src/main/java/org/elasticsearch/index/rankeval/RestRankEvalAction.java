@@ -20,6 +20,7 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -31,36 +32,32 @@ import org.elasticsearch.rest.RestRequest;
  * General Format:
  * 
  * 
-  {
-    "user_requests": [{
+  { "requests": [{
         "id": "human_readable_id",
-        "request_params": { ... map of template params ... },
-        "doc_ratings": { ... mapping from doc id to rating value ... }
+        "request": { ... request to check ... },
+        "ratings": { ... mapping from doc id to rating value ... }
      }],
-
-    "translation_spec": {
-        "id": "human_readable_id",
-        "request_template": {... query template to evaluate ...}
-    },
     "evaluation_metric": {
         "... metric_name... ": {
             "... metric_parameter_key ...": ...metric_parameter_value...
-        }
-    }
-  }
-
+        }}}
  * 
  * Example: 
  * 
  * 
-   {
-    "user_requests": [{
+   {"requests": [{
         "id": "amsterdam_query",
-        "request_params": {
-            "querystring": "coffee",
-            "browser": "chrome",
-            "time_of_day": "morning",
-            "ip_location": "ams"
+        "request": {
+                "query": {
+                    "bool": {
+                        "must": [
+                            {"match": {"beverage": "coffee"}}, 
+                            {"term": {"browser": {"value": "safari"}}},
+                            {"term": {"time_of_day": {"value": "morning","boost": 2}}},
+                            {"term": {"ip_location": {"value": "ams","boost": 10}}}]}
+                },
+                "size": 10
+            }
         },
         "doc_ratings": {
             "1": 1,
@@ -70,11 +67,17 @@ import org.elasticsearch.rest.RestRequest;
         }
     }, {
         "id": "berlin_query",
-        "request_params": {
-            "querystring": "club mate",
-            "browser": "safari",
-            "time_of_day": "evening",
-            "ip_location": "ber"
+        "request": {
+                "query": {
+                    "bool": {
+                        "must": [
+                            {"match": {"beverage": "club mate"}}, 
+                            {"term": {"browser": {"value": "chromium"}}},
+                            {"term": {"time_of_day": {"value": "evening","boost": 2}}},
+                            {"term": {"ip_location": {"value": "ber","boost": 10}}}]}
+                },
+                "size": 10
+            }
         },
         "doc_ratings": {
             "1": 0,
@@ -82,57 +85,11 @@ import org.elasticsearch.rest.RestRequest;
             "6": 1
         }
     }],
-
-    "translation_spec": {
-        "id": "huge_weight_on_city",
-        "request_template": {
-            "inline": {
-                "query": {
-                    "bool": {
-                        "must": [{
-                            "match": {
-                                "beverage": "{{querystring}}"
-                            }
-                        }, {
-                            "term": {
-                                "browser": {
-                                    "value": "{{browser}}"
-                                }
-                            }
-                        }, {
-                            "term": {
-                                "time_of_day": {
-                                    "value": "{{time_of_day}}",
-                                    "boost": 2
-                                }
-                            }
-                        }, {
-                            "term": {
-                                "ip_location": {
-                                    "value": "{{ip_location}}",
-                                    "boost": 10
-                                }
-                            }
-                        }]
-                    }
-                },
-                "size": 10
-            }
-        }
-    },
     "evaluation_metric": {
         "precisionAtN": {
-            "size": 10
-        }
-    }
+            "size": 10}}
   } 
-
- *
- * 
- * 
- * 
- * 
- * 
+ 
  * 
  * Output format:
  * 

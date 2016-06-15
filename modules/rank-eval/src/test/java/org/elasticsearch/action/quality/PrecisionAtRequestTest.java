@@ -50,7 +50,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, transportClientRatio = 0) // NORELEASE need to fix transport client use case
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE) // NORELEASE need to fix transport client use case
 public class PrecisionAtRequestTest  extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {

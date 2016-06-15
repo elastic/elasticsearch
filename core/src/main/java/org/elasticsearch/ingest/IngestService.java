@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.core.IngestInfo;
 import org.elasticsearch.ingest.core.Processor;
@@ -55,8 +56,8 @@ public class IngestService implements Closeable {
         return pipelineExecutionService;
     }
 
-    public void setScriptService(ScriptService scriptService) {
-        pipelineStore.buildProcessorFactoryRegistry(processorsRegistryBuilder, scriptService);
+    public void buildProcessorsFactoryRegistry(ScriptService scriptService, ClusterService clusterService) {
+        pipelineStore.buildProcessorFactoryRegistry(processorsRegistryBuilder, scriptService, clusterService);
     }
 
     public IngestInfo info() {

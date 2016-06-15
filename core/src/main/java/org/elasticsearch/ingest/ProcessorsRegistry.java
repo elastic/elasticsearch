@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.script.ScriptService;
@@ -38,11 +39,13 @@ public final class ProcessorsRegistry implements Closeable {
     private final Map<String, Processor.Factory> processorFactories;
     private final TemplateService templateService;
     private final ScriptService scriptService;
+    private final ClusterService clusterService;
 
-    private ProcessorsRegistry(ScriptService scriptService,
+    private ProcessorsRegistry(ScriptService scriptService, ClusterService clusterService,
                                Map<String, Function<ProcessorsRegistry, Processor.Factory<?>>> providers) {
         this.templateService = new InternalTemplateService(scriptService);
         this.scriptService = scriptService;
+        this.clusterService = clusterService;
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
         for (Map.Entry<String, Function<ProcessorsRegistry, Processor.Factory<?>>> entry : providers.entrySet()) {
             processorFactories.put(entry.getKey(), entry.getValue().apply(this));
@@ -56,6 +59,10 @@ public final class ProcessorsRegistry implements Closeable {
 
     public ScriptService getScriptService() {
         return scriptService;
+    }
+
+    public ClusterService getClusterService() {
+        return clusterService;
     }
 
     public Processor.Factory getProcessorFactory(String name) {
@@ -92,8 +99,8 @@ public final class ProcessorsRegistry implements Closeable {
             }
         }
 
-        public ProcessorsRegistry build(ScriptService scriptService) {
-            return new ProcessorsRegistry(scriptService, providers);
+        public ProcessorsRegistry build(ScriptService scriptService, ClusterService clusterService) {
+            return new ProcessorsRegistry(scriptService, clusterService, providers);
         }
 
     }

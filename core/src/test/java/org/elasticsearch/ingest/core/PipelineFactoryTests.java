@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.core;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.ingest.TestTemplateService;
@@ -158,6 +159,6 @@ public class PipelineFactoryTests extends ESTestCase {
         for (Map.Entry<String, Processor.Factory> entry : processorRegistry.entrySet()) {
             builder.registerProcessor(entry.getKey(), ((registry) -> entry.getValue()));
         }
-        return builder.build(mock(ScriptService.class));
+        return builder.build(mock(ScriptService.class), mock(ClusterService.class));
     }
 }

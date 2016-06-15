@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -42,7 +43,7 @@ public class ProcessorsRegistryTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("Processor factory already registered for name [1]"));
         }
 
-        ProcessorsRegistry registry = builder.build(mock(ScriptService.class));
+        ProcessorsRegistry registry = builder.build(mock(ScriptService.class), mock(ClusterService.class));
         assertThat(registry.getProcessorFactories().size(), equalTo(2));
         assertThat(registry.getProcessorFactory("1"), sameInstance(factory1));
         assertThat(registry.getProcessorFactory("2"), sameInstance(factory2));

@@ -19,9 +19,11 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -39,14 +41,16 @@ public class ScriptProcessorTests extends ESTestCase {
     public void testScripting() throws Exception {
         int randomInt = randomInt();
         ScriptService scriptService = mock(ScriptService.class);
+        ClusterService clusterService = mock(ClusterService.class);
         CompiledScript compiledScript = mock(CompiledScript.class);
+        Script script = mock(Script.class);
         when(scriptService.compile(any(), any(), any(), any())).thenReturn(compiledScript);
         ExecutableScript executableScript = mock(ExecutableScript.class);
         when(scriptService.executable(any(), any())).thenReturn(executableScript);
         when(executableScript.run()).thenReturn(randomInt);
 
-        ScriptProcessor processor = new ScriptProcessor(randomAsciiOfLength(10), compiledScript,
-            scriptService, "bytes_total");
+        ScriptProcessor processor = new ScriptProcessor(randomAsciiOfLength(10), script,
+            scriptService, clusterService, "bytes_total");
 
         Map<String, Object> document = new HashMap<>();
         document.put("bytes_in", 1234);

@@ -1261,7 +1261,13 @@ Renames an existing field. If the field doesn't exist or the new name is already
 [[script-processor]]
 === Script Processor
 
-Script Processor allows inline and stored scripts to be executed within Ingest Pipelines
+Script Processor allows inline, stored, and file scripts to be executed within Ingest Pipelines.
+
+Scripts use Elasticsearch's Script Service to compile the processor's script for each document. This
+allows updates to stored scripts and the changes will be reflected upon the next run of the processor. The
+downside for doing this is that the processor relies on these script's compiled sources be cached. Be aware
+of the size of your script cache's max size. You can increase the size by updating the `script.cache.max_size` settings
+option.
 
 [[script-options]]
 .Script Options
@@ -1271,6 +1277,7 @@ Script Processor allows inline and stored scripts to be executed within Ingest P
 | `field`                | yes       | -       | The field to set
 | `lang`                 | no        | -       | The scripting language
 | `file`                 | no        | -       | The script file to refer to
+| `id`                   | no        | -       | The stored script id to refer to
 | `inline`               | no        | -       | An inline script to be executed
 |======
 

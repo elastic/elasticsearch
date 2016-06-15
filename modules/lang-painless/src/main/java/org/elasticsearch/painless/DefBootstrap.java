@@ -193,17 +193,17 @@ public final class DefBootstrap {
         private static final MethodHandle MEGAMORPHIC_LOOKUP;
         static {
             final Lookup lookup = MethodHandles.lookup();
+            final Lookup publicLookup = MethodHandles.publicLookup();
             try {
                 CHECK_CLASS = lookup.findStatic(lookup.lookupClass(), "checkClass",
                                               MethodType.methodType(boolean.class, Class.class, Object.class));
                 FALLBACK = lookup.findVirtual(lookup.lookupClass(), "fallback",
                         MethodType.methodType(Object.class, Object[].class));
-                MethodHandle mh = MethodHandles.publicLookup().findVirtual(ClassValue.class, "get",
+                MethodHandle mh = publicLookup.findVirtual(ClassValue.class, "get",
                         MethodType.methodType(Object.class, Class.class));
                 mh = MethodHandles.filterArguments(mh, 1, 
-                        MethodHandles.publicLookup().findVirtual(Object.class, "getClass", MethodType.methodType(Class.class)));
-                mh = mh.asType(mh.type().changeReturnType(MethodHandle.class));
-                MEGAMORPHIC_LOOKUP = mh;
+                        publicLookup.findVirtual(Object.class, "getClass", MethodType.methodType(Class.class)));
+                MEGAMORPHIC_LOOKUP = mh.asType(mh.type().changeReturnType(MethodHandle.class));
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);
             }

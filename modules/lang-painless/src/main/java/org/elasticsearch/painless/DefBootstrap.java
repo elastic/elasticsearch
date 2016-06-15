@@ -158,11 +158,12 @@ public final class DefBootstrap {
                 final ClassValue<MethodHandle> megamorphicCache = new ClassValue<MethodHandle>() {
                     @Override
                     protected MethodHandle computeValue(Class<?> receiverType) {
+                        // it's too stupid that we cannot throw checked exceptions... (use rethrow puzzler):
                         try {
                             return lookup(flavor, name, receiverType, callArgs).asType(type);
-                        } catch (Throwable e) {
-                            // XXX: fix that
-                            throw new RuntimeException(e);
+                        } catch (Throwable t) {
+                            Def.rethrow(t);
+                            throw new AssertionError();
                         }
                     }
                 };

@@ -51,7 +51,7 @@ dependencies {
     }
     compile "org.openjdk.jmh:jmh-core:$versions.jmh"
     compile "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
-    //TODO: Transitive dependencies of JMH. Add them here explicitly for the time being and find out why they are not included implicitly.
+    // Dependencies of JMH
     runtime 'net.sf.jopt-simple:jopt-simple:4.6'
     runtime 'org.apache.commons:commons-math3:3.2'
 }

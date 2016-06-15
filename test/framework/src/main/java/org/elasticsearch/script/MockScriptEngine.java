@@ -28,8 +28,6 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 /**

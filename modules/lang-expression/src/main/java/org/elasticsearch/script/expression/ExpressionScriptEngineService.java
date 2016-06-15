@@ -29,7 +29,6 @@ import org.apache.lucene.search.SortField;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -51,7 +50,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.text.ParseException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -63,7 +61,6 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
 
     public static final String NAME = "expression";
 
-    @Inject
     public ExpressionScriptEngineService(Settings settings) {
         super(settings);
     }

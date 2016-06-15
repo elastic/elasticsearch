@@ -22,7 +22,6 @@ package org.elasticsearch.painless;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.script.CompiledScript;
@@ -79,7 +78,6 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
      * Constructor.
      * @param settings The settings to initialize the engine with.
      */
-    @Inject
     public PainlessScriptEngineService(final Settings settings) {
         super(settings);
     }

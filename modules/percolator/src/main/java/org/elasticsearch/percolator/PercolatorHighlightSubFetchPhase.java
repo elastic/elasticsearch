@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.Highlighters;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
@@ -43,23 +42,27 @@ import org.elasticsearch.search.internal.SubSearchContext;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
-// Highlighting in the case of the percolate query is a bit different, because the PercolateQuery itself doesn't get highlighted,
-// but the source of the PercolateQuery gets highlighted by each hit containing a query.
-public class PercolatorHighlightSubFetchPhase extends HighlightPhase {
+/**
+ * Highlighting in the case of the percolate query is a bit different, because the PercolateQuery itself doesn't get highlighted,
+ * but the source of the PercolateQuery gets highlighted by each hit containing a query.
+ */
+public final class PercolatorHighlightSubFetchPhase extends HighlightPhase {
 
     public PercolatorHighlightSubFetchPhase(Settings settings, Highlighters highlighters) {
         super(settings, highlighters);
     }
 
-    @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
+
+    boolean hitsExecutionNeeded(SearchContext context) { // for testing
         return context.highlight() != null && locatePercolatorQuery(context.query()) != null;
     }
 
     @Override
     public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
+        if (hitsExecutionNeeded(context) == false) {
+            return;
+        }
         PercolateQuery percolateQuery = locatePercolatorQuery(context.query());
         if (percolateQuery == null) {
             // shouldn't happen as we checked for the existence of a percolator query in hitsExecutionNeeded(...)
@@ -95,20 +98,6 @@ public class PercolatorHighlightSubFetchPhase extends HighlightPhase {
                 hit.highlightFields().putAll(hitContext.hit().getHighlightFields());
             }
         }
-    }
-
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        return Collections.emptyMap();
-    }
-
-    @Override
-    public boolean hitExecutionNeeded(SearchContext context) {
-        return false;
-    }
-
-    @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) {
     }
 
     static PercolateQuery locatePercolatorQuery(Query query) {

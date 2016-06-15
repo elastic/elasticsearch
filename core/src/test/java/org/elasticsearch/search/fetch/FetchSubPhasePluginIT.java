@@ -116,7 +116,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
     }
 
-    public static class TermVectorsFetchSubPhase implements FetchSubPhase {
+    public final static class TermVectorsFetchSubPhase implements FetchSubPhase {
 
         public static final ContextFactory<TermVectorsFetchContext> CONTEXT_FACTORY = new ContextFactory<TermVectorsFetchContext>() {
 
@@ -139,21 +139,10 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
 
         @Override
-        public boolean hitsExecutionNeeded(SearchContext context) {
-            return false;
-        }
-
-        @Override
-        public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
-        }
-
-        @Override
-        public boolean hitExecutionNeeded(SearchContext context) {
-            return context.getFetchSubPhaseContext(CONTEXT_FACTORY).hitExecutionNeeded();
-        }
-
-        @Override
         public void hitExecute(SearchContext context, HitContext hitContext) {
+            if (context.getFetchSubPhaseContext(CONTEXT_FACTORY).hitExecutionNeeded() == false) {
+                return;
+            }
             String field = context.getFetchSubPhaseContext(CONTEXT_FACTORY).getField();
 
             if (hitContext.hit().fieldsOrNull() == null) {

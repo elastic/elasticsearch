@@ -21,7 +21,6 @@ package org.elasticsearch.search.highlight;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -31,9 +30,7 @@ import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.search.Highlighters;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.Arrays;
@@ -43,45 +40,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
     private static final List<String> STANDARD_HIGHLIGHTERS_BY_PRECEDENCE = Arrays.asList("fvh", "postings", "plain");
 
     private final Highlighters highlighters;
 
-    @Inject
     public HighlightPhase(Settings settings, Highlighters highlighters) {
         super(settings);
         this.highlighters = highlighters;
     }
 
-    /**
-     * highlighters do not have a parse element, they use
-     * {@link HighlightBuilder#fromXContent(org.elasticsearch.index.query.QueryParseContext)} for parsing instead.
-     */
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        return Collections.emptyMap();
-    }
-
-    @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
-        return false;
-    }
-
-    @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
-    }
-
-    @Override
-    public boolean hitExecutionNeeded(SearchContext context) {
-        return context.highlight() != null;
-    }
-
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
+        if (context.highlight() == null) {
+            return;
+        }
         Map<String, HighlightField> highlightFields = new HashMap<>();
         for (SearchContextHighlight.Field field : context.highlight().fields()) {
             Collection<String> fieldNamesToHighlight;

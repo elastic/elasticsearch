@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.fetch.matchedqueries;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.Query;
@@ -26,7 +27,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
@@ -39,22 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
-
-/**
- *
- */
-public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
-
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        return emptyMap();
-    }
-
-    @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
-        return true; // we short-circuit in hitsExecute
-    }
+public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
@@ -82,12 +67,13 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
                 int docBase = -1;
                 Weight weight = context.searcher().createNormalizedWeight(query, false);
                 Bits matchingDocs = null;
+                final IndexReader indexReader = context.searcher().getIndexReader();
                 for (int i = 0; i < hits.length; ++i) {
                     InternalSearchHit hit = hits[i];
-                    int hitReaderIndex = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
+                    int hitReaderIndex = ReaderUtil.subIndex(hit.docId(), indexReader.leaves());
                     if (readerIndex != hitReaderIndex) {
                         readerIndex = hitReaderIndex;
-                        LeafReaderContext ctx = context.searcher().getIndexReader().leaves().get(readerIndex);
+                        LeafReaderContext ctx = indexReader.leaves().get(readerIndex);
                         docBase = ctx.docBase;
                         // scorers can be costly to create, so reuse them across docs of the same segment
                         Scorer scorer = weight.scorer(ctx);
@@ -99,22 +85,12 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
                 }
             }
             for (int i = 0; i < hits.length; ++i) {
-                hits[i].matchedQueries(matchedQueries[i].toArray(new String[0]));
+                hits[i].matchedQueries(matchedQueries[i].toArray(new String[matchedQueries[i].size()]));
             }
         } catch (IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         } finally {
             SearchContext.current().clearReleasables(Lifetime.COLLECTION);
         }
-    }
-
-    @Override
-    public boolean hitExecutionNeeded(SearchContext context) {
-        return false;
-    }
-
-    @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) {
-        // we do everything in hitsExecute
     }
 }

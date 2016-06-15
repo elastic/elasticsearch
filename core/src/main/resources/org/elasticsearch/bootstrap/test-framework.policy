@@ -24,6 +24,8 @@
 grant codeBase "${codebase.securemock-1.2.jar}" {
   // needed to access ReflectionFactory (see below)
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
+  // needed for reflection in ibm jdk
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
   // needed to support creation of mocks
   permission java.lang.RuntimePermission "reflectionFactoryAccess";
   // needed for spy interception, etc

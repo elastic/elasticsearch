@@ -108,6 +108,24 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(), equalTo(Double.toString(-1)));
     }
 
+    public void testHalfFloat() {
+        String fieldName = "field";
+        createIndex("test", Settings.EMPTY, "test", fieldName, "type=half_float");
+        for (float value = -1; value <= 9; value++) {
+            client().prepareIndex("test", "test").setSource(fieldName, value).get();
+        }
+        client().admin().indices().prepareRefresh().get();
+
+        FieldStatsResponse result = client().prepareFieldStats().setFields(fieldName).get();
+        assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(11L));
+        assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(11L));
+        assertThat(result.getAllFieldStats().get(fieldName).getDensity(), equalTo(100));
+        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(-1d));
+        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9d));
+        assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(), equalTo(Float.toString(-1)));
+        assertThat(result.getAllFieldStats().get(fieldName).getMaxValueAsString(), equalTo(Float.toString(9)));
+    }
+
     public void testFloat() {
         String fieldName = "field";
         createIndex("test", Settings.EMPTY, "test", fieldName, "type=float");

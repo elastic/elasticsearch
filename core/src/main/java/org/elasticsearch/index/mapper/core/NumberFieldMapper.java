@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -180,6 +181,86 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
     }
 
     public enum NumberType {
+        HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
+            @Override
+            Float parse(Object value) {
+                return (Float) FLOAT.parse(value);
+            }
+
+            @Override
+            Float parse(XContentParser parser, boolean coerce) throws IOException {
+                return parser.floatValue(coerce);
+            }
+
+            @Override
+            Query termQuery(String field, Object value) {
+                float v = parse(value);
+                return HalfFloatPoint.newExactQuery(field, v);
+            }
+
+            @Override
+            Query termsQuery(String field, List<Object> values) {
+                float[] v = new float[values.size()];
+                for (int i = 0; i < values.size(); ++i) {
+                    v[i] = parse(values.get(i));
+                }
+                return HalfFloatPoint.newSetQuery(field, v);
+            }
+
+            @Override
+            Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
+                             boolean includeLower, boolean includeUpper) {
+                float l = Float.NEGATIVE_INFINITY;
+                float u = Float.POSITIVE_INFINITY;
+                if (lowerTerm != null) {
+                    l = parse(lowerTerm);
+                    if (includeLower) {
+                        l = Math.nextDown(l);
+                    }
+                    l = HalfFloatPoint.nextUp(l);
+                }
+                if (upperTerm != null) {
+                    u = parse(upperTerm);
+                    if (includeUpper) {
+                        u = Math.nextUp(u);
+                    }
+                    u = HalfFloatPoint.nextDown(u);
+                }
+                return HalfFloatPoint.newRangeQuery(field, l, u);
+            }
+
+            @Override
+            public List<Field> createFields(String name, Number value,
+                                            boolean indexed, boolean docValued, boolean stored) {
+                List<Field> fields = new ArrayList<>();
+                if (indexed) {
+                    fields.add(new HalfFloatPoint(name, value.floatValue()));
+                }
+                if (docValued) {
+                    fields.add(new SortedNumericDocValuesField(name,
+                        HalfFloatPoint.halfFloatToSortableShort(value.floatValue())));
+                }
+                if (stored) {
+                    fields.add(new StoredField(name, value.floatValue()));
+                }
+                return fields;
+            }
+
+            @Override
+            FieldStats.Double stats(IndexReader reader, String fieldName,
+                                    boolean isSearchable, boolean isAggregatable) throws IOException {
+                long size = XPointValues.size(reader, fieldName);
+                if (size == 0) {
+                    return null;
+                }
+                int docCount = XPointValues.getDocCount(reader, fieldName);
+                byte[] min = XPointValues.getMinPackedValue(reader, fieldName);
+                byte[] max = XPointValues.getMaxPackedValue(reader, fieldName);
+                return new FieldStats.Double(reader.maxDoc(),docCount, -1L, size,
+                    isSearchable, isAggregatable,
+                    HalfFloatPoint.decodeDimension(min, 0), HalfFloatPoint.decodeDimension(max, 0));
+            }
+        },
         FLOAT("float", NumericType.FLOAT) {
             @Override
             Float parse(Object value) {

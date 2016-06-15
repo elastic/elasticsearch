@@ -37,8 +37,8 @@ public class RestClusterStatsAction extends BaseRestHandler {
     @Inject
     public RestClusterStatsAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/stats", this, false);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/stats/nodes/{nodeId}", this, false);
+        controller.registerHandler(RestRequest.Method.GET, "/_cluster/stats", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_cluster/stats/nodes/{nodeId}", this);
     }
 
     @Override
@@ -46,5 +46,10 @@ public class RestClusterStatsAction extends BaseRestHandler {
         ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest().nodesIds(request.paramAsStringArray("nodeId", null));
         clusterStatsRequest.timeout(request.param("timeout"));
         client.admin().cluster().clusterStats(clusterStatsRequest, new NodesResponseRestListener<>(channel));
+    }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
     }
 }

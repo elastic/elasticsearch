@@ -41,8 +41,8 @@ public class RestListTasksAction extends BaseRestHandler {
     public RestListTasksAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
         // don't trip circuit breaker to give users a chance to retrieve ids for tasks they can cancel
-        controller.registerHandler(GET, "/_tasks", this, false);
-        controller.registerHandler(GET, "/_tasks/{taskId}", this, false);
+        controller.registerHandler(GET, "/_tasks", this);
+        controller.registerHandler(GET, "/_tasks/{taskId}", this);
     }
 
     public static ListTasksRequest generateListTasksRequest(RestRequest request) {
@@ -68,5 +68,10 @@ public class RestListTasksAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         client.admin().cluster().listTasks(generateListTasksRequest(request), new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
     }
 }

@@ -45,12 +45,12 @@ import static org.elasticsearch.rest.RestStatus.OK;
  *
  */
 public class RestController extends AbstractLifecycleComponent<RestController> {
-    private final PathTrie<RestHandlerHolder> getHandlers = new PathTrie<>(RestUtils.REST_DECODER);
-    private final PathTrie<RestHandlerHolder> postHandlers = new PathTrie<>(RestUtils.REST_DECODER);
-    private final PathTrie<RestHandlerHolder> putHandlers = new PathTrie<>(RestUtils.REST_DECODER);
-    private final PathTrie<RestHandlerHolder> deleteHandlers = new PathTrie<>(RestUtils.REST_DECODER);
-    private final PathTrie<RestHandlerHolder> headHandlers = new PathTrie<>(RestUtils.REST_DECODER);
-    private final PathTrie<RestHandlerHolder> optionsHandlers = new PathTrie<>(RestUtils.REST_DECODER);
+    private final PathTrie<RestHandler> getHandlers = new PathTrie<>(RestUtils.REST_DECODER);
+    private final PathTrie<RestHandler> postHandlers = new PathTrie<>(RestUtils.REST_DECODER);
+    private final PathTrie<RestHandler> putHandlers = new PathTrie<>(RestUtils.REST_DECODER);
+    private final PathTrie<RestHandler> deleteHandlers = new PathTrie<>(RestUtils.REST_DECODER);
+    private final PathTrie<RestHandler> headHandlers = new PathTrie<>(RestUtils.REST_DECODER);
+    private final PathTrie<RestHandler> optionsHandlers = new PathTrie<>(RestUtils.REST_DECODER);
 
     private final RestHandlerFilter handlerFilter = new RestHandlerFilter();
 
@@ -116,14 +116,9 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
      * Registers a rest handler to be executed when the provided method and path match the request.
      */
     public void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
-        registerHandler(method, path, handler, true);
-    }
-
-
-    public void registerHandler(RestRequest.Method method, String path, RestHandler handler, boolean canTripCircuitBreaker) {
-        PathTrie<RestHandlerHolder> handlers = getHandlersForMethod(method);
+        PathTrie<RestHandler> handlers = getHandlersForMethod(method);
         if (handlers != null) {
-            handlers.insert(path, new RestHandlerHolder(handler, canTripCircuitBreaker));
+            handlers.insert(path, handler);
         } else {
             throw new IllegalArgumentException("Can't handle [" + method + "] for path [" + path + "]");
         }
@@ -153,8 +148,8 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
      * @return true iff the circuit breaker limit must be enforced for processing this request.
      */
     public boolean canTripCircuitBreaker(RestRequest request) {
-        RestHandlerHolder holder = getHandlerHolder(request);
-        return (holder != null) ? holder.canTripCircuitBreaker() : true;
+        RestHandler handler = getHandler(request);
+        return (handler != null) ? handler.canTripCircuitBreaker() : true;
     }
 
     public void dispatchRequest(final RestRequest request, final RestChannel channel, ThreadContext threadContext) throws Exception {
@@ -223,13 +218,8 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     }
 
     private RestHandler getHandler(RestRequest request) {
-        RestHandlerHolder holder = getHandlerHolder(request);
-        return (holder != null) ? holder.getRestHandler() : null;
-    }
-
-    private RestHandlerHolder getHandlerHolder(RestRequest request) {
         String path = getPath(request);
-        PathTrie<RestHandlerHolder> handlers = getHandlersForMethod(request.method());
+        PathTrie<RestHandler> handlers = getHandlersForMethod(request.method());
         if (handlers != null) {
             return handlers.retrieve(path, request.params());
         } else {
@@ -237,7 +227,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         }
     }
 
-    private PathTrie<RestHandlerHolder> getHandlersForMethod(RestRequest.Method method) {
+    private PathTrie<RestHandler> getHandlersForMethod(RestRequest.Method method) {
         if (method == RestRequest.Method.GET) {
             return getHandlers;
         } else if (method == RestRequest.Method.POST) {
@@ -299,24 +289,6 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         @Override
         public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
             executeHandler(request, channel);
-        }
-    }
-
-    private static final class RestHandlerHolder {
-        private final RestHandler restHandler;
-        private final boolean canTripCircuitBreaker;
-
-        public RestHandlerHolder(RestHandler restHandler, boolean canTripCircuitBreaker) {
-            this.restHandler = restHandler;
-            this.canTripCircuitBreaker = canTripCircuitBreaker;
-        }
-
-        public RestHandler getRestHandler() {
-            return restHandler;
-        }
-
-        public boolean canTripCircuitBreaker() {
-            return canTripCircuitBreaker;
         }
     }
 }

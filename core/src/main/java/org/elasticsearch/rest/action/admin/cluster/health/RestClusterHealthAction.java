@@ -45,8 +45,8 @@ public class RestClusterHealthAction extends BaseRestHandler {
     public RestClusterHealthAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
 
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/health", this, false);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/health/{index}", this, false);
+        controller.registerHandler(RestRequest.Method.GET, "/_cluster/health", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_cluster/health/{index}", this);
     }
 
     @Override
@@ -63,5 +63,10 @@ public class RestClusterHealthAction extends BaseRestHandler {
         clusterHealthRequest.waitForActiveShards(request.paramAsInt("wait_for_active_shards", clusterHealthRequest.waitForActiveShards()));
         clusterHealthRequest.waitForNodes(request.param("wait_for_nodes", clusterHealthRequest.waitForNodes()));
         client.admin().cluster().health(clusterHealthRequest, new RestStatusToXContentListener<ClusterHealthResponse>(channel));
+    }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
     }
 }

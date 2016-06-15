@@ -40,8 +40,8 @@ public class RestCancelTasksAction extends BaseRestHandler {
     @Inject
     public RestCancelTasksAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
-        controller.registerHandler(POST, "/_tasks/_cancel", this, false);
-        controller.registerHandler(POST, "/_tasks/{taskId}/_cancel", this, false);
+        controller.registerHandler(POST, "/_tasks/_cancel", this);
+        controller.registerHandler(POST, "/_tasks/{taskId}/_cancel", this);
     }
 
     @Override
@@ -57,5 +57,10 @@ public class RestCancelTasksAction extends BaseRestHandler {
         cancelTasksRequest.setActions(actions);
         cancelTasksRequest.setParentTaskId(parentTaskId);
         client.admin().cluster().cancelTasks(cancelTasksRequest, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
     }
 }

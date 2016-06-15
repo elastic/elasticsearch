@@ -52,11 +52,11 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     @Inject
     public RestClearIndicesCacheAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
-        controller.registerHandler(POST, "/_cache/clear", this, false);
-        controller.registerHandler(POST, "/{index}/_cache/clear", this, false);
+        controller.registerHandler(POST, "/_cache/clear", this);
+        controller.registerHandler(POST, "/{index}/_cache/clear", this);
 
-        controller.registerHandler(GET, "/_cache/clear", this, false);
-        controller.registerHandler(GET, "/{index}/_cache/clear", this, false);
+        controller.registerHandler(GET, "/_cache/clear", this);
+        controller.registerHandler(GET, "/{index}/_cache/clear", this);
     }
 
     @Override
@@ -73,6 +73,11 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
                 return new BytesRestResponse(OK, builder);
             }
         });
+    }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
     }
 
     public static ClearIndicesCacheRequest fromRequest(final RestRequest request, ClearIndicesCacheRequest clearIndicesCacheRequest, ParseFieldMatcher parseFieldMatcher) {

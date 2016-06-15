@@ -100,8 +100,8 @@ public class RestControllerTests extends ESTestCase {
     public void testCanTripCircuitBreaker() throws Exception {
         RestController controller = new RestController(Settings.EMPTY);
         // trip circuit breaker by default
-        controller.registerHandler(RestRequest.Method.GET, "/trip", new FakeRestHandler());
-        controller.registerHandler(RestRequest.Method.GET, "/do-not-trip", new FakeRestHandler(), false);
+        controller.registerHandler(RestRequest.Method.GET, "/trip", new FakeRestHandler(true));
+        controller.registerHandler(RestRequest.Method.GET, "/do-not-trip", new FakeRestHandler(false));
 
         assertTrue(controller.canTripCircuitBreaker(new FakeRestRequest.Builder().withPath("/trip").build()));
         // assume trip even on unknown paths
@@ -110,9 +110,20 @@ public class RestControllerTests extends ESTestCase {
     }
 
     private static class FakeRestHandler implements RestHandler {
+        private final boolean canTripCircuitBreaker;
+
+        private FakeRestHandler(boolean canTripCircuitBreaker) {
+            this.canTripCircuitBreaker = canTripCircuitBreaker;
+        }
+
         @Override
         public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
             //no op
+        }
+
+        @Override
+        public boolean canTripCircuitBreaker() {
+            return canTripCircuitBreaker;
         }
     }
 }

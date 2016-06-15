@@ -53,7 +53,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     public RestClusterGetSettingsAction(Settings settings, RestController controller, Client client, ClusterSettings clusterSettings, SettingsFilter settingsFilter) {
         super(settings, client);
         this.clusterSettings = clusterSettings;
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/settings", this, false);
+        controller.registerHandler(RestRequest.Method.GET, "/_cluster/settings", this);
         this.settingsFilter = settingsFilter;
     }
 
@@ -70,6 +70,11 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
                 return new BytesRestResponse(RestStatus.OK, renderResponse(response.getState(), renderDefaults, builder, request));
             }
         });
+    }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
     }
 
     private XContentBuilder renderResponse(ClusterState state, boolean renderDefaults, XContentBuilder builder, ToXContent.Params params) throws IOException {

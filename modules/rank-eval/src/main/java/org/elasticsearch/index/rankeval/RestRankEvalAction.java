@@ -19,12 +19,30 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.RestReindexAction.ReindexParseContext;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.script.Script;
+
+import java.util.Map;
+
+import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
 /**
  * Accepted input format:
@@ -37,7 +55,7 @@ import org.elasticsearch.rest.RestRequest;
         "request": { ... request to check ... },
         "ratings": { ... mapping from doc id to rating value ... }
      }],
-    "evaluation_metric": {
+    "metric": {
         "... metric_name... ": {
             "... metric_parameter_key ...": ...metric_parameter_value...
         }}}
@@ -59,7 +77,7 @@ import org.elasticsearch.rest.RestRequest;
                 "size": 10
             }
         },
-        "doc_ratings": {
+        "ratings": {
             "1": 1,
             "2": 0,
             "3": 1,
@@ -79,13 +97,13 @@ import org.elasticsearch.rest.RestRequest;
                 "size": 10
             }
         },
-        "doc_ratings": {
+        "ratings": {
             "1": 0,
             "5": 1,
             "6": 1
         }
     }],
-    "evaluation_metric": {
+    "metric": {
         "precisionAtN": {
             "size": 10}}
   } 
@@ -141,7 +159,8 @@ import org.elasticsearch.rest.RestRequest;
  * */
 public class RestRankEvalAction extends BaseRestHandler {
 
-    protected RestRankEvalAction(Settings settings, Client client) {
+    @Inject
+    public RestRankEvalAction(Settings settings, Client client) {
         super(settings, client);
     }
 

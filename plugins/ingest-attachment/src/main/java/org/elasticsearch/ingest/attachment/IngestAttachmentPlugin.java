@@ -38,6 +38,6 @@ public class IngestAttachmentPlugin extends Plugin {
 
     public void onModule(NodeModule nodeModule) throws IOException {
         nodeModule.registerProcessor(AttachmentProcessor.TYPE,
-            (templateService, registry) -> new AttachmentProcessor.Factory());
+            (registry) -> new AttachmentProcessor.Factory());
     }
 }

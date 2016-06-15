@@ -605,14 +605,14 @@ public class SearchModule extends AbstractModule {
     }
 
     private void registerBuiltinSubFetchPhases() {
-        fetchSubPhases.add(new ExplainFetchSubPhase());
-        fetchSubPhases.add(new FieldDataFieldsFetchSubPhase());
-        fetchSubPhases.add(new ScriptFieldsFetchSubPhase());
-        fetchSubPhases.add(new FetchSourceSubPhase());
-        fetchSubPhases.add(new VersionFetchSubPhase());
-        fetchSubPhases.add(new MatchedQueriesFetchSubPhase());
-        fetchSubPhases.add(new HighlightPhase(settings, highlighters));
-        fetchSubPhases.add(new ParentFieldSubFetchPhase());
+        registerFetchSubPhase(new ExplainFetchSubPhase());
+        registerFetchSubPhase(new FieldDataFieldsFetchSubPhase());
+        registerFetchSubPhase(new ScriptFieldsFetchSubPhase());
+        registerFetchSubPhase(new FetchSourceSubPhase());
+        registerFetchSubPhase(new VersionFetchSubPhase());
+        registerFetchSubPhase(new MatchedQueriesFetchSubPhase());
+        registerFetchSubPhase(new HighlightPhase(settings, highlighters));
+        registerFetchSubPhase(new ParentFieldSubFetchPhase());
     }
 
     private void registerBuiltinQueryParsers() {

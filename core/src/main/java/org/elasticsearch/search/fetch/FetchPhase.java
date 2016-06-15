@@ -73,10 +73,8 @@ public class FetchPhase implements SearchPhase {
     private final FetchSubPhase[] fetchSubPhases;
 
     public FetchPhase(Set<FetchSubPhase> fetchSubPhases) {
-        InnerHitsFetchSubPhase innerHitsFetchSubPhase = new InnerHitsFetchSubPhase();
-        innerHitsFetchSubPhase.setFetchPhase(this);
         this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
-        this.fetchSubPhases[fetchSubPhases.size()] = innerHitsFetchSubPhase;
+        this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsFetchSubPhase(this);
     }
 
     @Override

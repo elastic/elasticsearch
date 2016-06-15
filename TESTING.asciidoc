@@ -296,7 +296,7 @@ gradle :distribution:integ-test-zip:integTest \
   -Dtests.method="test {p0=cat.shards/10_basic/Help}"
 ---------------------------------------------------------------------------
 
-`RestNIT` are the executable test classes that runs all the
+`RestIT` are the executable test classes that runs all the
 yaml suites available within the `rest-api-spec` folder.
 
 The REST tests support all the options provided by the randomized runner, plus the following:

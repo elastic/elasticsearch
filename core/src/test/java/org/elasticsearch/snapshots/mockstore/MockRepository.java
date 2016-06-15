@@ -48,6 +48,7 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -76,9 +77,9 @@ public class MockRepository extends FsRepository {
             repositoriesModule.registerRepository("mock", MockRepository.class, BlobStoreIndexShardRepository.class);
         }
 
-        public void onModule(SettingsModule module) {
-            module.registerSetting(USERNAME_SETTING);
-            module.registerSetting(PASSWORD_SETTING);
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(USERNAME_SETTING, PASSWORD_SETTING);
         }
     }
 

@@ -773,8 +773,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         for (Consumer<AnalysisModule> consumer : moduleConsumers) {
             consumer.accept(analysisModule);
         }
-        SettingsModule settingsModule = new SettingsModule(nodeSettings);
-        settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
+        SettingsModule settingsModule = new SettingsModule(nodeSettings, InternalSettingsPlugin.VERSION_CREATED);
         final AnalysisService analysisService = analysisModule.buildRegistry().build(IndexSettingsModule.newIndexSettings(index, indexSettings));
         return analysisService;
     }

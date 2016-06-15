@@ -37,19 +37,21 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.indices.breaker.CircuitBreakerModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.MonitorService;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
 
@@ -134,10 +136,9 @@ public class TransportClient extends AbstractClient {
                     modules.add(pluginModule);
                 }
                 modules.add(new PluginsModule(pluginsService));
-                modules.add(new SettingsModule(settings));
                 modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
                 modules.add(new ClusterNameModule(settings));
-                modules.add(new ThreadPoolModule(threadPool));
+                modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
                 modules.add(new SearchModule(settings, namedWriteableRegistry) {
                     @Override
                     protected void configure() {
@@ -145,9 +146,20 @@ public class TransportClient extends AbstractClient {
                     }
                 });
                 modules.add(new ActionModule(false, true));
-                modules.add(new CircuitBreakerModule(settings));
 
                 pluginsService.processModules(modules);
+                final List<Setting<?>> additionalSettings = new ArrayList<>();
+                final List<String> additionalSettingsFilter = new ArrayList<>();
+                additionalSettings.addAll(pluginsService.getPluginSettings());
+                additionalSettingsFilter.addAll(pluginsService.getPluginSettingsFilter());
+                for (final ExecutorBuilder<?> builder : threadPool.builders()) {
+                    additionalSettings.addAll(builder.getRegisteredSettings());
+                }
+                SettingsModule settingsModule = new SettingsModule(settings, additionalSettings, additionalSettingsFilter);
+                CircuitBreakerService circuitBreakerService = Node.createCircuitBreakerService(settingsModule.getSettings(),
+                    settingsModule.getClusterSettings());
+                modules.add(settingsModule);
+                modules.add((b -> b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService)));
 
                 Injector injector = modules.createInjector();
                 final TransportService transportService = injector.getInstance(TransportService.class);

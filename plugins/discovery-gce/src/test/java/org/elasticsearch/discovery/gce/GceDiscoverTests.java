@@ -28,6 +28,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin;
@@ -48,6 +49,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -74,10 +76,10 @@ public class GceDiscoverTests extends ESIntegTestCase {
             return "GceDiscoverTests";
         }
 
-        public void onModule(SettingsModule module) {
-            module.registerSetting(GceComputeServiceImpl.GCE_HOST);
-            module.registerSetting(GceComputeServiceImpl.GCE_ROOT_URL);
-            module.registerSetting(GceComputeServiceImpl.GCE_VALIDATE_CERTIFICATES);
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(GceComputeServiceImpl.GCE_HOST, GceComputeServiceImpl.GCE_ROOT_URL,
+                GceComputeServiceImpl.GCE_VALIDATE_CERTIFICATES);
         }
     }
 

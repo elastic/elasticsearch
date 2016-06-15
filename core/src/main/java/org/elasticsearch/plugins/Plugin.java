@@ -21,7 +21,9 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -76,6 +78,10 @@ public abstract class Plugin {
      */
     public void onIndexModule(IndexModule indexModule) {}
 
+    public List<Setting<?>> getSettings() { return Collections.emptyList(); }
+
+    public List<String> getSettingsFilter() { return Collections.emptyList(); }
+
     /**
      * Old-style guice index level extension point.
      *
@@ -83,6 +89,15 @@ public abstract class Plugin {
      */
     @Deprecated
     public final void onModule(IndexModule indexModule) {}
+
+
+    /**
+     * Old-style guice settings extension point.
+     *
+     * @deprecated use #getSettings and #getSettingsFilter instead
+     */
+    @Deprecated
+    public final void onModule(SettingsModule settingsModule) {}
 
     /**
      * Old-style guice scripting extension point.

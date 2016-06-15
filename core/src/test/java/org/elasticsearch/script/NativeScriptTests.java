@@ -31,7 +31,6 @@ import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
@@ -57,8 +56,7 @@ public class NativeScriptTests extends ESTestCase {
         scriptModule.prepareSettings(settingsModule);
         final ThreadPool threadPool = new ThreadPool(settings);
         Injector injector = new ModulesBuilder().add(
-                new EnvironmentModule(new Environment(settings)),
-                new ThreadPoolModule(threadPool),
+                new EnvironmentModule(new Environment(settings), threadPool),
                 new SettingsModule(settings),
                 scriptModule).createInjector();
 

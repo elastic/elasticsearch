@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.indices.IndicesModule;
@@ -31,6 +32,8 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 public class PercolatorPlugin extends Plugin {
@@ -76,8 +79,9 @@ public class PercolatorPlugin extends Plugin {
         module.registerFetchSubPhase(new PercolatorHighlightSubFetchPhase(settings, module.getHighlighters()));
     }
 
-    public void onModule(SettingsModule module) {
-        module.registerSetting(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
     }
 
     static boolean transportClientMode(Settings settings) {

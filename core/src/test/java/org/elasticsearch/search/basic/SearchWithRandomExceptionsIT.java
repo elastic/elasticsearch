@@ -44,7 +44,9 @@ import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
@@ -160,9 +162,9 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
             public String name() {
                 return "random-exception-reader-wrapper";
             }
-            public void onModule(SettingsModule module) {
-                module.registerSetting(EXCEPTION_TOP_LEVEL_RATIO_SETTING);
-                module.registerSetting(EXCEPTION_LOW_LEVEL_RATIO_SETTING);
+            @Override
+            public List<Setting<?>> getSettings() {
+                return Arrays.asList(EXCEPTION_TOP_LEVEL_RATIO_SETTING, EXCEPTION_LOW_LEVEL_RATIO_SETTING);
             }
             @Override
             public String description() {

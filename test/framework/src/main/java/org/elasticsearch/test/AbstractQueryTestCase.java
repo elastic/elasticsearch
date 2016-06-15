@@ -108,7 +108,6 @@ import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
@@ -880,8 +879,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             Environment env = InternalSettingsPreparer.prepareEnvironment(settings, null);
             PluginsService pluginsService =new PluginsService(settings, env.modulesFile(), env.pluginsFile(), plugins);
 
-            SettingsModule settingsModule = new SettingsModule(settings);
-            settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
+            SettingsModule settingsModule = new SettingsModule(settings, InternalSettingsPlugin.VERSION_CREATED);
             final Client proxy = (Client) Proxy.newProxyInstance(
                     Client.class.getClassLoader(),
                     new Class[]{Client.class},
@@ -901,9 +899,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             }
             modulesBuilder.add(new PluginsModule(pluginsService));
             modulesBuilder.add(
-                    new EnvironmentModule(new Environment(settings)),
+                    new EnvironmentModule(new Environment(settings), threadPool),
                     settingsModule,
-                    new ThreadPoolModule(threadPool),
                     new IndicesModule() {
                         @Override
                         public void configure() {

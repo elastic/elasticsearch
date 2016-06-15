@@ -20,10 +20,11 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.ScriptPlugin;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -57,12 +58,15 @@ public class ScriptModule extends AbstractModule {
      * This method is called after all modules have been processed but before we actually validate all settings. This allows the
      * script extensions to add all their settings.
      */
-    public void prepareSettings(SettingsModule settingsModule) {
-        scriptSettings.getScriptTypeSettings().forEach(settingsModule::registerSetting);
-        scriptSettings.getScriptContextSettings().forEach(settingsModule::registerSetting);
-        scriptSettings.getScriptLanguageSettings().forEach(settingsModule::registerSetting);
-        settingsModule.registerSetting(scriptSettings.getDefaultScriptLanguageSetting());
+    public List<Setting<?>> getSettings() {
+        ArrayList<Setting<?>> settings = new ArrayList<>();
+        scriptSettings.getScriptTypeSettings().forEach(settings::add);
+        scriptSettings.getScriptContextSettings().forEach(settings::add);
+        scriptSettings.getScriptLanguageSettings().forEach(settings::add);
+        settings.add(scriptSettings.getDefaultScriptLanguageSetting());
+        return settings;
     }
+
 
     @Override
     protected void configure() {

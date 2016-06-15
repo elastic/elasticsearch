@@ -21,6 +21,7 @@ package org.elasticsearch.test.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.transport.TransportService;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -91,8 +92,9 @@ public class MockTransportService extends TransportService {
             module.registerTransportService("mock", MockTransportService.class);
         }
 
-        public void onModule(SettingsModule module) {
-            module.registerSetting(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
         }
         @Override
         public Settings additionalSettings() {

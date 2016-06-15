@@ -82,6 +82,11 @@ public class Setting<T> extends ToXContentToBytes {
         Filtered,
 
         /**
+         * iff this setting is shared with more than one module ie. can be defined multiple times.
+         */
+        Shared,
+
+        /**
          * iff this setting can be dynamically updateable
          */
         Dynamic,
@@ -245,6 +250,13 @@ public class Setting<T> extends ToXContentToBytes {
      */
     public boolean isDeprecated() {
         return properties.contains(Property.Deprecated);
+    }
+
+    /**
+     * Returns <code>true</code> if this setting is shared with more than one other module or pluging, otherwise <code>false</code>
+     */
+    public boolean isShared() {
+        return properties.contains(Property.Shared);
     }
 
     /**

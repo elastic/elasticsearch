@@ -27,16 +27,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
-import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;

@@ -22,13 +22,10 @@ package org.elasticsearch.script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
@@ -42,7 +39,6 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
 
     private final Map<String, NativeScriptFactory> scripts;
 
-    @Inject
     public NativeScriptEngineService(Settings settings, Map<String, NativeScriptFactory> scripts) {
         super(settings);
         this.scripts = unmodifiableMap(scripts);

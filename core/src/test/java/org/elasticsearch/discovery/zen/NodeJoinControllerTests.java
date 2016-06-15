@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.discovery.zen;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -227,7 +226,6 @@ public class NodeJoinControllerTests extends ESTestCase {
         electionFuture.get();
     }
 
-    @Seed("DE4D608991D6D518")
     public void testSimpleMasterElection() throws InterruptedException, ExecutionException {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterService.state().nodes()).masterNodeId(null);
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodes));
@@ -588,7 +586,7 @@ public class NodeJoinControllerTests extends ESTestCase {
     private SimpleFuture joinNodeAsync(final DiscoveryNode node) throws InterruptedException {
         final SimpleFuture future = new SimpleFuture("join of " + node + " (id [" + joinId.incrementAndGet() + "]");
         logger.debug("starting {}", future);
-        // clone the node before submitting to simulate an incoming join , which is guaranteed to have a new
+        // clone the node before submitting to simulate an incoming join, which is guaranteed to have a new
         // disco node object serialized off the network
         nodeJoinController.handleJoinRequest(cloneNode(node), new MembershipAction.JoinCallback() {
             @Override

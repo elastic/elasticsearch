@@ -377,10 +377,22 @@ public class ClusterServiceTests extends ESTestCase {
         }
     }
 
-    public void testSingleBatchSubmission() {
+    public void testSingleBatchSubmission() throws InterruptedException {
         Map<Integer, ClusterStateTaskListener> tasks = new HashMap<>();
-        for (int i = randomInt(10); i > 0; i--) {
-            tasks.put(randomInt(1024), (source, t) -> fail(ExceptionsHelper.detailedMessage(t)));
+        final int numOfTasks = randomInt(10);
+        final CountDownLatch latch = new CountDownLatch(numOfTasks);
+        for (int i = 0; i < numOfTasks; i++) {
+            tasks.put(randomInt(1024), new ClusterStateTaskListener() {
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                    fail(ExceptionsHelper.detailedMessage(t));
+                }
+            });
         }
 
         clusterService.submitStateUpdateTasks("test", tasks, ClusterStateTaskConfig.build(Priority.LANGUID),
@@ -389,6 +401,8 @@ public class ClusterServiceTests extends ESTestCase {
                 assertThat(taskList.stream().collect(Collectors.toSet()), equalTo(tasks.keySet()));
                 return ClusterStateTaskExecutor.BatchResult.<Integer>builder().successes(taskList).build(currentState);
             });
+
+        latch.await();
     }
 
     public void testClusterStateBatchedUpdates() throws BrokenBarrierException, InterruptedException {
@@ -433,8 +447,8 @@ public class ClusterServiceTests extends ESTestCase {
             }
         }
 
-        int numberOfThreads = randomIntBetween(2, 5);
-        int taskSubmissionsPerThread = randomIntBetween(1, 24);
+        int numberOfThreads = randomIntBetween(2, 8);
+        int taskSubmissionsPerThread = randomIntBetween(1, 64);
         int numberOfExecutors = Math.max(1, numberOfThreads / 4);
         final Semaphore semaphore = new Semaphore(numberOfExecutors);
 
@@ -619,7 +633,8 @@ public class ClusterServiceTests extends ESTestCase {
         }
     }
 
-    public void testDuplicateSubmission() {
+    public void testDuplicateSubmission() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(2);
         try (BlockingTask blockingTask = new BlockingTask(Priority.IMMEDIATE)) {
             clusterService.submitStateUpdateTask("blocking", blockingTask);
 
@@ -627,7 +642,17 @@ public class ClusterServiceTests extends ESTestCase {
                 ClusterStateTaskExecutor.BatchResult.<SimpleTask>builder().successes(tasks).build(currentState);
 
             SimpleTask task = new SimpleTask(1);
-            ClusterStateTaskListener listener = (source, t) -> fail(ExceptionsHelper.detailedMessage(t));
+            ClusterStateTaskListener listener = new ClusterStateTaskListener() {
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                    fail(ExceptionsHelper.detailedMessage(t));
+                }
+            };
 
             clusterService.submitStateUpdateTask("first time", task, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
 
@@ -636,7 +661,10 @@ public class ClusterServiceTests extends ESTestCase {
 
             clusterService.submitStateUpdateTask("third time a charm", new SimpleTask(1),
                 ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
+
+            assertThat(latch.getCount(), equalTo(2L));
         }
+        latch.await();
     }
 
     @TestLogging("cluster:TRACE") // To ensure that we log cluster state events on TRACE level

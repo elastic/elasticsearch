@@ -378,11 +378,11 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
     }
 
     /**
-     * Submits a set of cluster state update task; submitted updates are guaranteed to be processed together,
+     * Submits a batch of cluster state update tasks; submitted updates are guaranteed to be processed together,
      * potentially with more tasks of the same executor.
      *
      * @param source   the source of the cluster state update task
-     * @param tasks    a map of update tasks and a corresponding listener to notify of their result
+     * @param tasks    a map of update tasks and their corresponding listeners
      * @param config   the cluster state update task configuration
      * @param executor the cluster state update task executor; tasks
      *                 that share the same executor will be executed

@@ -57,14 +57,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class NodeJoinController extends AbstractComponent {
 
-    final ClusterService clusterService;
-    final RoutingService routingService;
-    final ElectMasterService electMaster;
-    final DiscoverySettings discoverySettings;
-    final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor();
+    private final ClusterService clusterService;
+    private final RoutingService routingService;
+    private final ElectMasterService electMaster;
+    private final DiscoverySettings discoverySettings;
+    private final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor();
 
-    // this is set while trying to become a master mutation should be done under lock
-    ElectionContext electionContext = null;
+    // this is set while trying to become a master
+    // mutation should be done under lock
+    private ElectionContext electionContext = null;
 
 
     public NodeJoinController(ClusterService clusterService, RoutingService routingService, ElectMasterService electMaster, DiscoverySettings discoverySettings, Settings settings) {
@@ -445,15 +446,12 @@ public class NodeJoinController extends AbstractComponent {
                 results.success(node);
             }
 
-            // we must return a new cluster state instance to force publishing. This is important
-            // for the joining node to finalize it's join and set us as a master
             if (nodesChanged) {
                 newState.nodes(nodesBuilder);
             }
 
             // we must return a new cluster state instance to force publishing. This is important
-            // for the joining node to finalize it's join and set us as a master
-
+            // for the joining node to finalize its join and set us as a master
             return results.build(newState.build());
         }
 

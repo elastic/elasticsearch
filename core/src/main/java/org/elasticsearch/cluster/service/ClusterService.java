@@ -407,8 +407,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
 
             synchronized (updateTasksPerExecutor) {
                 List<UpdateTask> existingTasks = updateTasksPerExecutor.computeIfAbsent(executor, k -> new ArrayList<>());
-                for (UpdateTask existing : existingTasks) {
-                    //noinspection SuspiciousMethodCalls
+                for (@SuppressWarnings("unchecked") UpdateTask<T> existing : existingTasks) {
                     if (tasksIdentity.containsKey(existing.task)) {
                         throw new IllegalArgumentException("task [" + existing.task + "] is already queued");
                     }

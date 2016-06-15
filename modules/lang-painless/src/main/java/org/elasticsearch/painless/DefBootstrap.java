@@ -169,7 +169,7 @@ public final class DefBootstrap {
                 };
                 MethodHandle cacheLookup = MEGAMORPHIC_LOOKUP.bindTo(megamorphicCache);
                 cacheLookup = MethodHandles.dropArguments(cacheLookup,
-                        0, type.parameterList().subList(1, type.parameterCount()));
+                        1, type.parameterList().subList(1, type.parameterCount()));
                 MethodHandle target = MethodHandles.foldArguments(MethodHandles.exactInvoker(type), cacheLookup);
                 setTarget(target);
                 return target.invokeWithArguments(callArgs);                    

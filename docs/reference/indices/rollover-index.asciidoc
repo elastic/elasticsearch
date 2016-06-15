@@ -1,84 +1,113 @@
 [[indices-rollover-index]]
 == Rollover Index
 
-The rollover index API allows to switch the index pointed to by an alias given some predicates.
-In order to rollover an index, the provided alias has to point to a single index. Upon satisfying
-any of the predicates, the alias is switched to point to the rollover index, if the rollover index
-already exists, the rollover fails.
+The rollover index API rolls an alias over to a new index when the existing
+index is considered to be too large or too old.
 
-This API is syntactic sugar for changing the index pointed to by an alias given some predicate.
+The API accepts a single alias name and a list of `conditions`.  The alias
+must point to a single index only.  If the index satisfies the specified
+conditions then a new index is created and the alias is switched to point to
+the new alias.
 
-The rollover API must be used against an alias that points to a single index:
-
-[source,js]
---------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/index1' -d '{
-    "aliases" : {
-        "index_alias": {}
-    }
-}'
---------------------------------------------------
-
-To rollover `index_alias` to point to a new index `index2`:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPOST 'http://localhost:9200/index_alias/_rollover/index2' -d '{
-    "conditions" : {
-        "max_age": "7d", <1>
-        "max_docs": 1000 <2>
-    }
-}'
+PUT /logs-0001 <1>
+{
+  "aliases": {
+    "logs_write": {}
+  }
+}
+
+POST logs_write/_rollover <2>
+{
+  "conditions": {
+    "max_age":   "7d",
+    "max_docs":  1000
+  }
+}
 --------------------------------------------------
-<1> Sets a condition that the index has to be at least 7 days old
-<2> Sets a condition that the index has to have at least a 1000 documents
+// CONSOLE
+<1> Creates an index called `logs-0001` with the alias `logs_write`.
+<2> If the index pointed to by `logs_write` was created 7 or more days ago, or
+    contains 1,000 or more documents, then the `logs-0002` index is created
+    and the `logs_write` alias is updated to point to `logs-0002`.
 
-The API call above switches the index pointed to by `index_alias` from `index1` to `index2`, if any
-of the conditions are met. `index2` is created (using matching <<indices-templates>> if available).
-The API call returns immediately if none of the conditions are met.
-
-The rollover API can be used without specifying the name for the new index. In this case, the API requires
-the old concrete index name to have `{index_prefix}-{num}` format, as rollover index name is generated
-following `{index_prefix}-{num+1}` format.
-
-The `_rollover` API is similar to <<indices-create-index>> and accepts `settings`, `mappings` and
-`aliases` to override the index create request for the rollover index.
-
-[source,js]
---------------------------------------------------
-$ curl -XPOST 'http://localhost:9200/index_alias/_rollover' -d '{
-    "conditions" : {
-        "max_age": "7d",
-        "max_docs": 1000
-    },
-    "settings": { <1>
-        "index.number_of_shards": 2
-    }
-}'
---------------------------------------------------
-<1> Set settings to override matching index template, `mappings` and `aliases` can also be provided.
-
-The rollover API supports `dry_run` mode, where request conditions can be checked without performing the
-actual rollover. The `dry_run` mode can be enabled by setting `dry_run=true` as a request parameter.
-
-An example response for the index rollover API:
+The above request might return the following response:
 
 [source,js]
 --------------------------------------------------
 {
-	"old_index": "index-1", <1>
-	"new_index": "index-2", <2>
-	"rolled_over": true, <3>
-	"dry_run": false, <4>
-	"conditions": { <5>
-	    "[max_age: 7d]": true,
-	    "[max_docs: 1000]": true
-	}
+  "old_index": "logs-0001",
+  "new_index": "logs-0002",
+  "rolled_over": true, <1>
+  "dry_run": false, <2>
+  "conditions": { <3>
+    "[max_age: 7d]": false,
+    "[max_docs: 1000]": true
+  }
 }
 --------------------------------------------------
-<1> name of the index the alias was pointing to
-<2> name of the index the alias currently points to
-<3> whether the alias switch was successful
-<4> whether the rollover was dry run
-<5> status of the evaluated request conditions
+ <1> Whether the index was rolled over.
+ <2> Whether the rollover was dry run.
+ <3> The result of each condition.
+
+[float]
+=== Naming the new index
+
+If the name of the existing index ends with `-` and a number -- e.g.
+`logs-0001` -- then the name of the new index will follow the same pattern,
+just incrementing the number (`logs-0002`).
+
+If the old name doesn't match this pattern then you must specify the name for
+the new index as follows:
+
+[source,js]
+--------------------------------------------------
+POST my_alias/_rollover/my_new_index_name
+{...}
+--------------------------------------------------
+
+[float]
+=== Defining the new index
+
+The settings, mappings, and aliases for the new index will be taken from any
+matching <<indices-templates,index templates>>. Additionally, the body of the
+request accepts `settings`, `mappings`, and `aliases` just like the
+<<indices-create-index,create index>> API, which will override any values
+set in matching index templates:
+
+[source,js]
+--------------------------------------------------
+POST /logs_writes/_rollover
+{
+  "conditions" : {
+    "max_age": "7d",
+    "max_docs": 1000
+  },
+  "settings": { <1>
+    "index.number_of_shards": 2 <1>
+  }
+}
+--------------------------------------------------
+// CONSOLE
+<1> Set settings to override matching index template, `mappings` and `aliases` can also be provided.
+
+ [float]
+ === Dry run
+
+The rollover API supports `dry_run` mode, where request conditions can be
+checked without performing the actual rollover:
+
+[source,js]
+--------------------------------------------------
+POST /logs_writes/_rollover?dry_run
+{
+  "conditions" : {
+    "max_age": "7d",
+    "max_docs": 1000
+  }
+}
+--------------------------------------------------
+// CONSOLE
 

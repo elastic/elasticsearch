@@ -260,9 +260,9 @@ public class Node implements Closeable {
             // this essentially means that we can start constructing the node level service without
             // guice and define our own extension points. Without this we won't be able to get rid of
             // guice.
-            // we alread have our own construction of BigArrays, ThreadPool which are one of the
+            // we already have our own construction of BigArrays, ThreadPool which are one of the
             // most used resources. Yet, there is also CircuitBreakerService which is needed
-            // in many places and therefor we have to move it up since it registers settings
+            // in many places and therefore we have to move it up since it registers settings
             // and we can't build the settings unless all of them are registered.
             final List<Setting<?>> additionalSettings = new ArrayList<>();
             final List<String> additionalSettingsFilter = new ArrayList<>();

@@ -253,7 +253,7 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
-     * Returns <code>true</code> if this setting is shared with more than one other module or pluging, otherwise <code>false</code>
+     * Returns <code>true</code> if this setting is shared with more than one other module or plugin, otherwise <code>false</code>
      */
     public boolean isShared() {
         return properties.contains(Property.Shared);

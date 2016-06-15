@@ -1133,7 +1133,7 @@ public class DefMath {
         return handle;
     }
     
-    /** Returns an appropriate method handle for a binary operator, based only promotion of the LHS and RHS arguments */
+    /** Returns an appropriate method handle for a binary operator, based on promotion of the LHS and RHS arguments */
     public static MethodHandle lookupBinary(Class<?> classA, Class<?> classB, String name) {
         MethodHandle handle = TYPE_OP_MAPPING.get(promote(promote(unbox(classA)), promote(unbox(classB)))).get(name);
         if (handle == null) {
@@ -1156,6 +1156,9 @@ public class DefMath {
     static Object dynamicCast(Object returnValue, Object lhs) {
         if (lhs != null) {
             Class<?> c = lhs.getClass();
+            if (c == returnValue.getClass()) {
+                return returnValue;
+            }
             if (c == Integer.class) {
                 return getNumber(returnValue).intValue();
             } else if (c == Long.class) {
@@ -1211,5 +1214,19 @@ public class DefMath {
         cast = MethodHandles.dropArguments(cast, 2, generic.type().parameterType(1));
         // combine: f(x,y) -> g(f(x,y), x, y);
         return MethodHandles.foldArguments(cast, generic);
+    }
+    
+    /** Forces a cast to class A for target (only if types differ) */
+    public static MethodHandle cast(Class<?> classA, MethodHandle target) {
+        MethodType newType = MethodType.methodType(classA).unwrap();
+        MethodType targetType = MethodType.methodType(target.type().returnType()).unwrap();
+        
+        if (newType.returnType() == targetType.returnType()) {
+            return target; // no conversion
+        }
+        
+        // this is safe for our uses of it here only, because we change just the return value,
+        // the original method itself does all the type checks correctly.
+        return MethodHandles.explicitCastArguments(target, target.type().changeReturnType(newType.returnType()));
     }
 }

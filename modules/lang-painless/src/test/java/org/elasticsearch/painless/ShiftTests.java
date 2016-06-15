@@ -633,4 +633,19 @@ public class ShiftTests extends ScriptTestCase {
             exec("double x = 1D; x <<= 2L;");
         });
     }
+    
+    public void testBogusCompoundAssignmentDef() {
+        expectScriptThrows(ClassCastException.class, ()-> {
+            exec("def x = 1L; float y = 2; x <<= y;");
+        });
+        expectScriptThrows(ClassCastException.class, ()-> {
+            exec("def x = 1; double y = 2L; x <<= y;");
+        });
+        expectScriptThrows(ClassCastException.class, ()-> {
+            exec("float x = 1F; def y = 2; x <<= y;");
+        });
+        expectScriptThrows(ClassCastException.class, ()-> {
+            exec("double x = 1D; def y = 2L; x <<= y;");
+        });
+    }
 }

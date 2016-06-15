@@ -359,6 +359,29 @@ public class DivisionTests extends ScriptTestCase {
         assertEquals(-5D, exec("double x = 5.0; x /= -1; return x;"));
     }
     
+    public void testDefCompoundAssignment() {
+        // byte
+        assertEquals((byte) 15, exec("def x = (byte)45; x /= 3; return x;"));
+        assertEquals((byte) -5, exec("def x = (byte)5; x /= -1; return x;"));
+        // short
+        assertEquals((short) 15, exec("def x = (short)45; x /= 3; return x;"));
+        assertEquals((short) -5, exec("def x = (short)5; x /= -1; return x;"));
+        // char
+        assertEquals((char) 15, exec("def x = (char)45; x /= 3; return x;"));
+        // int
+        assertEquals(15, exec("def x = 45; x /= 3; return x;"));
+        assertEquals(-5, exec("def x = 5; x /= -1; return x;"));
+        // long
+        assertEquals(15L, exec("def x = 45L; x /= 3; return x;"));
+        assertEquals(-5L, exec("def x = 5L; x /= -1; return x;"));
+        // float
+        assertEquals(15F, exec("def x = 45f; x /= 3; return x;"));
+        assertEquals(-5F, exec("def x = 5f; x /= -1; return x;"));
+        // double
+        assertEquals(15D, exec("def x = 45.0; x /= 3; return x;"));
+        assertEquals(-5D, exec("def x = 5.0; x /= -1; return x;"));
+    }
+    
     public void testCompoundAssignmentByZero() {
         // byte
         expectScriptThrows(ArithmeticException.class, () -> {
@@ -383,6 +406,11 @@ public class DivisionTests extends ScriptTestCase {
         // long
         expectScriptThrows(ArithmeticException.class, () -> {
             exec("long x = 1; x /= 0; return x;");
+        });
+        
+        // def
+        expectScriptThrows(ArithmeticException.class, () -> {
+            exec("def x = 1; x /= 0; return x;");
         });
     }
 }

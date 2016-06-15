@@ -358,4 +358,27 @@ public class RemainderTests extends ScriptTestCase {
         assertEquals(3D, exec("double x = 15.0; x %= 4; return x;"));
         assertEquals(-3D, exec("double x = -15.0; x %= 4; return x;"));
     }
+    
+    public void testDefCompoundAssignment() {
+        // byte
+        assertEquals((byte) 3, exec("def x = (byte)15; x %= 4; return x;"));
+        assertEquals((byte) -3, exec("def x = (byte) -15; x %= 4; return x;"));
+        // short
+        assertEquals((short) 3, exec("def x = (short)15; x %= 4; return x;"));
+        assertEquals((short) -3, exec("def x = (short) -15; x %= 4; return x;"));
+        // char
+        assertEquals((char) 3, exec("def x = (char) 15; x %= 4; return x;"));
+        // int
+        assertEquals(3, exec("def x = 15; x %= 4; return x;"));
+        assertEquals(-3, exec("def x = -15; x %= 4; return x;"));
+        // long
+        assertEquals(3L, exec("def x = 15L; x %= 4; return x;"));
+        assertEquals(-3L, exec("def x = -15L; x %= 4; return x;"));
+        // float
+        assertEquals(3F, exec("def x = 15F; x %= 4; return x;"));
+        assertEquals(-3F, exec("def x = -15F; x %= 4; return x;"));
+        // double
+        assertEquals(3D, exec("def x = 15.0; x %= 4; return x;"));
+        assertEquals(-3D, exec("def x = -15.0; x %= 4; return x;"));
+    }
 }

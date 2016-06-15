@@ -380,7 +380,7 @@ public class TasksIT extends ESIntegTestCase {
                 assertEquals(task.getType(), fetchedWithGet.getType());
                 assertEquals(task.getAction(), fetchedWithGet.getAction());
                 assertEquals(task.getDescription(), fetchedWithGet.getDescription());
-                assertEquals(task.getStatus(), fetchedWithGet.getStatus());
+                // The status won't always be equal - it might change between the list and the get.
                 assertEquals(task.getStartTime(), fetchedWithGet.getStartTime());
                 assertThat(fetchedWithGet.getRunningTimeNanos(), greaterThanOrEqualTo(task.getRunningTimeNanos()));
                 assertEquals(task.isCancellable(), fetchedWithGet.isCancellable());

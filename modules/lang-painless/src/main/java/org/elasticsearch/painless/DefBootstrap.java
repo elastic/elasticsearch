@@ -99,6 +99,9 @@ public final class DefBootstrap {
 
         PIC(Lookup lookup, String name, MethodType type, int flavor, Object[] args) {
             super(type);
+            if (type.parameterType(0) != Object.class) {
+                throw new BootstrapMethodError("The receiver type (1st arg) of invokedynamic descriptor must be Object.");
+            }
             this.lookup = lookup;
             this.name = name;
             this.flavor = flavor;
@@ -178,8 +181,6 @@ public final class DefBootstrap {
             final MethodHandle target = lookup(flavor, name, receiver, callArgs).asType(type);
 
             MethodHandle test = CHECK_CLASS.bindTo(receiver);
-            test = test.asType(test.type().changeParameterType(0, type.parameterType(0)));
-
             MethodHandle guard = MethodHandles.guardWithTest(test, target, getTarget());
             
             depth++;

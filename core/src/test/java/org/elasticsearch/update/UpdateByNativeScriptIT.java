@@ -79,7 +79,7 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
                 return "a mock native script for testing";
             }
             @Override
-            public List<NativeScriptFactory> getScriptFactories() {
+            public List<NativeScriptFactory> getNativeScripts() {
                 return Collections.singletonList(new CustomNativeScriptFactory());
             }
         }

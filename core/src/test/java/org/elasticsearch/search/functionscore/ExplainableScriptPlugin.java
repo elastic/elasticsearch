@@ -42,7 +42,7 @@ public class ExplainableScriptPlugin extends Plugin implements ScriptPlugin {
 
 
     @Override
-    public List<NativeScriptFactory> getScriptFactories() {
+    public List<NativeScriptFactory> getNativeScripts() {
         return Collections.singletonList(new ExplainableScriptIT.MyNativeScriptFactory());
     }
 }

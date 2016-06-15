@@ -42,14 +42,14 @@ public interface ScriptPlugin {
     /**
      * Returns a list of {@link NativeScriptFactory} instances.
      */
-    default List<NativeScriptFactory> getScriptFactories() {
+    default List<NativeScriptFactory> getNativeScripts() {
         return Collections.emptyList();
     }
 
     /**
      * Returns a {@link ScriptContext.Plugin} instance or <code>null</code> if this plugin doesn't add a new script context plugin
      */
-    default ScriptContext.Plugin getScriptContextPlugin() {
+    default ScriptContext.Plugin getCustomScriptContexts() {
         return null;
     }
 }

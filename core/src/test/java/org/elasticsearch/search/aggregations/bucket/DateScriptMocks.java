@@ -55,7 +55,7 @@ public class DateScriptMocks {
         }
 
         @Override
-        public List<NativeScriptFactory> getScriptFactories() {
+        public List<NativeScriptFactory> getNativeScripts() {
             return Arrays.asList(new ExtractFieldScriptFactory(), new PlusOneMonthScriptFactory());
         }
     }

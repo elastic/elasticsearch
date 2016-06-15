@@ -183,7 +183,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<NativeScriptFactory> getScriptFactories() {
+        public List<NativeScriptFactory> getNativeScripts() {
             return Arrays.asList(new NativeSignificanceScoreScriptNoParams.Factory(), new NativeSignificanceScoreScriptWithParams.Factory());
         }
     }

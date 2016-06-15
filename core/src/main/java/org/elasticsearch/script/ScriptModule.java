@@ -74,13 +74,13 @@ public class ScriptModule extends AbstractModule {
     }
 
     public static ScriptModule create(Settings settings, List<ScriptPlugin> scriptPlugins) {
-        Map<String, NativeScriptFactory> factoryMap = scriptPlugins.stream().flatMap(x -> x.getScriptFactories().stream())
+        Map<String, NativeScriptFactory> factoryMap = scriptPlugins.stream().flatMap(x -> x.getNativeScripts().stream())
             .collect(Collectors.toMap(NativeScriptFactory::getName, Function.identity()));
         NativeScriptEngineService nativeScriptEngineService = new NativeScriptEngineService(settings, factoryMap);
         List<ScriptEngineService> scriptEngineServices = scriptPlugins.stream().map(x -> x.getScriptEngineService(settings))
             .filter(Objects::nonNull).collect(Collectors.toList());
         scriptEngineServices.add(nativeScriptEngineService);
-        return new ScriptModule(scriptEngineServices, scriptPlugins.stream().map(x -> x.getScriptContextPlugin())
+        return new ScriptModule(scriptEngineServices, scriptPlugins.stream().map(x -> x.getCustomScriptContexts())
             .filter(Objects::nonNull).collect(Collectors.toList()));
     }
 }

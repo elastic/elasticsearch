@@ -187,7 +187,7 @@ public class ScriptFieldIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<NativeScriptFactory> getScriptFactories() {
+        public List<NativeScriptFactory> getNativeScripts() {
             return Arrays.asList(new IntArrayScriptFactory(), new LongArrayScriptFactory(), new FloatArrayScriptFactory(),
                 new DoubleArrayScriptFactory());
         }

@@ -186,7 +186,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<NativeScriptFactory> getScriptFactories() {
+        public List<NativeScriptFactory> getNativeScripts() {
             return Collections.singletonList(new DeletePlzFactory());
         }
     }

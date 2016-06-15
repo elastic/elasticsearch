@@ -81,8 +81,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         Setting.floatSetting("cluster.routing.allocation.balance.threshold", 1.0f, 0.0f,
             Property.Dynamic, Property.NodeScope);
 
-    public static final Setting<Float> INDEX_SHARD_WEIGHT_MULTIPLIER_SETTING =
-        Setting.floatSetting("index.shard.balance.weight_multiplier", 1.0f, 1.0f, Property.Dynamic, Property.IndexScope);
+    private static final float DEFAULT_SHARD_WEIGHT = 1.0f;
+    public static final Setting<Float> INDEX_BALANCE_SHARD_WEIGHT =
+        Setting.floatSetting("index.balance.shard.weight", DEFAULT_SHARD_WEIGHT, DEFAULT_SHARD_WEIGHT, Property.Dynamic, Property.IndexScope);
 
     private volatile WeightFunction weightFunction;
     private volatile float threshold;
@@ -192,19 +193,19 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         }
 
         public float weight(Balancer balancer, ModelNode node, String index) {
-            return weight(balancer, node, index, 0, 0.0f);
+            return weight(balancer, node, index, 0, DEFAULT_SHARD_WEIGHT);
         }
 
-        public float weightShardAdded(Balancer balancer, ModelNode node, String index, float shardWeightMultiplier) {
-            return weight(balancer, node, index, 1, shardWeightMultiplier);
+        public float weightShardAdded(Balancer balancer, ModelNode node, String index, float shardWeight) {
+            return weight(balancer, node, index, 1, shardWeight);
         }
 
-        public float weightShardRemoved(Balancer balancer, ModelNode node, String index, float shardWeightMultiplier) {
-            return weight(balancer, node, index, -1, shardWeightMultiplier);
+        public float weightShardRemoved(Balancer balancer, ModelNode node, String index, float shardWeight) {
+            return weight(balancer, node, index, -1, shardWeight);
         }
 
-        private float weight(Balancer balancer, ModelNode node, String index, int numAdditionalShards, float shardWeightMultiplier) {
-            final float weightShard = node.totalShardWeight() + (numAdditionalShards * shardWeightMultiplier) - balancer.avgShardWeightPerNode();
+        private float weight(Balancer balancer, ModelNode node, String index, int numAdditionalShards, float shardWeight) {
+            final float weightShard = node.totalShardWeight() + (numAdditionalShards * shardWeight) - balancer.avgShardWeightPerNode();
             final float weightIndex = node.numShards(index) + numAdditionalShards - balancer.avgShardsPerNode(index);
             return theta0 * weightShard + theta1 * weightIndex;
         }
@@ -217,7 +218,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     public static class Balancer {
         private final ESLogger logger;
         private final Map<String, ModelNode> nodes = new HashMap<>();
-        private final ObjectFloatMap<String> shardWeightMultipliers = new ObjectFloatHashMap<>();
+        private final ObjectFloatMap<String> shardWeights = new ObjectFloatHashMap<>();
         private final RoutingAllocation allocation;
         private final RoutingNodes routingNodes;
         private final WeightFunction weight;
@@ -235,9 +236,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             this.metaData = allocation.metaData();
             float totalShardWeight = 0.0f;
             for (IndexMetaData indexMetaData : allocation.metaData()) {
-                float shardWeightMultiplier = INDEX_SHARD_WEIGHT_MULTIPLIER_SETTING.get(indexMetaData.getSettings());
-                shardWeightMultipliers.put(indexMetaData.getIndex().getName(), shardWeightMultiplier);
-                totalShardWeight += shardWeightMultiplier * indexMetaData.getTotalNumberOfShards();
+                float shardWeight = INDEX_BALANCE_SHARD_WEIGHT.get(indexMetaData.getSettings());
+                shardWeights.put(indexMetaData.getIndex().getName(), shardWeight);
+                totalShardWeight += shardWeight * indexMetaData.getTotalNumberOfShards();
             }
             avgShardWeightPerNode = totalShardWeight / routingNodes.size();
             buildModelFromAssigned();
@@ -383,7 +384,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     continue;
                 }
 
-                float shardWeightMultiplier = shardWeightMultipliers.get(index);
+                float shardWeight = shardWeights.get(index);
                 sorter.reset(index, 0, relevantNodes);
                 int lowIdx = 0;
                 int highIdx = relevantNodes - 1;
@@ -421,7 +422,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         }
                         /* pass the delta to the replication function to prevent relocations that only swap the weights of the two nodes.
                          * a relocation must bring us closer to the balance if we only achieve the same delta the relocation is useless */
-                        if (tryRelocateShard(minNode, maxNode, index, shardWeightMultiplier, delta)) {
+                        if (tryRelocateShard(minNode, maxNode, index, shardWeight, delta)) {
                             /*
                              * TODO we could be a bit smarter here, we don't need to fully sort necessarily
                              * we could just find the place to insert linearly but the win might be minor
@@ -565,9 +566,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     // don't use canRebalance as we want hard filtering rules to apply. See #17698
                     Decision allocationDecision = allocation.deciders().canAllocate(shardRouting, target, allocation);
                     if (allocationDecision.type() == Type.YES) { // TODO maybe we can respect throttling here too?
-                        float shardWeightMultiplier = sourceNode.removeShard(shardRouting);
+                        float shardWeight = sourceNode.removeShard(shardRouting);
                         Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocate(shardRouting, target.nodeId(), allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
-                        currentNode.addShard(relocatingShards.v2(), shardWeightMultiplier);
+                        currentNode.addShard(relocatingShards.v2(), shardWeight);
                         if (logger.isTraceEnabled()) {
                             logger.trace("Moved shard [{}] to node [{}]", shardRouting, routingNode.node());
                         }
@@ -596,7 +597,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     assert rn.nodeId().equals(shard.currentNodeId());
                     /* we skip relocating shards here since we expect an initializing shard with the same id coming in */
                     if (shard.state() != RELOCATING) {
-                        node.addShard(shard, shardWeightMultipliers.get(shard.index().getName()));
+                        node.addShard(shard, shardWeights.get(shard.index().getName()));
                         if (logger.isTraceEnabled()) {
                             logger.trace("Assigned shard [{}] to node [{}]", shard, node.getNodeId());
                         }
@@ -677,7 +678,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     assert !shard.assignedToNode() : shard;
                     /* find an node with minimal weight we can allocate on*/
                     float minWeight = Float.POSITIVE_INFINITY;
-                    float shardWeightMultiplier = shardWeightMultipliers.get(shard.index().getName());
+                    float shardWeight = shardWeights.get(shard.index().getName());
                     ModelNode minNode = null;
                     Decision decision = null;
                     if (throttledNodes.size() < nodes.size()) {
@@ -689,7 +690,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             }
                             if (!node.containsShard(shard)) {
                                 // simulate weight if we would add shard to node
-                                float currentWeight = weight.weightShardAdded(this, node, shard.getIndexName(), shardWeightMultiplier);
+                                float currentWeight = weight.weightShardAdded(this, node, shard.getIndexName(), shardWeight);
                                 /*
                                  * Unless the operation is not providing any gains we
                                  * don't check deciders
@@ -744,12 +745,12 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             }
 
                             shard = routingNodes.initialize(shard, minNode.getNodeId(), null, shardSize);
-                            minNode.addShard(shard, shardWeightMultiplier);
+                            minNode.addShard(shard, shardWeight);
                             changed = true;
                             continue; // don't add to ignoreUnassigned
                         } else {
                             ShardRouting initializedShard = shard.initialize(minNode.getNodeId(), null, shardSize);
-                            minNode.addShard(initializedShard, shardWeightMultiplier);
+                            minNode.addShard(initializedShard, shardWeight);
                             final RoutingNode node = minNode.getRoutingNode();
                             if (deciders.canAllocate(node, allocation).type() != Type.YES) {
                                 if (logger.isTraceEnabled()) {
@@ -786,7 +787,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          * balance model. Iff this method returns a <code>true</code> the relocation has already been executed on the
          * simulation model as well as on the cluster.
          */
-        private boolean tryRelocateShard(ModelNode minNode, ModelNode maxNode, String idx, float shardWeightMultiplier, float minCost) {
+        private boolean tryRelocateShard(ModelNode minNode, ModelNode maxNode, String idx, float shardWeight, float minCost) {
             final ModelIndex index = maxNode.getIndex(idx);
             Decision decision = null;
             if (index != null) {
@@ -805,8 +806,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                                 && ((rebalanceDecision.type() == Type.YES) || (rebalanceDecision.type() == Type.THROTTLE))) {
                             if (maxNode.containsShard(shard)) {
                                 // simulate moving shard from maxNode to minNode
-                                final float delta = weight.weightShardAdded(this, minNode, idx, shardWeightMultiplier) -
-                                    weight.weightShardRemoved(this, maxNode, idx, shardWeightMultiplier);
+                                final float delta = weight.weightShardAdded(this, minNode, idx, shardWeight) -
+                                    weight.weightShardRemoved(this, maxNode, idx, shardWeight);
                                 if (delta < minCost ||
                                         (candidate != null && delta == minCost && candidate.id() > shard.id())) {
                                     /* this last line is a tie-breaker to make the shard allocation alg deterministic
@@ -831,11 +832,11 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                                     minNode.getNodeId());
                         }
                         /* now allocate on the cluster */
-                        minNode.addShard(routingNodes.relocate(candidate, minNode.getNodeId(), shardSize).v1(), shardWeightMultiplier);
+                        minNode.addShard(routingNodes.relocate(candidate, minNode.getNodeId(), shardSize).v1(), shardWeight);
                         return true;
                     } else {
                         assert decision.type() == Type.THROTTLE;
-                        minNode.addShard(candidate.relocate(minNode.getNodeId(), shardSize), shardWeightMultiplier);
+                        minNode.addShard(candidate.relocate(minNode.getNodeId(), shardSize), shardWeight);
                     }
                 }
             }
@@ -886,18 +887,18 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             return -1;
         }
 
-        public void addShard(ShardRouting shard, float shardWeightMultiplier) {
+        public void addShard(ShardRouting shard, float shardWeight) {
             ModelIndex index = indices.get(shard.getIndexName());
             if (index == null) {
-                index = new ModelIndex(shard.getIndexName(), shardWeightMultiplier);
+                index = new ModelIndex(shard.getIndexName(), shardWeight);
                 indices.put(index.getIndexId(), index);
             }
             index.addShard(shard);
-            totalShardWeight += shardWeightMultiplier;
+            totalShardWeight += shardWeight;
         }
 
         /**
-         * Removes shard from model index and returns shard weight multiplier of removed shard
+         * Removes shard from model index and returns shard weight of removed shard
          */
         public float removeShard(ShardRouting shard) {
             ModelIndex index = indices.get(shard.getIndexName());
@@ -906,9 +907,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             if (index.numShards() == 0) {
                 indices.remove(shard.getIndexName());
             }
-            float shardWeightMultiplier = index.getShardWeightMultiplier();
-            totalShardWeight -= shardWeightMultiplier;
-            return shardWeightMultiplier;
+            float shardWeight = index.getShardWeight();
+            totalShardWeight -= shardWeight;
+            return shardWeight;
         }
 
         @Override
@@ -933,12 +934,12 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     static final class ModelIndex implements Iterable<ShardRouting> {
         private final String id;
         private final Set<ShardRouting> shards = new HashSet<>(4); // expect few shards of same index to be allocated on same node
-        private final float shardWeightMultiplier;
+        private final float shardWeight;
         private int highestPrimary = -1;
 
-        public ModelIndex(String id, float shardWeightMultiplier) {
+        public ModelIndex(String id, float shardWeight) {
             this.id = id;
-            this.shardWeightMultiplier = shardWeightMultiplier;
+            this.shardWeight = shardWeight;
         }
 
         public int highestPrimary() {
@@ -959,8 +960,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         }
 
 
-        public float getShardWeightMultiplier() {
-            return shardWeightMultiplier;
+        public float getShardWeight() {
+            return shardWeight;
         }
 
         public int numShards() {

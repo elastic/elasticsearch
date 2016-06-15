@@ -118,7 +118,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         for (int i = 0; i < numberOfIndices; i++) {
             IndexMetaData.Builder index = IndexMetaData.builder("test" + i)
                 .settings(settings(Version.CURRENT)
-                    .put(BalancedShardsAllocator.INDEX_SHARD_WEIGHT_MULTIPLIER_SETTING.getKey(), randomIntBetween(1, 20) * 1.0f))
+                    .put(BalancedShardsAllocator.INDEX_BALANCE_SHARD_WEIGHT.getKey(), randomIntBetween(1, 20) * 1.0f))
                 .numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas);
             metaDataBuilder = metaDataBuilder.put(index);
         }
@@ -239,7 +239,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         float highestMultiplier = Float.NEGATIVE_INFINITY;
         ObjectFloatMap<Index> weights = new ObjectFloatHashMap<>();
         for (IndexMetaData indexMetaData : clusterState.getMetaData()) {
-            float weightMultiplier = BalancedShardsAllocator.INDEX_SHARD_WEIGHT_MULTIPLIER_SETTING.get(indexMetaData.getSettings());
+            float weightMultiplier = BalancedShardsAllocator.INDEX_BALANCE_SHARD_WEIGHT.get(indexMetaData.getSettings());
             totalWeight += weightMultiplier * indexMetaData.getTotalNumberOfShards();
             lowestMultiplier = Math.min(lowestMultiplier, weightMultiplier);
             highestMultiplier = Math.max(highestMultiplier, weightMultiplier);

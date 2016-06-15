@@ -544,4 +544,108 @@ public class ShiftTests extends ScriptTestCase {
         });
     }
 
+    public void testLshCompoundAssignment() {
+        // byte
+        assertEquals((byte) 60, exec("byte x = 15; x <<= 2; return x;"));
+        assertEquals((byte) -60, exec("byte x = (byte) -15; x <<= 2; return x;"));
+        // short
+        assertEquals((short) 60, exec("short x = 15; x <<= 2; return x;"));
+        assertEquals((short) -60, exec("short x = (short) -15; x <<= 2; return x;"));
+        // char
+        assertEquals((char) 60, exec("char x = (char) 15; x <<= 2; return x;"));
+        // int
+        assertEquals(60, exec("int x = 15; x <<= 2; return x;"));
+        assertEquals(-60, exec("int x = -15; x <<= 2; return x;"));
+        // long
+        assertEquals(60L, exec("long x = 15L; x <<= 2; return x;"));
+        assertEquals(-60L, exec("long x = -15L; x <<= 2; return x;"));
+        // long shift distance
+        assertEquals(60, exec("int x = 15; x <<= 2L; return x;"));
+        assertEquals(-60, exec("int x = -15; x <<= 2L; return x;"));
+    }
+
+    public void testRshCompoundAssignment() {
+        // byte
+        assertEquals((byte) 15, exec("byte x = 60; x >>= 2; return x;"));
+        assertEquals((byte) -15, exec("byte x = (byte) -60; x >>= 2; return x;"));
+        // short
+        assertEquals((short) 15, exec("short x = 60; x >>= 2; return x;"));
+        assertEquals((short) -15, exec("short x = (short) -60; x >>= 2; return x;"));
+        // char
+        assertEquals((char) 15, exec("char x = (char) 60; x >>= 2; return x;"));
+        // int
+        assertEquals(15, exec("int x = 60; x >>= 2; return x;"));
+        assertEquals(-15, exec("int x = -60; x >>= 2; return x;"));
+        // long
+        assertEquals(15L, exec("long x = 60L; x >>= 2; return x;"));
+        assertEquals(-15L, exec("long x = -60L; x >>= 2; return x;"));
+        // long shift distance
+        assertEquals(15, exec("int x = 60; x >>= 2L; return x;"));
+        assertEquals(-15, exec("int x = -60; x >>= 2L; return x;"));
+    }
+
+    public void testUshCompoundAssignment() {
+        // byte
+        assertEquals((byte) 15, exec("byte x = 60; x >>>= 2; return x;"));
+        assertEquals((byte) -15, exec("byte x = (byte) -60; x >>>= 2; return x;"));
+        // short
+        assertEquals((short) 15, exec("short x = 60; x >>>= 2; return x;"));
+        assertEquals((short) -15, exec("short x = (short) -60; x >>>= 2; return x;"));
+        // char
+        assertEquals((char) 15, exec("char x = (char) 60; x >>>= 2; return x;"));
+        // int
+        assertEquals(15, exec("int x = 60; x >>>= 2; return x;"));
+        assertEquals(-60 >>> 2, exec("int x = -60; x >>>= 2; return x;"));
+        // long
+        assertEquals(15L, exec("long x = 60L; x >>>= 2; return x;"));
+        assertEquals(-60L >>> 2, exec("long x = -60L; x >>>= 2; return x;"));
+        // long shift distance
+        assertEquals(15, exec("int x = 60; x >>>= 2L; return x;"));
+        assertEquals(-60 >>> 2, exec("int x = -60; x >>>= 2L; return x;"));
+    }
+    
+    public void testBogusCompoundAssignment() {
+        expectScriptThrows(ClassCastException.class, ()-> {
+            exec("long x = 1L; float y = 2; x <<= y;");
+        });
+        expectScriptThrows(ClassCastException.class, ()-> {
+            exec("int x = 1; double y = 2L; x <<= y;");
+        });
+        expectScriptThrows(ClassCastException.class, ()-> {
+            exec("float x = 1F; int y = 2; x <<= y;");
+        });
+        expectScriptThrows(ClassCastException.class, ()-> {
+            exec("double x = 1D; int y = 2L; x <<= y;");
+        });
+    }
+
+    public void testBogusCompoundAssignmentConst() {
+        expectScriptThrows(ClassCastException.class, ()-> {
+            exec("int x = 1L; x <<= 2F;");
+        });
+        expectScriptThrows(ClassCastException.class, ()-> {
+            exec("int x = 1L; x <<= 2.0;");
+        });
+        expectScriptThrows(ClassCastException.class, ()-> {
+            exec("float x = 1F; x <<= 2;");
+        });
+        expectScriptThrows(ClassCastException.class, ()-> {
+            exec("double x = 1D; x <<= 2L;");
+        });
+    }
+    
+    public void testBogusCompoundAssignmentDef() {
+        expectScriptThrows(ClassCastException.class, ()-> {
+            exec("def x = 1L; float y = 2; x <<= y;");
+        });
+        expectScriptThrows(ClassCastException.class, ()-> {
+            exec("def x = 1; double y = 2L; x <<= y;");
+        });
+        expectScriptThrows(ClassCastException.class, ()-> {
+            exec("float x = 1F; def y = 2; x <<= y;");
+        });
+        expectScriptThrows(ClassCastException.class, ()-> {
+            exec("double x = 1D; def y = 2L; x <<= y;");
+        });
+    }
 }

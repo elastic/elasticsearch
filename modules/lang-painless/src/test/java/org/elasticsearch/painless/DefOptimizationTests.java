@@ -239,6 +239,25 @@ public class DefOptimizationTests extends ScriptTestCase {
                              "INVOKEDYNAMIC add(Ljava/lang/Object;Ljava/lang/Object;)D");
     }
     
+    // horrible, sorry
+    public void testAddOptNullGuards() {
+        // needs null guard
+        assertBytecodeHasPattern("def x = 1; def y = 2; return x + y", 
+                "(?s).*INVOKEDYNAMIC add.*arguments:\\s+" + DefBootstrap.BINARY_OPERATOR 
+                                                + ",\\s+" + DefBootstrap.OPERATOR_ALLOWS_NULL + ".*");
+        // still needs null guard, NPE is the wrong thing!
+        assertBytecodeHasPattern("def x = 1; def y = 2; double z = x + y", 
+                "(?s).*INVOKEDYNAMIC add.*arguments:\\s+" + DefBootstrap.BINARY_OPERATOR 
+                                                + ",\\s+" + DefBootstrap.OPERATOR_ALLOWS_NULL + ".*");
+        // a primitive argument is present: no null guard needed
+        assertBytecodeHasPattern("def x = 1; int y = 2; return x + y", 
+                "(?s).*INVOKEDYNAMIC add.*arguments:\\s+" + DefBootstrap.BINARY_OPERATOR 
+                                                + ",\\s+" + 0 + ".*");
+        assertBytecodeHasPattern("int x = 1; def y = 2; return x + y", 
+                "(?s).*INVOKEDYNAMIC add.*arguments:\\s+" + DefBootstrap.BINARY_OPERATOR 
+                                                + ",\\s+" + 0 + ".*");
+    }
+    
     public void testSubOptLHS() {
         assertBytecodeExists("int x = 1; def y = 2; return x - y", 
                              "INVOKEDYNAMIC sub(ILjava/lang/Object;)Ljava/lang/Object;");
@@ -343,7 +362,22 @@ public class DefOptimizationTests extends ScriptTestCase {
         assertBytecodeExists("def x = 1; def y = 2; double d = x ^ y", 
                              "INVOKEDYNAMIC xor(Ljava/lang/Object;Ljava/lang/Object;)D");
     }
+
+    public void testBooleanXorOptLHS() {
+        assertBytecodeExists("boolean x = true; def y = true; return x ^ y", 
+                "INVOKEDYNAMIC xor(ZLjava/lang/Object;)Ljava/lang/Object;");
+    }
+
+    public void testBooleanXorOptRHS() {
+        assertBytecodeExists("def x = true; boolean y = true; return x ^ y", 
+                "INVOKEDYNAMIC xor(Ljava/lang/Object;Z)Ljava/lang/Object;");
+    }
     
+    public void testBooleanXorOptRet() {
+        assertBytecodeExists("def x = true; def y = true; boolean v = x ^ y", 
+                "INVOKEDYNAMIC xor(Ljava/lang/Object;Ljava/lang/Object;)Z");
+    }
+
     public void testLtOptLHS() {
         assertBytecodeExists("int x = 1; def y = 2; return x < y", 
                              "INVOKEDYNAMIC lt(ILjava/lang/Object;)Z");

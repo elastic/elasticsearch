@@ -138,7 +138,7 @@ public final class Def {
 
     /** Hack to rethrow unknown Exceptions from {@link MethodHandle#invokeExact}: */
     @SuppressWarnings("unchecked")
-    private static <T extends Throwable> void rethrow(Throwable t) throws T {
+    static <T extends Throwable> void rethrow(Throwable t) throws T {
         throw (T) t;
     }
     

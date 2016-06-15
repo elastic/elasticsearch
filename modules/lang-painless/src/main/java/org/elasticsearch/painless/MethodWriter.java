@@ -263,43 +263,55 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     /** Writes a dynamic binary instruction: returnType, lhs, and rhs can be different */
-    public void writeDynamicBinaryInstruction(Location location, Type returnType, Type lhs, Type rhs, Operation operation) {
+    public void writeDynamicBinaryInstruction(Location location, Type returnType, Type lhs, Type rhs, 
+                                              Operation operation, boolean compoundAssignment) {
         org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(returnType.type, lhs.type, rhs.type);
         String descriptor = methodType.getDescriptor();
         
+        int flags = 0;
+        if (compoundAssignment) {
+            flags |= DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT;
+        }
         switch (operation) {
             case MUL:
-                invokeDynamic("mul", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                invokeDynamic("mul", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, flags); 
                 break;
             case DIV:
-                invokeDynamic("div", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                invokeDynamic("div", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, flags); 
                 break;
             case REM:
-                invokeDynamic("rem", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                invokeDynamic("rem", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, flags); 
                 break;
             case ADD:
-                invokeDynamic("add", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                // if either side is primitive, then the + operator should always throw NPE on null,
+                // so we don't need a special NPE guard.
+                // otherwise, we need to allow nulls for possible string concatenation.
+                boolean hasPrimitiveArg = lhs.clazz.isPrimitive() || rhs.clazz.isPrimitive();
+                if (!hasPrimitiveArg) {
+                    flags |= DefBootstrap.OPERATOR_ALLOWS_NULL;
+                }
+                invokeDynamic("add", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, flags);
                 break;
             case SUB:
-                invokeDynamic("sub", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR); 
+                invokeDynamic("sub", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, flags); 
                 break;
             case LSH:
-                invokeDynamic("lsh", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
+                invokeDynamic("lsh", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR, flags);
                 break;
             case USH:
-                invokeDynamic("ush", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
+                invokeDynamic("ush", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR, flags); 
                 break;
             case RSH:
-                invokeDynamic("rsh", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR); 
+                invokeDynamic("rsh", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR, flags); 
                 break;
             case BWAND: 
-                invokeDynamic("and", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                invokeDynamic("and", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, flags);
                 break;
             case XOR:   
-                invokeDynamic("xor", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                invokeDynamic("xor", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, flags);
                 break;
             case BWOR:  
-                invokeDynamic("or", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                invokeDynamic("or", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, flags);
                 break;
             default:
                 throw location.createError(new IllegalStateException("Illegal tree structure."));

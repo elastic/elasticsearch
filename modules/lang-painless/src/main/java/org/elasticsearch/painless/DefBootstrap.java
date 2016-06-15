@@ -235,19 +235,42 @@ public final class DefBootstrap {
         /**
          * Does a slow lookup for the operator
          */
-        private MethodHandle lookup(int flavor, String name, Object[] args) throws Throwable {
+        private MethodHandle lookup(Object[] args) throws Throwable {
             switch(flavor) {
                 case UNARY_OPERATOR:
                 case SHIFT_OPERATOR:
+                    if ((flags & OPERATOR_COMPOUND_ASSIGNMENT) != 0) {
+                        return lookupGeneric(); // XXX: optimize better.
+                    }
                     // shifts are treated as unary, as java allows long arguments without a cast (but bits are ignored)
                     return DefMath.lookupUnary(args[0].getClass(), name);
                 case BINARY_OPERATOR:
+                    if ((flags & OPERATOR_COMPOUND_ASSIGNMENT) != 0) {
+                        return lookupGeneric(); // XXX: optimize better.
+                    }
                     if (args[0] == null || args[1] == null) {
-                        return DefMath.lookupGeneric(name); // can handle nulls, if supported
+                        return lookupGeneric(); // can handle nulls, if supported
                     } else {
                         return DefMath.lookupBinary(args[0].getClass(), args[1].getClass(), name);
                     }
                 default: throw new AssertionError();
+            }
+        }
+        
+        private MethodHandle lookupGeneric() throws Throwable {
+            MethodHandle generic = DefMath.lookupGeneric(name);
+            if ((flags & OPERATOR_COMPOUND_ASSIGNMENT) != 0) {
+                assert flavor == BINARY_OPERATOR || flavor == SHIFT_OPERATOR;
+                // adapt dynamic cast to the generic method and the callsite's return value
+                MethodHandle cast = DYNAMIC_CAST.asType(MethodType.methodType(type().returnType(), 
+                                                                              generic.type().returnType(),
+                                                                              generic.type().parameterType(0)));
+                // drop the RHS parameter
+                cast = MethodHandles.dropArguments(cast, 2, generic.type().parameterType(1));
+                // combine: f(x,y) -> g(f(x,y), x, y);
+                return MethodHandles.foldArguments(cast, generic);
+            } else {
+                return generic;
             }
         }
         
@@ -259,13 +282,13 @@ public final class DefBootstrap {
         Object fallback(Object[] args) throws Throwable {
             if (initialized) {
                 // caching defeated
-                MethodHandle generic = DefMath.lookupGeneric(name);
+                MethodHandle generic = lookupGeneric();
                 setTarget(generic.asType(type()));
                 return generic.invokeWithArguments(args);
             }
             
             final MethodType type = type();
-            final MethodHandle target = lookup(flavor, name, args).asType(type);
+            final MethodHandle target = lookup(args).asType(type);
 
             final MethodHandle test;
             if (flavor == BINARY_OPERATOR || flavor == SHIFT_OPERATOR) {
@@ -301,7 +324,7 @@ public final class DefBootstrap {
             // very special cases, where even the receiver can be null (see JLS rules for string concat)
             // we wrap + with an NPE catcher, and use our generic method in that case.
             if (flavor == BINARY_OPERATOR && (flags & OPERATOR_ALLOWS_NULL) != 0) {
-                MethodHandle handler = MethodHandles.dropArguments(DefMath.lookupGeneric(name).asType(type()), 
+                MethodHandle handler = MethodHandles.dropArguments(lookupGeneric().asType(type()), 
                                                                    0, 
                                                                    NullPointerException.class);
                 guard = MethodHandles.catchException(guard, NullPointerException.class, handler);
@@ -320,8 +343,7 @@ public final class DefBootstrap {
         static boolean checkLHS(Class<?> clazz, Object leftObject) {
             return leftObject.getClass() == clazz;
         }
-        
-        
+
         /**
          * guard method for inline caching: checks the first argument is the same
          * as the cached first argument.
@@ -338,9 +360,23 @@ public final class DefBootstrap {
             return leftObject.getClass() == left && rightObject.getClass() == right;
         }
         
+        /**
+         * Slow dynamic cast: casts {@code returnValue} to the runtime type of {@code lhs}
+         * based upon inspection. If {@code lhs} is null, no cast takes place.
+         * This is used for the generic fallback case of compound assignment.
+         */
+        static Object dynamicCast(Object returnValue, Object lhs) {
+            if (lhs != null) {
+                return lhs.getClass().cast(returnValue);
+            } else {
+                return returnValue;
+            }
+        }
+        
         private static final MethodHandle CHECK_LHS;
         private static final MethodHandle CHECK_RHS;
         private static final MethodHandle CHECK_BOTH;
+        private static final MethodHandle DYNAMIC_CAST;
         private static final MethodHandle FALLBACK;
         static {
             final Lookup lookup = MethodHandles.lookup();
@@ -351,6 +387,8 @@ public final class DefBootstrap {
                                               MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class));
                 CHECK_BOTH = lookup.findStatic(lookup.lookupClass(), "checkBoth",
                                               MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class));
+                DYNAMIC_CAST = lookup.findStatic(lookup.lookupClass(), "dynamicCast", 
+                                              MethodType.methodType(Object.class, Object.class, Object.class));
                 FALLBACK = lookup.findVirtual(lookup.lookupClass(), "fallback",
                                               MethodType.methodType(Object.class, Object[].class));
             } catch (ReflectiveOperationException e) {
@@ -413,6 +451,10 @@ public final class DefBootstrap {
                 }
                 int flags = (int)args[0];
                 if ((flags & OPERATOR_ALLOWS_NULL) != 0 && flavor != BINARY_OPERATOR) {
+                    // we just don't need it anywhere else.
+                    throw new BootstrapMethodError("This parameter is only supported for BINARY_OPERATORs");
+                }
+                if ((flags & OPERATOR_COMPOUND_ASSIGNMENT) != 0 && flavor != BINARY_OPERATOR) {
                     // we just don't need it anywhere else.
                     throw new BootstrapMethodError("This parameter is only supported for BINARY_OPERATORs");
                 }

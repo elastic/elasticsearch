@@ -483,6 +483,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         assertThat(response.getResponses()[0].getResponse().getSource().get("field2").toString(), equalTo("value2"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/2528")
     public void testFieldStatsApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                         .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")

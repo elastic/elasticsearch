@@ -152,7 +152,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting().getShards(
-                clusterService.state(), request.concreteIndex(), request.request().type(), request.request().id(), request.request().routing(), request.request().preference()
+                clusterService.state(), request.concreteIndex(), request.request().id(), request.request().routing(), request.request().preference()
         );
     }
 }

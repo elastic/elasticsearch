@@ -35,7 +35,6 @@ public final class Uid {
 
     public static final char DELIMITER = '#';
     public static final byte DELIMITER_BYTE = 0x23;
-    public static final BytesRef DELIMITER_BYTES = new BytesRef(new byte[]{DELIMITER_BYTE});
 
     private final String type;
 
@@ -83,13 +82,6 @@ public final class Uid {
         return createUidAsBytes(type, id);
     }
 
-    public static BytesRef typePrefixAsBytes(BytesRef type) {
-        BytesRefBuilder bytesRef = new BytesRefBuilder();
-        bytesRef.append(type);
-        bytesRef.append(DELIMITER_BYTES);
-        return bytesRef.toBytesRef();
-    }
-
     public static Uid createUid(String uid) {
         int delimiterIndex = uid.indexOf(DELIMITER); // type is not allowed to have # in it..., ids can
         return new Uid(uid.substring(0, delimiterIndex), uid.substring(delimiterIndex + 1));
@@ -134,37 +126,6 @@ public final class Uid {
 
     public static String createUid(String type, String id) {
         return type + DELIMITER + id;
-    }
-
-    public static boolean hasDelimiter(BytesRef uid) {
-        final int limit = uid.offset + uid.length;
-        for (int i = uid.offset; i < limit; i++) {
-            if (uid.bytes[i] == DELIMITER_BYTE) { // 0x23 is equal to '#'
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public static BytesRef[] splitUidIntoTypeAndId(BytesRef uid) {
-        int loc = -1;
-        final int limit = uid.offset + uid.length;
-        for (int i = uid.offset; i < limit; i++) {
-            if (uid.bytes[i] == DELIMITER_BYTE) { // 0x23 is equal to '#'
-                loc = i;
-                break;
-            }
-        }
-
-        if (loc == -1) {
-            return null;
-        }
-
-        int idStart = loc + 1;
-        return new BytesRef[] {
-                new BytesRef(uid.bytes, uid.offset, loc - uid.offset),
-                new BytesRef(uid.bytes, idStart, limit - idStart)
-        };
     }
 
 }

@@ -149,6 +149,7 @@ PUT _snapshot/my_s3_repository
 }
 ----
 // CONSOLE
+// TEST[skip:we don't have s3 set up while testing this]
 
 The following settings are supported:
 

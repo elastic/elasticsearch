@@ -20,9 +20,7 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.security.SecureRandom;
 import java.util.HashSet;
-import java.util.Random;
 import java.util.Set;
 
 public class UUIDTests extends ESTestCase {
@@ -43,18 +41,7 @@ public class UUIDTests extends ESTestCase {
     }
 
     public void testThreadedRandomUUID() {
-        // we can not use a reproducible source of randomness for this
-        // test, the test explicitly relies on each thread having a
-        // unique source of randomness; thus, we fake what production
-        // code does when using a RandomBasedUUIDGenerator
-        testUUIDThreaded(new RandomBasedUUIDGenerator() {
-            private final SecureRandom sr = SecureRandomHolder.INSTANCE;
-
-            @Override
-            public String getBase64UUID() {
-                return getBase64UUID(sr);
-            }
-        });
+        testUUIDThreaded(randomUUIDGen);
     }
 
     Set<String> verifyUUIDSet(int count, UUIDGenerator uuidSource) {
@@ -111,6 +98,6 @@ public class UUIDTests extends ESTestCase {
         for (UUIDGenRunner runner : runners) {
             globalSet.addAll(runner.uuidSet);
         }
-        assertEquals(count * uuids, globalSet.size());
+        assertEquals(count*uuids, globalSet.size());
     }
 }

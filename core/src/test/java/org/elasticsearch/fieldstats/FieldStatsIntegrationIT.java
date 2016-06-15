@@ -20,14 +20,13 @@
 package org.elasticsearch.fieldstats;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldstats.FieldStats;
+import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.fieldstats.IndexConstraint;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -40,11 +39,12 @@ import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MAX;
 import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MIN;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
+ * Tests for the {@link FieldStatsAction}.
  */
 public class FieldStatsIntegrationIT extends ESIntegTestCase {
 
@@ -150,7 +150,7 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
             .setFields("byte", "short", "integer", "long", "float", "double", "string").get();
         assertAllSuccessful(response);
 
-        for (FieldStats stats : response.getAllFieldStats().values()) {
+        for (FieldStats<?> stats : response.getAllFieldStats().values()) {
             assertThat(stats.getMaxDoc(), equalTo((long) numDocs));
             assertThat(stats.getDocCount(), equalTo((long) numDocs));
             assertThat(stats.getDensity(), equalTo(100));
@@ -460,6 +460,33 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("foobar").getMaxValue(), equalTo(0L));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("foo").getMinValue(), equalTo(-10L));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("foo").getMaxValue(), equalTo(100L));
+    }
+
+    public void testCached() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings("index.number_of_replicas", 0));
+        indexRange("test", "value", 0, 99);
+
+        // First query should be a cache miss
+        FieldStatsResponse fieldStats = client().prepareFieldStats().setFields("value").get();
+        assertEquals(100, fieldStats.getAllFieldStats().get("value").getDocCount());
+        RequestCacheStats indexStats = client().admin().indices().prepareStats().get().getIndex("test").getTotal().getRequestCache();
+        assertEquals(0, indexStats.getHitCount());
+        assertThat(indexStats.getMemorySizeInBytes(), greaterThan(0L));
+
+        // Second query should be a cache hit
+        fieldStats = client().prepareFieldStats().setFields("value").get();
+        assertEquals(100, fieldStats.getAllFieldStats().get("value").getDocCount());
+        indexStats = client().admin().indices().prepareStats().get().getIndex("test").getTotal().getRequestCache();
+        assertThat(indexStats.getHitCount(), greaterThan(0L));
+        assertThat(indexStats.getMemorySizeInBytes(), greaterThan(0L));
+
+        // Indexing some new documents and refreshing should give you consistent data.
+        long oldHitCount = indexStats.getHitCount();
+        indexRange("test", "value", 100, 199);
+        fieldStats = client().prepareFieldStats().setFields("value").get();
+        assertEquals(200, fieldStats.getAllFieldStats().get("value").getDocCount());
+        // Because we refreshed the index we don't have any more hits in the cache. This is read from the index.
+        assertEquals(oldHitCount, indexStats.getHitCount());
     }
 
     private void indexRange(String index, long from, long to) throws Exception {

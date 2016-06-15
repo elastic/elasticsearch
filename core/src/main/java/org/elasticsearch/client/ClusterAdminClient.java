@@ -39,6 +39,9 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -112,6 +115,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.tasks.TaskId;
 
 /**
  * Administrative actions/operations against indices.
@@ -302,6 +306,34 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * List active tasks
      */
     ListTasksRequestBuilder prepareListTasks(String... nodesIds);
+
+    /**
+     * Get a task.
+     *
+     * @param request the request
+     * @return the result future
+     * @see org.elasticsearch.client.Requests#getTaskRequest()
+     */
+    ActionFuture<GetTaskResponse> getTask(GetTaskRequest request);
+
+    /**
+     * Get a task.
+     *
+     * @param request the request
+     * @param listener A listener to be notified with the result
+     * @see org.elasticsearch.client.Requests#getTaskRequest()
+     */
+    void getTask(GetTaskRequest request, ActionListener<GetTaskResponse> listener);
+
+    /**
+     * Fetch a task by id.
+     */
+    GetTaskRequestBuilder prepareGetTask(String taskId);
+
+    /**
+     * Fetch a task by id.
+     */
+    GetTaskRequestBuilder prepareGetTask(TaskId taskId);
 
     /**
      * Cancel tasks

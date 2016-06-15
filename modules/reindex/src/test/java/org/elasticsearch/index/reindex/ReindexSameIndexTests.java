@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.BeforeClass;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -40,22 +39,16 @@ import static org.hamcrest.Matchers.containsString;
  * Tests that indexing from an index back into itself fails the request.
  */
 public class ReindexSameIndexTests extends ESTestCase {
-
-    private static ClusterState STATE;
+    private static final ClusterState STATE = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()
+                .put(index("target", "target_alias", "target_multi"), true)
+                .put(index("target2", "target_multi"), true)
+                .put(index("foo"), true)
+                .put(index("bar"), true)
+                .put(index("baz"), true)
+                .put(index("source", "source_multi"), true)
+                .put(index("source2", "source_multi"), true)).build();
     private static final IndexNameExpressionResolver INDEX_NAME_EXPRESSION_RESOLVER = new IndexNameExpressionResolver(Settings.EMPTY);
     private static final AutoCreateIndex AUTO_CREATE_INDEX = new AutoCreateIndex(Settings.EMPTY, INDEX_NAME_EXPRESSION_RESOLVER);
-
-    @BeforeClass
-    public static void beforeClass() {
-        STATE = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()
-            .put(index("target", "target_alias", "target_multi"), true)
-            .put(index("target2", "target_multi"), true)
-            .put(index("foo"), true)
-            .put(index("bar"), true)
-            .put(index("baz"), true)
-            .put(index("source", "source_multi"), true)
-            .put(index("source2", "source_multi"), true)).build();
-    }
 
     public void testObviousCases() throws Exception {
         fails("target", "target");

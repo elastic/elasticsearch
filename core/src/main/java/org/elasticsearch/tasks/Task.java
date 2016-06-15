@@ -21,7 +21,6 @@
 package org.elasticsearch.tasks;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -78,8 +77,8 @@ public class Task {
             description = getDescription();
             status = getStatus();
         }
-        return new TaskInfo(node, getId(), getType(), getAction(), description, status, startTime, System.nanoTime() - startTimeNanos,
-            this instanceof CancellableTask, parentTask);
+        return new TaskInfo(new TaskId(node.getId(), getId()), getType(), getAction(), description, status, startTime,
+                System.nanoTime() - startTimeNanos, this instanceof CancellableTask, parentTask);
     }
 
     /**
@@ -136,13 +135,13 @@ public class Task {
 
     public interface Status extends ToXContent, NamedWriteable {}
 
-    public TaskResult result(DiscoveryNode node, Throwable error) throws IOException {
-        return new TaskResult(taskInfo(node, true), error);
+    public PersistedTaskInfo result(DiscoveryNode node, Throwable error) throws IOException {
+        return new PersistedTaskInfo(taskInfo(node, true), error);
     }
 
-    public TaskResult result(DiscoveryNode node, ActionResponse response) throws IOException {
+    public PersistedTaskInfo result(DiscoveryNode node, ActionResponse response) throws IOException {
         if (response instanceof ToXContent) {
-            return new TaskResult(taskInfo(node, true), (ToXContent) response);
+            return new PersistedTaskInfo(taskInfo(node, true), (ToXContent) response);
         } else {
             throw new IllegalStateException("response has to implement ToXContent for persistence");
         }

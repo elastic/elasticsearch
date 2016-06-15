@@ -30,7 +30,9 @@ import org.elasticsearch.painless.Locals.FunctionReserved;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.WriterConstants;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 
 import java.lang.invoke.MethodType;
@@ -39,6 +41,8 @@ import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
 /**
  * Represents a user-defined function.
@@ -50,6 +54,7 @@ public class SFunction extends AStatement {
     final List<String> paramTypeStrs;
     final List<String> paramNameStrs;
     final List<AStatement> statements;
+    final boolean synthetic;
 
     Type rtnType = null;
     List<Parameter> parameters = new ArrayList<>();
@@ -58,7 +63,8 @@ public class SFunction extends AStatement {
     Locals locals = null;
 
     public SFunction(FunctionReserved reserved, Location location,
-                     String rtnType, String name, List<String> paramTypes, List<String> paramNames, List<AStatement> statements) {
+                     String rtnType, String name, List<String> paramTypes, 
+                     List<String> paramNames, List<AStatement> statements, boolean synthetic) {
         super(location);
 
         this.reserved = reserved;
@@ -67,6 +73,7 @@ public class SFunction extends AStatement {
         this.paramTypeStrs = Collections.unmodifiableList(paramTypes);
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
         this.statements = Collections.unmodifiableList(statements);
+        this.synthetic = synthetic;
     }
 
     void generate() {
@@ -134,11 +141,18 @@ public class SFunction extends AStatement {
         }
 
         locals.decrementScope();
+
+        String staticHandleFieldName = Def.getUserFunctionHandleFieldName(name, parameters.size());
+        locals.addConstant(location, WriterConstants.METHOD_HANDLE_TYPE, staticHandleFieldName, this::initializeConstant);
     }
     
     /** Writes the function to given ClassWriter. */
     void write (ClassWriter writer, BitSet statements) {
-        final MethodWriter function = new MethodWriter(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC, method.method, writer, statements);
+        int access = Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC;
+        if (synthetic) {
+            access |= Opcodes.ACC_SYNTHETIC;
+        }
+        final MethodWriter function = new MethodWriter(access, method.method, writer, statements);
         write(function);
         function.endMethod();
     }
@@ -167,8 +181,13 @@ public class SFunction extends AStatement {
             }
         }
     }
-    
-    String getStaticHandleFieldName() {
-        return Def.getUserFunctionHandleFieldName(name, parameters.size());
+
+    private void initializeConstant(MethodWriter writer) {
+        final Handle handle = new Handle(Opcodes.H_INVOKESTATIC,
+                CLASS_TYPE.getInternalName(),
+                name,
+                method.method.getDescriptor(),
+                false);
+        writer.push(handle);
     }
 }

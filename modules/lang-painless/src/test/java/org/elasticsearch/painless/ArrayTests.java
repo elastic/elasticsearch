@@ -70,9 +70,19 @@ public class ArrayTests extends ScriptTestCase {
         assertEquals(1, exec("int x; def y = new def[1]; x = y[0] = 1; return x;"));
     }
 
+    public void testArrayVariable() {
+        assertEquals(1, exec("int x = 1; int[] y = new int[x]; return y.length"));
+    }
+
     public void testForLoop() {
         assertEquals(999*1000/2, exec("def a = new int[1000]; for (int x = 0; x < a.length; x++) { a[x] = x; } "+
             "int total = 0; for (int x = 0; x < a.length; x++) { total += a[x]; } return total;"));
     }
 
+    /**
+     * Make sure we don't try and convert the {@code /} after the {@code ]} into a regex....
+     */
+    public void testDivideArray() {
+        assertEquals(1, exec("def[] x = new def[1]; x[0] = 2; return x[0] / 2"));
+    }
 }

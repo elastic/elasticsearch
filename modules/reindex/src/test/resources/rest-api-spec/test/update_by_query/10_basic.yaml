@@ -53,10 +53,13 @@
   - is_false: deleted
 
   - do:
-      tasks.list:
+      task.get:
         wait_for_completion: true
         task_id: $task
   - is_false: node_failures
+  # The task will be in the response even if it finished before we got here
+  # because of task persistence.
+  - is_true: task
 
 ---
 "Response for version conflict":

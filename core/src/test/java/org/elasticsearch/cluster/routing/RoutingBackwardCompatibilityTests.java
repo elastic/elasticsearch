@@ -62,7 +62,7 @@ public class RoutingBackwardCompatibilityTests extends ESTestCase {
                     MetaData.Builder metaData = MetaData.builder().put(indexMetaData, false);
                     RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetaData).build();
                     ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
-                    final int shardId = operationRouting.indexShards(clusterState, index, type, id, routing).shardId().getId();
+                    final int shardId = operationRouting.indexShards(clusterState, index, id, routing).shardId().getId();
                     assertEquals(currentExpectedShard, shardId);
                 }
             }

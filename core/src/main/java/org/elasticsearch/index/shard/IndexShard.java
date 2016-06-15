@@ -145,7 +145,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ShardSearchStats searchStats = new ShardSearchStats();
     private final ShardGetService getService;
     private final ShardIndexWarmerService shardWarmerService;
-    private final ShardRequestCache shardQueryCache;
+    private final ShardRequestCache requestCacheStats;
     private final ShardFieldData shardFieldData;
     private final IndexFieldDataService indexFieldDataService;
     private final ShardBitsetFilterCache shardBitsetFilterCache;
@@ -241,7 +241,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.searchOperationListener = new SearchOperationListener.CompositeListener(searchListenersList, logger);
         this.getService = new ShardGetService(indexSettings, this, mapperService);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
-        this.shardQueryCache = new ShardRequestCache();
+        this.requestCacheStats = new ShardRequestCache();
         this.shardFieldData = new ShardFieldData();
         this.indexFieldDataService = indexFieldDataService;
         this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
@@ -303,7 +303,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public ShardRequestCache requestCache() {
-        return this.shardQueryCache;
+        return this.requestCacheStats;
     }
 
     public ShardFieldData fieldData() {

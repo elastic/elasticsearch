@@ -103,6 +103,7 @@ if (project == rootProject) {
       url "https://oss.sonatype.org/content/repositories/snapshots/"
     }
   }
+  test.exclude 'org/elasticsearch/test/NamingConventionsCheckBadClasses*'
 }
 
 /*****************************************************************************
@@ -122,8 +123,8 @@ if (project != rootProject) {
   // build-tools is not ready for primetime with these...
   dependencyLicenses.enabled = false
   forbiddenApisMain.enabled = false
+  forbiddenApisTest.enabled = false
   jarHell.enabled = false
-  loggerUsageCheck.enabled = false
   thirdPartyAudit.enabled = false
 
   // test for elasticsearch.build tries to run with ES...
@@ -136,5 +137,10 @@ if (project != rootProject) {
     exclude '**/*.wav'
     // the file that actually defines nocommit
     exclude '**/ForbiddenPatternsTask.groovy'
+  }
+
+  namingConventions {
+    testClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$UnitTestCase'
+    integTestClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$IntegTestCase'
   }
 }

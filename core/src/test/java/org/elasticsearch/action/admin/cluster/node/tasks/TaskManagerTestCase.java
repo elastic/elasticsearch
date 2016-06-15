@@ -233,5 +233,4 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
         return listeners;
     }
-
 }

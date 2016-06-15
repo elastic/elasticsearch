@@ -33,33 +33,10 @@ public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregation
             factory.precision(precision);
         }
         if (randomBoolean()) {
-            int size = randomInt(5);
-            switch (size) {
-            case 0:
-                break;
-            case 1:
-            case 2:
-            case 3:
-            case 4:
-                size = randomIntBetween(0, Integer.MAX_VALUE);
-                break;
-            }
-            factory.size(size);
-
+            factory.size(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            int shardSize = randomInt(5);
-            switch (shardSize) {
-            case 0:
-                break;
-            case 1:
-            case 2:
-            case 3:
-            case 4:
-                shardSize = randomIntBetween(0, Integer.MAX_VALUE);
-                break;
-            }
-            factory.shardSize(shardSize);
+            factory.shardSize(randomIntBetween(1, Integer.MAX_VALUE));
         }
         return factory;
     }

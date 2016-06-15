@@ -169,7 +169,6 @@ public final class DefBootstrap {
                 MethodHandle cacheLookup = MEGAMORPHIC_LOOKUP.bindTo(megamorphicCache);
                 cacheLookup = MethodHandles.dropArguments(cacheLookup,
                         0, type.parameterList().subList(1, type.parameterCount()));
-                cacheLookup = cacheLookup.asType(type.changeReturnType(MethodHandle.class));
                 MethodHandle target = MethodHandles.foldArguments(MethodHandles.exactInvoker(type), cacheLookup);
                 setTarget(target);
                 return target.invokeWithArguments(callArgs);                    
@@ -202,6 +201,7 @@ public final class DefBootstrap {
                         MethodType.methodType(Object.class, Class.class));
                 mh = MethodHandles.filterArguments(mh, 1, 
                         MethodHandles.publicLookup().findVirtual(Object.class, "getClass", MethodType.methodType(Class.class)));
+                mh = mh.asType(mh.type().changeReturnType(MethodHandle.class));
                 MEGAMORPHIC_LOOKUP = mh;
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);

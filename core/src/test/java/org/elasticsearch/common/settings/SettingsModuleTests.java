@@ -21,6 +21,7 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.joda.time.MonthDay;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -208,5 +209,24 @@ public class SettingsModuleTests extends ModuleTestCase {
                 () -> new SettingsModule(settings));
             assertEquals("unknown setting [index.query.bool.max_clause_count] did you mean [indices.query.bool.max_clause_count]?",
                 ex.getMessage());
+    }
+
+    public void testRegisterShared() {
+        Property scope = randomFrom(Property.NodeScope, Property.IndexScope);
+        expectThrows(IllegalArgumentException.class, () ->
+            new SettingsModule(Settings.EMPTY,
+                Setting.simpleString("index.foo.bar", scope), Setting.simpleString("index.foo.bar", scope))
+        );
+        expectThrows(IllegalArgumentException.class, () ->
+            new SettingsModule(Settings.EMPTY,
+                Setting.simpleString("index.foo.bar", scope, Property.Shared), Setting.simpleString("index.foo.bar", scope))
+        );
+        expectThrows(IllegalArgumentException.class, () ->
+            new SettingsModule(Settings.EMPTY,
+                Setting.simpleString("index.foo.bar", scope), Setting.simpleString("index.foo.bar", scope, Property.Shared))
+        );
+        new SettingsModule(Settings.EMPTY,
+            Setting.simpleString("index.foo.bar", scope, Property.Shared),
+            Setting.simpleString("index.foo.bar", scope, Property.Shared));
     }
 }

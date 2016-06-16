@@ -887,8 +887,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             ScriptModule scriptModule = newTestScriptModule();
             List<Setting<?>> scriptSettings = scriptModule.getSettings();
+            scriptSettings.addAll(pluginsService.getPluginSettings());
             scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
-            SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, Collections.emptyList());
+            SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, pluginsService.getPluginSettingsFilter());
             searchModule = new SearchModule(settings, namedWriteableRegistry) {
                 @Override
                 protected void configureSearch() {

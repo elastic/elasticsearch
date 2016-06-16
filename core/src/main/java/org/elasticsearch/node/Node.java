@@ -602,6 +602,10 @@ public class Node implements Closeable {
         }
     }
 
+    /**
+     * Creates a new {@link CircuitBreakerService} based on the settings provided.
+     * @see #BREAKER_TYPE_KEY
+     */
     public static CircuitBreakerService createCircuitBreakerService(Settings settings, ClusterSettings clusterSettings) {
         String type = BREAKER_TYPE_KEY.get(settings);
         if (type.equals("hierarchy")) {

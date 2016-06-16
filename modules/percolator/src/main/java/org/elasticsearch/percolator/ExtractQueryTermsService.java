@@ -189,7 +189,7 @@ public final class ExtractQueryTermsService {
                     return new Result();
                 }
             } else {
-                boolean verified = false;
+                boolean verified = true;
                 Set<Term> terms = new HashSet<>();
                 for (BooleanClause clause : clauses) {
                     if (clause.isProhibited()) {
@@ -197,12 +197,13 @@ public final class ExtractQueryTermsService {
                         continue;
                     }
                     Result subResult = extractQueryTerms(clause.getQuery());
-                    if (mnsm <= 1 && numProhibitedClauses == 0 && subResult.verified) {
-                        verified = true;
+                    if (subResult.verified == false){
+                        verified = false;
                     }
                     terms.addAll(subResult.terms);
                 }
-                return new Result(verified, terms);
+                boolean justOptionalClauses = mnsm <= 1 && numProhibitedClauses == 0;
+                return new Result(verified && justOptionalClauses, terms);
             }
         } else if (query instanceof ConstantScoreQuery) {
             Query wrappedQuery = ((ConstantScoreQuery) query).getQuery();
@@ -218,11 +219,16 @@ public final class ExtractQueryTermsService {
             return new Result(true, new HashSet<>(terms));
         } else if (query instanceof DisjunctionMaxQuery) {
             List<Query> disjuncts = ((DisjunctionMaxQuery) query).getDisjuncts();
+            boolean verified = true;
             Set<Term> terms = new HashSet<>();
             for (Query disjunct : disjuncts) {
-                terms.addAll(extractQueryTerms(disjunct).terms);
+                Result subResult = extractQueryTerms(disjunct);
+                if (subResult.verified == false){
+                    verified = false;
+                }
+                terms.addAll(subResult.terms);
             }
-            return new Result(disjuncts.size() <= 1, terms);
+            return new Result(verified, terms);
         } else if (query instanceof SpanTermQuery) {
             Term term = ((SpanTermQuery) query).getTerm();
             return new Result(false, term);

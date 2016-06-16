@@ -178,7 +178,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
 
         BooleanQuery booleanQuery = builder.build();
         Result result = extractQueryTerms(booleanQuery);
-        assertThat("If one should clause matches then the query extraction is exact", result.verified, is(true));
+        assertThat("Should clause with phrase query isn't verified, so entire query can't be verified", result.verified, is(false));
         List<Term> terms = new ArrayList<>(result.terms);
         Collections.sort(terms);
         assertThat(terms.size(), equalTo(3));
@@ -250,7 +250,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         PhraseQuery phraseQuery1 = new PhraseQuery("_field", "_term1", "_term2");
         builder.add(phraseQuery1, BooleanClause.Occur.SHOULD);
         result = extractQueryTerms(builder.build());
-        assertThat("One clause are exact, so candidate matches are verified", result.verified, is(true));
+        assertThat("Clause isn't exact, so candidate matches are not verified", result.verified, is(false));
 
         builder = new BooleanQuery.Builder();
         builder.add(phraseQuery1, BooleanClause.Occur.SHOULD);
@@ -472,8 +472,26 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         );
 
         Result result = extractQueryTerms(disjunctionMaxQuery);
-        assertThat(result.verified, is(false));
+        assertThat(result.verified, is(true));
         List<Term> terms = new ArrayList<>(result.terms);
+        Collections.sort(terms);
+        assertThat(terms.size(), equalTo(4));
+        assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
+        assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
+        assertThat(terms.get(1).field(), equalTo(termQuery2.getTerm().field()));
+        assertThat(terms.get(1).bytes(), equalTo(termQuery2.getTerm().bytes()));
+        assertThat(terms.get(2).field(), equalTo(termQuery3.getTerm().field()));
+        assertThat(terms.get(2).bytes(), equalTo(termQuery3.getTerm().bytes()));
+        assertThat(terms.get(3).field(), equalTo(termQuery4.getTerm().field()));
+        assertThat(terms.get(3).bytes(), equalTo(termQuery4.getTerm().bytes()));
+
+        disjunctionMaxQuery = new DisjunctionMaxQuery(
+                Arrays.asList(termQuery1, termQuery2, termQuery3, new PhraseQuery("_field", "_term4")), 0.1f
+        );
+
+        result = extractQueryTerms(disjunctionMaxQuery);
+        assertThat(result.verified, is(false));
+        terms = new ArrayList<>(result.terms);
         Collections.sort(terms);
         assertThat(terms.size(), equalTo(4));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));

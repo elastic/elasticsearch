@@ -14,7 +14,9 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 public abstract class TestConsumerPluginBase extends Plugin {
 
@@ -44,13 +46,11 @@ public abstract class TestConsumerPluginBase extends Plugin {
         return services;
     }
 
-    public void onModule(SettingsModule module) {
-        try {
-            module.registerSetting(Setting.simpleString("_trial_license_duration_in_seconds", Setting.Property.NodeScope));
-            module.registerSetting(Setting.simpleString("_grace_duration_in_seconds", Setting.Property.NodeScope));
-        } catch (IllegalArgumentException ex) {
-            // already loaded
-        }
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(Setting.simpleString("_trial_license_duration_in_seconds", Setting.Property.NodeScope,
+                Setting.Property.Shared), Setting.simpleString("_grace_duration_in_seconds", Setting.Property.NodeScope,
+                Setting.Property.Shared));
     }
 
     public abstract Class<? extends TestPluginServiceBase> service();

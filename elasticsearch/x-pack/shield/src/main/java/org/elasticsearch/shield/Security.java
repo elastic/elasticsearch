@@ -18,7 +18,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.shield.action.ShieldActionModule;
@@ -188,62 +187,70 @@ public class Security {
         return settingsBuilder.build();
     }
 
-    public void onModule(SettingsModule settingsModule) {
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> settingsList = new ArrayList<>();
         // always register for both client and node modes
-        XPackPlugin.registerFeatureEnabledSettings(settingsModule, NAME, true);
-        settingsModule.registerSetting(USER_SETTING);
+        XPackPlugin.addFeatureEnabledSettings(settingsList, NAME, true);
+        settingsList.add(USER_SETTING);
 
         // SSL settings
-        SSLConfiguration.Global.registerSettings(settingsModule);
+        SSLConfiguration.Global.addSettings(settingsList);
 
         // transport settings
-        ShieldNettyTransport.registerSettings(settingsModule);
+        ShieldNettyTransport.addSettings(settingsList);
 
         if (transportClientMode) {
-            return;
+            return settingsList;
         }
 
         // The following just apply in node mode
-        XPackPlugin.registerFeatureEnabledSettings(settingsModule, DLS_FLS_FEATURE, true);
+        XPackPlugin.addFeatureEnabledSettings(settingsList, DLS_FLS_FEATURE, true);
 
         // IP Filter settings
-        IPFilter.registerSettings(settingsModule);
+        IPFilter.addSettings(settingsList);
 
         // audit settings
-        AuditTrailModule.registerSettings(settingsModule);
+        AuditTrailModule.addSettings(settingsList);
 
         // authentication settings
-        FileRolesStore.registerSettings(settingsModule);
-        AnonymousUser.registerSettings(settingsModule);
-        Realms.registerSettings(settingsModule);
-        NativeUsersStore.registerSettings(settingsModule);
-        NativeRolesStore.registerSettings(settingsModule);
-        InternalAuthenticationService.registerSettings(settingsModule);
-        InternalAuthorizationService.registerSettings(settingsModule);
+        FileRolesStore.addSettings(settingsList);
+        AnonymousUser.addSettings(settingsList);
+        Realms.addSettings(settingsList);
+        NativeUsersStore.addSettings(settingsList);
+        NativeRolesStore.addSettings(settingsList);
+        InternalAuthenticationService.addSettings(settingsList);
+        InternalAuthorizationService.addSettings(settingsList);
 
         // HTTP settings
-        ShieldNettyHttpServerTransport.registerSettings(settingsModule);
+        ShieldNettyHttpServerTransport.addSettings(settingsList);
 
         // encryption settings
-        InternalCryptoService.registerSettings(settingsModule);
+        InternalCryptoService.addSettings(settingsList);
 
         // hide settings
-        settingsModule.registerSetting(Setting.listSetting(setting("hide_settings"), Collections.emptyList(), Function.identity(),
+        settingsList.add(Setting.listSetting(setting("hide_settings"), Collections.emptyList(), Function.identity(),
                 Property.NodeScope, Property.Filtered));
+        return settingsList;
+    }
+
+    
+    public List<String> getSettingsFilter() {
+        ArrayList<String> settingsFilter = new ArrayList<>();
         String[] asArray = settings.getAsArray(setting("hide_settings"));
         for (String pattern : asArray) {
-            settingsModule.registerSettingsFilter(pattern);
+            settingsFilter.add(pattern);
         }
 
-        settingsModule.registerSettingsFilter(setting("authc.realms.*.bind_dn"));
-        settingsModule.registerSettingsFilter(setting("authc.realms.*.bind_password"));
-        settingsModule.registerSettingsFilter(setting("authc.realms.*." + SessionFactory.HOSTNAME_VERIFICATION_SETTING));
-        settingsModule.registerSettingsFilter(setting("authc.realms.*.truststore.password"));
-        settingsModule.registerSettingsFilter(setting("authc.realms.*.truststore.path"));
-        settingsModule.registerSettingsFilter(setting("authc.realms.*.truststore.algorithm"));
+        settingsFilter.add(setting("authc.realms.*.bind_dn"));
+        settingsFilter.add(setting("authc.realms.*.bind_password"));
+        settingsFilter.add(setting("authc.realms.*." + SessionFactory.HOSTNAME_VERIFICATION_SETTING));
+        settingsFilter.add(setting("authc.realms.*.truststore.password"));
+        settingsFilter.add(setting("authc.realms.*.truststore.path"));
+        settingsFilter.add(setting("authc.realms.*.truststore.algorithm"));
 
         // hide settings where we don't define them - they are part of a group...
-        settingsModule.registerSettingsFilter("transport.profiles.*." + setting("*"));
+        settingsFilter.add("transport.profiles.*." + setting("*"));
+        return settingsFilter;
     }
 
     public void onIndexModule(IndexModule module) {

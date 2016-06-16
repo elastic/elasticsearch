@@ -877,15 +877,15 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         }
     }
 
-    public static void registerSettings(SettingsModule settingsModule) {
-        settingsModule.registerSetting(INDEX_SETTINGS);
-        settingsModule.registerSetting(EXCLUDE_EVENT_SETTINGS);
-        settingsModule.registerSetting(INCLUDE_EVENT_SETTINGS);
-        settingsModule.registerSetting(ROLLOVER_SETTING);
-        settingsModule.registerSetting(BULK_SIZE_SETTING);
-        settingsModule.registerSetting(FLUSH_TIMEOUT_SETTING);
-        settingsModule.registerSetting(QUEUE_SIZE_SETTING);
-        settingsModule.registerSetting(REMOTE_CLIENT_SETTINGS);
+    public static void registerSettings(List<Setting<?>> settings) {
+        settings.add(INDEX_SETTINGS);
+        settings.add(EXCLUDE_EVENT_SETTINGS);
+        settings.add(INCLUDE_EVENT_SETTINGS);
+        settings.add(ROLLOVER_SETTING);
+        settings.add(BULK_SIZE_SETTING);
+        settings.add(FLUSH_TIMEOUT_SETTING);
+        settings.add(QUEUE_SIZE_SETTING);
+        settings.add(REMOTE_CLIENT_SETTINGS);
     }
 
     private class QueueConsumer extends Thread {

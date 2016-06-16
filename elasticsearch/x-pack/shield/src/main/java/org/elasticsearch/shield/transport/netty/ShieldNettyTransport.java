@@ -34,6 +34,7 @@ import org.jboss.netty.handler.ssl.SslHandler;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 import java.net.InetSocketAddress;
+import java.util.List;
 
 import static org.elasticsearch.shield.Security.featureEnabledSetting;
 import static org.elasticsearch.shield.Security.setting;
@@ -249,17 +250,17 @@ public class ShieldNettyTransport extends NettyTransport {
         }
     }
 
-    public static void registerSettings(SettingsModule settingsModule) {
-        settingsModule.registerSetting(SSL_SETTING);
-        settingsModule.registerSetting(HOSTNAME_VERIFICATION_SETTING);
-        settingsModule.registerSetting(HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING);
-        settingsModule.registerSetting(CLIENT_AUTH_SETTING);
-        settingsModule.registerSetting(PROFILE_SSL_SETTING);
-        settingsModule.registerSetting(PROFILE_CLIENT_AUTH_SETTING);
+    public static void addSettings(List<Setting<?>> settingsModule) {
+        settingsModule.add(SSL_SETTING);
+        settingsModule.add(HOSTNAME_VERIFICATION_SETTING);
+        settingsModule.add(HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING);
+        settingsModule.add(CLIENT_AUTH_SETTING);
+        settingsModule.add(PROFILE_SSL_SETTING);
+        settingsModule.add(PROFILE_CLIENT_AUTH_SETTING);
 
         // deprecated transport settings
-        settingsModule.registerSetting(DEPRECATED_SSL_SETTING);
-        settingsModule.registerSetting(DEPRECATED_PROFILE_SSL_SETTING);
-        settingsModule.registerSetting(DEPRECATED_HOSTNAME_VERIFICATION_SETTING);
+        settingsModule.add(DEPRECATED_SSL_SETTING);
+        settingsModule.add(DEPRECATED_PROFILE_SSL_SETTING);
+        settingsModule.add(DEPRECATED_HOSTNAME_VERIFICATION_SETTING);
     }
 }

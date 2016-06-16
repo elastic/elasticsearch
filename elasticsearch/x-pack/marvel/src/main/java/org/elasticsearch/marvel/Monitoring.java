@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.marvel.action.MonitoringBulkAction;
@@ -80,7 +81,6 @@ public class Monitoring {
     }
 
     public void onModule(SettingsModule module) {
-        MonitoringSettings.register(module);
     }
 
     public void onModule(ActionModule module) {

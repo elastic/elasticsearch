@@ -357,7 +357,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         return authorizationError("action [{}] is unauthorized for user [{}]", action, user.principal());
     }
 
-    public static void registerSettings(SettingsModule settingsModule) {
-        settingsModule.registerSetting(ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING);
+    public static void addSettings(List<Setting<?>> settings) {
+        settings.add(ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING);
     }
 }

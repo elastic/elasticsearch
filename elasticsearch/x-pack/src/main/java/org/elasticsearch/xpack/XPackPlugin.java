@@ -21,6 +21,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.marvel.Monitoring;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
@@ -28,7 +29,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
-import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.xpack.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.action.XPackInfoAction;
@@ -190,22 +190,34 @@ public class XPackPlugin extends Plugin implements ScriptPlugin {
         return ScriptServiceProxy.INSTANCE;
     }
 
-    public void onModule(SettingsModule module) {
+    @Override
+    public List<Setting<?>> getSettings() {
+        ArrayList<Setting<?>> settings = new ArrayList<>();
+        settings.addAll(notification.getSettings());
+        settings.addAll(security.getSettings());
+        settings.addAll(MonitoringSettings.getSettings());
+        settings.addAll(watcher.getSettings());
+        settings.addAll(graph.getSettings());
+        settings.addAll(licensing.getSettings());
         // we add the `xpack.version` setting to all internal indices
-        module.registerSetting(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
+        settings.add(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
 
         // http settings
-        module.registerSetting(Setting.simpleString("xpack.http.default_read_timeout", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.http.default_connection_timeout", Setting.Property.NodeScope));
-        module.registerSetting(Setting.groupSetting("xpack.http.ssl.", Setting.Property.NodeScope));
-        module.registerSetting(Setting.groupSetting("xpack.http.proxy.", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.http.default_read_timeout", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.http.default_connection_timeout", Setting.Property.NodeScope));
+        settings.add(Setting.groupSetting("xpack.http.ssl.", Setting.Property.NodeScope));
+        settings.add(Setting.groupSetting("xpack.http.proxy.", Setting.Property.NodeScope));
+        return settings;
+    }
 
-        notification.onModule(module);
-        security.onModule(module);
-        monitoring.onModule(module);
-        watcher.onModule(module);
-        graph.onModule(module);
-        licensing.onModule(module);
+    @Override
+    public List<String> getSettingsFilter() {
+        List<String> filters = new ArrayList<>();
+        filters.addAll(notification.getSettingsFilter());
+        filters.addAll(security.getSettingsFilter());
+        filters.addAll(MonitoringSettings.getSettingsFilter());
+        filters.addAll(graph.getSettingsFilter());
+        return filters;
     }
 
     @Override
@@ -309,9 +321,9 @@ public class XPackPlugin extends Plugin implements ScriptPlugin {
      *
      *          {@code "<feature>.enabled": true | false}
      */
-    public static void registerFeatureEnabledSettings(SettingsModule settingsModule, String featureName, boolean defaultValue) {
-        settingsModule.registerSetting(Setting.boolSetting(featureEnabledSetting(featureName), defaultValue, Setting.Property.NodeScope));
-        settingsModule.registerSetting(Setting.boolSetting(legacyFeatureEnabledSetting(featureName),
+    public static void addFeatureEnabledSettings(List<Setting<?>> settingsList, String featureName, boolean defaultValue) {
+        settingsList.add(Setting.boolSetting(featureEnabledSetting(featureName), defaultValue, Setting.Property.NodeScope));
+        settingsList.add(Setting.boolSetting(legacyFeatureEnabledSetting(featureName),
                 defaultValue, Setting.Property.NodeScope));
     }
 

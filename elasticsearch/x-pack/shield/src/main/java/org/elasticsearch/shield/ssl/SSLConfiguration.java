@@ -147,25 +147,25 @@ public abstract class SSLConfiguration {
         static final Setting<Boolean> INCLUDE_JDK_CERTS_SETTING = Setting.boolSetting(globalKey(Custom.INCLUDE_JDK_CERTS_SETTING), true,
                 Property.NodeScope, Property.Filtered);
 
-        public static void registerSettings(SettingsModule settingsModule) {
-            settingsModule.registerSetting(Global.CIPHERS_SETTING);
-            settingsModule.registerSetting(Global.SUPPORTED_PROTOCOLS_SETTING);
-            settingsModule.registerSetting(Global.KEYSTORE_PATH_SETTING);
-            settingsModule.registerSetting(Global.KEYSTORE_PASSWORD_SETTING);
-            settingsModule.registerSetting(Global.KEYSTORE_ALGORITHM_SETTING);
-            settingsModule.registerSetting(Global.KEYSTORE_KEY_PASSWORD_SETTING);
-            settingsModule.registerSetting(Global.KEY_PATH_SETTING);
-            settingsModule.registerSetting(Global.KEY_PASSWORD_SETTING);
-            settingsModule.registerSetting(Global.CERT_SETTING);
-            settingsModule.registerSetting(Global.TRUSTSTORE_PATH_SETTING);
-            settingsModule.registerSetting(Global.TRUSTSTORE_PASSWORD_SETTING);
-            settingsModule.registerSetting(Global.TRUSTSTORE_ALGORITHM_SETTING);
-            settingsModule.registerSetting(Global.PROTOCOL_SETTING);
-            settingsModule.registerSetting(Global.SESSION_CACHE_SIZE_SETTING);
-            settingsModule.registerSetting(Global.SESSION_CACHE_TIMEOUT_SETTING);
-            settingsModule.registerSetting(Global.CA_PATHS_SETTING);
-            settingsModule.registerSetting(Global.INCLUDE_JDK_CERTS_SETTING);
-            settingsModule.registerSetting(Global.RELOAD_ENABLED_SETTING);
+        public static void addSettings(List<Setting<?>> settings) {
+            settings.add(Global.CIPHERS_SETTING);
+            settings.add(Global.SUPPORTED_PROTOCOLS_SETTING);
+            settings.add(Global.KEYSTORE_PATH_SETTING);
+            settings.add(Global.KEYSTORE_PASSWORD_SETTING);
+            settings.add(Global.KEYSTORE_ALGORITHM_SETTING);
+            settings.add(Global.KEYSTORE_KEY_PASSWORD_SETTING);
+            settings.add(Global.KEY_PATH_SETTING);
+            settings.add(Global.KEY_PASSWORD_SETTING);
+            settings.add(Global.CERT_SETTING);
+            settings.add(Global.TRUSTSTORE_PATH_SETTING);
+            settings.add(Global.TRUSTSTORE_PASSWORD_SETTING);
+            settings.add(Global.TRUSTSTORE_ALGORITHM_SETTING);
+            settings.add(Global.PROTOCOL_SETTING);
+            settings.add(Global.SESSION_CACHE_SIZE_SETTING);
+            settings.add(Global.SESSION_CACHE_TIMEOUT_SETTING);
+            settings.add(Global.CA_PATHS_SETTING);
+            settings.add(Global.INCLUDE_JDK_CERTS_SETTING);
+            settings.add(Global.RELOAD_ENABLED_SETTING);
         }
 
         private final KeyConfig keyConfig;

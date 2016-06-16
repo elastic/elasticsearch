@@ -27,6 +27,7 @@ import org.jboss.netty.handler.ssl.SslHandler;
 import javax.net.ssl.SSLEngine;
 
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
 import static org.elasticsearch.shield.Security.setting;
@@ -128,10 +129,10 @@ public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
         }
     }
 
-    public static void registerSettings(SettingsModule settingsModule) {
-        settingsModule.registerSetting(SSL_SETTING);
-        settingsModule.registerSetting(CLIENT_AUTH_SETTING);
-        settingsModule.registerSetting(DEPRECATED_SSL_SETTING);
+    public static void addSettings(List<Setting<?>> settings) {
+        settings.add(SSL_SETTING);
+        settings.add(CLIENT_AUTH_SETTING);
+        settings.add(DEPRECATED_SSL_SETTING);
     }
 
     public static void overrideSettings(Settings.Builder settingsBuilder, Settings settings) {

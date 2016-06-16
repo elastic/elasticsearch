@@ -35,6 +35,7 @@ import org.elasticsearch.transport.TransportMessage;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.List;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.shield.audit.AuditUtil.indices;
@@ -463,9 +464,9 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
         return builder.append(user.principal()).append("]").toString();
     }
 
-    public static void registerSettings(SettingsModule settingsModule) {
-        settingsModule.registerSetting(HOST_ADDRESS_SETTING);
-        settingsModule.registerSetting(HOST_NAME_SETTING);
-        settingsModule.registerSetting(NODE_NAME_SETTING);
+    public static void registerSettings(List<Setting<?>> settings) {
+        settings.add(HOST_ADDRESS_SETTING);
+        settings.add(HOST_NAME_SETTING);
+        settings.add(NODE_NAME_SETTING);
     }
 }

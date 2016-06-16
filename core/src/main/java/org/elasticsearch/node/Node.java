@@ -225,6 +225,15 @@ public class Node implements Closeable {
         final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
         final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder[0]));
         final ScriptModule scriptModule = ScriptModule.create(settings, pluginsService.filterPlugins(ScriptPlugin.class));
+        final List<Setting<?>> additionalSettings = new ArrayList<>();
+        final List<String> additionalSettingsFilter = new ArrayList<>();
+        additionalSettings.addAll(pluginsService.getPluginSettings());
+        additionalSettingsFilter.addAll(pluginsService.getPluginSettingsFilter());
+        for (final ExecutorBuilder<?> builder : threadPool.builders()) {
+            additionalSettings.addAll(builder.getRegisteredSettings());
+        }
+        additionalSettings.addAll(scriptModule.getSettings());
+        SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         boolean success = false;
         try {
@@ -253,26 +262,7 @@ public class Node implements Closeable {
             modules.add(new RepositoriesModule());
             modules.add(new TribeModule());
             modules.add(new AnalysisModule(environment));
-
             pluginsService.processModules(modules);
-            // TODO - we have to move up the script registration to run first and then
-            // we can validate and build all settings classes before we pass the settings anywhere.
-            // this essentially means that we can start constructing the node level service without
-            // guice and define our own extension points. Without this we won't be able to get rid of
-            // guice.
-            // we already have our own construction of BigArrays, ThreadPool which are one of the
-            // most used resources. Yet, there is also CircuitBreakerService which is needed
-            // in many places and therefore we have to move it up since it registers settings
-            // and we can't build the settings unless all of them are registered.
-            final List<Setting<?>> additionalSettings = new ArrayList<>();
-            final List<String> additionalSettingsFilter = new ArrayList<>();
-            additionalSettings.addAll(pluginsService.getPluginSettings());
-            additionalSettingsFilter.addAll(pluginsService.getPluginSettingsFilter());
-            for (final ExecutorBuilder<?> builder : threadPool.builders()) {
-                additionalSettings.addAll(builder.getRegisteredSettings());
-            }
-            additionalSettings.addAll(scriptModule.getSettings());
-            SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
             modules.add(settingsModule);

@@ -19,7 +19,8 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Binder;
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -42,7 +43,7 @@ import java.util.stream.IntStream;
 /**
  * A module that binds the provided settings to the {@link Settings} interface.
  */
-public class SettingsModule extends AbstractModule {
+public class SettingsModule implements Module {
 
     private final Settings settings;
     private final Set<String> settingsFilterPattern = new HashSet<>();
@@ -139,11 +140,11 @@ public class SettingsModule extends AbstractModule {
      }
 
     @Override
-    protected void configure() {
-        bind(Settings.class).toInstance(settings);
-        bind(SettingsFilter.class).toInstance(new SettingsFilter(settings, settingsFilterPattern));
-        bind(ClusterSettings.class).toInstance(clusterSettings);
-        bind(IndexScopedSettings.class).toInstance(indexScopedSettings);
+    public void configure(Binder binder) {
+        binder.bind(Settings.class).toInstance(settings);
+        binder.bind(SettingsFilter.class).toInstance(new SettingsFilter(settings, settingsFilterPattern));
+        binder.bind(ClusterSettings.class).toInstance(clusterSettings);
+        binder.bind(IndexScopedSettings.class).toInstance(indexScopedSettings);
     }
 
 

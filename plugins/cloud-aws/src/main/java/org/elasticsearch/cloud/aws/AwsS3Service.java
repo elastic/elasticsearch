@@ -51,6 +51,7 @@ public interface AwsS3Service extends LifecycleComponent<AwsS3Service> {
         public static final String SERVER_SIDE_ENCRYPTION = "repositories.s3.server_side_encryption";
         public static final String BUFFER_SIZE = "repositories.s3.buffer_size";
         public static final String MAX_RETRIES = "repositories.s3.max_retries";
+        public static final String USE_THROTTLE_RETRIES = "repositories.s3.use_throttle_retries";
         public static final String CHUNK_SIZE = "repositories.s3.chunk_size";
         public static final String COMPRESS = "repositories.s3.compress";
         public static final String STORAGE_CLASS = "repositories.s3.storage_class";
@@ -58,11 +59,6 @@ public interface AwsS3Service extends LifecycleComponent<AwsS3Service> {
         public static final String BASE_PATH = "repositories.s3.base_path";
     }
 
-
-
-    AmazonS3 client();
-
-    AmazonS3 client(String endpoint, String protocol, String region, String account, String key);
-
-    AmazonS3 client(String endpoint, String protocol, String region, String account, String key, Integer maxRetries);
+    AmazonS3 client(String endpoint, String protocol, String region, String account, String key, Integer maxRetries,
+                    boolean useThrottleRetries);
 }

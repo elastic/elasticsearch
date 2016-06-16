@@ -254,7 +254,7 @@ public final class WatcherTestUtils {
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         Mockito.when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name")).build());
-        return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings), Collections.emptySet(),
+        return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings),
                 new ResourceWatcherService(settings, tp), scriptEngineRegistry, scriptContextRegistry, scriptSettings),
                 clusterService);
     }

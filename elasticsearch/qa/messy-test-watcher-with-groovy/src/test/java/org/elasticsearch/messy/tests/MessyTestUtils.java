@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
-import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
@@ -25,8 +24,7 @@ import org.junit.Ignore;
 import org.mockito.Mockito;
 
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.Collections;
 
 @Ignore // not a test.
 @SuppressForbidden(reason = "gradle is broken and tries to run me as a test")
@@ -38,19 +36,13 @@ public final class MessyTestUtils {
                 .put("path.home", LuceneTestCase.createTempDir())
                 .build();
         GroovyScriptEngineService groovyScriptEngineService = new GroovyScriptEngineService(settings);
-        Set<ScriptEngineService> engineServiceSet = new HashSet<>();
-        engineServiceSet.add(groovyScriptEngineService);
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(
-                Arrays.asList(
-                        new ScriptEngineRegistry.ScriptEngineRegistration(GroovyScriptEngineService.class, GroovyScriptEngineService.NAME)
-                )
-        );
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singleton(groovyScriptEngineService));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Arrays.asList(ScriptServiceProxy.INSTANCE));
 
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         Mockito.when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name")).build());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings), engineServiceSet,
+        return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings),
                 new ResourceWatcherService(settings, tp), scriptEngineRegistry, scriptContextRegistry, scriptSettings),
                 clusterService);
     }

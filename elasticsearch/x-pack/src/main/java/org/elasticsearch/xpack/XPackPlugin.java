@@ -22,6 +22,8 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.marvel.Monitoring;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.authc.AuthenticationModule;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.action.XPackInfoAction;
 import org.elasticsearch.xpack.action.XPackUsageAction;
+import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.common.http.HttpClientModule;
 import org.elasticsearch.xpack.common.init.LazyInitializationModule;
 import org.elasticsearch.xpack.common.init.LazyInitializationService;
@@ -55,7 +58,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-public class XPackPlugin extends Plugin {
+public class XPackPlugin extends Plugin implements ScriptPlugin {
 
     public static final String NAME = "x-pack";
 
@@ -182,8 +185,9 @@ public class XPackPlugin extends Plugin {
         return builder.build();
     }
 
-    public void onModule(ScriptModule module) {
-        watcher.onModule(module);
+    @Override
+    public ScriptContext.Plugin getCustomScriptContexts() {
+        return ScriptServiceProxy.INSTANCE;
     }
 
     public void onModule(SettingsModule module) {

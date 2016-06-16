@@ -140,9 +140,6 @@ public class Watcher {
         return Settings.EMPTY;
     }
 
-    public void onModule(ScriptModule module) {
-        module.registerScriptContext(ScriptServiceProxy.INSTANCE);
-    }
 
     public void onModule(SettingsModule module) {
         for (TemplateConfig templateConfig : WatcherIndexTemplateRegistry.TEMPLATE_CONFIGS) {

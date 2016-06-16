@@ -54,16 +54,6 @@ import java.util.Map;
  * The {@link org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider} is only a functional interface that allows to register factory constructors directly like the plugin example below:
  * <pre>
  *     public class MyAnalysisPlugin extends Plugin {
- *       \@Override
- *       public String name() {
- *         return "analysis-my-plugin";
- *       }
- *
- *       \@Override
- *       public String description() {
- *         return "my very fast and efficient analyzer";
- *       }
- *
  *       public void onModule(AnalysisModule module) {
  *         module.registerAnalyzer("my-analyzer-name", MyAnalyzer::new);
  *       }

@@ -397,12 +397,16 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                 .addMapping("employee", mapping)
                 .addMapping("queries", "query", "type=percolator")
         );
-        client().prepareIndex("test", "queries", "q").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "queries", "q1").setSource(jsonBuilder().startObject()
                 .field("query", QueryBuilders.nestedQuery("employee",
                         QueryBuilders.matchQuery("employee.name", "virginia potts").operator(Operator.AND), ScoreMode.Avg)
                 ).endObject())
-                .setRefreshPolicy(IMMEDIATE)
                 .get();
+        // this query should never match as it doesn't use nested query:
+        client().prepareIndex("test", "queries", "q2").setSource(jsonBuilder().startObject()
+                .field("query", QueryBuilders.matchQuery("employee.name", "virginia")).endObject())
+                .get();
+        client().admin().indices().prepareRefresh().get();
 
         SearchResponse response = client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("query", "employee",
@@ -413,9 +417,10 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                                     .startObject().field("name", "tony stark").endObject()
                                 .endArray()
                             .endObject().bytes()))
+                .addSort("_doc", SortOrder.ASC)
                 .get();
         assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("q"));
+        assertThat(response.getHits().getAt(0).getId(), equalTo("q1"));
 
         response = client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("query", "employee",
@@ -426,12 +431,14 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                                     .startObject().field("name", "tony stark").endObject()
                                 .endArray()
                             .endObject().bytes()))
+                .addSort("_doc", SortOrder.ASC)
                 .get();
         assertHitCount(response, 0);
 
         response = client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("query", "employee",
                         XContentFactory.jsonBuilder().startObject().field("companyname", "notstark").endObject().bytes()))
+                .addSort("_doc", SortOrder.ASC)
                 .get();
         assertHitCount(response, 0);
     }

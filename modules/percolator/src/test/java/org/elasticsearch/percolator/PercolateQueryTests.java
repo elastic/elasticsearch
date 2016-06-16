@@ -20,7 +20,6 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
-import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
@@ -73,7 +72,6 @@ public class PercolateQueryTests extends ESTestCase {
 
     public final static String EXTRACTED_TERMS_FIELD_NAME = "extracted_terms";
     public final static String UNKNOWN_QUERY_FIELD_NAME = "unknown_query";
-    public final static String ACCURATE_CANDIDATE_FIELD = "accurate_candidate_field";
     public final static FieldType EXTRACTED_TERMS_FIELD_TYPE = new FieldType();
 
     static {
@@ -147,10 +145,10 @@ public class PercolateQueryTests extends ESTestCase {
         PercolateQuery.Builder builder = new PercolateQuery.Builder(
                 "docType",
                 queryStore,
-                ACCURATE_CANDIDATE_FIELD, new BytesArray("{}"),
+                new BytesArray("{}"),
                 percolateSearcher
         );
-        builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
+        builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME, false);
         // no scoring, wrapping it in a constant score query:
         Query query = new ConstantScoreQuery(builder.build());
         TopDocs topDocs = shardSearcher.search(query, 10);
@@ -221,10 +219,10 @@ public class PercolateQueryTests extends ESTestCase {
         PercolateQuery.Builder builder = new PercolateQuery.Builder(
                 "docType",
                 queryStore,
-                ACCURATE_CANDIDATE_FIELD, new BytesArray("{}"),
+                new BytesArray("{}"),
                 percolateSearcher
         );
-        builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
+        builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME, false);
         Query query = builder.build();
         TopDocs topDocs = shardSearcher.search(query, 10);
         assertThat(topDocs.totalHits, equalTo(3));
@@ -324,7 +322,7 @@ public class PercolateQueryTests extends ESTestCase {
         queries.put(id, query);
         ParseContext.Document document = new ParseContext.Document();
         ExtractQueryTermsService.extractQueryTerms(query, document, EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME,
-                EXTRACTED_TERMS_FIELD_TYPE, ACCURATE_CANDIDATE_FIELD);
+                EXTRACTED_TERMS_FIELD_TYPE);
         document.add(new StoredField(UidFieldMapper.NAME, Uid.createUid(MapperService.PERCOLATOR_LEGACY_TYPE_NAME, id)));
         assert extraFields.length % 2 == 0;
         for (int i = 0; i < extraFields.length; i++) {
@@ -334,23 +332,23 @@ public class PercolateQueryTests extends ESTestCase {
     }
 
     private void duelRun(MemoryIndex memoryIndex, IndexSearcher shardSearcher) throws IOException {
-        boolean requireScore = false;randomBoolean();
+        boolean requireScore = randomBoolean();
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         PercolateQuery.Builder builder1 = new PercolateQuery.Builder(
                 "docType",
                 queryStore,
-                ACCURATE_CANDIDATE_FIELD, new BytesArray("{}"),
+                new BytesArray("{}"),
                 percolateSearcher
         );
         // enables the optimization that prevents queries from being evaluated that don't match
-        builder1.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
+        builder1.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME, randomBoolean());
         Query query1 = requireScore ? builder1.build() : new ConstantScoreQuery(builder1.build());
         TopDocs topDocs1 = shardSearcher.search(query1, 10);
 
         PercolateQuery.Builder builder2 = new PercolateQuery.Builder(
                 "docType",
                 queryStore,
-                null, new BytesArray("{}"),
+                new BytesArray("{}"),
                 percolateSearcher
         );
         builder2.setPercolateTypeQuery(new MatchAllDocsQuery());

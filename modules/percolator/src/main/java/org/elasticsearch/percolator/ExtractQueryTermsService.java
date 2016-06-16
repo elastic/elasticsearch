@@ -68,6 +68,9 @@ import java.util.function.Function;
 public final class ExtractQueryTermsService {
 
     private static final byte FIELD_VALUE_SEPARATOR = 0;  // nul code point
+    public static final String EXTRACTION_COMPLETE = "complete";
+    public static final String EXTRACTION_PARTIAL = "partial";
+    public static final String EXTRACTION_FAILED = "failed";
 
     private ExtractQueryTermsService() {
     }
@@ -77,20 +80,18 @@ public final class ExtractQueryTermsService {
      * @param query                     The query to extract terms from
      * @param document                  The document to add the extracted terms to
      * @param queryTermsFieldField      The field in the document holding the extracted terms
-     * @param unknownQueryField         The field used to mark a document that not all query terms could be extracted.
-     *                                  For example the query contained an unsupported query (e.g. WildcardQuery).
+     * @param extractionResultField     The field contains whether query term extraction was successful, partial or
+     *                                  failed. (For example the query contained an unsupported query (e.g. WildcardQuery)
+     *                                  then query extraction would fail)
      * @param fieldType                 The field type for the query metadata field
-     * @param verifiedCandidateField    The field used to mark if query extraction was accurate and candidate matches don't
-     *                                  need to be verified by {@link org.apache.lucene.index.memory.MemoryIndex} at query time.
      */
     public static void extractQueryTerms(Query query, ParseContext.Document document, String queryTermsFieldField,
-                                         String unknownQueryField, FieldType fieldType, String verifiedCandidateField) {
+                                         String extractionResultField, FieldType fieldType) {
         Result result;
         try {
             result = extractQueryTerms(query);
         } catch (UnsupportedQueryException e) {
-            document.add(new Field(unknownQueryField, new BytesRef(), fieldType));
-            document.add(new NumericDocValuesField(verifiedCandidateField, 0));
+            document.add(new Field(extractionResultField, EXTRACTION_FAILED, fieldType));
             return;
         }
         for (Term term : result.terms) {
@@ -100,7 +101,11 @@ public final class ExtractQueryTermsService {
             builder.append(term.bytes());
             document.add(new Field(queryTermsFieldField, builder.toBytesRef(), fieldType));
         }
-        document.add(new NumericDocValuesField(verifiedCandidateField, result.verified ? 1 : 0));
+        if (result.verified) {
+            document.add(new Field(extractionResultField, EXTRACTION_COMPLETE, fieldType));
+        } else {
+            document.add(new Field(extractionResultField, EXTRACTION_PARTIAL, fieldType));
+        }
     }
 
     /**
@@ -285,12 +290,12 @@ public final class ExtractQueryTermsService {
      * Creates a boolean query with a should clause for each term on all fields of the specified index reader.
      */
     public static Query createQueryTermsQuery(IndexReader indexReader, String queryMetadataField,
-                                              String unknownQueryField) throws IOException {
+                                              Term... optionalTerms) throws IOException {
         Objects.requireNonNull(queryMetadataField);
-        Objects.requireNonNull(unknownQueryField);
 
         List<Term> extractedTerms = new ArrayList<>();
-        extractedTerms.add(new Term(unknownQueryField));
+        Collections.addAll(extractedTerms, optionalTerms);
+
         Fields fields = MultiFields.getFields(indexReader);
         for (String field : fields) {
             Terms terms = fields.terms(field);
@@ -300,7 +305,7 @@ public final class ExtractQueryTermsService {
 
             BytesRef fieldBr = new BytesRef(field);
             TermsEnum tenum = terms.iterator();
-            for (BytesRef term = tenum.next(); term != null ; term = tenum.next()) {
+            for (BytesRef term = tenum.next(); term != null; term = tenum.next()) {
                 BytesRefBuilder builder = new BytesRefBuilder();
                 builder.append(fieldBr);
                 builder.append(FIELD_VALUE_SEPARATOR);

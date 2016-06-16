@@ -49,6 +49,8 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsLookupQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
+import static org.elasticsearch.percolator.ExtractQueryTermsService.EXTRACTION_COMPLETE;
+import static org.elasticsearch.percolator.ExtractQueryTermsService.EXTRACTION_FAILED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -98,12 +100,11 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             .field(fieldName, queryBuilder)
             .endObject().bytes());
 
-        assertThat(doc.rootDoc().getFields(fieldType.getUnknownQueryFieldName()).length, equalTo(0));
         assertThat(doc.rootDoc().getFields(fieldType.getExtractedTermsField()).length, equalTo(1));
         assertThat(doc.rootDoc().getFields(fieldType.getExtractedTermsField())[0].binaryValue().utf8ToString(), equalTo("field\0value"));
         assertThat(doc.rootDoc().getFields(fieldType.getQueryBuilderFieldName()).length, equalTo(1));
-        assertThat(doc.rootDoc().getFields(fieldType.getVerifiedCandidateFieldName()).length, equalTo(1));
-        assertThat(doc.rootDoc().getFields(fieldType.getVerifiedCandidateFieldName())[0].numericValue(), equalTo(1L));
+        assertThat(doc.rootDoc().getFields(fieldType.getExtractionResultFieldName()).length, equalTo(1));
+        assertThat(doc.rootDoc().getFields(fieldType.getExtractionResultFieldName())[0].stringValue(), equalTo(EXTRACTION_COMPLETE));
         BytesRef qbSource = doc.rootDoc().getFields(fieldType.getQueryBuilderFieldName())[0].binaryValue();
         assertQueryBuilder(qbSource, queryBuilder);
 
@@ -112,13 +113,11 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         doc = mapperService.documentMapper(typeName).parse("test", typeName, "1", XContentFactory.jsonBuilder().startObject()
                 .field(fieldName, queryBuilder)
                 .endObject().bytes());
-        assertThat(doc.rootDoc().getFields(fieldType.getUnknownQueryFieldName()).length, equalTo(1));
-        assertThat(doc.rootDoc().getFields(fieldType.getUnknownQueryFieldName())[0].binaryValue(), equalTo(new BytesRef()));
+        assertThat(doc.rootDoc().getFields(fieldType.getExtractionResultFieldName()).length, equalTo(1));
+        assertThat(doc.rootDoc().getFields(fieldType.getExtractionResultFieldName())[0].stringValue(), equalTo(EXTRACTION_FAILED));
         assertThat(doc.rootDoc().getFields(fieldType.getExtractedTermsField()).length, equalTo(0));
         assertThat(doc.rootDoc().getFields(fieldType.getQueryBuilderFieldName()).length, equalTo(1));
         qbSource = doc.rootDoc().getFields(fieldType.getQueryBuilderFieldName())[0].binaryValue();
-        assertThat(doc.rootDoc().getFields(fieldType.getVerifiedCandidateFieldName()).length, equalTo(1));
-        assertThat(doc.rootDoc().getFields(fieldType.getVerifiedCandidateFieldName())[0].numericValue(), equalTo(0L));
         assertQueryBuilder(qbSource, queryBuilder);
     }
 

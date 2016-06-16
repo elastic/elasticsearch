@@ -37,7 +37,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -59,9 +58,8 @@ public class PercolatorFieldMapper extends FieldMapper {
     private static final PercolatorFieldType FIELD_TYPE = new PercolatorFieldType();
 
     public static final String EXTRACTED_TERMS_FIELD_NAME = "extracted_terms";
-    public static final String UNKNOWN_QUERY_FIELD_NAME = "unknown_query";
+    public static final String EXTRACTION_RESULT_FIELD_NAME = "extraction_result";
     public static final String QUERY_BUILDER_FIELD_NAME = "query_builder_field";
-    public static final String VERIFIED_CANDIDATE_FIELD_NAME = "verified_candidate";
 
     public static class Builder extends FieldMapper.Builder<Builder, PercolatorFieldMapper> {
 
@@ -77,17 +75,15 @@ public class PercolatorFieldMapper extends FieldMapper {
             context.path().add(name());
             KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(EXTRACTED_TERMS_FIELD_NAME, context);
             ((PercolatorFieldType) fieldType).queryTermsField = extractedTermsField.fieldType();
-            KeywordFieldMapper unknownQueryField = createExtractQueryFieldBuilder(UNKNOWN_QUERY_FIELD_NAME, context);
-            ((PercolatorFieldType) fieldType).unknownQueryField = unknownQueryField.fieldType();
+            KeywordFieldMapper ExtractionResultField = createExtractQueryFieldBuilder(EXTRACTION_RESULT_FIELD_NAME, context);
+            ((PercolatorFieldType) fieldType).extractionResultField = ExtractionResultField.fieldType();
             BinaryFieldMapper queryBuilderField = createQueryBuilderFieldBuilder(context);
             ((PercolatorFieldType) fieldType).queryBuilderField = queryBuilderField.fieldType();
-            NumberFieldMapper definiteMatchField = createDefiniteMatchFieldBuilder(context);
-            ((PercolatorFieldType) fieldType).verifiedCandidateField = definiteMatchField.fieldType();
             context.path().remove();
             setupFieldType(context);
             return new PercolatorFieldMapper(name(), fieldType, defaultFieldType, context.indexSettings(),
                     multiFieldsBuilder.build(this, context), copyTo, queryShardContext, extractedTermsField,
-                    unknownQueryField, queryBuilderField, definiteMatchField);
+                    ExtractionResultField, queryBuilderField);
         }
 
         static KeywordFieldMapper createExtractQueryFieldBuilder(String name, BuilderContext context) {
@@ -107,15 +103,6 @@ public class PercolatorFieldMapper extends FieldMapper {
             return builder.build(context);
         }
 
-        static NumberFieldMapper createDefiniteMatchFieldBuilder(BuilderContext context) {
-            NumberFieldMapper.Builder builder = new NumberFieldMapper.Builder(VERIFIED_CANDIDATE_FIELD_NAME,
-                    NumberFieldMapper.NumberType.LONG);
-            builder.docValues(true);
-            builder.index(false);
-            builder.store(false);
-            builder.fieldType().setDocValuesType(DocValuesType.NUMERIC);
-            return builder.build(context);
-        }
     }
 
     public static class TypeParser implements FieldMapper.TypeParser {
@@ -129,9 +116,8 @@ public class PercolatorFieldMapper extends FieldMapper {
     public static class PercolatorFieldType extends MappedFieldType {
 
         private MappedFieldType queryTermsField;
-        private MappedFieldType unknownQueryField;
+        private MappedFieldType extractionResultField;
         private MappedFieldType queryBuilderField;
-        private MappedFieldType verifiedCandidateField;
 
         public PercolatorFieldType() {
             setIndexOptions(IndexOptions.NONE);
@@ -142,25 +128,20 @@ public class PercolatorFieldMapper extends FieldMapper {
         public PercolatorFieldType(PercolatorFieldType ref) {
             super(ref);
             queryTermsField = ref.queryTermsField;
-            unknownQueryField = ref.unknownQueryField;
+            extractionResultField = ref.extractionResultField;
             queryBuilderField = ref.queryBuilderField;
-            verifiedCandidateField = ref.verifiedCandidateField;
         }
 
         public String getExtractedTermsField() {
             return queryTermsField.name();
         }
 
-        public String getUnknownQueryFieldName() {
-            return unknownQueryField.name();
+        public String getExtractionResultFieldName() {
+            return extractionResultField.name();
         }
 
         public String getQueryBuilderFieldName() {
             return queryBuilderField.name();
-        }
-
-        public String getVerifiedCandidateFieldName() {
-            return verifiedCandidateField.name();
         }
 
         @Override
@@ -182,20 +163,18 @@ public class PercolatorFieldMapper extends FieldMapper {
     private final boolean mapUnmappedFieldAsString;
     private final QueryShardContext queryShardContext;
     private KeywordFieldMapper queryTermsField;
-    private KeywordFieldMapper unknownQueryField;
+    private KeywordFieldMapper extractionResultField;
     private BinaryFieldMapper queryBuilderField;
-    private NumberFieldMapper verifiedCandidateField;
 
     public PercolatorFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                  Settings indexSettings, MultiFields multiFields, CopyTo copyTo, QueryShardContext queryShardContext,
-                                 KeywordFieldMapper queryTermsField, KeywordFieldMapper unknownQueryField,
-                                 BinaryFieldMapper queryBuilderField, NumberFieldMapper verifiedCandidateField) {
+                                 KeywordFieldMapper queryTermsField, KeywordFieldMapper extractionResultField,
+                                 BinaryFieldMapper queryBuilderField) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.queryShardContext = queryShardContext;
         this.queryTermsField = queryTermsField;
-        this.unknownQueryField = unknownQueryField;
+        this.extractionResultField = extractionResultField;
         this.queryBuilderField = queryBuilderField;
-        this.verifiedCandidateField = verifiedCandidateField;
         this.mapUnmappedFieldAsString = INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING.get(indexSettings);
     }
 
@@ -203,21 +182,19 @@ public class PercolatorFieldMapper extends FieldMapper {
     public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
         PercolatorFieldMapper updated = (PercolatorFieldMapper) super.updateFieldType(fullNameToFieldType);
         KeywordFieldMapper queryTermsUpdated = (KeywordFieldMapper) queryTermsField.updateFieldType(fullNameToFieldType);
-        KeywordFieldMapper unknownQueryUpdated = (KeywordFieldMapper) unknownQueryField.updateFieldType(fullNameToFieldType);
+        KeywordFieldMapper extractionResultUpdated = (KeywordFieldMapper) extractionResultField.updateFieldType(fullNameToFieldType);
         BinaryFieldMapper queryBuilderUpdated = (BinaryFieldMapper) queryBuilderField.updateFieldType(fullNameToFieldType);
-        NumberFieldMapper definiteMatchUpdated = (NumberFieldMapper) verifiedCandidateField.updateFieldType(fullNameToFieldType);
 
-        if (updated == this && queryTermsUpdated == queryTermsField && unknownQueryUpdated == unknownQueryField
-                && queryBuilderUpdated == queryBuilderField && definiteMatchUpdated == verifiedCandidateField) {
+        if (updated == this && queryTermsUpdated == queryTermsField && extractionResultUpdated == extractionResultField
+                && queryBuilderUpdated == queryBuilderField) {
             return this;
         }
         if (updated == this) {
             updated = (PercolatorFieldMapper) updated.clone();
         }
         updated.queryTermsField = queryTermsUpdated;
-        updated.unknownQueryField = unknownQueryUpdated;
+        updated.extractionResultField = extractionResultUpdated;
         updated.queryBuilderField = queryBuilderUpdated;
-        updated.verifiedCandidateField = definiteMatchUpdated;
         return updated;
     }
 
@@ -244,8 +221,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         Query query = toQuery(queryShardContext, mapUnmappedFieldAsString, queryBuilder);
-        ExtractQueryTermsService.extractQueryTerms(query, context.doc(), queryTermsField.name(), unknownQueryField.name(),
-                queryTermsField.fieldType(), verifiedCandidateField.name());
+        ExtractQueryTermsService.extractQueryTerms(query, context.doc(), queryTermsField.name(), extractionResultField.name(),
+                queryTermsField.fieldType());
         return null;
     }
 
@@ -282,7 +259,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     @Override
     public Iterator<Mapper> iterator() {
-        return Arrays.<Mapper>asList(queryTermsField, unknownQueryField, queryBuilderField).iterator();
+        return Arrays.<Mapper>asList(queryTermsField, extractionResultField, queryBuilderField).iterator();
     }
 
     @Override

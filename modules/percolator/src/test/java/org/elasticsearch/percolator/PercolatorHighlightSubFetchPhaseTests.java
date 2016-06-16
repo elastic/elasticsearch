@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
 
     public void testHitsExecutionNeeded() {
-        PercolateQuery percolateQuery = new PercolateQuery.Builder("", ctx -> null, null, new BytesArray("{}"),
+        PercolateQuery percolateQuery = new PercolateQuery.Builder("", ctx -> null, new BytesArray("{}"),
                 Mockito.mock(IndexSearcher.class))
                 .build();
 
@@ -57,7 +57,7 @@ public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
     }
 
     public void testLocatePercolatorQuery() {
-        PercolateQuery percolateQuery = new PercolateQuery.Builder("", ctx -> null, null, new BytesArray("{}"),
+        PercolateQuery percolateQuery = new PercolateQuery.Builder("", ctx -> null, new BytesArray("{}"),
                 Mockito.mock(IndexSearcher.class))
                 .build();
 

@@ -56,6 +56,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.percolator.ExtractQueryTermsService.EXTRACTION_COMPLETE;
+import static org.elasticsearch.percolator.ExtractQueryTermsService.EXTRACTION_FAILED;
+import static org.elasticsearch.percolator.ExtractQueryTermsService.EXTRACTION_PARTIAL;
 import static org.elasticsearch.percolator.ExtractQueryTermsService.UnsupportedQueryException;
 import static org.elasticsearch.percolator.ExtractQueryTermsService.extractQueryTerms;
 import static org.elasticsearch.percolator.ExtractQueryTermsService.createQueryTermsQuery;
@@ -68,7 +71,6 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
 
     public final static String QUERY_TERMS_FIELD = "extracted_terms";
     public final static String UNKNOWN_QUERY_FIELD = "unknown_query";
-    public final static String DEFINITE_MATCH_FIELD = "definite_match_field";
     public final static FieldType QUERY_TERMS_FIELD_TYPE = new FieldType();
 
     static {
@@ -85,8 +87,8 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         bq.add(termQuery2, BooleanClause.Occur.SHOULD);
 
         ParseContext.Document document = new ParseContext.Document();
-        extractQueryTerms(bq.build(), document, QUERY_TERMS_FIELD, UNKNOWN_QUERY_FIELD, QUERY_TERMS_FIELD_TYPE, DEFINITE_MATCH_FIELD);
-        assertThat(document.getField(DEFINITE_MATCH_FIELD).numericValue(), equalTo(1L));
+        extractQueryTerms(bq.build(), document, QUERY_TERMS_FIELD, UNKNOWN_QUERY_FIELD, QUERY_TERMS_FIELD_TYPE);
+        assertThat(document.getField(UNKNOWN_QUERY_FIELD).stringValue(), equalTo(EXTRACTION_COMPLETE));
         List<IndexableField> fields = new ArrayList<>(Arrays.asList(document.getFields(QUERY_TERMS_FIELD)));
         Collections.sort(fields, (field1, field2) -> field1.binaryValue().compareTo(field2.binaryValue()));
         assertThat(fields.size(), equalTo(2));
@@ -99,22 +101,21 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
     public void testExtractQueryMetadata_unsupported() {
         TermRangeQuery query = new TermRangeQuery("field1", new BytesRef("a"), new BytesRef("z"), true, true);
         ParseContext.Document document = new ParseContext.Document();
-        extractQueryTerms(query, document, QUERY_TERMS_FIELD, UNKNOWN_QUERY_FIELD, QUERY_TERMS_FIELD_TYPE, DEFINITE_MATCH_FIELD);
-        assertThat(document.getFields().size(), equalTo(2));
+        extractQueryTerms(query, document, QUERY_TERMS_FIELD, UNKNOWN_QUERY_FIELD, QUERY_TERMS_FIELD_TYPE);
+        assertThat(document.getFields().size(), equalTo(1));
+        assertThat(document.getField(UNKNOWN_QUERY_FIELD).stringValue(), equalTo(EXTRACTION_FAILED));
         assertThat(document.getFields().get(0).name(), equalTo(UNKNOWN_QUERY_FIELD));
-        assertThat(document.getFields().get(0).binaryValue().utf8ToString(), equalTo(""));
-        assertThat(document.getField(DEFINITE_MATCH_FIELD).numericValue(), equalTo(0L));
     }
 
     public void testExtractQueryMetadata_notVerified() {
         PhraseQuery phraseQuery = new PhraseQuery("field", "term");
 
         ParseContext.Document document = new ParseContext.Document();
-        extractQueryTerms(phraseQuery, document, QUERY_TERMS_FIELD, UNKNOWN_QUERY_FIELD, QUERY_TERMS_FIELD_TYPE, DEFINITE_MATCH_FIELD);
+        extractQueryTerms(phraseQuery, document, QUERY_TERMS_FIELD, UNKNOWN_QUERY_FIELD, QUERY_TERMS_FIELD_TYPE);
         assertThat(document.getFields().size(), equalTo(2));
         assertThat(document.getFields().get(0).name(), equalTo(QUERY_TERMS_FIELD));
         assertThat(document.getFields().get(0).binaryValue().utf8ToString(), equalTo("field\u0000term"));
-        assertThat(document.getField(DEFINITE_MATCH_FIELD).numericValue(), equalTo(0L));
+        assertThat(document.getField(UNKNOWN_QUERY_FIELD).stringValue(), equalTo(EXTRACTION_PARTIAL));
     }
 
     public void testExtractQueryMetadata_termQuery() {
@@ -513,7 +514,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
 
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
         TermsQuery query = (TermsQuery)
-                createQueryTermsQuery(indexReader, QUERY_TERMS_FIELD, UNKNOWN_QUERY_FIELD);
+                createQueryTermsQuery(indexReader, QUERY_TERMS_FIELD, new Term(UNKNOWN_QUERY_FIELD, EXTRACTION_FAILED));
 
         PrefixCodedTerms terms = query.getTermData();
         assertThat(terms.size(), equalTo(15L));
@@ -532,7 +533,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         assertTermIterator(termIterator, "field2\u0000some", QUERY_TERMS_FIELD);
         assertTermIterator(termIterator, "field2\u0000text", QUERY_TERMS_FIELD);
         assertTermIterator(termIterator, "field4\u0000123", QUERY_TERMS_FIELD);
-        assertTermIterator(termIterator, "", UNKNOWN_QUERY_FIELD);
+        assertTermIterator(termIterator, EXTRACTION_FAILED, UNKNOWN_QUERY_FIELD);
     }
 
     public void testSelectTermsListWithHighestSumOfTermLength() {

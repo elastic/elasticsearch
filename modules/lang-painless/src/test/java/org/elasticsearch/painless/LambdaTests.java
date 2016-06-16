@@ -81,4 +81,22 @@ public class LambdaTests extends ScriptTestCase {
     public void testMultipleStatements() {
         assertEquals(2, exec("int applyOne(IntFunction arg) { arg.apply(1) } applyOne(x -> { x = x + 1; return x;})"));
     }
+
+    public void testTwoLambdas() {
+        assertEquals("testingcdefg", exec(
+                "org.elasticsearch.painless.FeatureTest test = new org.elasticsearch.painless.FeatureTest(2,3);" +
+                "return test.twoFunctionsOfX(x -> 'testing'.concat(x), y -> 'abcdefg'.substring(y))"));
+    }
+
+    public void testNestedLambdas() {
+        assertEquals(1, exec("Optional.empty().orElseGet(() -> Optional.empty().orElseGet(() -> 1));"));
+    }
+
+    public void testLambdaInLoop() {
+        assertEquals(100, exec("int sum = 0; " +
+                               "for (int i = 0; i < 100; i++) {" +
+                               "  sum += Optional.empty().orElseGet(() -> 1);" +
+                               "}" +
+                               "return sum;"));
+    }
 }

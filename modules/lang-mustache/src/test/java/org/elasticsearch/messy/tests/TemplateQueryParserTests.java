@@ -103,10 +103,9 @@ public class TemplateQueryParserTests extends ESTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
         Index index = idxSettings.getIndex();
         SettingsModule settingsModule = new SettingsModule(settings);
-        ScriptModule scriptModule = new ScriptModule();
-        scriptModule.prepareSettings(settingsModule);
         // TODO: make this use a mock engine instead of mustache and it will no longer be messy!
-        scriptModule.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.NAME, true));
+        ScriptModule scriptModule = new ScriptModule(new MustacheScriptEngineService(settings));
+        scriptModule.prepareSettings(settingsModule);
         settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
         final ThreadPool threadPool = new ThreadPool(settings);
         injector = new ModulesBuilder().add(

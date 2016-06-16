@@ -52,9 +52,9 @@ public class NativeScriptTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
         SettingsModule settingsModule = new SettingsModule(settings);
-        ScriptModule scriptModule = new ScriptModule();
+        ScriptModule scriptModule = new ScriptModule(new NativeScriptEngineService(settings,
+            Collections.singletonMap("my", new MyNativeScriptFactory())));
         scriptModule.prepareSettings(settingsModule);
-        scriptModule.registerScript("my", MyNativeScriptFactory.class);
         final ThreadPool threadPool = new ThreadPool(settings);
         Injector injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
@@ -85,11 +85,12 @@ public class NativeScriptTests extends ESTestCase {
         ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, null);
         Map<String, NativeScriptFactory> nativeScriptFactoryMap = new HashMap<>();
         nativeScriptFactoryMap.put("my", new MyNativeScriptFactory());
-        Set<ScriptEngineService> scriptEngineServices = singleton(new NativeScriptEngineService(settings, nativeScriptFactoryMap));
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class, NativeScriptEngineService.NAME, true)));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singleton(new NativeScriptEngineService(settings,
+            nativeScriptFactoryMap)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(new ArrayList<>());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+        ScriptService scriptService = new ScriptService(settings, environment, resourceWatcherService, scriptEngineRegistry,
+            scriptContextRegistry, scriptSettings);
 
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
             assertThat(scriptService.compile(new Script("my", ScriptType.INLINE, NativeScriptEngineService.NAME, null), scriptContext,
@@ -106,6 +107,11 @@ public class NativeScriptTests extends ESTestCase {
         @Override
         public boolean needsScores() {
             return false;
+        }
+
+        @Override
+        public String getName() {
+            return "my";
         }
     }
 

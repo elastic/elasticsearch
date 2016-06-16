@@ -887,38 +887,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     new Class[]{Client.class},
                     clientInvocationHandler);
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-            ScriptModule scriptModule = new ScriptModule() {
-                @Override
-                protected void configure() {
-                    Settings settings = Settings.builder()
-                            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                            // no file watching, so we don't need a ResourceWatcherService
-                            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
-                            .build();
-                    MockScriptEngine mockScriptEngine = new MockScriptEngine();
-                    Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
-                    multibinder.addBinding().toInstance(mockScriptEngine);
-                    Set<ScriptEngineService> engines = new HashSet<>();
-                    engines.add(mockScriptEngine);
-                    List<ScriptContext.Plugin> customContexts = new ArrayList<>();
-                    ScriptEngineRegistry scriptEngineRegistry =
-                            new ScriptEngineRegistry(Collections
-                                    .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class,
-                                            MockScriptEngine.NAME, true)));
-                    bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
-                    ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
-                    bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
-                    ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-                    bind(ScriptSettings.class).toInstance(scriptSettings);
-                    try {
-                        ScriptService scriptService = new ScriptService(settings, new Environment(settings), engines, null,
-                                scriptEngineRegistry, scriptContextRegistry, scriptSettings);
-                        bind(ScriptService.class).toInstance(scriptService);
-                    } catch (IOException e) {
-                        throw new IllegalStateException("error while binding ScriptService", e);
-                    }
-                }
-            };
+            ScriptModule scriptModule = newTestScriptModule();
             scriptModule.prepareSettings(settingsModule);
             searchModule = new SearchModule(settings, namedWriteableRegistry) {
                 @Override

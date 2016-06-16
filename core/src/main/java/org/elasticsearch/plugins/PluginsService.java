@@ -40,6 +40,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.script.NativeScriptFactory;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 
 import java.io.IOException;
@@ -60,6 +63,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
@@ -439,5 +444,10 @@ public class PluginsService extends AbstractComponent {
         } catch (Throwable e) {
             throw new ElasticsearchException("Failed to load plugin class [" + pluginClass.getName() + "]", e);
         }
+    }
+
+    public <T> List<T> filterPlugins(Class<T> type) {
+        return plugins.stream().filter(x -> type.isAssignableFrom(x.v2().getClass()))
+            .map(p -> ((T)p.v2())).collect(Collectors.toList());
     }
 }

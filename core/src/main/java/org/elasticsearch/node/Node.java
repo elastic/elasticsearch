@@ -89,6 +89,7 @@ import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptModule;
@@ -213,7 +214,7 @@ public class Node implements Closeable {
         final NetworkService networkService = new NetworkService(settings);
         final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
         final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder[0]));
-
+        final ScriptModule scriptModule = ScriptModule.create(settings, pluginsService.filterPlugins(ScriptPlugin.class));
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         boolean success = false;
         try {
@@ -231,7 +232,6 @@ public class Node implements Closeable {
             modules.add(new EnvironmentModule(environment));
             modules.add(new NodeModule(this, monitorService));
             modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
-            ScriptModule scriptModule = new ScriptModule();
             modules.add(scriptModule);
             modules.add(new NodeEnvironmentModule(nodeEnvironment));
             modules.add(new ClusterNameModule(this.settings));

@@ -101,6 +101,11 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         public boolean needsScores() {
             return true;
         }
+
+        @Override
+        public String getName() {
+            return "native_explainable_script";
+        }
     }
 
     static class MyScript extends AbstractDoubleSearchScript implements ExplainableSearchScript, ExecutableScript {

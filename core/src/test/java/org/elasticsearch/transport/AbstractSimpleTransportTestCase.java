@@ -66,7 +66,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected DiscoveryNode nodeB;
     protected MockTransportService serviceB;
 
-    protected abstract MockTransportService build(Settings settings, Version version, ClusterName clusterName);
+    protected abstract MockTransportService build(Settings settings, Version version);
 
     @Override
     @Before
@@ -79,8 +79,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
                     .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                     .build(),
-                version0,
-                ClusterName.DEFAULT);
+                version0);
         serviceA.acceptIncomingRequests();
         nodeA = new DiscoveryNode("TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
         serviceB = build(
@@ -89,8 +88,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
                     .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                     .build(),
-                version1,
-                ClusterName.DEFAULT);
+                version1);
         serviceB.acceptIncomingRequests();
         nodeB = new DiscoveryNode("TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), version1);
 
@@ -1299,8 +1297,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
                     .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                     .build(),
-                version0,
-                ClusterName.DEFAULT);
+                version0);
         AtomicBoolean requestProcessed = new AtomicBoolean();
         service.registerRequestHandler("action", TestRequest::new, ThreadPool.Names.SAME,
                 (request, channel) -> {

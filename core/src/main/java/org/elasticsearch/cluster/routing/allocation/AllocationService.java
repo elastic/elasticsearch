@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
@@ -68,6 +69,7 @@ public class AllocationService extends AbstractComponent {
     private final GatewayAllocator gatewayAllocator;
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
+    private final ClusterName clusterName;
 
     @Inject
     public AllocationService(Settings settings, AllocationDeciders allocationDeciders, GatewayAllocator gatewayAllocator,
@@ -77,6 +79,7 @@ public class AllocationService extends AbstractComponent {
         this.gatewayAllocator = gatewayAllocator;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
+        clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
     }
 
     /**
@@ -118,8 +121,10 @@ public class AllocationService extends AbstractComponent {
         MetaData newMetaData = updateMetaDataWithRoutingTable(oldMetaData, oldRoutingTable, newRoutingTable);
         assert newRoutingTable.validate(newMetaData); // validates the routing table is coherent with the cluster state metadata
         logClusterHealthStateChange(
-            new ClusterStateHealth(allocation.metaData(), allocation.routingTable()),
-            new ClusterStateHealth(newMetaData, newRoutingTable),
+            new ClusterStateHealth(ClusterState.builder(clusterName).
+                metaData(allocation.metaData()).routingTable(allocation.routingTable()).build()),
+            new ClusterStateHealth(ClusterState.builder(clusterName).
+                metaData(newMetaData).routingTable(newRoutingTable).build()),
             reason
         );
         return new RoutingAllocation.Result(true, newRoutingTable, newMetaData, explanations);

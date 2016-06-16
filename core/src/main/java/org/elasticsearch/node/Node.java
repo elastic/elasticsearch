@@ -29,7 +29,6 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClientModule;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
@@ -243,6 +242,8 @@ public class Node implements Closeable {
                 throw new IllegalStateException("Failed to created node environment", ex);
             }
             final NetworkService networkService = new NetworkService(settings);
+            final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
+            resourcesToClose.add(clusterService);
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new Version.Module(version));
@@ -257,9 +258,8 @@ public class Node implements Closeable {
             modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
             modules.add(scriptModule);
             modules.add(new NodeEnvironmentModule(nodeEnvironment));
-            modules.add(new ClusterNameModule(this.settings));
             modules.add(new DiscoveryModule(this.settings));
-            modules.add(new ClusterModule(this.settings));
+            modules.add(new ClusterModule(this.settings, clusterService));
             modules.add(new IndicesModule());
             modules.add(new SearchModule(settings, namedWriteableRegistry));
             modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false));

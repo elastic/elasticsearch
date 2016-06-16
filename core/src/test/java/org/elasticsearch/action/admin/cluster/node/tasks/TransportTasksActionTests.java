@@ -254,7 +254,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         protected TestTasksAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
                 ClusterService clusterService, TransportService transportService) {
-            super(settings, actionName, clusterName, threadPool, clusterService, transportService, new ActionFilters(new HashSet<>()),
+            super(settings, actionName, threadPool, clusterService, transportService, new ActionFilters(new HashSet<>()),
                     new IndexNameExpressionResolver(Settings.EMPTY), TestTasksRequest::new, TestTasksResponse::new,
                     ThreadPool.Names.MANAGEMENT);
         }

@@ -115,8 +115,8 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
         CountDownLatch clusterStateLatch = new CountDownLatch(1);
 
         @Inject
-        public InternalTransportService(Settings settings, Transport transport, ThreadPool threadPool, ClusterName clusterName) {
-            super(settings, transport, threadPool, clusterName);
+        public InternalTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
+            super(settings, transport, threadPool);
         }
 
         @Override @SuppressWarnings("unchecked")
@@ -124,7 +124,8 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                                                               TransportRequestOptions options, TransportResponseHandler<T> handler) {
             if (TransportLivenessAction.NAME.equals(action)) {
                 assertHeaders(threadPool);
-                ((TransportResponseHandler<LivenessResponse>) handler).handleResponse(new LivenessResponse(ClusterName.DEFAULT, node));
+                ((TransportResponseHandler<LivenessResponse>) handler).handleResponse(new LivenessResponse(ClusterName.CLUSTER_NAME_SETTING
+                    .getDefault(Settings.EMPTY), node));
                 return;
             }
             if (ClusterStateAction.NAME.equals(action)) {

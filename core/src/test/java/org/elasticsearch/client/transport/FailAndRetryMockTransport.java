@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -74,7 +75,8 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
         //we make sure that nodes get added to the connected ones when calling addTransportAddress, by returning proper nodes info
         if (connectMode) {
             TransportResponseHandler transportResponseHandler = transportServiceAdapter.onResponseReceived(requestId);
-            transportResponseHandler.handleResponse(new LivenessResponse(ClusterName.DEFAULT, node));
+            transportResponseHandler.handleResponse(new LivenessResponse(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY),
+                node));
             return;
         }
 

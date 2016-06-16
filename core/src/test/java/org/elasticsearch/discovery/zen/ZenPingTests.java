@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.zen;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.test.ESTestCase;
@@ -51,7 +52,8 @@ public class ZenPingTests extends ESTestCase {
                 masterNode = nodes[randomInt(nodes.length - 1)];
             }
             boolean hasJoinedOnce = randomBoolean();
-            ZenPing.PingResponse ping = new ZenPing.PingResponse(nodes[node], masterNode, ClusterName.DEFAULT, hasJoinedOnce);
+            ZenPing.PingResponse ping = new ZenPing.PingResponse(nodes[node], masterNode, ClusterName.CLUSTER_NAME_SETTING.
+                getDefault(Settings.EMPTY), hasJoinedOnce);
             if (rarely()) {
                 // ignore some pings
                 continue;

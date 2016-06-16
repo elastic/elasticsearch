@@ -139,14 +139,14 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         AbstractTestNodesAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
                                 ClusterService clusterService, TransportService transportService, Supplier<NodesRequest> request,
                                 Supplier<NodeRequest> nodeRequest) {
-            super(settings, actionName, clusterName, threadPool, clusterService, transportService,
+            super(settings, actionName, threadPool, clusterService, transportService,
                     new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
                     request, nodeRequest, ThreadPool.Names.GENERIC, NodeResponse.class);
         }
 
         @Override
         protected NodesResponse newResponse(NodesRequest request, List<NodeResponse> responses, List<FailedNodeException> failures) {
-            return new NodesResponse(clusterName, responses, failures);
+            return new NodesResponse(clusterService.getClusterName(), responses, failures);
         }
 
         @Override
@@ -166,10 +166,9 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     public static class TestNode implements Releasable {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
             clusterService = createClusterService(threadPool);
-            ClusterName clusterName = clusterService.state().getClusterName();
             transportService = new TransportService(settings,
                     new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry(),
-                        new NoneCircuitBreakerService()), threadPool, clusterName) {
+                        new NoneCircuitBreakerService()), threadPool) {
                 @Override
                 protected TaskManager createTaskManager() {
                     if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
@@ -185,9 +184,9 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                     emptyMap(), emptySet(), Version.CURRENT);
             IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
             ActionFilters actionFilters = new ActionFilters(emptySet());
-            transportListTasksAction = new TransportListTasksAction(settings, CLUSTER_NAME, threadPool, clusterService, transportService,
+            transportListTasksAction = new TransportListTasksAction(settings, threadPool, clusterService, transportService,
                     actionFilters, indexNameExpressionResolver);
-            transportCancelTasksAction = new TransportCancelTasksAction(settings, CLUSTER_NAME, threadPool, clusterService,
+            transportCancelTasksAction = new TransportCancelTasksAction(settings, threadPool, clusterService,
                     transportService, actionFilters, indexNameExpressionResolver);
             transportService.acceptIncomingRequests();
         }

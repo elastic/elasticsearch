@@ -143,7 +143,7 @@ public class ClusterStateChanges {
         }
 
         // services
-        TransportService transportService = new TransportService(settings, transport, threadPool, null);
+        TransportService transportService = new TransportService(settings, transport, threadPool);
         MetaDataIndexUpgradeService metaDataIndexUpgradeService = new MetaDataIndexUpgradeService(settings, null, null) {
             // metaData upgrader should do nothing
             @Override

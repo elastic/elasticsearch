@@ -28,7 +28,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.transport.support.TransportProxyClient;
-import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
@@ -137,7 +136,6 @@ public class TransportClient extends AbstractClient {
                 }
                 modules.add(new PluginsModule(pluginsService));
                 modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
-                modules.add(new ClusterNameModule(settings));
                 modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
                 modules.add(new SearchModule(settings, namedWriteableRegistry) {
                     @Override

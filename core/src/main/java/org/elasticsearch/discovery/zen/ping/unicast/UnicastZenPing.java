@@ -131,13 +131,13 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     private volatile boolean closed = false;
 
     @Inject
-    public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName,
+    public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
                           Version version, ElectMasterService electMasterService,
                           @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
-        this.clusterName = clusterName;
+        this.clusterName = transportService.getClusterName();
         this.electMasterService = electMasterService;
 
         if (unicastHostsProviders != null) {

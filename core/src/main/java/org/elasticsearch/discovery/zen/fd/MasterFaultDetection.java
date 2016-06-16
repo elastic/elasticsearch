@@ -76,8 +76,8 @@ public class MasterFaultDetection extends FaultDetection {
     private final AtomicBoolean notifiedMasterFailure = new AtomicBoolean();
 
     public MasterFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                ClusterName clusterName, ClusterService clusterService) {
-        super(settings, threadPool, transportService, clusterName);
+                                ClusterService clusterService) {
+        super(settings, threadPool, transportService, clusterService.getClusterName());
         this.clusterService = clusterService;
 
         logger.debug("[master] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
@@ -418,7 +418,7 @@ public class MasterFaultDetection extends FaultDetection {
             super.readFrom(in);
             nodeId = in.readString();
             masterNodeId = in.readString();
-            clusterName = ClusterName.readClusterName(in);
+            clusterName = new ClusterName(in);
         }
 
         @Override

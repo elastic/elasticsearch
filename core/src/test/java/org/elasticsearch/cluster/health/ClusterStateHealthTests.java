@@ -81,7 +81,7 @@ public class ClusterStateHealthTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         clusterService = createClusterService(threadPool);
-        transportService = new TransportService(new CapturingTransport(), threadPool, clusterService.state().getClusterName());
+        transportService = new TransportService(clusterService.getSettings(), new CapturingTransport(), threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
     }
@@ -127,8 +127,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         listenerCalled.await();
 
         TransportClusterHealthAction action = new TransportClusterHealthAction(Settings.EMPTY, transportService,
-            clusterService, threadPool, clusterService.state().getClusterName(), new ActionFilters(new HashSet<>()),
-            indexNameExpressionResolver, NoopGatewayAllocator.INSTANCE);
+            clusterService, threadPool, new ActionFilters(new HashSet<>()), indexNameExpressionResolver, NoopGatewayAllocator.INSTANCE);
         PlainActionFuture<ClusterHealthResponse> listener = new PlainActionFuture<>();
 
         action.execute(new ClusterHealthRequest(), listener);
@@ -158,7 +157,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             metaData.put(indexMetaData, true);
             routingTable.add(indexRoutingTable);
         }
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable.build()).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable.build()).build();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.strictExpand(), (String[]) null);
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
         logger.info("cluster status: {}, expected {}", clusterStateHealth.getStatus(), counter.status());

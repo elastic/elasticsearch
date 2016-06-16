@@ -519,11 +519,6 @@ public class ScriptServiceTests extends ESTestCase {
         }
 
         @Override
-        public void scriptRemoved(CompiledScript script) {
-            // Nothing to do here
-        }
-
-        @Override
         public boolean isInlineScriptEnabled() {
             return true;
         }
@@ -562,12 +557,6 @@ public class ScriptServiceTests extends ESTestCase {
 
         @Override
         public void close() {
-
-        }
-
-        @Override
-        public void scriptRemoved(CompiledScript script) {
-            // Nothing to do here
         }
     }
 

@@ -142,11 +142,6 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         interp.cleanup();
     }
 
-    @Override
-    public void scriptRemoved(@Nullable CompiledScript compiledScript) {
-        // Nothing to do
-    }
-
     public class PythonExecutableScript implements ExecutableScript {
 
         private final PyCode code;

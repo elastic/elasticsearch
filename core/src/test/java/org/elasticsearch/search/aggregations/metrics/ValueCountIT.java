@@ -319,10 +319,6 @@ public class ValueCountIT extends ESIntegTestCase {
         }
 
         @Override
-        public void scriptRemoved(CompiledScript script) {
-        }
-
-        @Override
         public boolean isInlineScriptEnabled() {
             return true;
         }

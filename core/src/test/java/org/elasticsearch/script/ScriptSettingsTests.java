@@ -95,12 +95,6 @@ public class ScriptSettingsTests extends ESTestCase {
 
         @Override
         public void close() {
-
-        }
-
-        @Override
-        public void scriptRemoved(@Nullable CompiledScript script) {
-
         }
     }
 

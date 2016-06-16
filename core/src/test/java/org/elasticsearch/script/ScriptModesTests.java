@@ -257,12 +257,6 @@ public class ScriptModesTests extends ESTestCase {
 
         @Override
         public void close() {
-
-        }
-
-        @Override
-        public void scriptRemoved(@Nullable CompiledScript script) {
-
         }
     }
 }

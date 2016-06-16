@@ -149,7 +149,7 @@ public final class DefBootstrap {
          * Creates the {@link MethodHandle} for the megamorphic call site
          * using {@link ClassValue} and {@link MethodHandles#exactInvoker(MethodType)}:
          */
-        private MethodHandle createMegamorphicHandle(final Object[] callArgs) throws Throwable {
+        private MethodHandle createMegamorphicHandle() throws Throwable {
             final MethodType type = type();
             final ClassValue<MethodHandle> megamorphicCache = new ClassValue<MethodHandle>() {
                 @Override
@@ -178,7 +178,7 @@ public final class DefBootstrap {
         Object fallback(final Object[] callArgs) throws Throwable {
             if (depth >= MAX_DEPTH) {
                 // we revert the whole cache and build a new megamorphic one
-                final MethodHandle target = this.createMegamorphicHandle(callArgs);
+                final MethodHandle target = this.createMegamorphicHandle();
                 
                 setTarget(target);
                 return target.invokeWithArguments(callArgs);                    

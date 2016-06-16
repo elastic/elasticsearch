@@ -111,7 +111,7 @@ public class EFunctionRef extends AExpression {
             }
         } else {
             // TODO: don't do this: its just to cutover :)
-            writer.push(defPointer);
+            writer.push((String)null);
         }
     }
 }

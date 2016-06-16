@@ -84,7 +84,7 @@ public class ECapturingFunctionRef extends AExpression {
         if (defPointer != null) {
             // dynamic interface: push captured parameter on stack
             // TODO: don't do this: its just to cutover :)
-            writer.push(defPointer);
+            writer.push((String)null);
             writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.slot);
         } else if (ref == null) {
             // typed interface, dynamic implementation

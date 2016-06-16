@@ -34,10 +34,15 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     final LocalCheckpointService localCheckpointService;
     final GlobalCheckpointService globalCheckpointService;
 
-    public SequenceNumbersService(ShardId shardId, IndexSettings indexSettings) {
+    public SequenceNumbersService(
+        final ShardId shardId,
+        final IndexSettings indexSettings,
+        final long maxSeqNo,
+        final long localCheckpoint,
+        final long globalCheckpoint) {
         super(shardId, indexSettings);
-        localCheckpointService = new LocalCheckpointService(shardId, indexSettings);
-        globalCheckpointService = new GlobalCheckpointService(shardId, indexSettings);
+        localCheckpointService = new LocalCheckpointService(shardId, indexSettings, maxSeqNo, localCheckpoint);
+        globalCheckpointService = new GlobalCheckpointService(shardId, indexSettings, globalCheckpoint);
     }
 
     /**

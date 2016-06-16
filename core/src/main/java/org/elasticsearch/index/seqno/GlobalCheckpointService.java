@@ -41,6 +41,8 @@ import java.util.Set;
  */
 public class GlobalCheckpointService extends AbstractIndexShardComponent {
 
+    public static String GLOBAL_CHECKPOINT_KEY = "global_checkpoint";
+
     /**
      * This map holds the last known local checkpoint for every shard copy that's active.
      * All shard copies in this map participate in determining the global checkpoint
@@ -67,15 +69,19 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
      */
     final private ObjectLongMap<String> trackingLocalCheckpoint;
 
-    private long globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+    private long globalCheckpoint;
 
-    public GlobalCheckpointService(ShardId shardId, IndexSettings indexSettings) {
+    public GlobalCheckpointService(final ShardId shardId, final IndexSettings indexSettings) {
+        this(shardId, indexSettings, SequenceNumbersService.UNASSIGNED_SEQ_NO);
+    }
+
+    public GlobalCheckpointService(final ShardId shardId, final IndexSettings indexSettings, final long globalCheckpoint) {
         super(shardId, indexSettings);
         activeLocalCheckpoints = new ObjectLongHashMap<>(1 + indexSettings.getNumberOfReplicas());
         inSyncLocalCheckpoints = new ObjectLongHashMap<>(indexSettings.getNumberOfReplicas());
         trackingLocalCheckpoint = new ObjectLongHashMap<>(indexSettings.getNumberOfReplicas());
+        this.globalCheckpoint = globalCheckpoint;
     }
-
 
     /**
      * notifies the service of a local checkpoint. if the checkpoint is lower than the currently known one,
@@ -241,4 +247,5 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
         }
         return SequenceNumbersService.UNASSIGNED_SEQ_NO;
     }
+
 }

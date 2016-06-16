@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.SnapshotStatus;
 
 import java.util.LinkedList;
 
@@ -32,6 +33,9 @@ import java.util.LinkedList;
  */
 public class LocalCheckpointService extends AbstractIndexShardComponent {
 
+    public static String MAX_SEQ_NO = "max_seq_no";
+    public static String LOCAL_CHECKPOINT_KEY = "local_checkpoint";
+
     /**
      * we keep a bit for each seq No that is still pending. to optimize allocation, we do so in multiple arrays
      * allocating them on demand and cleaning up while completed. This setting controls the size of the arrays
@@ -39,26 +43,31 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
     public static Setting<Integer> SETTINGS_BIT_ARRAYS_SIZE = Setting.intSetting("index.seq_no.checkpoint.bit_arrays_size", 1024,
         4, Setting.Property.IndexScope);
 
-
     /**
      * an ordered list of bit arrays representing pending seq nos. The list is "anchored" in {@link #firstProcessedSeqNo}
      * which marks the seqNo the fist bit in the first array corresponds to.
      */
     final LinkedList<FixedBitSet> processedSeqNo;
     final int bitArraysSize;
-    long firstProcessedSeqNo = 0;
+    long firstProcessedSeqNo;
 
     /** the current local checkpoint, i.e., all seqNo lower (&lt;=) than this number have been completed */
-    volatile long checkpoint = SequenceNumbersService.NO_OPS_PERFORMED;
+    volatile long checkpoint;
 
     /** the next available seqNo - used for seqNo generation */
-    volatile long nextSeqNo = 0;
+    volatile long nextSeqNo;
 
+    public LocalCheckpointService(final ShardId shardId, final IndexSettings indexSettings) {
+        this(shardId, indexSettings, SequenceNumbersService.NO_OPS_PERFORMED, SequenceNumbersService.NO_OPS_PERFORMED);
+    }
 
-    public LocalCheckpointService(ShardId shardId, IndexSettings indexSettings) {
+    public LocalCheckpointService(final ShardId shardId, final IndexSettings indexSettings, final long maxSeqNo, final long checkpoint) {
         super(shardId, indexSettings);
         bitArraysSize = SETTINGS_BIT_ARRAYS_SIZE.get(indexSettings.getSettings());
         processedSeqNo = new LinkedList<>();
+        firstProcessedSeqNo = checkpoint + 1;
+        this.nextSeqNo = maxSeqNo + 1;
+        this.checkpoint = checkpoint;
     }
 
     /**
@@ -130,7 +139,7 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
      */
     private FixedBitSet getBitSetForSeqNo(long seqNo) {
         assert Thread.holdsLock(this);
-        assert seqNo >= firstProcessedSeqNo;
+        assert seqNo >= firstProcessedSeqNo : "seqNo: " + seqNo + " firstProcessedSeqNo: " + firstProcessedSeqNo;
         int bitSetOffset = ((int) (seqNo - firstProcessedSeqNo)) / bitArraysSize;
         while (bitSetOffset >= processedSeqNo.size()) {
             processedSeqNo.add(new FixedBitSet(bitArraysSize));
@@ -138,11 +147,11 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
         return processedSeqNo.get(bitSetOffset);
     }
 
-
     /** maps the given seqNo to a position in the bit set returned by {@link #getBitSetForSeqNo} */
     private int seqNoToBitSetOffset(long seqNo) {
         assert Thread.holdsLock(this);
         assert seqNo >= firstProcessedSeqNo;
         return ((int) (seqNo - firstProcessedSeqNo)) % bitArraysSize;
     }
+
 }

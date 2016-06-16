@@ -41,6 +41,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.ESLogger;
@@ -54,8 +55,11 @@ import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.SeqNoFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.seqno.GlobalCheckpointService;
+import org.elasticsearch.index.seqno.LocalCheckpointService;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
@@ -131,12 +135,23 @@ public class InternalEngine extends Engine {
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
-            seqNoService = new SequenceNumbersService(shardId, engineConfig.getIndexSettings());
+
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
             this.searcherFactory = new SearchFactory(logger, isClosed, engineConfig);
             try {
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG);
+                final long localCheckpoint = loadLocalCheckpointFromCommit(writer);
+                final long globalCheckpoint = loadGlobalCheckpointFromCommit(writer);
+                final long maxSeqNo = loadMaxSeqNoFromCommit(writer);
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                            "recovering local checkpoint: [{}], global checkpoint [{}], max sequence number [{}]",
+                            localCheckpoint,
+                            globalCheckpoint,
+                            maxSeqNo);
+                }
+                seqNoService = new SequenceNumbersService(shardId, engineConfig.getIndexSettings(), maxSeqNo, localCheckpoint, globalCheckpoint);
                 indexWriter = writer;
                 translog = openTranslog(engineConfig, writer);
                 assert translog.getGeneration() != null;
@@ -285,6 +300,35 @@ public class InternalEngine extends Engine {
             return new Translog.TranslogGeneration(translogUUID, translogGen);
         }
         return null;
+    }
+
+    private long loadLocalCheckpointFromCommit(IndexWriter writer) {
+        final Map<String, String> commitUserData = writer.getCommitData();
+        if (commitUserData.containsKey(LocalCheckpointService.LOCAL_CHECKPOINT_KEY)) {
+            return Long.parseLong(commitUserData.get(LocalCheckpointService.LOCAL_CHECKPOINT_KEY));
+        } else {
+            return SequenceNumbersService.NO_OPS_PERFORMED;
+        }
+    }
+
+    private long loadGlobalCheckpointFromCommit(IndexWriter writer) {
+        final Map<String, String> commitUserData = writer.getCommitData();
+        if (commitUserData.containsKey(GlobalCheckpointService.GLOBAL_CHECKPOINT_KEY)) {
+            return Long.parseLong(commitUserData.get(GlobalCheckpointService.GLOBAL_CHECKPOINT_KEY));
+        } else {
+            return SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        }
+    }
+
+    private long loadMaxSeqNoFromCommit(IndexWriter writer) throws IOException {
+        try (IndexReader reader = DirectoryReader.open(writer)) {
+            final FieldStats stats = SeqNoFieldMapper.Defaults.FIELD_TYPE.stats(reader);
+            if (stats != null) {
+                return (long) stats.getMaxValue();
+            } else {
+                return SequenceNumbersService.NO_OPS_PERFORMED;
+            }
+        }
     }
 
     private SearcherManager createSearcherManager() throws EngineException {
@@ -1132,13 +1176,22 @@ public class InternalEngine extends Engine {
         ensureCanFlush();
         try {
             Translog.TranslogGeneration translogGeneration = translog.getGeneration();
-            logger.trace("committing writer with translog id [{}]  and sync id [{}] ", translogGeneration.translogFileGeneration, syncId);
-            Map<String, String> commitData = new HashMap<>(2);
+            final Map<String, String> commitData = new HashMap<>(5);
+
             commitData.put(Translog.TRANSLOG_GENERATION_KEY, Long.toString(translogGeneration.translogFileGeneration));
             commitData.put(Translog.TRANSLOG_UUID_KEY, translogGeneration.translogUUID);
+
+            commitData.put(LocalCheckpointService.LOCAL_CHECKPOINT_KEY, Long.toString(seqNoService.getLocalCheckpoint()));
+            commitData.put(GlobalCheckpointService.GLOBAL_CHECKPOINT_KEY, Long.toString(seqNoService.getGlobalCheckpoint()));
+
             if (syncId != null) {
                 commitData.put(Engine.SYNC_COMMIT_ID, syncId);
             }
+
+            if (logger.isTraceEnabled()) {
+                logger.trace("committing writer with commit data [{}]", commitData);
+            }
+
             indexWriter.setCommitData(commitData);
             writer.commit();
         } catch (Throwable ex) {

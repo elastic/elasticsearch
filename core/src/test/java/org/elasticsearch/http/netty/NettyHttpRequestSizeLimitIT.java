@@ -43,9 +43,9 @@ import static org.hamcrest.Matchers.hasSize;
  * This test checks that in-flight requests are limited on HTTP level and that requests that are excluded from limiting can pass.
  *
  * As the same setting is also used to limit in-flight requests on transport level, we avoid transport messages by forcing
- * a single node "cluster".
+ * a single node "cluster". We also force test infrastructure to use the node client instead of the transport client for the same reason.
  */
-@ClusterScope(scope = Scope.TEST, numClientNodes = 0, numDataNodes = 1)
+@ClusterScope(scope = Scope.TEST, numClientNodes = 0, numDataNodes = 1, transportClientRatio = 0)
 public class NettyHttpRequestSizeLimitIT extends ESIntegTestCase {
     private static final ByteSizeValue LIMIT = new ByteSizeValue(2, ByteSizeUnit.KB);
 

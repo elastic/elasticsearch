@@ -52,7 +52,7 @@ Elasticsearch will now return an error message if a query's `from` + `size` is
 more than the `index.max_result_window` parameter. This parameter defaults to
 10,000 which is safe for almost all clusters. Values higher than can consume
 significant chunks of heap memory per search and per shard executing the
-search. It's safest to leave this value as it is an use the scroll api for any
+search. It's safest to leave this value as it is and use the scroll api for any
 deep scrolling but this setting is dynamic so it can raised or lowered as
 needed.
 

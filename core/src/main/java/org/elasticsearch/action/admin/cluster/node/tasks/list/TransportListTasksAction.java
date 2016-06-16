@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
@@ -34,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -42,26 +39,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  *
  */
 public class TransportListTasksAction extends TransportTasksAction<Task, ListTasksRequest, ListTasksResponse, TaskInfo> {
-    public static void waitForTaskCompletion(TaskManager taskManager, Task task, long untilInNanos) {
-        while (System.nanoTime() - untilInNanos < 0) {
-            if (taskManager.getTask(task.getId()) == null) {
-                return;
-            }
-            try {
-                Thread.sleep(WAIT_FOR_COMPLETION_POLL.millis());
-            } catch (InterruptedException e) {
-                throw new ElasticsearchException("Interrupted waiting for completion of [{}]", e, task);
-            }
-        }
-        throw new ElasticsearchTimeoutException("Timed out waiting for completion of [{}]", task);
-    }
     public static long waitForCompletionTimeout(TimeValue timeout) {
         if (timeout == null) {
             timeout = DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT;
@@ -69,7 +52,6 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         return System.nanoTime() + timeout.nanos();
     }
 
-    private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
     private static final TimeValue DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT = timeValueSeconds(30);
 
     @Inject
@@ -105,7 +87,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                     // for itself or one of its child tasks
                     return;
                 }
-                waitForTaskCompletion(taskManager, task, timeoutNanos);
+                taskManager.waitForTaskCompletion(task, timeoutNanos);
             });
         }
         super.processTasks(request, operation);

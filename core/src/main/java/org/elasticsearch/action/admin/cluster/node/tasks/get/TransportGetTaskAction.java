@@ -38,9 +38,9 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.tasks.PersistedTaskInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.PersistedTaskInfo;
 import org.elasticsearch.tasks.TaskPersistenceService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
@@ -51,7 +51,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction.waitForCompletionTimeout;
-import static org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction.waitForTaskCompletion;
 
 /**
  * Action to get a single task. If the task isn't running then it'll try to request the status from request index.
@@ -148,7 +147,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
-                        waitForTaskCompletion(taskManager, runningTask, waitForCompletionTimeout(request.getTimeout()));
+                        taskManager.waitForTaskCompletion(runningTask, waitForCompletionTimeout(request.getTimeout()));
                         // TODO look up the task's result from the .tasks index now that it is done
                         listener.onResponse(
                                 new GetTaskResponse(new PersistedTaskInfo(runningTask.taskInfo(clusterService.localNode(), true))));

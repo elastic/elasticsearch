@@ -180,7 +180,7 @@ public class Node implements Closeable {
     protected Node(Environment tmpEnv, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
         Settings tmpSettings = Settings.builder().put(tmpEnv.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
-        final List<Closeable> closeables = new ArrayList<>();
+        final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
 
         tmpSettings = TribeService.processSettings(tmpSettings);
         ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(tmpSettings));
@@ -222,17 +222,7 @@ public class Node implements Closeable {
         boolean success = false;
         try {
             final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder[0]));
-            closeables.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
-            final NodeEnvironment nodeEnvironment;
-            try {
-                nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
-                closeables.add(nodeEnvironment);
-            } catch (IOException ex) {
-                throw new IllegalStateException("Failed to created node environment", ex);
-            }
-            final NetworkService networkService = new NetworkService(settings);
-
-            final ScriptModule scriptModule = ScriptModule.create(settings, pluginsService.filterPlugins(ScriptPlugin.class));
+            resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             final List<Setting<?>> additionalSettings = new ArrayList<>();
             final List<String> additionalSettingsFilter = new ArrayList<>();
             additionalSettings.addAll(pluginsService.getPluginSettings());
@@ -240,9 +230,19 @@ public class Node implements Closeable {
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
-
+            final ScriptModule scriptModule = ScriptModule.create(settings, pluginsService.filterPlugins(ScriptPlugin.class));
             additionalSettings.addAll(scriptModule.getSettings());
-            SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
+            // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
+            // so we might be late here already
+            final SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
+            final NodeEnvironment nodeEnvironment;
+            try {
+                nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
+                resourcesToClose.add(nodeEnvironment);
+            } catch (IOException ex) {
+                throw new IllegalStateException("Failed to created node environment", ex);
+            }
+            final NetworkService networkService = new NetworkService(settings);
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new Version.Module(version));
@@ -272,7 +272,7 @@ public class Node implements Closeable {
             pluginsService.processModules(modules);
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
-            closeables.add(circuitBreakerService);
+            resourcesToClose.add(circuitBreakerService);
             modules.add(settingsModule);
             modules.add(b -> b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService));
             injector = modules.createInjector();
@@ -282,7 +282,7 @@ public class Node implements Closeable {
             throw new ElasticsearchException("failed to bind service", ex);
         } finally {
             if (!success) {
-                IOUtils.closeWhileHandlingException(closeables);
+                IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
 

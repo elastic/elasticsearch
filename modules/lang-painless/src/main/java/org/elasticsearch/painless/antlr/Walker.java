@@ -146,6 +146,7 @@ import org.elasticsearch.painless.node.SSource;
 import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
+import org.objectweb.asm.util.Printer;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -158,12 +159,13 @@ import java.util.List;
  */
 public final class Walker extends PainlessParserBaseVisitor<Object> {
 
-    public static SSource buildPainlessTree(String sourceName, String sourceText, CompilerSettings settings) {
-        return new Walker(sourceName, sourceText, settings).source;
+    public static SSource buildPainlessTree(String sourceName, String sourceText, CompilerSettings settings, Printer debugStream) {
+        return new Walker(sourceName, sourceText, settings, debugStream).source;
     }
 
     private final SSource source;
     private final CompilerSettings settings;
+    private final Printer debugStream;
     private final String sourceName;
     private final String sourceText;
 
@@ -171,7 +173,8 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
     private final List<SFunction> synthetic = new ArrayList<>();
     private int syntheticCounter = 0;
 
-    private Walker(String sourceName, String sourceText, CompilerSettings settings) {
+    private Walker(String sourceName, String sourceText, CompilerSettings settings, Printer debugStream) {
+        this.debugStream = debugStream;
         this.settings = settings;
         this.sourceName = Location.computeSourceName(sourceName, sourceText);
         this.sourceText = sourceText;
@@ -236,7 +239,8 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         
         functions.addAll(synthetic);
 
-        return new SSource(sourceName, sourceText, (ExecuteReserved)reserved.pop(), location(ctx), functions, statements);
+        return new SSource(sourceName, sourceText, debugStream, 
+                          (ExecuteReserved)reserved.pop(), location(ctx), functions, statements);
     }
 
     @Override

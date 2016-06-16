@@ -37,7 +37,7 @@ public interface ScriptEngineService extends Closeable {
 
     /**
      * Compiles a script.
-     * @param scriptName name of the script. {@code null} if it is anonymous (inline). 
+     * @param scriptName name of the script. {@code null} if it is anonymous (inline).
      *                                        For a file script, its the file name (with extension).
      *                                        For a stored script, its the identifier.
      * @param scriptSource actual source of the script
@@ -55,4 +55,11 @@ public interface ScriptEngineService extends Closeable {
      * The passed script may be null if it has already been garbage collected.
      * */
     void scriptRemoved(@Nullable CompiledScript script);
+
+    /**
+     * Returns <code>true</code> if this scripting engine can safely accept inline scripts by default. The default is <code>false</code>
+     */
+    default boolean isInlineScriptEnabled() {
+        return false;
+    }
 }

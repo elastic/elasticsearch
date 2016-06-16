@@ -42,6 +42,8 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.local.LocalTransport;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 
 public class AssertingLocalTransport extends LocalTransport {
@@ -63,9 +65,9 @@ public class AssertingLocalTransport extends LocalTransport {
             return Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "mock").build();
         }
 
-        public void onModule(SettingsModule module) {
-            module.registerSetting(ASSERTING_TRANSPORT_MIN_VERSION_KEY);
-            module.registerSetting(ASSERTING_TRANSPORT_MAX_VERSION_KEY);
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(ASSERTING_TRANSPORT_MIN_VERSION_KEY, ASSERTING_TRANSPORT_MAX_VERSION_KEY);
         }
     }
 

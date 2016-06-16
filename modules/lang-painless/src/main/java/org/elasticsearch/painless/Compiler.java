@@ -20,7 +20,6 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
-import org.elasticsearch.painless.Variables.Reserved;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.node.SSource;
 
@@ -36,8 +35,7 @@ import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 /**
  * The Compiler is the entry point for generating a Painless script.  The compiler will receive a Painless
  * tree based on the type of input passed in (currently only ANTLR).  Two passes will then be run over the tree,
- * one for analysis using the {@link Analyzer} and another to generate the actual byte code using ASM in
- * the {@link Writer}.
+ * one for analysis and another to generate the actual byte code using ASM using the root of the tree {@link SSource}.
  */
 final class Compiler {
 
@@ -100,21 +98,19 @@ final class Compiler {
                 " plugin if a script longer than this length is a requirement.");
         }
 
-        Reserved reserved = new Reserved();
-        SSource root = Walker.buildPainlessTree(source, reserved, settings);
-        Variables variables = Analyzer.analyze(reserved, root);
-        BitSet expressions = new BitSet(source.length());
+        SSource root = Walker.buildPainlessTree(name, source, settings);
 
-        byte[] bytes = Writer.write(settings, name, source, variables, root, expressions);
+        root.analyze();
+        root.write();
+
         try {
-            Class<? extends Executable> clazz = loader.define(CLASS_NAME, bytes);
-            java.lang.reflect.Constructor<? extends Executable> constructor = 
+            Class<? extends Executable> clazz = loader.define(CLASS_NAME, root.getBytes());
+            java.lang.reflect.Constructor<? extends Executable> constructor =
                     clazz.getConstructor(String.class, String.class, BitSet.class);
 
-            return constructor.newInstance(name, source, expressions);
+            return constructor.newInstance(name, source, root.getExpressions());
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
-            throw new IllegalStateException(
-                    "An internal error occurred attempting to define the script [" + name + "].", exception);
+            throw new IllegalStateException("An internal error occurred attempting to define the script [" + name + "].", exception);
         }
     }
 
@@ -131,11 +127,12 @@ final class Compiler {
                 " plugin if a script longer than this length is a requirement.");
         }
 
-        Reserved reserved = new Reserved();
-        SSource root = Walker.buildPainlessTree(source, reserved, settings);
-        Variables variables = Analyzer.analyze(reserved, root);
+        SSource root = Walker.buildPainlessTree(name, source, settings);
 
-        return Writer.write(settings, name, source, variables, root, new BitSet(source.length()));
+        root.analyze();
+        root.write();
+
+        return root.getBytes();
     }
 
     /**

@@ -29,29 +29,29 @@ import org.elasticsearch.common.Strings;
 public class ScriptEngineRegistry {
 
     private final Map<Class<? extends ScriptEngineService>, String> registeredScriptEngineServices;
-    private final Map<String, Class<? extends ScriptEngineService>> registeredLanguages;
+    private final Map<String, ScriptEngineService> registeredLanguages;
     private final Map<String, Boolean> defaultInlineScriptEnableds;
 
-    public ScriptEngineRegistry(Iterable<ScriptEngineRegistration> registrations) {
+    public ScriptEngineRegistry(Iterable<ScriptEngineService> registrations) {
         Objects.requireNonNull(registrations);
         Map<Class<? extends ScriptEngineService>, String> registeredScriptEngineServices = new HashMap<>();
-        Map<String, Class<? extends ScriptEngineService>> registeredLanguages = new HashMap<>();
+        Map<String, ScriptEngineService> registeredLanguages = new HashMap<>();
         Map<String, Boolean> inlineScriptEnableds = new HashMap<>();
-        for (ScriptEngineRegistration registration : registrations) {
-            String oldLanguage = registeredScriptEngineServices.putIfAbsent(registration.getScriptEngineService(),
-                    registration.getScriptEngineLanguage());
+        for (ScriptEngineService service : registrations) {
+            String oldLanguage = registeredScriptEngineServices.putIfAbsent(service.getClass(),
+                    service.getType());
             if (oldLanguage != null) {
-                throw new IllegalArgumentException("script engine service [" + registration.getScriptEngineService() +
+                throw new IllegalArgumentException("script engine service [" + service.getClass() +
                                 "] already registered for language [" + oldLanguage + "]");
             }
-            String language = registration.getScriptEngineLanguage();
-            Class<? extends ScriptEngineService> scriptEngineServiceClazz =
-                    registeredLanguages.putIfAbsent(language, registration.getScriptEngineService());
-            if (scriptEngineServiceClazz != null) {
+            String language = service.getType();
+            ScriptEngineService scriptEngineService =
+                    registeredLanguages.putIfAbsent(language, service);
+            if (scriptEngineService != null) {
                 throw new IllegalArgumentException("scripting language [" + language + "] already registered for script engine service [" +
-                                scriptEngineServiceClazz.getCanonicalName() + "]");
+                    scriptEngineService.getClass().getCanonicalName() + "]");
             }
-            inlineScriptEnableds.put(language, registration.getDefaultInlineScriptEnabled());
+            inlineScriptEnableds.put(language, service.isInlineScriptEnabled());
         }
 
         this.registeredScriptEngineServices = Collections.unmodifiableMap(registeredScriptEngineServices);
@@ -68,52 +68,12 @@ public class ScriptEngineRegistry {
         return registeredScriptEngineServices.get(scriptEngineService);
     }
 
-    Map<String, Class<? extends ScriptEngineService>> getRegisteredLanguages() {
+    public Map<String, ScriptEngineService> getRegisteredLanguages() {
         return registeredLanguages;
     }
 
-    Map<String, Boolean> getDefaultInlineScriptEnableds() {
+    public Map<String, Boolean> getDefaultInlineScriptEnableds() {
         return this.defaultInlineScriptEnableds;
-    }
-
-    public static class ScriptEngineRegistration {
-        private final Class<? extends ScriptEngineService> scriptEngineService;
-        private final String scriptEngineLanguage;
-        private final boolean defaultInlineScriptEnabled;
-
-        /**
-         * Register a script engine service with the default of inline scripts disabled
-         */
-        public ScriptEngineRegistration(Class<? extends ScriptEngineService> scriptEngineService, String scriptEngineLanguage) {
-            this(scriptEngineService, scriptEngineLanguage, false);
-        }
-
-        /**
-         * Register a script engine service with the given default mode for inline scripts
-         */
-        public ScriptEngineRegistration(Class<? extends ScriptEngineService> scriptEngineService, String scriptEngineLanguage,
-                                        boolean defaultInlineScriptEnabled) {
-            Objects.requireNonNull(scriptEngineService);
-            if (Strings.hasText(scriptEngineLanguage) == false) {
-                throw new IllegalArgumentException("languages for script engine service [" +
-                                scriptEngineService.getCanonicalName() + "] should be a non-empty string");
-            }
-            this.scriptEngineService = scriptEngineService;
-            this.scriptEngineLanguage = scriptEngineLanguage;
-            this.defaultInlineScriptEnabled = defaultInlineScriptEnabled;
-        }
-
-        Class<? extends ScriptEngineService> getScriptEngineService() {
-            return scriptEngineService;
-        }
-
-        String getScriptEngineLanguage() {
-            return scriptEngineLanguage;
-        }
-
-        boolean getDefaultInlineScriptEnabled() {
-            return defaultInlineScriptEnabled;
-        }
     }
 
 }

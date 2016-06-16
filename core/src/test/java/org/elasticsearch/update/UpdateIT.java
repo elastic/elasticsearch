@@ -38,12 +38,11 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -63,6 +62,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -77,7 +77,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateIT extends ESIntegTestCase {
 
-    public static class PutFieldValuesScriptPlugin extends Plugin {
+    public static class PutFieldValuesScriptPlugin extends Plugin implements ScriptPlugin {
 
         public PutFieldValuesScriptPlugin() {
         }
@@ -92,10 +92,10 @@ public class UpdateIT extends ESIntegTestCase {
             return "Mock script engine for " + UpdateIT.class;
         }
 
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(PutFieldValuesScriptEngine.class, PutFieldValuesScriptEngine.NAME, true));
+        @Override
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new PutFieldValuesScriptEngine();
         }
-
     }
 
     public static class PutFieldValuesScriptEngine implements ScriptEngineService {
@@ -162,9 +162,13 @@ public class UpdateIT extends ESIntegTestCase {
         public void scriptRemoved(CompiledScript script) {
         }
 
+        @Override
+        public boolean isInlineScriptEnabled() {
+            return true;
+        }
     }
 
-    public static class FieldIncrementScriptPlugin extends Plugin {
+    public static class FieldIncrementScriptPlugin extends Plugin implements ScriptPlugin {
 
         public FieldIncrementScriptPlugin() {
         }
@@ -179,10 +183,10 @@ public class UpdateIT extends ESIntegTestCase {
             return "Mock script engine for " + UpdateIT.class;
         }
 
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldIncrementScriptEngine.class, FieldIncrementScriptEngine.NAME, true));
+        @Override
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new FieldIncrementScriptEngine();
         }
-
     }
 
     public static class FieldIncrementScriptEngine implements ScriptEngineService {
@@ -242,9 +246,14 @@ public class UpdateIT extends ESIntegTestCase {
         public void scriptRemoved(CompiledScript script) {
         }
 
+        @Override
+        public boolean isInlineScriptEnabled() {
+            return true;
+        }
+
     }
 
-    public static class ScriptedUpsertScriptPlugin extends Plugin {
+    public static class ScriptedUpsertScriptPlugin extends Plugin implements ScriptPlugin {
 
         public ScriptedUpsertScriptPlugin() {
         }
@@ -259,10 +268,10 @@ public class UpdateIT extends ESIntegTestCase {
             return "Mock script engine for " + UpdateIT.class + ".testScriptedUpsert";
         }
 
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ScriptedUpsertScriptEngine.class, ScriptedUpsertScriptEngine.NAME, true));
+        @Override
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new ScriptedUpsertScriptEngine();
         }
-
     }
 
     public static class ScriptedUpsertScriptEngine implements ScriptEngineService {
@@ -322,9 +331,14 @@ public class UpdateIT extends ESIntegTestCase {
         public void scriptRemoved(CompiledScript script) {
         }
 
+        @Override
+        public boolean isInlineScriptEnabled() {
+            return true;
+        }
+
     }
 
-    public static class ExtractContextInSourceScriptPlugin extends Plugin {
+    public static class ExtractContextInSourceScriptPlugin extends Plugin implements ScriptPlugin {
 
         public ExtractContextInSourceScriptPlugin() {
         }
@@ -339,10 +353,10 @@ public class UpdateIT extends ESIntegTestCase {
             return "Mock script engine for " + UpdateIT.class;
         }
 
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractContextInSourceScriptEngine.class, ExtractContextInSourceScriptEngine.NAME, true));
+        @Override
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new ExtractContextInSourceScriptEngine();
         }
-
     }
 
     public static class ExtractContextInSourceScriptEngine implements ScriptEngineService {
@@ -403,6 +417,10 @@ public class UpdateIT extends ESIntegTestCase {
         public void scriptRemoved(CompiledScript script) {
         }
 
+        @Override
+        public boolean isInlineScriptEnabled() {
+            return true;
+        }
     }
 
     @Override
@@ -694,7 +712,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         // check TTL is kept after an update without TTL
-        client().prepareIndex("test", "type1", "2").setSource("field", 1).setTTL(86400000L).setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource("field", 1).setTTL(86400000L).setRefreshPolicy(IMMEDIATE).get();
         GetResponse getResponse = client().prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
         long ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
@@ -713,7 +731,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(ttl, lessThanOrEqualTo(3600000L));
 
         // check timestamp update
-        client().prepareIndex("test", "type1", "3").setSource("field", 1).setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "3").setSource("field", 1).setRefreshPolicy(IMMEDIATE).get();
         client().prepareUpdate(indexOrAlias(), "type1", "3")
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values", Collections.singletonMap("_ctx", Collections.singletonMap("_timestamp", "2009-11-15T14:12:12")))).execute()
                 .actionGet();

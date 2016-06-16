@@ -62,6 +62,7 @@ public class NodeService extends AbstractComponent implements Closeable {
     private final CircuitBreakerService circuitBreakerService;
     private final IngestService ingestService;
     private final SettingsFilter settingsFilter;
+    private ClusterService clusterService;
     private ScriptService scriptService;
 
     @Nullable
@@ -87,6 +88,7 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.version = version;
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
+        this.clusterService = clusterService;
         this.ingestService = new IngestService(settings, threadPool, processorsRegistryBuilder);
         this.settingsFilter = settingsFilter;
         clusterService.add(ingestService.getPipelineStore());
@@ -97,7 +99,7 @@ public class NodeService extends AbstractComponent implements Closeable {
     @Inject(optional = true)
     public void setScriptService(ScriptService scriptService) {
         this.scriptService = scriptService;
-        this.ingestService.setScriptService(scriptService);
+        this.ingestService.buildProcessorsFactoryRegistry(scriptService, clusterService);
     }
 
     public void setHttpServer(@Nullable HttpServer httpServer) {

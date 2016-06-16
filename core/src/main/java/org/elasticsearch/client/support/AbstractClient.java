@@ -49,6 +49,10 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksActio
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
@@ -109,6 +113,18 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequestBuilder;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequestBuilder;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequestBuilder;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksAction;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
@@ -276,18 +292,6 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequestBuilder;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequestBuilder;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptAction;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequestBuilder;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptResponse;
 import org.elasticsearch.action.ingest.DeletePipelineAction;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequestBuilder;
@@ -343,6 +347,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
@@ -855,6 +860,25 @@ public abstract class AbstractClient extends AbstractComponent implements Client
             return new ListTasksRequestBuilder(this, ListTasksAction.INSTANCE).setNodesIds(nodesIds);
         }
 
+        @Override
+        public ActionFuture<GetTaskResponse> getTask(final GetTaskRequest request) {
+            return execute(GetTaskAction.INSTANCE, request);
+        }
+
+        @Override
+        public void getTask(final GetTaskRequest request, final ActionListener<GetTaskResponse> listener) {
+            execute(GetTaskAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public GetTaskRequestBuilder prepareGetTask(String taskId) {
+            return prepareGetTask(new TaskId(taskId));
+        }
+
+        @Override
+        public GetTaskRequestBuilder prepareGetTask(TaskId taskId) {
+            return new GetTaskRequestBuilder(this, GetTaskAction.INSTANCE).setTaskId(taskId);
+        }
 
         @Override
         public ActionFuture<CancelTasksResponse> cancelTasks(CancelTasksRequest request) {

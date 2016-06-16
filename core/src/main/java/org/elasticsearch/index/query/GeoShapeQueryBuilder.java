@@ -47,6 +47,7 @@ import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * {@link QueryBuilder} that builds a GeoShape Query
@@ -453,7 +454,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         builder.endObject();
     }
 
-    public static GeoShapeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<GeoShapeQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -559,7 +560,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         }
         builder.boost(boost);
         builder.ignoreUnmapped(ignoreUnmapped);
-        return builder;
+        return Optional.of(builder);
     }
 
     @Override

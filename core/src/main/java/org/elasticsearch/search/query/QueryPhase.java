@@ -42,10 +42,10 @@ import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchService;
@@ -76,11 +76,10 @@ public class QueryPhase implements SearchPhase {
     private final SuggestPhase suggestPhase;
     private RescorePhase rescorePhase;
 
-    @Inject
-    public QueryPhase(AggregationPhase aggregationPhase, SuggestPhase suggestPhase, RescorePhase rescorePhase) {
-        this.aggregationPhase = aggregationPhase;
-        this.suggestPhase = suggestPhase;
-        this.rescorePhase = rescorePhase;
+    public QueryPhase(Settings settings) {
+        this.aggregationPhase = new AggregationPhase();
+        this.suggestPhase = new SuggestPhase(settings);
+        this.rescorePhase = new RescorePhase(settings);
     }
 
     @Override
@@ -112,8 +111,8 @@ public class QueryPhase implements SearchPhase {
         aggregationPhase.execute(searchContext);
 
         if (searchContext.getProfilers() != null) {
-            List<ProfileShardResult> shardResults = SearchProfileShardResults
-                    .buildShardResults(searchContext.getProfilers().getQueryProfilers());
+            ProfileShardResult shardResults = SearchProfileShardResults
+                    .buildShardResults(searchContext.getProfilers());
             searchContext.queryResult().profileResults(shardResults);
         }
     }
@@ -385,8 +384,8 @@ public class QueryPhase implements SearchPhase {
             queryResult.topDocs(topDocsCallable.call(), sortValueFormats);
 
             if (searchContext.getProfilers() != null) {
-                List<ProfileShardResult> shardResults = SearchProfileShardResults
-                        .buildShardResults(searchContext.getProfilers().getQueryProfilers());
+                ProfileShardResult shardResults = SearchProfileShardResults
+                        .buildShardResults(searchContext.getProfilers());
                 searchContext.queryResult().profileResults(shardResults);
             }
 

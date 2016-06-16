@@ -24,20 +24,22 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -51,13 +53,14 @@ public class NativeScriptTests extends ESTestCase {
                 .put("node.name", "testNativeScript")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
-        SettingsModule settingsModule = new SettingsModule(settings);
-        ScriptModule scriptModule = new ScriptModule();
-        scriptModule.prepareSettings(settingsModule);
-        scriptModule.registerScript("my", MyNativeScriptFactory.class);
+        ScriptModule scriptModule = new ScriptModule(new NativeScriptEngineService(settings,
+            Collections.singletonMap("my", new MyNativeScriptFactory())));
+        List<Setting<?>> scriptSettings = scriptModule.getSettings();
+        scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
+        SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, Collections.emptyList());
+        final ThreadPool threadPool = new ThreadPool(settings);
         Injector injector = new ModulesBuilder().add(
-                new EnvironmentModule(new Environment(settings)),
-                new ThreadPoolModule(new ThreadPool(settings)),
+                new EnvironmentModule(new Environment(settings), threadPool),
                 new SettingsModule(settings),
                 scriptModule).createInjector();
 
@@ -84,11 +87,12 @@ public class NativeScriptTests extends ESTestCase {
         ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, null);
         Map<String, NativeScriptFactory> nativeScriptFactoryMap = new HashMap<>();
         nativeScriptFactoryMap.put("my", new MyNativeScriptFactory());
-        Set<ScriptEngineService> scriptEngineServices = singleton(new NativeScriptEngineService(settings, nativeScriptFactoryMap));
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class, NativeScriptEngineService.NAME, true)));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singleton(new NativeScriptEngineService(settings,
+            nativeScriptFactoryMap)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(new ArrayList<>());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+        ScriptService scriptService = new ScriptService(settings, environment, resourceWatcherService, scriptEngineRegistry,
+            scriptContextRegistry, scriptSettings);
 
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
             assertThat(scriptService.compile(new Script("my", ScriptType.INLINE, NativeScriptEngineService.NAME, null), scriptContext,
@@ -105,6 +109,11 @@ public class NativeScriptTests extends ESTestCase {
         @Override
         public boolean needsScores() {
             return false;
+        }
+
+        @Override
+        public String getName() {
+            return "my";
         }
     }
 

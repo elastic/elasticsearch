@@ -34,6 +34,7 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collection;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
@@ -125,6 +126,8 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
         }
     }
 
+    // norelease
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/LUCENE-7325")
     public void testLimitsBoundingBox() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
@@ -249,16 +252,16 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
                 .field("title", "Place in Stockholm")
                 .startObject("location").field("lat", 59.328355000000002).field("lon", 18.036842).endObject()
                 .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
 
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
                 .field("userid", 534)
                 .field("title", "Place in Montreal")
                 .startObject("location").field("lat", 45.509526999999999).field("lon", -73.570986000000005).endObject()
                 .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(
@@ -304,16 +307,16 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
                 .field("title", "Place in Stockholm")
                 .startObject("location").field("lat", 59.328355000000002).field("lon", 18.036842).endObject()
                 .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
 
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
                 .field("userid", 534)
                 .field("title", "Place in Montreal")
                 .startObject("location").field("lat", 45.509526999999999).field("lon", -73.570986000000005).endObject()
                 .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(

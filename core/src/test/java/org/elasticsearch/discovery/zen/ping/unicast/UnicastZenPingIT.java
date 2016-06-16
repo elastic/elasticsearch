@@ -37,6 +37,7 @@ import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportService;
@@ -60,7 +61,7 @@ public class UnicastZenPingIT extends ESTestCase {
         int endPort = startPort + 10;
         settings = Settings.builder().put(settings).put(TransportSettings.PORT.getKey(), startPort + "-" + endPort).build();
 
-        ThreadPool threadPool = new ThreadPool(getClass().getName());
+        ThreadPool threadPool = new TestThreadPool(getClass().getName());
         ClusterName test = new ClusterName("test");
         ClusterName mismatch = new ClusterName("mismatch");
         NetworkService networkService = new NetworkService(settings);

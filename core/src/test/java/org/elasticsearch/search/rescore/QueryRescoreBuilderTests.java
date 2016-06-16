@@ -54,6 +54,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -178,6 +179,11 @@ public class QueryRescoreBuilderTests extends ESTestCase {
             assertEquals(rescoreBuilder.getRescoreQueryWeight(), rescoreContext.rescoreQueryWeight(), Float.MIN_VALUE);
             assertEquals(rescoreBuilder.getScoreMode(), rescoreContext.scoreMode());
         }
+    }
+
+    public void testRescoreQueryNull() throws IOException {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new QueryRescorerBuilder((QueryBuilder) null));
+        assertEquals("rescore_query cannot be null", e.getMessage());
     }
 
     /**

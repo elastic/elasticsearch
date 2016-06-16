@@ -70,6 +70,7 @@ public class RethrottleRequest extends BaseTasksRequest<RethrottleRequest> {
             switch (action) {
             case ReindexAction.NAME:
             case UpdateByQueryAction.NAME:
+            case DeleteByQueryAction.NAME:
                 continue;
             default:
                 validationException = addValidationError(

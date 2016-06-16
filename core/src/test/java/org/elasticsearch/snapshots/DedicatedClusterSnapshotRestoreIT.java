@@ -313,7 +313,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         // Pick one node and block it
-        String blockedNode = blockNodeWithIndex("test-idx");
+        String blockedNode = blockNodeWithIndex("test-repo", "test-idx");
 
         logger.info("--> snapshot");
         client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
@@ -322,7 +322,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
 
         logger.info("--> execution was blocked on node [{}], shutting it down", blockedNode);
-        unblockNode(blockedNode);
+        unblockNode("test-repo", blockedNode);
 
         logger.info("--> stopping node [{}]", blockedNode);
         stopNode(blockedNode);
@@ -361,7 +361,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         // Pick one node and block it
-        String blockedNode = blockNodeWithIndex("test-idx");
+        String blockedNode = blockNodeWithIndex("test-repo", "test-idx");
         // Remove it from the list of available nodes
         nodes.remove(blockedNode);
 
@@ -377,7 +377,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         ListenableActionFuture<DeleteSnapshotResponse> deleteSnapshotResponseFuture = internalCluster().client(nodes.get(0)).admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").execute();
         // Make sure that abort makes some progress
         Thread.sleep(100);
-        unblockNode(blockedNode);
+        unblockNode("test-repo", blockedNode);
         logger.info("--> stopping node [{}]", blockedNode);
         stopNode(blockedNode);
         try {

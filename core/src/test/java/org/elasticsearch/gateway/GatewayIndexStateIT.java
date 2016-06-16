@@ -53,6 +53,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -245,7 +246,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         internalCluster().startNodesAsync(2).get();
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
 
         logger.info("--> waiting for green status");
         ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus()
@@ -285,7 +286,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         final String node_1 = internalCluster().startNodesAsync(2).get().get(0);
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
 
         logger.info("--> waiting for green status");
         ensureGreen();
@@ -408,7 +409,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> starting one node");
         internalCluster().startNode();
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
         logger.info("--> waiting for green status");
         if (usually()) {
             ensureYellow();
@@ -477,7 +478,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 "    }\n" +
                 "  }}").get();
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value one").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value one").setRefreshPolicy(IMMEDIATE).get();
         logger.info("--> waiting for green status");
         if (usually()) {
             ensureYellow();
@@ -521,7 +522,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
     public void testArchiveBrokenClusterSettings() throws Exception {
         logger.info("--> starting one node");
         internalCluster().startNode();
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
         logger.info("--> waiting for green status");
         if (usually()) {
             ensureYellow();

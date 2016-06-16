@@ -31,12 +31,14 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * ShadowIndexShard extends {@link IndexShard} to add file synchronization
@@ -57,16 +59,16 @@ public final class ShadowIndexShard extends IndexShard {
 
     /**
      * In addition to the regular accounting done in
-     * {@link IndexShard#updateRoutingEntry(ShardRouting, boolean)},
+     * {@link IndexShard#updateRoutingEntry(ShardRouting)},
      * if this shadow replica needs to be promoted to a primary, the shard is
      * failed in order to allow a new primary to be re-allocated.
      */
     @Override
-    public void updateRoutingEntry(ShardRouting newRouting, boolean persistState) throws IOException {
+    public void updateRoutingEntry(ShardRouting newRouting) throws IOException {
         if (newRouting.primary() == true) {// becoming a primary
             throw new IllegalStateException("can't promote shard to primary");
         }
-        super.updateRoutingEntry(newRouting, persistState);
+        super.updateRoutingEntry(newRouting);
     }
 
     @Override
@@ -87,6 +89,12 @@ public final class ShadowIndexShard extends IndexShard {
     }
 
     @Override
+    protected RefreshListeners buildRefreshListeners() {
+        // ShadowEngine doesn't have a translog so it shouldn't try to support RefreshListeners.
+        return null;
+    }
+
+    @Override
     public boolean shouldFlush() {
         // we don't need to flush since we don't write - all dominated by the primary
         return false;
@@ -95,5 +103,10 @@ public final class ShadowIndexShard extends IndexShard {
     @Override
     public TranslogStats translogStats() {
         return null; // shadow engine has no translog
+    }
+
+    @Override
+    public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
+        throw new UnsupportedOperationException("Can't listen for a refresh on a shadow engine because it doesn't have a translog");
     }
 }

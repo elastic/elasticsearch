@@ -79,6 +79,19 @@ on the thread pool type, `keep_alive`, `queue_size`, etc.).
 The `suggest` threadpool has been removed, now suggest requests use the
 `search` threadpool.
 
+The prefix on all thread pool settings has been changed from
+`threadpool` to `thread_pool`.
+
+The minimum size setting for a scaling thread pool has been changed
+from `min` to `core`.
+
+The maximum size setting for a scaling thread pool has been changed
+from `size` to `max`.
+
+The queue size setting for a fixed thread pool must be `queue_size`
+(all other variants that were previously supported are no longer
+supported).
+
 ==== Analysis settings
 
 The `index.analysis.analyzer.default_index` analyzer is not supported anymore.
@@ -259,3 +272,14 @@ set `script.line: true` or `script.stored: true`.
 The setting `index.query.bool.max_clause_count` has been removed. In order to
 set the maximum number of boolean clauses `indices.query.bool.max_clause_count`
 should be used instead.
+
+==== Memory lock settings
+
+The setting `bootstrap.mlockall` has been renamed to
+`bootstrap.memory_lock`.
+
+==== Snapshot settings
+
+The default setting `include_global_state` for restoring snapshots has been
+changed from `true` to `false`. It has not been changed for taking snapshots and
+still defaults to `true` in that case.

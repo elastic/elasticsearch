@@ -38,6 +38,7 @@ import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Match query is a query that analyzes the text and constructs a query as the
@@ -507,7 +508,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return NAME;
     }
 
-    public static MatchQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<MatchQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
@@ -633,7 +634,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         matchQuery.zeroTermsQuery(zeroTermsQuery);
         matchQuery.queryName(queryName);
         matchQuery.boost(boost);
-        return matchQuery;
+        return Optional.of(matchQuery);
     }
 
 }

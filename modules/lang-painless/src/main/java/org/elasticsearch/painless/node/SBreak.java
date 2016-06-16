@@ -19,7 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -27,14 +28,14 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class SBreak extends AStatement {
 
-    public SBreak(int line, int offset, String location) {
-        super(line, offset, location);
+    public SBreak(Location location) {
+        super(location);
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         if (!inLoop) {
-            throw new IllegalArgumentException(error("Break statement outside of a loop."));
+            throw createError(new IllegalArgumentException("Break statement outside of a loop."));
         }
 
         loopEscape = true;

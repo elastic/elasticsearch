@@ -108,6 +108,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
@@ -1633,7 +1634,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
                 .put("script.stored", "true")
                 .put("script.inline", "true")
-                        // wait short time for other active shards before actually deleting, default 30s not needed in tests
+                // by default we never cache below 10k docs in a segment,
+                // bypass this limit so that caching gets some testing in
+                // integration tests that usually create few documents
+                .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), nodeOrdinal % 2 == 0)
+                // wait short time for other active shards before actually deleting, default 30s not needed in tests
                 .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(1, TimeUnit.SECONDS));
         return builder.build();
     }
@@ -1801,8 +1806,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         public String description() {
             return "a test plugin that registers index.tests.seed as an index setting";
         }
-        public void onModule(SettingsModule module) {
-            module.registerSetting(INDEX_TEST_SEED_SETTING);
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(INDEX_TEST_SEED_SETTING);
         }
 
     }

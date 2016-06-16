@@ -32,9 +32,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -63,6 +66,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -161,6 +165,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
     public static final String NODES_FOLDER = "nodes";
     public static final String INDICES_FOLDER = "indices";
     public static final String NODE_LOCK_FILENAME = "node.lock";
+    public static final String UPGRADE_LOCK_FILENAME = "upgrade.lock";
 
     @Inject
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
@@ -175,7 +180,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
             localNodeId = -1;
             return;
         }
-        final NodePath[] nodePaths = new NodePath[environment.dataWithClusterFiles().length];
+        final NodePath[] nodePaths = new NodePath[environment.dataFiles().length];
         final Lock[] locks = new Lock[nodePaths.length];
         boolean success = false;
 
@@ -185,8 +190,17 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
             IOException lastException = null;
             int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
             for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
-                for (int dirIndex = 0; dirIndex < environment.dataWithClusterFiles().length; dirIndex++) {
-                    Path dir = environment.dataWithClusterFiles()[dirIndex].resolve(NODES_FOLDER).resolve(Integer.toString(possibleLockId));
+                for (int dirIndex = 0; dirIndex < environment.dataFiles().length; dirIndex++) {
+                    Path dataDirWithClusterName = environment.dataWithClusterFiles()[dirIndex];
+                    Path dataDir = environment.dataFiles()[dirIndex];
+                    // TODO: Remove this in 6.0, we are no longer going to read from the cluster name directory
+                    if (readFromDataPathWithClusterName(dataDirWithClusterName)) {
+                        DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+                        deprecationLogger.deprecated("ES has detected the [path.data] folder using the cluster name as a folder [{}], " +
+                                        "Elasticsearch 6.0 will not allow the cluster name as a folder within the data path", dataDir);
+                        dataDir = dataDirWithClusterName;
+                    }
+                    Path dir = dataDir.resolve(NODES_FOLDER).resolve(Integer.toString(possibleLockId));
                     Files.createDirectories(dir);
 
                     try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
@@ -218,7 +232,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
 
             if (locks[0] == null) {
                 throw new IllegalStateException("Failed to obtain node lock, is the following location writable?: "
-                    + Arrays.toString(environment.dataWithClusterFiles()), lastException);
+                    + Arrays.toString(environment.dataFiles()), lastException);
             }
 
             this.localNodeId = localNodeId;
@@ -240,6 +254,32 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
                 IOUtils.closeWhileHandlingException(locks);
             }
         }
+    }
+
+    /** Returns true if the directory is empty */
+    private static boolean dirEmpty(final Path path) throws IOException {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
+            return stream.iterator().hasNext() == false;
+        }
+    }
+
+    // Visible for testing
+    /** Returns true if data should be read from the data path that includes the cluster name (ie, it has data in it) */
+    static boolean readFromDataPathWithClusterName(Path dataPathWithClusterName) throws IOException {
+        if (Files.exists(dataPathWithClusterName) == false ||          // If it doesn't exist
+                Files.isDirectory(dataPathWithClusterName) == false || // Or isn't a directory
+                dirEmpty(dataPathWithClusterName)) {                   // Or if it's empty
+            // No need to read from cluster-name folder!
+            return false;
+        }
+        // The "nodes" directory inside of the cluster name
+        Path nodesPath = dataPathWithClusterName.resolve(NODES_FOLDER);
+        if (Files.isDirectory(nodesPath)) {
+            // The cluster has data in the "nodes" so we should read from the cluster-named folder for now
+            return true;
+        }
+        // Hey the nodes directory didn't exist, so we can safely use whatever directory we feel appropriate
+        return false;
     }
 
     private static void releaseAndNullLocks(Lock[] locks) {

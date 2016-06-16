@@ -22,7 +22,6 @@ package org.elasticsearch.action.support.replication;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;

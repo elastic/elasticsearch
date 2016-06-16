@@ -744,7 +744,7 @@ in the same order they were defined as part of the processor definition.
 | Name                   | Required  | Default             | Description
 | `field`                | yes       | -                   | The field to get the date from.
 | `target_field`         | no        | @timestamp          | The field that will hold the parsed date.
-| `match_formats`        | yes       | -                   | An array of the expected date formats. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
+| `formats`              | yes       | -                   | An array of the expected date formats. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
 | `timezone`             | no        | UTC                 | The timezone to use when parsing the date.
 | `locale`               | no        | ENGLISH             | The locale to use when parsing the date, relevant when parsing month names or week days.
 |======
@@ -760,7 +760,7 @@ Here is an example that adds the parsed date to the `timestamp` field based on t
       "date" : {
         "field" : "initial_date",
         "target_field" : "timestamp",
-        "match_formats" : ["dd/MM/yyyy hh:mm:ss"],
+        "formats" : ["dd/MM/yyyy hh:mm:ss"],
         "timezone" : "Europe/Amsterdam"
       }
     }
@@ -822,7 +822,7 @@ This is because the date is being rounded by month.
 | Name                   | Required  | Default                      | Description
 | `field`                | yes       | -                            | The field to get the date or timestamp from.
 | `index_name_prefix`    | no        | -                            | A prefix of the index name to be prepended before the printed date.
-| `date_rounding`        | yes       | -                            | How to round the date when formatting the date into the index name. Valid values are: `y` (year), `m` (month), `w` (week), `d` (day), `h` (hour), `m` (minute) and `s` (second).
+| `date_rounding`        | yes       | -                            | How to round the date when formatting the date into the index name. Valid values are: `y` (year), `M` (month), `w` (week), `d` (day), `h` (hour), `m` (minute) and `s` (second).
 | `date_formats `        | no        | yyyy-MM-dd'T'HH:mm:ss.SSSZ   | An array of the expected date formats for parsing dates / timestamps in the document being preprocessed. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
 | `timezone`             | no        | UTC                          | The timezone to use when parsing the date and when date math index supports resolves expressions into concrete index names.
 | `locale`               | no        | ENGLISH                      | The locale to use when parsing the date from the document being preprocessed, relevant when parsing month names or week days.
@@ -1257,6 +1257,46 @@ Renames an existing field. If the field doesn't exist or the new name is already
   }
 }
 --------------------------------------------------
+
+[[script-processor]]
+=== Script Processor
+
+Allows inline, stored, and file scripts to be executed within ingest pipelines.
+
+See <<modules-scripting-using, How to use scripts>> to learn more about writing scripts. The Script Processor
+leverages caching of compiled scripts for improved performance. Since the
+script specified within the processor is potentially re-compiled per document, it is important
+to understand how script caching works. To learn more about
+caching see <<modules-scripting-using-caching, Script Caching>>.
+
+[[script-options]]
+.Script Options
+[options="header"]
+|======
+| Name                   | Required  | Default | Description
+| `field`                | yes       | -       | The field to set
+| `lang`                 | no        | -       | The scripting language
+| `file`                 | no        | -       | The script file to refer to
+| `id`                   | no        | -       | The stored script id to refer to
+| `inline`               | no        | -       | An inline script to be executed
+|======
+
+You can access the current ingest document from within the script context by using the `ctx` variable.
+
+The following example sets a new field called `field_a_plus_b` to be the sum of two existing
+numeric fields `field_a` and `field_b`:
+
+[source,js]
+--------------------------------------------------
+{
+  "script": {
+    "field": "field_a_plus_b",
+    "lang": "painless",
+    "inline": "return ctx.field_a + ctx.field_b"
+  }
+}
+--------------------------------------------------
+
 
 [[set-processor]]
 === Set Processor

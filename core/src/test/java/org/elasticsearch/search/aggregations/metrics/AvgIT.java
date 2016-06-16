@@ -21,14 +21,14 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -356,7 +356,7 @@ public class AvgIT extends AbstractNumericTestCase {
     /**
      * Mock plugin for the {@link ExtractFieldScriptEngine}
      */
-    public static class ExtractFieldScriptPlugin extends Plugin {
+    public static class ExtractFieldScriptPlugin extends Plugin implements ScriptPlugin {
 
         @Override
         public String name() {
@@ -368,10 +368,10 @@ public class AvgIT extends AbstractNumericTestCase {
             return "Mock script engine for " + AvgIT.class;
         }
 
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractFieldScriptEngine.class, ExtractFieldScriptEngine.NAME, true));
+        @Override
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new ExtractFieldScriptEngine();
         }
-
     }
 
     /**
@@ -476,7 +476,7 @@ public class AvgIT extends AbstractNumericTestCase {
     /**
      * Mock plugin for the {@link FieldValueScriptEngine}
      */
-    public static class FieldValueScriptPlugin extends Plugin {
+    public static class FieldValueScriptPlugin extends Plugin implements ScriptPlugin {
 
         @Override
         public String name() {
@@ -488,10 +488,10 @@ public class AvgIT extends AbstractNumericTestCase {
             return "Mock script engine for " + AvgIT.class;
         }
 
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.NAME, true));
+        @Override
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new FieldValueScriptEngine();
         }
-
     }
 
     /**
@@ -588,6 +588,11 @@ public class AvgIT extends AbstractNumericTestCase {
 
         @Override
         public void scriptRemoved(CompiledScript script) {
+        }
+
+        @Override
+        public boolean isInlineScriptEnabled() {
+            return true;
         }
     }
 }

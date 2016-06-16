@@ -328,6 +328,10 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (mayWriteRawData(contentType) == false) {
             copyRawValue(content, contentType.xContent());
         } else {
+            if (generator.getOutputContext().getCurrentName() != null) {
+                // If we've just started a field we'll need to add the separator
+                generator.writeRaw(':');
+            }
             flush();
             content.writeTo(os);
             writeEndRaw();

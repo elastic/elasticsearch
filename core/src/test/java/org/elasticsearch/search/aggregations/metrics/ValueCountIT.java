@@ -21,7 +21,9 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
@@ -210,7 +212,7 @@ public class ValueCountIT extends ESIntegTestCase {
     /**
      * Mock plugin for the {@link FieldValueScriptEngine}
      */
-    public static class FieldValueScriptPlugin extends Plugin {
+    public static class FieldValueScriptPlugin extends Plugin implements ScriptPlugin {
 
         @Override
         public String name() {
@@ -222,10 +224,10 @@ public class ValueCountIT extends ESIntegTestCase {
             return "Mock script engine for " + ValueCountIT.class;
         }
 
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.NAME, true));
+        @Override
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new FieldValueScriptEngine();
         }
-
     }
 
     /**
@@ -329,6 +331,11 @@ public class ValueCountIT extends ESIntegTestCase {
 
         @Override
         public void scriptRemoved(CompiledScript script) {
+        }
+
+        @Override
+        public boolean isInlineScriptEnabled() {
+            return true;
         }
     }
 }

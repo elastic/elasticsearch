@@ -23,6 +23,9 @@ import java.lang.invoke.WrongMethodTypeException;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsString;
+
 public class WhenThingsGoWrongTests extends ScriptTestCase {
     public void testNullPointer() {
         expectScriptThrows(NullPointerException.class, () -> {
@@ -71,11 +74,11 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     }
 
     public void testInvalidShift() {
-        expectThrows(ClassCastException.class, () -> {
+        expectScriptThrows(ClassCastException.class, () -> {
             exec("float x = 15F; x <<= 2; return x;");
         });
 
-        expectThrows(ClassCastException.class, () -> {
+        expectScriptThrows(ClassCastException.class, () -> {
             exec("double x = 15F; x <<= 2; return x;");
         });
     }
@@ -134,7 +137,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         assertTrue(expected.getMessage().contains(
                    "The maximum number of statements that can be executed in a loop has been reached."));
 
-        RuntimeException parseException = expectThrows(RuntimeException.class, () -> {
+        RuntimeException parseException = expectScriptThrows(RuntimeException.class, () -> {
             exec("try { int x; } catch (PainlessError error) {}");
             fail("should have hit ParseException");
         });
@@ -156,7 +159,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         final char[] tooManyChars = new char[Compiler.MAXIMUM_SOURCE_LENGTH + 1];
         Arrays.fill(tooManyChars, '0');
 
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec(new String(tooManyChars));
         });
         assertTrue(expected.getMessage().contains("Scripts may be no longer than"));
@@ -195,6 +198,24 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     public void testDynamicListWrongIndex() {
         expectScriptThrows(WrongMethodTypeException.class, () -> {
             exec("def x = new ArrayList(); x.add('foo'); return x['bogus'];");
+        });
+    }
+
+    /**
+     * Makes sure that we present a useful error message with a misplaced right-curly. This is important because we do some funky things in
+     * the parser with right-curly brackets to allow statements to be delimited by them at the end of blocks.
+     */
+    public void testRCurlyNotDelim() {
+        IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> {
+            // We don't want PICKY here so we get the normal error message
+            exec("def i = 1} return 1", emptyMap(), emptyMap(), null);
+        });
+        assertEquals("invalid sequence of tokens near ['}'].", e.getMessage());
+    }
+
+    public void testBadBoxingCast() {
+        expectScriptThrows(ClassCastException.class, () -> {
+            exec("BitSet bs = new BitSet(); bs.and(2);");
         });
     }
 }

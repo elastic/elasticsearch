@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.Fields;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.test.ESTestCase;
 
@@ -105,11 +105,11 @@ public class FileInfoTests extends ESTestCase {
 
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.startObject();
-            builder.field(Fields.NAME, name);
-            builder.field(Fields.PHYSICAL_NAME, physicalName);
-            builder.field(Fields.LENGTH, length);
-            builder.field(Fields.WRITTEN_BY, Version.LATEST.toString());
-            builder.field(Fields.CHECKSUM, "666");
+            builder.field(FileInfo.NAME, name);
+            builder.field(FileInfo.PHYSICAL_NAME, physicalName);
+            builder.field(FileInfo.LENGTH, length);
+            builder.field(FileInfo.WRITTEN_BY, Version.LATEST.toString());
+            builder.field(FileInfo.CHECKSUM, "666");
             builder.endObject();
             byte[] xContent = builder.bytes().toBytes();
 

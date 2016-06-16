@@ -64,4 +64,5 @@ public abstract class CircuitBreakerService extends AbstractLifecycleComponent<C
     @Override
     protected void doClose() {
     }
+
 }

@@ -42,6 +42,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
@@ -72,7 +73,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new ThreadPool(TransportTasksActionTests.class.getSimpleName());
+        threadPool = new TestThreadPool(TransportTasksActionTests.class.getSimpleName());
     }
 
     @AfterClass
@@ -232,5 +233,4 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
         return listeners;
     }
-
 }

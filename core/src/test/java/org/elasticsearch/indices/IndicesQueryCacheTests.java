@@ -35,6 +35,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -54,12 +55,12 @@ public class IndicesQueryCacheTests extends ESTestCase {
 
         @Override
         public boolean equals(Object obj) {
-            return super.equals(obj) && id == ((DummyQuery) obj).id;
+            return sameClassAs(obj) && id == ((DummyQuery) obj).id;
         }
 
         @Override
         public int hashCode() {
-            return 31 * super.hashCode() + id;
+            return 31 * classHash() + id;
         }
 
         @Override
@@ -93,6 +94,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
 
         Settings settings = Settings.builder()
                 .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+                .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
                 .build();
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s.setQueryCache(cache);
@@ -173,6 +175,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
 
         Settings settings = Settings.builder()
                 .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+                .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
                 .build();
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s1.setQueryCache(cache);
@@ -298,6 +301,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
 
         Settings settings = Settings.builder()
                 .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+                .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
                 .build();
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s1.setQueryCache(cache);

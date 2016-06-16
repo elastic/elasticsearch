@@ -61,6 +61,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Script sort builder allows to sort based on a custom script expression.
@@ -237,7 +238,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         ScriptSortType type = null;
         SortMode sortMode = null;
         SortOrder order = null;
-        QueryBuilder nestedFilter = null;
+        Optional<QueryBuilder> nestedFilter = Optional.empty();
         String nestedPath = null;
         Map<String, Object> params = new HashMap<>();
 
@@ -292,9 +293,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         if (sortMode != null) {
             result.sortMode(sortMode);
         }
-        if (nestedFilter != null) {
-            result.setNestedFilter(nestedFilter);
-        }
+        nestedFilter.ifPresent(result::setNestedFilter);
         if (nestedPath != null) {
             result.setNestedPath(nestedPath);
         }

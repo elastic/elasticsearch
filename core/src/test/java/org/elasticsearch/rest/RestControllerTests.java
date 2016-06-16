@@ -91,9 +91,39 @@ public class RestControllerTests extends ESTestCase {
         restHeaders.put("header.1", "true");
         restHeaders.put("header.2", "true");
         restHeaders.put("header.3", "false");
-        restController.dispatchRequest(new FakeRestRequest(restHeaders), null, threadContext);
+        restController.dispatchRequest(new FakeRestRequest.Builder().withHeaders(restHeaders).build(), null, threadContext);
         assertNull(threadContext.getHeader("header.1"));
         assertNull(threadContext.getHeader("header.2"));
         assertEquals("true", threadContext.getHeader("header.3"));
+    }
+
+    public void testCanTripCircuitBreaker() throws Exception {
+        RestController controller = new RestController(Settings.EMPTY);
+        // trip circuit breaker by default
+        controller.registerHandler(RestRequest.Method.GET, "/trip", new FakeRestHandler(true));
+        controller.registerHandler(RestRequest.Method.GET, "/do-not-trip", new FakeRestHandler(false));
+
+        assertTrue(controller.canTripCircuitBreaker(new FakeRestRequest.Builder().withPath("/trip").build()));
+        // assume trip even on unknown paths
+        assertTrue(controller.canTripCircuitBreaker(new FakeRestRequest.Builder().withPath("/unknown-path").build()));
+        assertFalse(controller.canTripCircuitBreaker(new FakeRestRequest.Builder().withPath("/do-not-trip").build()));
+    }
+
+    private static class FakeRestHandler implements RestHandler {
+        private final boolean canTripCircuitBreaker;
+
+        private FakeRestHandler(boolean canTripCircuitBreaker) {
+            this.canTripCircuitBreaker = canTripCircuitBreaker;
+        }
+
+        @Override
+        public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
+            //no op
+        }
+
+        @Override
+        public boolean canTripCircuitBreaker() {
+            return canTripCircuitBreaker;
+        }
     }
 }

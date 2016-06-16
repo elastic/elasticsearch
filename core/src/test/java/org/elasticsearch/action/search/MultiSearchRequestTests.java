@@ -22,8 +22,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -37,7 +35,6 @@ import org.elasticsearch.test.StreamsUtils;
 
 import java.io.IOException;
 
-import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -163,8 +160,15 @@ public class MultiSearchRequestTests extends ESTestCase {
         MultiSearchResponse response = new MultiSearchResponse(new MultiSearchResponse.Item[]{new MultiSearchResponse.Item(null, new IllegalStateException("foobar")), new MultiSearchResponse.Item(null, new IllegalStateException("baaaaaazzzz"))});
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("\"responses\"[{\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"}],\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"}},{\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"}],\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"}}]",
+        assertEquals("\"responses\"[{\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"}],\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"},\"status\":500},{\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"}],\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"},\"status\":500}]",
                 builder.string());
+    }
+
+    public void testMaxConcurrentSearchRequests() {
+        MultiSearchRequest request = new MultiSearchRequest();
+        request.maxConcurrentSearchRequests(randomIntBetween(1, Integer.MAX_VALUE));
+        expectThrows(IllegalArgumentException.class, () ->
+                request.maxConcurrentSearchRequests(randomIntBetween(Integer.MIN_VALUE, 0)));
     }
 
     private IndicesQueriesRegistry registry() {

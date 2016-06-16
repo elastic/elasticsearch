@@ -51,6 +51,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -318,8 +319,13 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 .setId("1")
                 .setIndex("test")
                 .setSource(
-                        jsonBuilder().startObject().field("test", "value").startObject("loc").field("lat", 20).field("lon", 11).endObject()
-                                .endObject()).setRefresh(true).get();
+                        jsonBuilder().startObject()
+                            .field("test", "value")
+                            .startObject("loc")
+                                .field("lat", 20)
+                                .field("lon", 11)
+                            .endObject()
+                        .endObject()).setRefreshPolicy(IMMEDIATE).get();
         FunctionScoreQueryBuilder baseQuery = functionScoreQuery(constantScoreQuery(termQuery("test", "value")),
                 ScoreFunctionBuilders.weightFactorFunction(randomIntBetween(1, 10)));
         GeoPoint point = new GeoPoint(20, 11);
@@ -354,8 +360,8 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                         .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
         ensureYellow();
 
-        client().prepareIndex().setType("type1").setId("1").setIndex("test")
-                .setSource(jsonBuilder().startObject().field("test", "value value").field("num", 1.0).endObject()).setRefresh(true).get();
+        client().prepareIndex().setType("type1").setId("1").setIndex("test").setRefreshPolicy(IMMEDIATE)
+                .setSource(jsonBuilder().startObject().field("test", "value value").field("num", 1.0).endObject()).get();
         FunctionScoreQueryBuilder baseQuery = functionScoreQuery(constantScoreQuery(termQuery("test", "value")),
                 ScoreFunctionBuilders.weightFactorFunction(2));
         // decay score should return 0.5 for this function and baseQuery should return 2.0f as it's score

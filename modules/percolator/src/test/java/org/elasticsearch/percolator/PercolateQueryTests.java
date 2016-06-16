@@ -379,6 +379,16 @@ public class PercolateQueryTests extends ESTestCase {
         public String toString(String field) {
             return "custom{" + field + "}";
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            return sameClassAs(obj);
+        }
+
+        @Override
+        public int hashCode() {
+            return classHash();
+        }
     }
 
 }

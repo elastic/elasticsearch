@@ -19,11 +19,14 @@
 
 package org.elasticsearch.script.groovy;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptModule;
 
-public class GroovyPlugin extends Plugin {
+public class GroovyPlugin extends Plugin implements ScriptPlugin {
 
     @Override
     public String name() {
@@ -35,7 +38,8 @@ public class GroovyPlugin extends Plugin {
         return "Groovy scripting integration for Elasticsearch";
     }
 
-    public void onModule(ScriptModule module) {
-        module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(GroovyScriptEngineService.class, GroovyScriptEngineService.NAME));
+    @Override
+    public ScriptEngineService getScriptEngineService(Settings settings) {
+        return new GroovyScriptEngineService(settings);
     }
 }

@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -250,7 +251,8 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
     /**
      * Common xcontent fields that are shared among addAggregation
      */
-    public static final class CommonFields {
+    public static final class CommonFields extends ParseField.CommonFields {
+        // todo convert these to ParseField
         public static final String META = "meta";
         public static final String BUCKETS = "buckets";
         public static final String VALUE = "value";

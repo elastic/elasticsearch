@@ -167,12 +167,8 @@ are the same).
 [[bulk-refresh]]
 === Refresh
 
-The `refresh` parameter can be set to `true` in order to refresh the relevant
-primary and replica shards immediately after the bulk operation has occurred
-and make it searchable, instead of waiting for the normal refresh interval to
-expire. Setting it to `true` can trigger additional load, and may slow down
-indexing. Due to its costly nature, the `refresh` parameter is set on the bulk request level
-and is not supported on each individual bulk item.
+Control when the changes made by this request are visible to search. See
+<<docs-refresh>>.
 
 [float]
 [[bulk-update]]

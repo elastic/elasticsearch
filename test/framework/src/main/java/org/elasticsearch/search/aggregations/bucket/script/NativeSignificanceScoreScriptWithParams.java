@@ -42,6 +42,11 @@ public class NativeSignificanceScoreScriptWithParams extends TestScript {
         public boolean needsScores() {
             return false;
         }
+
+        @Override
+        public String getName() {
+            return NATIVE_SIGNIFICANCE_SCORE_SCRIPT_WITH_PARAMS;
+        }
     }
 
     private NativeSignificanceScoreScriptWithParams(Map<String, Object> params) {

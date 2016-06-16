@@ -1773,7 +1773,7 @@ public final class InternalTestCluster extends TestCluster {
                 OperationRouting operationRouting = getInstanceFromNode(OperationRouting.class, node);
                 while (true) {
                     String routing = RandomStrings.randomAsciiOfLength(random, 10);
-                    final int targetShard = operationRouting.indexShards(clusterService.state(), index.getName(), type, null, routing).shardId().getId();
+                    final int targetShard = operationRouting.indexShards(clusterService.state(), index.getName(), null, routing).shardId().getId();
                     if (shard == targetShard) {
                         return routing;
                     }
@@ -1940,7 +1940,7 @@ public final class InternalTestCluster extends TestCluster {
     private void assertRequestsFinished() {
         if (size() > 0) {
             for (NodeAndClient nodeAndClient : nodes.values()) {
-                CircuitBreaker inFlightRequestsBreaker = getInstance(HierarchyCircuitBreakerService.class, nodeAndClient.name)
+                CircuitBreaker inFlightRequestsBreaker = getInstance(CircuitBreakerService.class, nodeAndClient.name)
                     .getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
                 try {
                     // see #ensureEstimatedStats()

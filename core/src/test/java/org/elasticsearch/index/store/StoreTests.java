@@ -199,6 +199,19 @@ public class StoreTests extends ESTestCase {
         IOUtils.close(indexInput, verifyingOutput, dir);
     }
 
+    public void testVerifyingIndexOutputOnEmptyFile() throws IOException {
+        Directory dir = newDirectory();
+        IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetaData("foo.bar", 0, Store.digestToString(0)),
+            dir.createOutput("foo1.bar", IOContext.DEFAULT));
+        try {
+            Store.verify(verifyingOutput);
+            fail("should be a corrupted index");
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            // ok
+        }
+        IOUtils.close(verifyingOutput, dir);
+    }
+
     public void testChecksumCorrupted() throws IOException {
         Directory dir = newDirectory();
         IndexOutput output = dir.createOutput("foo.bar", IOContext.DEFAULT);

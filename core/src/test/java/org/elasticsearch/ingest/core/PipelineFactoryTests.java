@@ -20,23 +20,25 @@
 package org.elasticsearch.ingest.core;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.ingest.TestTemplateService;
-import org.elasticsearch.ingest.processor.FailProcessor;
-import org.elasticsearch.ingest.processor.SetProcessor;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.prefs.PreferencesFactory;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class PipelineFactoryTests extends ESTestCase {
 
@@ -155,8 +157,8 @@ public class PipelineFactoryTests extends ESTestCase {
     private ProcessorsRegistry createProcessorRegistry(Map<String, Processor.Factory> processorRegistry) {
         ProcessorsRegistry.Builder builder = new ProcessorsRegistry.Builder();
         for (Map.Entry<String, Processor.Factory> entry : processorRegistry.entrySet()) {
-            builder.registerProcessor(entry.getKey(), ((templateService, registry) -> entry.getValue()));
+            builder.registerProcessor(entry.getKey(), ((registry) -> entry.getValue()));
         }
-        return builder.build(TestTemplateService.instance());
+        return builder.build(mock(ScriptService.class), mock(ClusterService.class));
     }
 }

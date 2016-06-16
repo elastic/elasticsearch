@@ -19,7 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Collections;
@@ -32,16 +33,16 @@ public final class SDeclBlock extends AStatement {
 
     final List<SDeclaration> declarations;
 
-    public SDeclBlock(int line, int offset, String location, List<SDeclaration> declarations) {
-        super(line, offset, location);
+    public SDeclBlock(Location location, List<SDeclaration> declarations) {
+        super(location);
 
         this.declarations = Collections.unmodifiableList(declarations);
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         for (SDeclaration declaration : declarations) {
-            declaration.analyze(variables);
+            declaration.analyze(locals);
         }
 
         statementCount = declarations.size();
@@ -49,7 +50,7 @@ public final class SDeclBlock extends AStatement {
 
     @Override
     void write(MethodWriter writer) {
-        for (SDeclaration declaration : declarations) {
+        for (AStatement declaration : declarations) {
             declaration.write(writer);
         }
     }

@@ -20,7 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -29,25 +30,23 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class SWhile extends AStatement {
 
-    final int maxLoopCounter;
     AExpression condition;
     final SBlock block;
 
-    public SWhile(int line, int offset, String location, int maxLoopCounter, AExpression condition, SBlock block) {
-        super(line, offset, location);
+    public SWhile(Location location, AExpression condition, SBlock block) {
+        super(location);
 
-        this.maxLoopCounter = maxLoopCounter;
         this.condition = condition;
         this.block = block;
     }
 
     @Override
-    void analyze(Variables variables) {
-        variables.incrementScope();
+    void analyze(Locals locals) {
+        locals.incrementScope();
 
         condition.expected = Definition.BOOLEAN_TYPE;
-        condition.analyze(variables);
-        condition = condition.cast(variables);
+        condition.analyze(locals);
+        condition = condition.cast(locals);
 
         boolean continuous = false;
 
@@ -55,11 +54,11 @@ public final class SWhile extends AStatement {
             continuous = (boolean)condition.constant;
 
             if (!continuous) {
-                throw new IllegalArgumentException(error("Extraneous while loop."));
+                throw createError(new IllegalArgumentException("Extraneous while loop."));
             }
 
             if (block == null) {
-                throw new IllegalArgumentException(error("While loop has no escape."));
+                throw createError(new IllegalArgumentException("While loop has no escape."));
             }
         }
 
@@ -67,10 +66,10 @@ public final class SWhile extends AStatement {
             block.beginLoop = true;
             block.inLoop = true;
 
-            block.analyze(variables);
+            block.analyze(locals);
 
             if (block.loopEscape && !block.anyContinue) {
-                throw new IllegalArgumentException(error("Extraneous while loop."));
+                throw createError(new IllegalArgumentException("Extraneous while loop."));
             }
 
             if (continuous && !block.anyBreak) {
@@ -83,16 +82,17 @@ public final class SWhile extends AStatement {
 
         statementCount = 1;
 
-        if (maxLoopCounter > 0) {
-            loopCounterSlot = variables.getVariable(location, "#loop").slot;
+        if (locals.getMaxLoopCounter() > 0) {
+            loopCounterSlot = locals.getVariable(location, "#loop").slot;
         }
 
-        variables.decrementScope();
+        locals.decrementScope();
     }
 
     @Override
     void write(MethodWriter writer) {
-        writer.writeStatementOffset(offset);
+        writer.writeStatementOffset(location);
+
         Label begin = new Label();
         Label end = new Label();
 
@@ -102,13 +102,13 @@ public final class SWhile extends AStatement {
         condition.write(writer);
 
         if (block != null) {
-            writer.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount), offset);
+            writer.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount), location);
 
             block.continu = begin;
             block.brake = end;
             block.write(writer);
         } else {
-            writer.writeLoopCounter(loopCounterSlot, 1, offset);
+            writer.writeLoopCounter(loopCounterSlot, 1, location);
         }
 
         if (block == null || !block.allEscape) {

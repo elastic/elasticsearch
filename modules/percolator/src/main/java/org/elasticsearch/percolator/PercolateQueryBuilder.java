@@ -76,6 +76,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 import static org.elasticsearch.percolator.PercolatorFieldMapper.parseQuery;
@@ -235,7 +236,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         builder.endObject();
     }
 
-    public static PercolateQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<PercolateQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
@@ -316,7 +317,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         queryBuilder.queryName(queryName);
         queryBuilder.boost(boost);
-        return queryBuilder;
+        return Optional.of(queryBuilder);
     }
 
     @Override
@@ -446,7 +447,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         return document;
     }
 
-    private IndexSearcher createMultiDocumentSearcher(Analyzer analyzer, ParsedDocument doc) {
+    static IndexSearcher createMultiDocumentSearcher(Analyzer analyzer, ParsedDocument doc) {
         IndexReader[] memoryIndices = new IndexReader[doc.docs().size()];
         List<ParseContext.Document> docs = doc.docs();
         int rootDocIndex = docs.size() - 1;

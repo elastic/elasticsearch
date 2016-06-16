@@ -17,6 +17,18 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitSource(PainlessParser.SourceContext ctx);
   /**
+   * Visit a parse tree produced by {@link PainlessParser#function}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFunction(PainlessParser.FunctionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#parameters}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitParameters(PainlessParser.ParametersContext ctx);
+  /**
    * Visit a parse tree produced by the {@code if}
    * labeled alternative in {@link PainlessParser#statement}.
    * @param ctx the parse tree
@@ -44,6 +56,13 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitFor(PainlessParser.ForContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code each}
+   * labeled alternative in {@link PainlessParser#statement}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitEach(PainlessParser.EachContext ctx);
   /**
    * Visit a parse tree produced by the {@code decl}
    * labeled alternative in {@link PainlessParser#statement}.
@@ -135,12 +154,6 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitDecltype(PainlessParser.DecltypeContext ctx);
-  /**
-   * Visit a parse tree produced by {@link PainlessParser#funcref}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitFuncref(PainlessParser.FuncrefContext ctx);
   /**
    * Visit a parse tree produced by {@link PainlessParser#declvar}.
    * @param ctx the parse tree
@@ -307,12 +320,26 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitString(PainlessParser.StringContext ctx);
   /**
+   * Visit a parse tree produced by the {@code regex}
+   * labeled alternative in {@link PainlessParser#primary}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRegex(PainlessParser.RegexContext ctx);
+  /**
    * Visit a parse tree produced by the {@code variable}
    * labeled alternative in {@link PainlessParser#primary}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitVariable(PainlessParser.VariableContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code calllocal}
+   * labeled alternative in {@link PainlessParser#primary}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitCalllocal(PainlessParser.CalllocalContext ctx);
   /**
    * Visit a parse tree produced by the {@code newobject}
    * labeled alternative in {@link PainlessParser#primary}.
@@ -359,4 +386,46 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitArgument(PainlessParser.ArgumentContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#lambda}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLambda(PainlessParser.LambdaContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#lamtype}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLamtype(PainlessParser.LamtypeContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#funcref}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFuncref(PainlessParser.FuncrefContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#classFuncref}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitClassFuncref(PainlessParser.ClassFuncrefContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#constructorFuncref}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitConstructorFuncref(PainlessParser.ConstructorFuncrefContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#capturingFuncref}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitCapturingFuncref(PainlessParser.CapturingFuncrefContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#localFuncref}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLocalFuncref(PainlessParser.LocalFuncrefContext ctx);
 }

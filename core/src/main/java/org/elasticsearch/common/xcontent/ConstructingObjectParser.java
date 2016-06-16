@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -53,12 +52,13 @@ import java.util.function.Function;
  * </p>
  * <pre>{@code
  *   private static final ConstructingObjectParser<Thing, SomeContext> PARSER = new ConstructingObjectParser<>("thing",
- *           a -> new Thing((String) a[0], (String) a[1]));
+ *           a -> new Thing((String) a[0], (String) a[1], (Integer) a[2]));
  *   static {
  *       PARSER.declareString(constructorArg(), new ParseField("animal"));
  *       PARSER.declareString(constructorArg(), new ParseField("vegetable"));
- *       PARSER.declareInt(Thing::setMineral, new ParseField("mineral"));
+ *       PARSER.declareInt(optionalConstructorArg(), new ParseField("mineral"));
  *       PARSER.declareInt(Thing::setFruit, new ParseField("fruit"));
+ *       PARSER.declareInt(Thing::setBug, new ParseField("bug"));
  *   }
  * }</pre>
  * <p>
@@ -70,19 +70,29 @@ import java.util.function.Function;
  * it allocates <code>3 + 2 * param_count</code> objects per parse. If this overhead is too much for you then feel free to have ObjectParser
  * parse a secondary object and have that one call the target object's constructor. That ought to be rare though.
  * </p>
+ * <p>
+ * Note: if optional constructor arguments aren't specified then the number of allocations is always the worst case.
+ * </p>
  */
 public final class ConstructingObjectParser<Value, Context extends ParseFieldMatcherSupplier> extends AbstractObjectParser<Value, Context> {
     /**
-     * Consumer that marks a field as a constructor argument instead of a real object field.
+     * Consumer that marks a field as a required constructor argument instead of a real object field.
      */
-    private static final BiConsumer<Object, Object> CONSTRUCTOR_ARG_MARKER = (a, b) -> {
+    private static final BiConsumer<Object, Object> REQUIRED_CONSTRUCTOR_ARG_MARKER = (a, b) -> {
+        throw new UnsupportedOperationException("I am just a marker I should never be called.");
+    };
+
+    /**
+     * Consumer that marks a field as an optional constructor argument instead of a real object field.
+     */
+    private static final BiConsumer<Object, Object> OPTIONAL_CONSTRUCTOR_ARG_MARKER = (a, b) -> {
         throw new UnsupportedOperationException("I am just a marker I should never be called.");
     };
 
     /**
      * List of constructor names used for generating the error message if not all arrive.
      */
-    private final List<ParseField> constructorArgNames = new ArrayList<>();
+    private final List<ConstructorArgInfo> constructorArgInfos = new ArrayList<>();
     private final ObjectParser<Target, Context> objectParser;
     private final Function<Object[], Value> builder;
     /**
@@ -120,27 +130,39 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
     }
 
     /**
-     * Pass the {@linkplain BiConsumer} this returns the declare methods to declare a constructor argument. See this class's javadoc for an
-     * example. The order in which these are declared matters: it is the order that they come in the array passed to {@link #builder} and
-     * the order that missing arguments are reported to the user if any are missing. When all of these parameters are parsed from the
-     * {@linkplain XContentParser} the target object is immediately built.
+     * Pass the {@linkplain BiConsumer} this returns the declare methods to declare a required constructor argument. See this class's
+     * javadoc for an example. The order in which these are declared matters: it is the order that they come in the array passed to
+     * {@link #builder} and the order that missing arguments are reported to the user if any are missing. When all of these parameters are
+     * parsed from the {@linkplain XContentParser} the target object is immediately built.
      */
     @SuppressWarnings("unchecked") // Safe because we never call the method. This is just trickery to make the interface pretty.
     public static <Value, FieldT> BiConsumer<Value, FieldT> constructorArg() {
-        return (BiConsumer<Value, FieldT>) CONSTRUCTOR_ARG_MARKER;
+        return (BiConsumer<Value, FieldT>) REQUIRED_CONSTRUCTOR_ARG_MARKER;
+    }
+
+    /**
+     * Pass the {@linkplain BiConsumer} this returns the declare methods to declare an optional constructor argument. See this class's
+     * javadoc for an example. The order in which these are declared matters: it is the order that they come in the array passed to
+     * {@link #builder} and the order that missing arguments are reported to the user if any are missing. When all of these parameters are
+     * parsed from the {@linkplain XContentParser} the target object is immediately built.
+     */
+    @SuppressWarnings("unchecked") // Safe because we never call the method. This is just trickery to make the interface pretty.
+    public static <Value, FieldT> BiConsumer<Value, FieldT> optionalConstructorArg() {
+        return (BiConsumer<Value, FieldT>) OPTIONAL_CONSTRUCTOR_ARG_MARKER;
     }
 
     @Override
     public <T> void declareField(BiConsumer<Value, T> consumer, ContextParser<Context, T> parser, ParseField parseField, ValueType type) {
-        if (consumer == CONSTRUCTOR_ARG_MARKER) {
+        if (consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER) {
             /*
              * Constructor arguments are detected by this "marker" consumer. It keeps the API looking clean even if it is a bit sleezy. We
              * then build a new consumer directly against the object parser that triggers the "constructor arg just arrived behavior" of the
              * parser. Conveniently, we can close over the position of the constructor in the argument list so we don't need to do any fancy
              * or expensive lookups whenever the constructor args come in.
              */
-            int position = constructorArgNames.size();
-            constructorArgNames.add(parseField);
+            int position = constructorArgInfos.size();
+            boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;
+            constructorArgInfos.add(new ConstructorArgInfo(parseField, required));
             objectParser.declareField((target, v) -> target.constructorArg(position, parseField, v), parser, parseField, type);
         } else {
             numberOfFields += 1;
@@ -186,7 +208,7 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
         /**
          * Array of constructor args to be passed to the {@link ConstructingObjectParser#builder}.
          */
-        private final Object[] constructorArgs = new Object[constructorArgNames.size()];
+        private final Object[] constructorArgs = new Object[constructorArgInfos.size()];
         /**
          * The parser this class is working against. We store it here so we can fetch it conveniently when queueing fields to lookup the
          * location of each field so that we can give a useful error message when replaying the queue.
@@ -224,20 +246,8 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
             }
             constructorArgs[position] = value;
             constructorArgsCollected++;
-            if (constructorArgsCollected != constructorArgNames.size()) {
-                return;
-            }
-            try {
-                targetObject = builder.apply(constructorArgs);
-                while (queuedFieldsCount > 0) {
-                    queuedFieldsCount -= 1;
-                    queuedFields[queuedFieldsCount].accept(targetObject);
-                }
-            } catch (ParsingException e) {
-                throw new ParsingException(e.getLineNumber(), e.getColumnNumber(),
-                        "failed to build [" + objectParser.getName() + "] after last required field arrived", e);
-            } catch (Exception e) {
-                throw new ParsingException(null, "Failed to build [" + objectParser.getName() + "] after last required field arrived", e);
+            if (constructorArgsCollected == constructorArgInfos.size()) {
+                buildTarget();
             }
         }
 
@@ -263,36 +273,62 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
             if (targetObject != null) {
                 return targetObject;
             }
-            // The object hasn't been built which ought to mean we're missing some constructor arguments.
+            /*
+             * The object hasn't been built which ought to mean we're missing some constructor arguments. But they could be optional! We'll
+             * check if they are all optional and build the error message at the same time - if we don't start the error message then they
+             * were all optional!
+             */
             StringBuilder message = null;
             for (int i = 0; i < constructorArgs.length; i++) {
-                if (constructorArgs[i] == null) {
-                    ParseField arg = constructorArgNames.get(i);
-                    if (message == null) {
-                        message = new StringBuilder("Required [").append(arg);
-                    } else {
-                        message.append(", ").append(arg);
-                    }
+                if (constructorArgs[i] != null) continue;
+                ConstructorArgInfo arg = constructorArgInfos.get(i);
+                if (false == arg.required) continue;
+                if (message == null) {
+                    message = new StringBuilder("Required [").append(arg.field);
+                } else {
+                    message.append(", ").append(arg.field);
                 }
             }
+            if (message != null) {
+                // There were non-optional constructor arguments missing.
+                throw new IllegalArgumentException(message.append(']').toString());
+            }
             /*
-             * There won't be if there weren't any constructor arguments declared. That is fine, we'll just throw that error back at the to
-             * the user. This will happen every time so we can be confident that this'll be caught in testing so we can talk to the user
-             * like they are a developer. The only time a user will see this is if someone writes a parser and never tests it which seems
-             * like a bad idea.
+             * If there weren't any constructor arguments declared at all then we won't get an error message but this isn't really a valid
+             * use of ConstructingObjectParser. You should be using ObjectParser instead. Since this is more of a programmer error and the
+             * parser ought to still work we just assert this.
              */
-            if (constructorArgNames.isEmpty()) {
-                throw new IllegalStateException("[" + objectParser.getName() + "] must configure at least on constructor argument. If it "
-                        + "doens't have any it should use ObjectParser instead of ConstructingObjectParser. This is a bug in the parser "
-                        + "declaration.");
+            assert false == constructorArgInfos.isEmpty() : "[" + objectParser.getName() + "] must configure at least on constructor "
+                        + "argument. If it doesn't have any it should use ObjectParser instead of ConstructingObjectParser. This is a bug "
+                        + "in the parser declaration.";
+            // All missing constructor arguments were optional. Just build the target and return it.
+            buildTarget();
+            return targetObject;
+        }
+
+        private void buildTarget() {
+            try {
+                targetObject = builder.apply(constructorArgs);
+                while (queuedFieldsCount > 0) {
+                    queuedFieldsCount -= 1;
+                    queuedFields[queuedFieldsCount].accept(targetObject);
+                }
+            } catch (ParsingException e) {
+                throw new ParsingException(e.getLineNumber(), e.getColumnNumber(),
+                        "failed to build [" + objectParser.getName() + "] after last required field arrived", e);
+            } catch (Exception e) {
+                throw new ParsingException(null, "Failed to build [" + objectParser.getName() + "] after last required field arrived", e);
             }
-            if (message == null) {
-                throw new IllegalStateException("The targetObject wasn't built but we aren't missing any constructor args. This is a bug "
-                        + " in ConstructingObjectParser. Here are the constructor arguments " + Arrays.toString(constructorArgs)
-                        + " and here are is the count [" + constructorArgsCollected + "]. Good luck figuring out what happened."
-                        + " I'm truly sorry you got here.");
-            }
-            throw new IllegalArgumentException(message.append(']').toString());
+        }
+    }
+
+    private static class ConstructorArgInfo {
+        final ParseField field;
+        final boolean required;
+
+        public ConstructorArgInfo(ParseField field, boolean required) {
+            this.field = field;
+            this.required = required;
         }
     }
 }

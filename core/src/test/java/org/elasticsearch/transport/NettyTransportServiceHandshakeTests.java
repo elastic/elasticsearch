@@ -30,6 +30,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.After;
@@ -51,7 +52,7 @@ public class NettyTransportServiceHandshakeTests extends ESTestCase {
 
     @BeforeClass
     public static void startThreadPool() {
-        threadPool = new ThreadPool(NettyTransportServiceHandshakeTests.class.getSimpleName());
+        threadPool = new TestThreadPool(NettyTransportServiceHandshakeTests.class.getSimpleName());
     }
 
     private List<TransportService> transportServices = new ArrayList<>();

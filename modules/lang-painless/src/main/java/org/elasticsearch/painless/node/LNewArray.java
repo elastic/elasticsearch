@@ -20,8 +20,9 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
@@ -34,21 +35,21 @@ public final class LNewArray extends ALink {
     final String type;
     final List<AExpression> arguments;
 
-    public LNewArray(int line, int offset, String location, String type, List<AExpression> arguments) {
-        super(line, offset, location, -1);
+    public LNewArray(Location location, String type, List<AExpression> arguments) {
+        super(location, -1);
 
         this.type = type;
         this.arguments = arguments;
     }
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
         if (before != null) {
-            throw new IllegalArgumentException(error("Cannot create a new array with a target already defined."));
+            throw createError(new IllegalArgumentException("Cannot create a new array with a target already defined."));
         } else if (store) {
-            throw new IllegalArgumentException(error("Cannot assign a value to a new array."));
+            throw createError(new IllegalArgumentException("Cannot assign a value to a new array."));
         } else if (!load) {
-            throw new IllegalArgumentException(error("A newly created array must be read."));
+            throw createError(new IllegalArgumentException("A newly created array must be read."));
         }
 
         final Type type;
@@ -56,15 +57,15 @@ public final class LNewArray extends ALink {
         try {
             type = Definition.getType(this.type);
         } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
+            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
             expression.expected = Definition.INT_TYPE;
-            expression.analyze(variables);
-            arguments.set(argument, expression.cast(variables));
+            expression.analyze(locals);
+            arguments.set(argument, expression.cast(locals));
         }
 
         after = Definition.getType(type.struct, arguments.size());
@@ -79,7 +80,8 @@ public final class LNewArray extends ALink {
 
     @Override
     void load(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+        writer.writeDebugInfo(location);
+
         for (AExpression argument : arguments) {
             argument.write(writer);
         }
@@ -93,6 +95,6 @@ public final class LNewArray extends ALink {
 
     @Override
     void store(MethodWriter writer) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

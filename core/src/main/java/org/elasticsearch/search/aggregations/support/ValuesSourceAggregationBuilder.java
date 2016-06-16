@@ -317,7 +317,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
             if (script == null) {
                 @SuppressWarnings("unchecked")
                 ValuesSourceConfig<VS> config = new ValuesSourceConfig(ValuesSourceType.ANY);
-                config.format = resolveFormat(null, valueType);
+                config.format(resolveFormat(null, valueType));
                 return config;
             }
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
@@ -329,11 +329,11 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
                 valuesSourceType = ValuesSourceType.BYTES;
             }
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<VS>(valuesSourceType);
-            config.missing = missing;
-            config.timeZone = timeZone;
-            config.format = resolveFormat(format, valueType);
-            config.script = createScript(script, context.searchContext());
-            config.scriptValueType = valueType;
+            config.missing(missing);
+            config.timezone(timeZone);
+            config.format(resolveFormat(format, valueType));
+            config.script(createScript(script, context.searchContext()));
+            config.scriptValueType(valueType);
             return config;
         }
 
@@ -341,13 +341,13 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         if (fieldType == null) {
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
-            config.missing = missing;
-            config.timeZone = timeZone;
-            config.format = resolveFormat(format, valueType);
-            config.unmapped = true;
+            config.missing(missing);
+            config.timezone(timeZone);
+            config.format(resolveFormat(format, valueType));
+            config.unmapped(true);
             if (valueType != null) {
                 // todo do we really need this for unmapped?
-                config.scriptValueType = valueType;
+                config.scriptValueType(valueType);
             }
             return config;
         }
@@ -367,11 +367,11 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
             config = new ValuesSourceConfig(valuesSourceType);
         }
 
-        config.fieldContext = new FieldContext(field, indexFieldData, fieldType);
-        config.missing = missing;
-        config.timeZone = timeZone;
-        config.script = createScript(script, context.searchContext());
-        config.format = fieldType.docValueFormat(format, timeZone);
+        config.fieldContext(new FieldContext(field, indexFieldData, fieldType));
+        config.missing(missing);
+        config.timezone(timeZone);
+        config.script(createScript(script, context.searchContext()));
+        config.format(fieldType.docValueFormat(format, timeZone));
         return config;
     }
 

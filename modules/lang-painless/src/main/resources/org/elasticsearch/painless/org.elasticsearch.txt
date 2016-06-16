@@ -65,22 +65,26 @@ class org.elasticsearch.common.geo.GeoPoint -> org.elasticsearch.common.geo.GeoP
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues.Strings -> org.elasticsearch.index.fielddata.ScriptDocValues$Strings extends List,Collection,Iterable,Object {
+  String get(int)
   String getValue()
   List getValues()
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues.Longs -> org.elasticsearch.index.fielddata.ScriptDocValues$Longs extends List,Collection,Iterable,Object {
+  Long get(int)
   long getValue()
   List getValues()
   org.joda.time.ReadableDateTime getDate()
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues.Doubles -> org.elasticsearch.index.fielddata.ScriptDocValues$Doubles extends List,Collection,Iterable,Object {
+  Double get(int)
   double getValue()
   List getValues()
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues.GeoPoints -> org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints extends List,Collection,Iterable,Object {
+  org.elasticsearch.common.geo.GeoPoint get(int)
   org.elasticsearch.common.geo.GeoPoint getValue()
   List getValues()
   double getLat()
@@ -121,4 +125,5 @@ class org.elasticsearch.painless.FeatureTest -> org.elasticsearch.painless.Featu
   void setY(int)
   boolean overloadedStatic()
   boolean overloadedStatic(boolean)
+  Object twoFunctionsOfX(Function,Function)
 }

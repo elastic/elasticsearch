@@ -131,16 +131,7 @@ final class StoreRecovery {
     }
 
     final void addIndices(RecoveryState.Index indexRecoveryStats, Directory target, Directory... sources) throws IOException {
-        /*
-         * TODO: once we upgraded to Lucene 6.1 use HardlinkCopyDirectoryWrapper to enable hardlinks if possible and enable it
-         * in the security.policy:
-         *
-         * grant codeBase "${codebase.lucene-misc-6.1.0.jar}" {
-         *  // needed to allow shard shrinking to use hard-links if possible via lucenes HardlinkCopyDirectoryWrapper
-         *  permission java.nio.file.LinkPermission "hard";
-         * };
-         * target = new org.apache.lucene.store.HardlinkCopyDirectoryWrapper(target);
-         */
+        target = new org.apache.lucene.store.HardlinkCopyDirectoryWrapper(target);
         try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(target, indexRecoveryStats),
             new IndexWriterConfig(null)
                 .setCommitOnClose(false)
@@ -395,7 +386,7 @@ final class StoreRecovery {
             throw new IndexShardRestoreFailedException(shardId, "empty restore source");
         }
         if (logger.isTraceEnabled()) {
-            logger.trace("[{}] restoring shard [{}]", restoreSource.snapshotId(), shardId);
+            logger.trace("[{}] restoring shard [{}]", restoreSource.snapshot(), shardId);
         }
         try {
             translogState.totalOperations(0);
@@ -405,7 +396,7 @@ final class StoreRecovery {
             if (!shardId.getIndexName().equals(restoreSource.index())) {
                 snapshotShardId = new ShardId(restoreSource.index(), IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
             }
-            indexShardRepository.restore(restoreSource.snapshotId(), restoreSource.version(), shardId, snapshotShardId, indexShard.recoveryState());
+            indexShardRepository.restore(restoreSource.snapshot().getSnapshotId(), restoreSource.version(), shardId, snapshotShardId, indexShard.recoveryState());
             indexShard.skipTranslogRecovery();
             indexShard.finalizeRecovery();
             indexShard.postRecovery("restore done");

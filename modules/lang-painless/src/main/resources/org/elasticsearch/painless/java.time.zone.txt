@@ -25,6 +25,7 @@
 #### Classes
 
 class ZoneOffsetTransition -> java.time.zone.ZoneOffsetTransition extends Comparable,Object {
+  int compareTo(ZoneOffsetTransition)
   LocalDateTime getDateTimeAfter()
   LocalDateTime getDateTimeBefore()
   Duration getDuration()

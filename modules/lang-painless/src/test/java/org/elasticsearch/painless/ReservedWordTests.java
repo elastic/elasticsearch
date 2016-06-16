@@ -27,15 +27,15 @@ public class ReservedWordTests extends ScriptTestCase {
 
     /** check that we can't declare a variable of _score, its really reserved! */
     public void testScoreVar() {
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("int _score = 5; return _score;");
         });
-        assertTrue(expected.getMessage().contains("Variable name [_score] is reserved"));
+        assertTrue(expected.getMessage().contains("Variable [_score] is reserved"));
     }
 
     /** check that we can't write to _score, its read-only! */
     public void testScoreStore() {
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("_score = 5; return _score;");
         });
         assertTrue(expected.getMessage().contains("Variable [_score] is read-only"));
@@ -43,15 +43,15 @@ public class ReservedWordTests extends ScriptTestCase {
 
     /** check that we can't declare a variable of doc, its really reserved! */
     public void testDocVar() {
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("int doc = 5; return doc;");
         });
-        assertTrue(expected.getMessage().contains("Variable name [doc] is reserved"));
+        assertTrue(expected.getMessage().contains("Variable [doc] is reserved"));
     }
 
     /** check that we can't write to doc, its read-only! */
     public void testDocStore() {
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("doc = 5; return doc;");
         });
         assertTrue(expected.getMessage().contains("Variable [doc] is read-only"));
@@ -59,15 +59,15 @@ public class ReservedWordTests extends ScriptTestCase {
 
     /** check that we can't declare a variable of ctx, its really reserved! */
     public void testCtxVar() {
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("int ctx = 5; return ctx;");
         });
-        assertTrue(expected.getMessage().contains("Variable name [ctx] is reserved"));
+        assertTrue(expected.getMessage().contains("Variable [ctx] is reserved"));
     }
 
     /** check that we can't write to ctx, its read-only! */
     public void testCtxStore() {
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("ctx = 5; return ctx;");
         });
         assertTrue(expected.getMessage().contains("Variable [ctx] is read-only"));
@@ -80,15 +80,15 @@ public class ReservedWordTests extends ScriptTestCase {
 
     /** check that we can't declare a variable of _value, its really reserved! */
     public void testAggregationValueVar() {
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("int _value = 5; return _value;");
         });
-        assertTrue(expected.getMessage().contains("Variable name [_value] is reserved"));
+        assertTrue(expected.getMessage().contains("Variable [_value] is reserved"));
     }
 
     /** check that we can't write to _value, its read-only! */
     public void testAggregationValueStore() {
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("_value = 5; return _value;");
         });
         assertTrue(expected.getMessage().contains("Variable [_value] is read-only"));

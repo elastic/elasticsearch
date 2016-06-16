@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -74,7 +75,7 @@ public class IndicesStoreTests extends ESTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new ThreadPool("ShardReplicationTests");
+        threadPool = new TestThreadPool("ShardReplicationTests");
     }
 
     @AfterClass

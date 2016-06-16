@@ -19,30 +19,99 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.FunctionRef;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Definition.MethodKey;
+import org.elasticsearch.painless.Locals;
+import org.objectweb.asm.Type;
+
+import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
+
+import java.lang.invoke.LambdaMetafactory;
 
 /**
  * Represents a function reference.
  */
 public class EFunctionRef extends AExpression {
-    public String type;
-    public String call;
+    public final String type;
+    public final String call;
 
-    public EFunctionRef(int line, int offset, String location, String type, String call) {
-        super(line, offset, location);
+    private FunctionRef ref;
+    String defPointer;
+
+    public EFunctionRef(Location location, String type, String call) {
+        super(location);
 
         this.type = type;
         this.call = call;
     }
 
     @Override
-    void analyze(Variables variables) {
-        throw new UnsupportedOperationException(error("Function references [" + type + "::" + call + "] are not currently supported."));
+    void analyze(Locals locals) {
+        if (expected == null) {
+            ref = null;
+            actual = Definition.getType("String");
+            defPointer = "S" + type + "." + call + ",0";
+        } else {
+            defPointer = null;
+            try {
+                if ("this".equals(type)) {
+                    // user's own function
+                    Method interfaceMethod = expected.struct.getFunctionalMethod();
+                    if (interfaceMethod == null) {
+                        throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
+                                                           "to [" + expected.name + "], not a functional interface");
+                    }
+                    Method implMethod = locals.getMethod(new MethodKey(call, interfaceMethod.arguments.size()));
+                    if (implMethod == null) {
+                        throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
+                                                           "to [" + expected.name + "], function not found");
+                    }
+                    ref = new FunctionRef(expected, interfaceMethod, implMethod);
+                } else {
+                    // whitelist lookup
+                    ref = new FunctionRef(expected, type, call);
+                }
+            } catch (IllegalArgumentException e) {
+                throw createError(e);
+            }
+            actual = expected;
+        }
     }
 
     @Override
     void write(MethodWriter writer) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+        if (ref != null) {
+            writer.writeDebugInfo(location);
+            // convert MethodTypes to asm Type for the constant pool.
+            String invokedType = ref.invokedType.toMethodDescriptorString();
+            Type samMethodType = Type.getMethodType(ref.samMethodType.toMethodDescriptorString());
+            Type interfaceType = Type.getMethodType(ref.interfaceMethodType.toMethodDescriptorString());
+            if (ref.needsBridges()) {
+                writer.invokeDynamic(ref.invokedName,
+                                     invokedType,
+                                     LAMBDA_BOOTSTRAP_HANDLE,
+                                     samMethodType,
+                                     ref.implMethodASM,
+                                     samMethodType,
+                                     LambdaMetafactory.FLAG_BRIDGES,
+                                     1,
+                                     interfaceType);
+            } else {
+                writer.invokeDynamic(ref.invokedName,
+                                     invokedType,
+                                     LAMBDA_BOOTSTRAP_HANDLE,
+                                     samMethodType,
+                                     ref.implMethodASM,
+                                     samMethodType,
+                                     0);
+            }
+        } else {
+            // TODO: don't do this: its just to cutover :)
+            writer.push((String)null);
+        }
     }
 }

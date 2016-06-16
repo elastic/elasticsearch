@@ -42,7 +42,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -202,9 +201,8 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
         if (querySource != null) {
             try (XContentParser parser = XContentHelper.createParser(querySource)) {
                 QueryParseContext queryParseContext = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
-                QueryBuilder queryBuilder = queryParseContext.parseInnerQueryBuilder();
                 BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
-                boolQueryBuilder.must(queryBuilder);
+                queryParseContext.parseInnerQueryBuilder().ifPresent(boolQueryBuilder::must);
                 boolQueryBuilder.filter(percolateQueryBuilder);
                 searchSource.field("query", boolQueryBuilder);
             }

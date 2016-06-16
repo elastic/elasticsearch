@@ -307,6 +307,12 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("no protocol"));
     }
 
+    public void testUnknownPlugin() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        UserError e = expectThrows(UserError.class, () -> installPlugin("foo", env.v1()));
+        assertTrue(e.getMessage(), e.getMessage().contains("Unknown plugin foo"));
+    }
+
     public void testPluginsDirMissing() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Files.delete(env.v2().pluginsFile());

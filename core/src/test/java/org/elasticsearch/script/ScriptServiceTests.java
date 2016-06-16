@@ -41,14 +41,11 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,7 +58,6 @@ public class ScriptServiceTests extends ESTestCase {
     private ResourceWatcherService resourceWatcherService;
     private ScriptEngineService scriptEngineService;
     private ScriptEngineService dangerousScriptEngineService;
-    private Set<ScriptEngineService> services;
     private Map<String, ScriptEngineService> scriptEnginesByLangMap;
     private ScriptEngineRegistry scriptEngineRegistry;
     private ScriptContextRegistry scriptContextRegistry;
@@ -89,9 +85,6 @@ public class ScriptServiceTests extends ESTestCase {
         resourceWatcherService = new ResourceWatcherService(baseSettings, null);
         scriptEngineService = new TestEngineService();
         dangerousScriptEngineService = new TestDangerousEngineService();
-        services = new HashSet<>(2);
-        services.add(scriptEngineService);
-        services.add(dangerousScriptEngineService);
         scriptEnginesByLangMap = ScriptModesTests.buildScriptEnginesByLangMap(Collections.singleton(scriptEngineService));
         //randomly register custom script contexts
         int randomInt = randomIntBetween(0, 3);
@@ -109,10 +102,7 @@ public class ScriptServiceTests extends ESTestCase {
             String context = plugin + "_" + operation;
             contexts.put(context, new ScriptContext.Plugin(plugin, operation));
         }
-        List<ScriptEngineRegistry.ScriptEngineRegistration> registries = new ArrayList<>(2);
-        registries.add(new ScriptEngineRegistry.ScriptEngineRegistration(TestEngineService.class, TestEngineService.NAME, true));
-        registries.add(new ScriptEngineRegistry.ScriptEngineRegistration(TestDangerousEngineService.class, TestDangerousEngineService.NAME));
-        scriptEngineRegistry = new ScriptEngineRegistry(registries);
+        scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(scriptEngineService, dangerousScriptEngineService));
         scriptContextRegistry = new ScriptContextRegistry(contexts.values());
         scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
@@ -124,7 +114,7 @@ public class ScriptServiceTests extends ESTestCase {
     private void buildScriptService(Settings additionalSettings) throws IOException {
         Settings finalSettings = Settings.builder().put(baseSettings).put(additionalSettings).build();
         Environment environment = new Environment(finalSettings);
-        scriptService = new ScriptService(finalSettings, environment, services, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
+        scriptService = new ScriptService(finalSettings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
             String getScriptFromClusterState(ClusterState state, String scriptLang, String id) {
                 //mock the script that gets retrieved from an index
@@ -531,6 +521,11 @@ public class ScriptServiceTests extends ESTestCase {
         @Override
         public void scriptRemoved(CompiledScript script) {
             // Nothing to do here
+        }
+
+        @Override
+        public boolean isInlineScriptEnabled() {
+            return true;
         }
     }
 

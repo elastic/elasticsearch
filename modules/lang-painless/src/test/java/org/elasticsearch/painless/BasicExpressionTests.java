@@ -68,6 +68,18 @@ public class BasicExpressionTests extends ScriptTestCase {
                 "((Map)y).put(2, 3);\n" +
                 "return x.get(2);\n"));
     }
+    
+    public void testIllegalDefCast() {
+        Exception exception = expectScriptThrows(ClassCastException.class, () -> { 
+            exec("def x = 1.0; int y = x; return y;");
+        });
+        assertTrue(exception.getMessage().contains("cannot be cast"));
+
+        exception = expectScriptThrows(ClassCastException.class, () -> { 
+            exec("def x = (short)1; byte y = x; return y;");
+        });
+        assertTrue(exception.getMessage().contains("cannot be cast"));
+    }
 
     public void testCat() {
         assertEquals("aaabbb", exec("return \"aaa\" + \"bbb\";"));

@@ -24,10 +24,12 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.zip.GZIPInputStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -35,33 +37,33 @@ import static org.hamcrest.Matchers.equalTo;
 public class GeoIpProcessorTests extends ESTestCase {
 
     public void testCity() throws Exception {
-        InputStream database = GeoIpProcessor.class.getResourceAsStream("/GeoLite2-City.mmdb");
+        InputStream database = getDatabaseFileInputStream("/GeoLite2-City.mmdb.gz");
         GeoIpProcessor processor = new GeoIpProcessor(randomAsciiOfLength(10), "source_field", new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class));
 
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field", "82.170.213.79");
+        document.put("source_field", "8.8.8.8");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("82.170.213.79"));
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("8.8.8.8"));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(8));
-        assertThat(geoData.get("ip"), equalTo("82.170.213.79"));
-        assertThat(geoData.get("country_iso_code"), equalTo("NL"));
-        assertThat(geoData.get("country_name"), equalTo("Netherlands"));
-        assertThat(geoData.get("continent_name"), equalTo("Europe"));
-        assertThat(geoData.get("region_name"), equalTo("North Holland"));
-        assertThat(geoData.get("city_name"), equalTo("Amsterdam"));
-        assertThat(geoData.get("timezone"), equalTo("Europe/Amsterdam"));
+        assertThat(geoData.get("ip"), equalTo("8.8.8.8"));
+        assertThat(geoData.get("country_iso_code"), equalTo("US"));
+        assertThat(geoData.get("country_name"), equalTo("United States"));
+        assertThat(geoData.get("continent_name"), equalTo("North America"));
+        assertThat(geoData.get("region_name"), equalTo("California"));
+        assertThat(geoData.get("city_name"), equalTo("Mountain View"));
+        assertThat(geoData.get("timezone"), equalTo("America/Los_Angeles"));
         Map<String, Object> location = new HashMap<>();
-        location.put("lat", 52.374d);
-        location.put("lon", 4.8897d);
+        location.put("lat", 37.386d);
+        location.put("lon", -122.0838d);
         assertThat(geoData.get("location"), equalTo(location));
     }
 
     public void testCountry() throws Exception {
-        InputStream database = GeoIpProcessor.class.getResourceAsStream("/GeoLite2-Country.mmdb");
+        InputStream database = getDatabaseFileInputStream("/GeoLite2-Country.mmdb.gz");
         GeoIpProcessor processor = new GeoIpProcessor(randomAsciiOfLength(10), "source_field", new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class));
 
         Map<String, Object> document = new HashMap<>();
@@ -80,11 +82,11 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testAddressIsNotInTheDatabase() throws Exception {
-        InputStream database = GeoIpProcessor.class.getResourceAsStream("/GeoLite2-City.mmdb");
+        InputStream database = getDatabaseFileInputStream("/GeoLite2-City.mmdb.gz");
         GeoIpProcessor processor = new GeoIpProcessor(randomAsciiOfLength(10), "source_field", new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class));
 
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field", "202.45.11.11");
+        document.put("source_field", "127.0.0.1");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
         @SuppressWarnings("unchecked")
@@ -94,7 +96,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     /** Don't silently do DNS lookups or anything trappy on bogus data */
     public void testInvalid() throws Exception {
-        InputStream database = GeoIpProcessor.class.getResourceAsStream("/GeoLite2-City.mmdb");
+        InputStream database = getDatabaseFileInputStream("/GeoLite2-City.mmdb.gz");
         GeoIpProcessor processor = new GeoIpProcessor(randomAsciiOfLength(10), "source_field", new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class));
 
         Map<String, Object> document = new HashMap<>();
@@ -107,6 +109,10 @@ public class GeoIpProcessorTests extends ESTestCase {
             assertNotNull(expected.getMessage());
             assertThat(expected.getMessage(), containsString("not an IP string literal"));
         }
+    }
+
+    static InputStream getDatabaseFileInputStream(String path) throws IOException {
+        return new GZIPInputStream(GeoIpProcessor.class.getResourceAsStream(path));
     }
 
 }

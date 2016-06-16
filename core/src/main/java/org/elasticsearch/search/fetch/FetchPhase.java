@@ -29,7 +29,6 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.text.Text;
@@ -73,11 +72,9 @@ public class FetchPhase implements SearchPhase {
 
     private final FetchSubPhase[] fetchSubPhases;
 
-    @Inject
-    public FetchPhase(Set<FetchSubPhase> fetchSubPhases, InnerHitsFetchSubPhase innerHitsFetchSubPhase) {
-        innerHitsFetchSubPhase.setFetchPhase(this);
+    public FetchPhase(Set<FetchSubPhase> fetchSubPhases) {
         this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
-        this.fetchSubPhases[fetchSubPhases.size()] = innerHitsFetchSubPhase;
+        this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsFetchSubPhase(this);
     }
 
     @Override
@@ -163,16 +160,12 @@ public class FetchPhase implements SearchPhase {
             hits[index] = searchHit;
             hitContext.reset(searchHit, subReaderContext, subDocId, context.searcher());
             for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-                if (fetchSubPhase.hitExecutionNeeded(context)) {
-                    fetchSubPhase.hitExecute(context, hitContext);
-                }
+                fetchSubPhase.hitExecute(context, hitContext);
             }
         }
 
         for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-            if (fetchSubPhase.hitsExecutionNeeded(context)) {
-                fetchSubPhase.hitsExecute(context, hits);
-            }
+            fetchSubPhase.hitsExecute(context, hits);
         }
 
         context.fetchResult().hits(new InternalSearchHits(hits, context.queryResult().topDocs().totalHits, context.queryResult().topDocs().getMaxScore()));

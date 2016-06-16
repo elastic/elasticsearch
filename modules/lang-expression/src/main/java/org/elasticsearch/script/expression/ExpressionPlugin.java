@@ -19,11 +19,14 @@
 
 package org.elasticsearch.script.expression;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptModule;
 
-public class ExpressionPlugin extends Plugin {
+public class ExpressionPlugin extends Plugin implements ScriptPlugin {
 
     @Override
     public String name() {
@@ -35,8 +38,8 @@ public class ExpressionPlugin extends Plugin {
         return "Lucene expressions integration for Elasticsearch";
     }
 
-    public void onModule(ScriptModule module) {
-        module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExpressionScriptEngineService.class,
-                        ExpressionScriptEngineService.NAME, true));
+    @Override
+    public ScriptEngineService getScriptEngineService(Settings settings) {
+        return new ExpressionScriptEngineService(settings);
     }
 }

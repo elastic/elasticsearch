@@ -20,10 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
@@ -35,23 +37,44 @@ final class LDefCall extends ALink implements IDefLink {
 
     final String name;
     final List<AExpression> arguments;
+    long recipe;
+    List<String> pointers = new ArrayList<>();
 
-    LDefCall(int line, int offset, String location, String name, List<AExpression> arguments) {
-        super(line, offset, location, -1);
+    LDefCall(Location location, String name, List<AExpression> arguments) {
+        super(location, -1);
 
         this.name = name;
         this.arguments = arguments;
     }
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
+        if (arguments.size() > 63) {
+            // technically, the limitation is just methods with > 63 params, containing method references.
+            // this is because we are lazy and use a long as a bitset. we can always change to a "string" if need be.
+            // but NEED NOT BE. nothing with this many parameters is in the whitelist and we do not support varargs.
+            throw new UnsupportedOperationException("methods with > 63 arguments are currently not supported");
+        }
+
+        recipe = 0;
+        int totalCaptures = 0;
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
             expression.internal = true;
-            expression.analyze(variables);
+            expression.analyze(locals);
+
+            if (expression instanceof EFunctionRef) {
+                pointers.add(((EFunctionRef)expression).defPointer);
+                recipe |= (1L << (argument + totalCaptures)); // mark argument as deferred reference
+            } else if (expression instanceof ECapturingFunctionRef) {
+                pointers.add(((ECapturingFunctionRef)expression).defPointer);
+                recipe |= (1L << (argument + totalCaptures)); // mark argument as deferred reference
+                totalCaptures++;
+            }
+
             expression.expected = expression.actual;
-            arguments.set(argument, expression.cast(variables));
+            arguments.set(argument, expression.cast(locals));
         }
 
         statement = true;
@@ -67,7 +90,8 @@ final class LDefCall extends ALink implements IDefLink {
 
     @Override
     void load(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+        writer.writeDebugInfo(location);
+
         StringBuilder signature = new StringBuilder();
 
         signature.append('(');
@@ -76,6 +100,10 @@ final class LDefCall extends ALink implements IDefLink {
 
         for (AExpression argument : arguments) {
             signature.append(argument.actual.type.getDescriptor());
+            if (argument instanceof ECapturingFunctionRef) {
+                ECapturingFunctionRef capturingRef = (ECapturingFunctionRef) argument;
+                signature.append(capturingRef.captured.type.type.getDescriptor());
+            }
             argument.write(writer);
         }
 
@@ -83,11 +111,15 @@ final class LDefCall extends ALink implements IDefLink {
         // return value
         signature.append(after.type.getDescriptor());
 
-        writer.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, (Object)DefBootstrap.METHOD_CALL);
+        List<Object> args = new ArrayList<>();
+        args.add(DefBootstrap.METHOD_CALL);
+        args.add(recipe);
+        args.addAll(pointers);
+        writer.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, args.toArray());
     }
 
     @Override
     void store(MethodWriter writer) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

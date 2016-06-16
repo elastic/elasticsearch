@@ -141,6 +141,6 @@ public class NodeInfoStreamingTests extends ESTestCase {
         plugins.addModule(DummyPluginInfo.INSTANCE);
         plugins.addPlugin(DummyPluginInfo.INSTANCE);
         IngestInfo ingestInfo = new IngestInfo(Collections.emptyList());
-        return new NodeInfo(VersionUtils.randomVersion(random()), build, node, serviceAttributes, settings, osInfo, process, jvm, threadPoolInfo, transport, htttpInfo, plugins, ingestInfo);
+        return new NodeInfo(VersionUtils.randomVersion(random()), build, node, serviceAttributes, settings, osInfo, process, jvm, threadPoolInfo, transport, htttpInfo, plugins, ingestInfo, null);
     }
 }

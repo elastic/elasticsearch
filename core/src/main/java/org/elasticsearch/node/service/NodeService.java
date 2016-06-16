@@ -135,7 +135,8 @@ public class NodeService extends AbstractComponent implements Closeable {
                 transportService.info(),
                 httpServer == null ? null : httpServer.info(),
                 pluginService == null ? null : pluginService.info(),
-                ingestService == null ? null : ingestService.info()
+                ingestService == null ? null : ingestService.info(),
+                indicesService == null ? null : indicesService.getTotalIndexingBufferBytes()
         );
     }
 
@@ -150,7 +151,8 @@ public class NodeService extends AbstractComponent implements Closeable {
                 transport ? transportService.info() : null,
                 http ? (httpServer == null ? null : httpServer.info()) : null,
                 plugin ? (pluginService == null ? null : pluginService.info()) : null,
-                ingest ? (ingestService == null ? null : ingestService.info()) : null
+                ingest ? (ingestService == null ? null : ingestService.info()) : null,
+                indicesService == null ? null : indicesService.getTotalIndexingBufferBytes()
         );
     }
 

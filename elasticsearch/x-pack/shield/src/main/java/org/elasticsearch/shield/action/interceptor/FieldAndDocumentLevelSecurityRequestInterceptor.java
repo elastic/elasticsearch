@@ -47,12 +47,14 @@ public abstract class FieldAndDocumentLevelSecurityRequestInterceptor<Request> e
             for (String index : indicesRequest.indices()) {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
                 if (indexAccessControl != null) {
-                    boolean fls = indexAccessControl.getFields() != null;
-                    boolean dls = indexAccessControl.getQueries() != null;
-                    if (fls || dls) {
-                        logger.debug("intercepted request for index [{}] with field level or document level security enabled, " +
-                                "disabling features", index);
-                        disableFeatures(request);
+                    boolean fieldLevelSecurityEnabled = indexAccessControl.getFields() != null;
+                    boolean documentLevelSecurityEnabled = indexAccessControl.getQueries() != null;
+                    if (fieldLevelSecurityEnabled || documentLevelSecurityEnabled) {
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("intercepted request for index [{}] with field level [{}] or document level [{}] security "
+                                    + "enabled, disabling features", index, fieldLevelSecurityEnabled, documentLevelSecurityEnabled);
+                        }
+                        disableFeatures(request, fieldLevelSecurityEnabled, documentLevelSecurityEnabled);
                         return;
                     }
                 }
@@ -62,6 +64,6 @@ public abstract class FieldAndDocumentLevelSecurityRequestInterceptor<Request> e
         }
     }
 
-    protected abstract void disableFeatures(Request request);
+    protected abstract void disableFeatures(Request request, boolean fieldLevelSecurityEnabled, boolean documentLevelSecurityEnabled);
 
 }

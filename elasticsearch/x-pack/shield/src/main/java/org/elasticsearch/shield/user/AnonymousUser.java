@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.shield.user.User.ReservedUser;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -80,8 +81,12 @@ public class AnonymousUser extends ReservedUser {
         return roles;
     }
 
-    public static void registerSettings(SettingsModule settingsModule) {
-        settingsModule.registerSetting(USERNAME_SETTING);
-        settingsModule.registerSetting(ROLES_SETTING);
+    public static List<Setting<?>> getSettings() {
+        return Arrays.asList();
+    }
+
+    public static void addSettings(List<Setting<?>> settingsList) {
+        settingsList.add(USERNAME_SETTING);
+        settingsList.add(ROLES_SETTING);
     }
 }

@@ -25,6 +25,7 @@ import org.junit.After;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -58,7 +59,7 @@ public class ShardsTests extends MarvelIntegTestCase {
     public void testShards() throws Exception {
         logger.debug("--> creating some indices so that shards collector reports data");
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            client().prepareIndex(INDEX_PREFIX + i, "foo").setRefresh(true).setSource("field1", "value1").get();
+            client().prepareIndex(INDEX_PREFIX + i, "foo").setRefreshPolicy(IMMEDIATE).setSource("field1", "value1").get();
         }
 
         securedFlush();

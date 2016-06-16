@@ -9,6 +9,7 @@ import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -23,6 +24,7 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -49,9 +51,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.shield.ShieldTemplateService;
-import org.elasticsearch.shield.user.SystemUser;
-import org.elasticsearch.shield.user.User;
-import org.elasticsearch.shield.user.User.Fields;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.shield.action.user.ChangePasswordRequest;
@@ -61,6 +60,9 @@ import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.client.SecurityClient;
 import org.elasticsearch.shield.support.SelfReschedulingRunnable;
+import org.elasticsearch.shield.user.SystemUser;
+import org.elasticsearch.shield.user.User;
+import org.elasticsearch.shield.user.User.Fields;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
@@ -324,7 +326,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
 
         client.prepareUpdate(ShieldTemplateService.SECURITY_INDEX_NAME, docType, username)
                 .setDoc(Fields.PASSWORD.getPreferredName(), String.valueOf(request.passwordHash()))
-                .setRefresh(request.refresh())
+                .setRefreshPolicy(request.getRefreshPolicy())
                 .execute(new ActionListener<UpdateResponse>() {
                     @Override
                     public void onResponse(UpdateResponse updateResponse) {
@@ -345,7 +347,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                         }
 
                         if (docType.equals(RESERVED_USER_DOC_TYPE)) {
-                            createReservedUser(username, request.passwordHash(), request.refresh(), listener);
+                            createReservedUser(username, request.passwordHash(), request.getRefreshPolicy(), listener);
                         } else {
                             logger.debug("failed to change password for user [{}]", cause, request.username());
                             ValidationException validationException = new ValidationException();
@@ -356,10 +358,10 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                 });
     }
 
-    private void createReservedUser(String username, char[] passwordHash, boolean refresh, ActionListener<Void> listener) {
+    private void createReservedUser(String username, char[] passwordHash, RefreshPolicy refresh, ActionListener<Void> listener) {
         client.prepareIndex(ShieldTemplateService.SECURITY_INDEX_NAME, RESERVED_USER_DOC_TYPE, username)
                 .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash))
-                .setRefresh(refresh)
+                .setRefreshPolicy(refresh)
                 .execute(new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse indexResponse) {
@@ -400,7 +402,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                         User.Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
                         User.Fields.EMAIL.getPreferredName(), putUserRequest.email(),
                         User.Fields.METADATA.getPreferredName(), putUserRequest.metadata())
-                .setRefresh(putUserRequest.refresh())
+                .setRefreshPolicy(putUserRequest.getRefreshPolicy())
                 .execute(new ActionListener<UpdateResponse>() {
                     @Override
                     public void onResponse(UpdateResponse updateResponse) {
@@ -440,7 +442,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                         User.Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
                         User.Fields.EMAIL.getPreferredName(), putUserRequest.email(),
                         User.Fields.METADATA.getPreferredName(), putUserRequest.metadata())
-                .setRefresh(putUserRequest.refresh())
+                .setRefreshPolicy(putUserRequest.getRefreshPolicy())
                 .execute(new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse indexResponse) {
@@ -470,7 +472,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             DeleteRequest request = client.prepareDelete(ShieldTemplateService.SECURITY_INDEX_NAME,
                     USER_DOC_TYPE, deleteUserRequest.username()).request();
             request.indicesOptions().ignoreUnavailable();
-            request.refresh(deleteUserRequest.refresh());
+            request.setRefreshPolicy(deleteUserRequest.refresh() ? RefreshPolicy.IMMEDIATE : RefreshPolicy.WAIT_UNTIL);
             client.delete(request, new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {
@@ -865,9 +867,9 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         void onUsersChanged(List<String> username);
     }
 
-    public static void registerSettings(SettingsModule settingsModule) {
-        settingsModule.registerSetting(SCROLL_SIZE_SETTING);
-        settingsModule.registerSetting(SCROLL_KEEP_ALIVE_SETTING);
-        settingsModule.registerSetting(POLL_INTERVAL_SETTING);
+    public static void addSettings(List<Setting<?>> settings) {
+        settings.add(SCROLL_SIZE_SETTING);
+        settings.add(SCROLL_KEEP_ALIVE_SETTING);
+        settings.add(POLL_INTERVAL_SETTING);
     }
 }

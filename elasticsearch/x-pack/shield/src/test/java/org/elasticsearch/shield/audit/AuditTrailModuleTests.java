@@ -11,14 +11,14 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.indices.breaker.CircuitBreakerModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.local.LocalTransport;
 
@@ -35,8 +35,7 @@ public class AuditTrailModuleTests extends ESTestCase {
                 .put("client.type", "node")
                 .put(AuditTrailModule.ENABLED_SETTING.getKey(), false)
                 .build();
-        SettingsModule settingsModule = new SettingsModule(settings);
-        settingsModule.registerSetting(AuditTrailModule.ENABLED_SETTING);
+        SettingsModule settingsModule = new SettingsModule(settings, AuditTrailModule.ENABLED_SETTING);
         Injector injector = Guice.createInjector(settingsModule, new AuditTrailModule(settings));
         AuditTrail auditTrail = injector.getInstance(AuditTrail.class);
         assertThat(auditTrail, is(AuditTrail.NOOP));
@@ -55,10 +54,9 @@ public class AuditTrailModuleTests extends ESTestCase {
                 .put(AuditTrailModule.ENABLED_SETTING.getKey(), true)
                 .put("client.type", "node")
                 .build();
-        ThreadPool pool = new ThreadPool("testLogFile");
+        ThreadPool pool = new TestThreadPool("testLogFile");
         try {
-            SettingsModule settingsModule = new SettingsModule(settings);
-            settingsModule.registerSetting(AuditTrailModule.ENABLED_SETTING);
+            SettingsModule settingsModule = new SettingsModule(settings, AuditTrailModule.ENABLED_SETTING);
             Injector injector = Guice.createInjector(
                     settingsModule,
                     new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry()) {
@@ -68,8 +66,11 @@ public class AuditTrailModuleTests extends ESTestCase {
                         }
                     },
                     new AuditTrailModule(settings),
-                    new CircuitBreakerModule(settings),
-                    new ThreadPoolModule(pool),
+                    b -> {
+                        b.bind(CircuitBreakerService.class).toInstance(Node.createCircuitBreakerService(settingsModule.getSettings(),
+                                settingsModule.getClusterSettings()));
+                        b.bind(ThreadPool.class).toInstance(pool);
+                    },
                     new Version.Module(Version.CURRENT)
             );
             AuditTrail auditTrail = injector.getInstance(AuditTrail.class);
@@ -89,9 +90,7 @@ public class AuditTrailModuleTests extends ESTestCase {
                 .put(AuditTrailModule.OUTPUTS_SETTING.getKey() , "foo")
                 .put("client.type", "node")
                 .build();
-        SettingsModule settingsModule = new SettingsModule(settings);
-        settingsModule.registerSetting(AuditTrailModule.ENABLED_SETTING);
-        settingsModule.registerSetting(AuditTrailModule.OUTPUTS_SETTING);
+        SettingsModule settingsModule = new SettingsModule(settings, AuditTrailModule.ENABLED_SETTING, AuditTrailModule.OUTPUTS_SETTING);
         try {
             Guice.createInjector(settingsModule, new AuditTrailModule(settings));
             fail("Expect initialization to fail when an unknown audit trail output is configured");

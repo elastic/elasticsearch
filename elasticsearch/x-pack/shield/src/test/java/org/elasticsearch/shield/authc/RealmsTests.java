@@ -52,6 +52,7 @@ public class RealmsTests extends ESTestCase {
         }
         shieldLicenseState = mock(SecurityLicenseState.class);
         reservedRealm = mock(ReservedRealm.class);
+        when(shieldLicenseState.authenticationAndAuthorizationEnabled()).thenReturn(true);
         when(shieldLicenseState.enabledRealmType()).thenReturn(EnabledRealmType.ALL);
     }
 
@@ -336,6 +337,21 @@ public class RealmsTests extends ESTestCase {
         }
 
         assertThat(count, equalTo(orderToIndex.size()));
+    }
+
+    public void testAuthcAuthzDisabled() {
+        Settings settings = Settings.builder()
+                .put("path.home", createTempDir())
+                .put("xpack.security.authc.realms.realm_1.type", FileRealm.TYPE)
+                .put("xpack.security.authc.realms.realm_1.order", 0)
+                .build();
+        Environment env = new Environment(settings);
+        Realms realms = new Realms(settings, env, factories, shieldLicenseState, reservedRealm).start();
+
+        assertThat(realms.iterator().hasNext(), is(true));
+
+        when(shieldLicenseState.authenticationAndAuthorizationEnabled()).thenReturn(false);
+        assertThat(realms.iterator().hasNext(), is(false));
     }
 
     static class DummyRealm extends Realm {

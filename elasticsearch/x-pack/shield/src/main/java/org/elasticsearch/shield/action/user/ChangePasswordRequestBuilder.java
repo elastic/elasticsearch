@@ -7,25 +7,28 @@ package org.elasticsearch.shield.action.user;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.support.Validation;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.xpack.common.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
 
 /**
+ * Request to change a user's password.
  */
 public class ChangePasswordRequestBuilder
-        extends ActionRequestBuilder<ChangePasswordRequest, ChangePasswordResponse, ChangePasswordRequestBuilder> {
+        extends ActionRequestBuilder<ChangePasswordRequest, ChangePasswordResponse, ChangePasswordRequestBuilder>
+        implements WriteRequestBuilder<ChangePasswordRequestBuilder> {
 
     public ChangePasswordRequestBuilder(ElasticsearchClient client) {
         this(client, ChangePasswordAction.INSTANCE);
@@ -79,11 +82,6 @@ public class ChangePasswordRequestBuilder
                 }
             }
         }
-        return this;
-    }
-
-    public ChangePasswordRequestBuilder refresh(boolean refresh) {
-        request.refresh(refresh);
         return this;
     }
 }

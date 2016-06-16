@@ -20,10 +20,10 @@ import java.net.URLClassLoader;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
@@ -37,18 +37,25 @@ public class XPackExtensionsService {
     /**
      * We keep around a list of extensions
      */
-    private final List<Tuple<XPackExtensionInfo, XPackExtension> > extensions;
+    private final List<Tuple<XPackExtensionInfo, XPackExtension>> extensions;
 
     /**
      * Constructs a new XPackExtensionsService
-     * @param settings The settings of the system
-     * @param extsDirectory The directory extensions exist in, or null if extensions should not be loaded from the filesystem
+     *
+     * @param settings            The settings of the system
+     * @param extsDirectory       The directory extensions exist in, or null if extensions should not be loaded from the filesystem
      * @param classpathExtensions Extensions that exist in the classpath which should be loaded
      */
-    public XPackExtensionsService(Settings settings, Path extsDirectory, Collection<Class<? extends XPackExtension>> classpathExtensions) {
+    public XPackExtensionsService(Settings settings, Path extsDirectory,
+                                  Collection<Class<? extends XPackExtension>> classpathExtensions) {
+        try {
+            XPackExtensionSecurity.configure(extsDirectory);
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to configure extension policy", e);
+        }
+
         this.settings = settings;
         List<Tuple<XPackExtensionInfo, XPackExtension>> extensionsLoaded = new ArrayList<>();
-
         // first we load extensions that are on the classpath. this is for tests
         for (Class<? extends XPackExtension> extClass : classpathExtensions) {
             XPackExtension ext = loadExtension(extClass, settings);
@@ -123,7 +130,7 @@ public class XPackExtensionsService {
         return bundles;
     }
 
-    private List<Tuple<XPackExtensionInfo, XPackExtension> > loadBundles(List<Bundle> bundles) {
+    private List<Tuple<XPackExtensionInfo, XPackExtension>> loadBundles(List<Bundle> bundles) {
         List<Tuple<XPackExtensionInfo, XPackExtension>> exts = new ArrayList<>();
 
         for (Bundle bundle : bundles) {

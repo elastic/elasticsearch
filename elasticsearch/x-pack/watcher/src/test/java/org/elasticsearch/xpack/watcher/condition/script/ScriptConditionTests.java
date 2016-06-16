@@ -18,6 +18,7 @@ import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
@@ -48,7 +49,7 @@ public class ScriptConditionTests extends ESTestCase {
 
     @Before
     public void init() {
-        tp = new ThreadPool(ThreadPool.Names.SAME);
+        tp = new TestThreadPool(ThreadPool.Names.SAME);
     }
 
     @After

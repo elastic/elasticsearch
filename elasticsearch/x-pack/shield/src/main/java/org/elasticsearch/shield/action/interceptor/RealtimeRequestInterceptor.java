@@ -23,7 +23,8 @@ public class RealtimeRequestInterceptor extends FieldAndDocumentLevelSecurityReq
     }
 
     @Override
-    protected void disableFeatures(RealtimeRequest realtimeRequest) {
+    protected void disableFeatures(RealtimeRequest realtimeRequest, boolean fieldLevelSecurityEnabled,
+            boolean documentLevelSecurityEnabled) {
         realtimeRequest.realtime(false);
     }
 

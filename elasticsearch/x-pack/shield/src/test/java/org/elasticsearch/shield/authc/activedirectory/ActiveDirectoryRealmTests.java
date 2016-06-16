@@ -22,6 +22,7 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
@@ -92,7 +93,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
             directoryServer.startListening();
             directoryServers[i] = directoryServer;
         }
-        threadPool = new ThreadPool("active directory realm tests");
+        threadPool = new TestThreadPool("active directory realm tests");
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
     }

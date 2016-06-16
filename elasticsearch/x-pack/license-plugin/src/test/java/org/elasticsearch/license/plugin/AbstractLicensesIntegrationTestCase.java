@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.graph.Graph;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.action.put.PutLicenseAction;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
@@ -31,6 +30,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.graph.Graph;
 
 import java.util.ArrayList;
 import java.util.Collection;

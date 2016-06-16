@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 
 import java.net.InetSocketAddress;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -49,7 +50,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
     @TestLogging("watcher.support.http:TRACE")
     public void testHttpInput() throws Exception {
         createIndex("index");
-        client().prepareIndex("index", "type", "id").setSource("{}").setRefresh(true).get();
+        client().prepareIndex("index", "type", "id").setSource("{}").setRefreshPolicy(IMMEDIATE).get();
 
         InetSocketAddress address = internalCluster().httpAddresses()[0];
         watcherClient().preparePutWatch("_name")

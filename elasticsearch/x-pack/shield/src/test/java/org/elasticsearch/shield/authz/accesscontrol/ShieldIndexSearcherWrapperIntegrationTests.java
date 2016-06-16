@@ -39,6 +39,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.util.Collections;
+import java.util.Optional;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
@@ -138,7 +139,8 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
         for (int i = 0; i < numValues; i++) {
             ParsedQuery parsedQuery = new ParsedQuery(new TermQuery(new Term("field", values[i])));
             when(queryShardContext.newParseContext(any(XContentParser.class))).thenReturn(queryParseContext);
-            when(queryParseContext.parseInnerQueryBuilder()).thenReturn((QueryBuilder) new TermQueryBuilder("field", values[i]));
+            when(queryParseContext.parseInnerQueryBuilder())
+                    .thenReturn(Optional.of((QueryBuilder) new TermQueryBuilder("field", values[i])));
             when(queryShardContext.toQuery(any(QueryBuilder.class))).thenReturn(parsedQuery);
             DirectoryReader wrappedDirectoryReader = wrapper.wrap(directoryReader);
             IndexSearcher indexSearcher = wrapper.wrap(new IndexSearcher(wrappedDirectoryReader));

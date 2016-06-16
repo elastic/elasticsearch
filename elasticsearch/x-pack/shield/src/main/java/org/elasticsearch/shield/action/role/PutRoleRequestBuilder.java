@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.action.role;
 
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -14,7 +15,8 @@ import org.elasticsearch.shield.authz.RoleDescriptor;
 /**
  * Builder for requests to add a role to the administrative index
  */
-public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, PutRoleResponse, PutRoleRequestBuilder> {
+public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, PutRoleResponse, PutRoleRequestBuilder>
+        implements WriteRequestBuilder<PutRoleRequestBuilder> {
 
     public PutRoleRequestBuilder(ElasticsearchClient client) {
         this(client, PutRoleAction.INSTANCE);
@@ -52,11 +54,6 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
     public PutRoleRequestBuilder addIndices(String[] indices, String[] privileges,
             @Nullable String[] fields, @Nullable BytesReference query) {
         request.addIndex(indices, privileges, fields, query);
-        return this;
-    }
-
-    public PutRoleRequestBuilder refresh(boolean refresh) {
-        request.refresh(refresh);
         return this;
     }
 }

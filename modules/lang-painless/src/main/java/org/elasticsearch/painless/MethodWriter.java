@@ -22,7 +22,7 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
-import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
@@ -82,7 +82,7 @@ public final class MethodWriter extends GeneratorAdapter {
     private final Deque<List<org.objectweb.asm.Type>> stringConcatArgs =
         (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ?  null : new ArrayDeque<>();
 
-    public MethodWriter(int access, Method method, ClassWriter cw, BitSet statements) {
+    public MethodWriter(int access, Method method, ClassVisitor cw, BitSet statements) {
         super(Opcodes.ASM5, cw.visitMethod(access, method.getName(), method.getDescriptor(), null, null),
                 access, method.getName(), method.getDescriptor());
 

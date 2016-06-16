@@ -112,19 +112,6 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
 
     public static class ErrorActionPlugin extends Plugin {
 
-        public ErrorActionPlugin() {
-        }
-
-        @Override
-        public String name() {
-            return "error-action";
-        }
-
-        @Override
-        public String description() {
-            return name();
-        }
-
         public void onModule(WatcherActionModule module) {
             module.registerAction(ErrorAction.TYPE, ErrorAction.Factory.class);
         }

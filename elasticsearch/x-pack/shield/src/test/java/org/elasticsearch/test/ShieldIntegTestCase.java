@@ -151,7 +151,8 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
 //            assertThat(nodeInfo.getPlugins().getInfos(), hasSize(2));
             Collection<String> pluginNames =
                     nodeInfo.getPlugins().getPluginInfos().stream().map(p -> p.getName()).collect(Collectors.toList());
-            assertThat("plugin [" + XPackPlugin.NAME + "] not found in [" + pluginNames + "]", pluginNames, hasItem(XPackPlugin.NAME));
+            assertThat("plugin [" + xpackPluginClass().getName() + "] not found in [" + pluginNames + "]", pluginNames,
+                hasItem(xpackPluginClass().getName()));
         }
     }
 

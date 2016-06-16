@@ -32,16 +32,6 @@ public class Graph extends Plugin {
     public Graph(Settings settings) {
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
         enabled = enabled(settings);
-    }    
-    
-    @Override
-    public String name() {
-        return NAME;
-    }
-
-    @Override
-    public String description() {
-        return "Elasticsearch Graph Plugin";
     }
     
     public static boolean enabled(Settings settings) {

@@ -76,14 +76,6 @@ public class WatcherIndexTemplateRegistryTests extends AbstractWatcherIntegratio
     }
 
     public static class SettingTestPlugin extends Plugin {
-        public String name() {
-            return "watcher-index-template-registry-settings-plugin";
-        }
-
-        @Override
-        public String description() {
-            return "installs a setting this test needs";
-        }
 
         public static final Setting<String> KEY_1 = new Setting<>("index.key1", "", Function.identity(), Setting.Property.IndexScope);
 

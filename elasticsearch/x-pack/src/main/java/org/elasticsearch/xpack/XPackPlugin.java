@@ -127,14 +127,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin {
         }
     }
 
-    @Override public String name() {
-        return NAME;
-    }
-
-    @Override public String description() {
-        return "Elastic X-Pack";
-    }
-
     // For tests only
     public Collection<Class<? extends XPackExtension>> getExtensions() {
         return Collections.emptyList();

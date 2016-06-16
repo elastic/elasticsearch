@@ -959,8 +959,14 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             paramNames.add(lamtype.ID().getText());
         }
 
-        for (StatementContext statement : ctx.block().statement()) {
-            statements.add((AStatement)visit(statement));
+        if (ctx.expression() != null) {
+            // single expression
+            AExpression expression = (AExpression) visitExpression(ctx.expression());
+            statements.add(new SReturn(location(ctx), expression));
+        } else {
+            for (StatementContext statement : ctx.block().statement()) {
+                statements.add((AStatement)visit(statement));
+            }
         }
         
         String name = nextLambda();

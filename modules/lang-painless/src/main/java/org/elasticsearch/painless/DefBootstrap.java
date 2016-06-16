@@ -266,7 +266,7 @@ public final class DefBootstrap {
             }
         }
         
-        private MethodHandle lookupGeneric() throws Throwable {
+        private MethodHandle lookupGeneric() {
             if ((flags & OPERATOR_COMPOUND_ASSIGNMENT) != 0) {
                 return DefMath.lookupGenericWithCast(name);
             } else {
@@ -275,8 +275,8 @@ public final class DefBootstrap {
         }
         
         /**
-         * Called when a new type is encountered (or, when we have encountered more than {@code MAX_DEPTH}
-         * types at this call site and given up on caching).
+         * Called when a new type is encountered or if cached type does not match.
+         * In that case we revert to a generic, but slower operator handling.
          */
         @SuppressForbidden(reason = "slow path")
         Object fallback(Object[] args) throws Throwable {

@@ -36,7 +36,6 @@ import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,6 +46,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -325,6 +325,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Pick a random object from the given list. */
     public static <T> T randomFrom(List<T> list) {
+        return RandomPicks.randomFrom(random(), list);
+    }
+
+    /** Pick a random object from the given set. */
+    public static <T> T randomFrom(Set<T> list) {
         return RandomPicks.randomFrom(random(), list);
     }
 

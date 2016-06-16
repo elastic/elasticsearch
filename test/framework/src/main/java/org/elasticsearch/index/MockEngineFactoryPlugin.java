@@ -35,14 +35,6 @@ import java.util.List;
 
 // this must exist in the same package as IndexModule to allow access to setting the impl
 public class MockEngineFactoryPlugin extends Plugin {
-    @Override
-    public String name() {
-        return "mock-engine-factory";
-    }
-    @Override
-    public String description() {
-        return "a mock engine factory for testing";
-    }
 
     private Class<? extends FilterDirectoryReader> readerWrapper = AssertingDirectoryReader.class;
 

@@ -351,17 +351,6 @@ public class SumIT extends AbstractNumericTestCase {
      * Mock plugin for the {@link ExtractFieldScriptEngine}
      */
     public static class ExtractFieldScriptPlugin extends Plugin implements ScriptPlugin {
-
-        @Override
-        public String name() {
-            return ExtractFieldScriptEngine.NAME;
-        }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + SumIT.class;
-        }
-
         @Override
         public ScriptEngineService getScriptEngineService(Settings settings) {
             return new ExtractFieldScriptEngine();
@@ -478,17 +467,6 @@ public class SumIT extends AbstractNumericTestCase {
      * Mock plugin for the {@link FieldValueScriptEngine}
      */
     public static class FieldValueScriptPlugin extends Plugin implements ScriptPlugin {
-
-        @Override
-        public String name() {
-            return FieldValueScriptEngine.NAME;
-        }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + SumIT.class;
-        }
-
         @Override
         public ScriptEngineService getScriptEngineService(Settings settings) {
             return new FieldValueScriptEngine();

@@ -22,25 +22,12 @@ package org.elasticsearch.search.functionscore;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.NativeScriptFactory;
-import org.elasticsearch.script.ScriptModule;
+
 
 import java.util.Collections;
 import java.util.List;
 
 public class ExplainableScriptPlugin extends Plugin implements ScriptPlugin {
-
-    public ExplainableScriptPlugin() {}
-    @Override
-    public String name() {
-        return "native-explainable-script";
-    }
-
-    @Override
-    public String description() {
-        return "Native explainable script";
-    }
-
-
     @Override
     public List<NativeScriptFactory> getNativeScripts() {
         return Collections.singletonList(new ExplainableScriptIT.MyNativeScriptFactory());

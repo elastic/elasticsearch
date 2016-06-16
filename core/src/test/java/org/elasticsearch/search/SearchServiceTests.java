@@ -112,16 +112,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     public static class FailOnRewriteQueryPlugin extends Plugin {
 
-        @Override
-        public String name() {
-            return FailOnRewriteQueryPlugin.class.getSimpleName();
-        }
-
-        @Override
-        public String description() {
-            return "This plugin registers a query that always fails at rewrite phase";
-        }
-
         public void onModule(SearchModule module) {
             module.registerQuery(FailOnRewriteQueryBuilder::new, parseContext -> {
                 throw new UnsupportedOperationException("No query parser for this plugin");

@@ -176,16 +176,6 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
 
     public static class DeletePlzPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public String name() {
-            return "delete_please";
-        }
-
-        @Override
-        public String description() {
-            return "adds a script that converts any update into a delete for testing";
-        }
-
-        @Override
         public List<NativeScriptFactory> getNativeScripts() {
             return Collections.singletonList(new DeletePlzFactory());
         }

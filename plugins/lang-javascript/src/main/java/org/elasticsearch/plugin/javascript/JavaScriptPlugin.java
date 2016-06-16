@@ -27,24 +27,11 @@ import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.javascript.JavaScriptScriptEngineService;
 
-/**
- *
- */
 public class JavaScriptPlugin extends Plugin implements ScriptPlugin {
 
     static {
         // install rhino policy on plugin init
         JavaScriptScriptEngineService.init();
-    }
-
-    @Override
-    public String name() {
-        return "lang-javascript";
-    }
-
-    @Override
-    public String description() {
-        return "JavaScript plugin allowing to add javascript scripting support";
     }
 
     @Override

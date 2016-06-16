@@ -52,14 +52,6 @@ import static java.util.Collections.emptySet;
 public class MockInternalClusterInfoService extends InternalClusterInfoService {
 
     public static class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "mock-cluster-info-service";
-        }
-        @Override
-        public String description() {
-            return "a mock cluster info service for testing";
-        }
         public void onModule(ClusterModule module) {
             module.clusterInfoServiceImpl = MockInternalClusterInfoService.class;
         }

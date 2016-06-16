@@ -1799,14 +1799,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     public static final class TestSeedPlugin extends Plugin {
         @Override
-        public String name() {
-            return "test-seed-plugin";
-        }
-        @Override
-        public String description() {
-            return "a test plugin that registers index.tests.seed as an index setting";
-        }
-        @Override
         public List<Setting<?>> getSettings() {
             return Arrays.asList(INDEX_TEST_SEED_SETTING);
         }

@@ -67,17 +67,6 @@ import static org.elasticsearch.test.ESTestCase.awaitBusy;
  */
 public class TestTaskPlugin extends Plugin {
 
-
-    @Override
-    public String name() {
-        return "test-task-plugin";
-    }
-
-    @Override
-    public String description() {
-        return "Test plugin for testing task management";
-    }
-
     public void onModule(ActionModule module) {
         module.registerAction(TestTaskAction.INSTANCE, TransportTestTaskAction.class);
         module.registerAction(UnblockTestTasksAction.INSTANCE, TransportUnblockTestTasksAction.class);

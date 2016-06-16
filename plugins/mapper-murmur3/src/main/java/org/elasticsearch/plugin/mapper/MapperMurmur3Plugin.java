@@ -25,16 +25,6 @@ import org.elasticsearch.plugins.Plugin;
 
 public class MapperMurmur3Plugin extends Plugin {
 
-    @Override
-    public String name() {
-        return "mapper-murmur3";
-    }
-
-    @Override
-    public String description() {
-        return "A mapper that allows to precompute murmur3 hashes of values at index-time and store them in the index";
-    }
-
     public void onModule(IndicesModule indicesModule) {
         indicesModule.registerMapper(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser());
     }

@@ -29,19 +29,6 @@ import java.io.IOException;
 
 public class MatrixAggregationPlugin extends Plugin {
 
-    public MatrixAggregationPlugin() throws IOException {
-    }
-
-    @Override
-    public String name() {
-        return "aggs-matrix-stats";
-    }
-
-    @Override
-    public String description() {
-        return "Adds aggregations whose input are a list of numeric fields and output includes a matrix.";
-    }
-
     public void onModule(SearchModule searchModule) {
         InternalMatrixStats.registerStreams();
         searchModule.registerAggregation(MatrixStatsAggregationBuilder::new, new MatrixStatsParser(),

@@ -32,19 +32,8 @@ import java.util.List;
 
 public class MapperAttachmentsPlugin extends Plugin {
 
-
     private static ESLogger logger = ESLoggerFactory.getLogger("mapper.attachment");
     private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-
-    @Override
-    public String name() {
-        return "mapper-attachments";
-    }
-
-    @Override
-    public String description() {
-        return "Adds the attachment type allowing to parse difference attachment formats";
-    }
 
     @Override
     public List<Setting<?>> getSettings() {

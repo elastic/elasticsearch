@@ -100,17 +100,6 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
     }
 
     public static class FetchTermVectorsPlugin extends Plugin {
-
-        @Override
-        public String name() {
-            return "fetch-term-vectors";
-        }
-
-        @Override
-        public String description() {
-            return "fetch plugin to test if the plugin mechanism works";
-        }
-
         public void onModule(SearchModule searchModule) {
             searchModule.registerFetchSubPhase(new TermVectorsFetchSubPhase());
         }

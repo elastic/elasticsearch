@@ -47,21 +47,6 @@ public class SettingsListenerIT extends ESIntegTestCase {
         private final SettingsTestingService service = new SettingsTestingService();
         private static final Setting<Integer> SETTING = Setting.intSetting("index.test.new.setting", 0,
             Property.Dynamic, Property.IndexScope);
-        /**
-         * The name of the plugin.
-         */
-        @Override
-        public String name() {
-            return "settings-listener";
-        }
-
-        /**
-         * The description of the plugin.
-         */
-        @Override
-        public String description() {
-            return "Settings Listenern Plugin";
-        }
 
         @Override
         public List<Setting<?>> getSettings() {

@@ -27,16 +27,6 @@ import org.elasticsearch.plugins.Plugin;
  */
 public class IngestTestPlugin extends Plugin {
 
-    @Override
-    public String name() {
-        return "ingest-test";
-    }
-
-    @Override
-    public String description() {
-        return "Contains an ingest processor to be used in tests";
-    }
-
     public void onModule(NodeModule nodeModule) {
         nodeModule.registerProcessor("test", (registry) -> config ->
                 new TestProcessor("id", "test", doc -> {

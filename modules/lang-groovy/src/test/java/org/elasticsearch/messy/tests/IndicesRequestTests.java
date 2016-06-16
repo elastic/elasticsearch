@@ -708,14 +708,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
     public static class InterceptingTransportService extends TransportService {
 
         public static class TestPlugin extends Plugin {
-            @Override
-            public String name() {
-                return "intercepting-transport-service";
-            }
-            @Override
-            public String description() {
-                return "an intercepting transport service for testing";
-            }
+
             public void onModule(NetworkModule module) {
                 module.registerTransportService("intercepting", InterceptingTransportService.class);
             }

@@ -69,23 +69,6 @@ public class GceDiscoveryPlugin extends Plugin {
         });
     }
 
-    private final Settings settings;
-    protected final ESLogger logger = Loggers.getLogger(GceDiscoveryPlugin.class);
-
-    public GceDiscoveryPlugin(Settings settings) {
-        this.settings = settings;
-    }
-
-    @Override
-    public String name() {
-        return "discovery-gce";
-    }
-
-    @Override
-    public String description() {
-        return "Cloud Google Compute Engine Discovery Plugin";
-    }
-
     @Override
     public Collection<Module> nodeModules() {
         return Collections.singletonList(new GceModule());

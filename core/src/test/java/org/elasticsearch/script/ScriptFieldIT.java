@@ -175,17 +175,6 @@ public class ScriptFieldIT extends ESIntegTestCase {
     }
 
     public static class CustomScriptPlugin extends Plugin implements ScriptPlugin {
-
-        @Override
-        public String name() {
-            return "custom_script";
-        }
-
-        @Override
-        public String description() {
-            return "script ";
-        }
-
         @Override
         public List<NativeScriptFactory> getNativeScripts() {
             return Arrays.asList(new IntArrayScriptFactory(), new LongArrayScriptFactory(), new FloatArrayScriptFactory(),

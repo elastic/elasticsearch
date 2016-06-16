@@ -168,15 +168,6 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     }
 
     public static class CustomSignificanceHeuristicPlugin extends Plugin implements ScriptPlugin {
-        @Override
-        public String name() {
-            return "test-plugin-significance-heuristic";
-        }
-
-        @Override
-        public String description() {
-            return "Significance heuristic plugin";
-        }
 
         public void onModule(SearchModule searchModule) {
             searchModule.registerSignificanceHeuristic(SimpleHeuristic.NAMES_FIELD, SimpleHeuristic::new, SimpleHeuristic::parse);

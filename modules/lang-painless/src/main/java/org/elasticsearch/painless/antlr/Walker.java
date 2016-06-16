@@ -834,9 +834,12 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
     @Override
     public Object visitRegex(RegexContext ctx) {
-        String pattern = ctx.REGEX().getText().substring(1, ctx.REGEX().getText().length() - 1);
+        String text = ctx.REGEX().getText();
+        int lastSlash = text.lastIndexOf('/');
+        String pattern = text.substring(1, lastSlash);
+        String flags = text.substring(lastSlash + 1);
         List<ALink> links = new ArrayList<>();
-        links.add(new LRegex(location(ctx), pattern));
+        links.add(new LRegex(location(ctx), pattern, flags));
 
         return links;
     }
@@ -959,8 +962,14 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             paramNames.add(lamtype.ID().getText());
         }
 
-        for (StatementContext statement : ctx.block().statement()) {
-            statements.add((AStatement)visit(statement));
+        if (ctx.expression() != null) {
+            // single expression
+            AExpression expression = (AExpression) visitExpression(ctx.expression());
+            statements.add(new SReturn(location(ctx), expression));
+        } else {
+            for (StatementContext statement : ctx.block().statement()) {
+                statements.add((AStatement)visit(statement));
+            }
         }
         
         String name = nextLambda();

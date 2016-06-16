@@ -79,7 +79,7 @@ public final class WriterConstants {
      * because it can do it statically. This is both faster and prevents the script from doing something super slow like building a regex
      * per time it is run.
      */
-    public final static Method PATTERN_COMPILE = getAsmMethod(Pattern.class, "compile", String.class);
+    public final static Method PATTERN_COMPILE = getAsmMethod(Pattern.class, "compile", String.class, int.class);
     public final static Method PATTERN_MATCHER = getAsmMethod(Matcher.class, "matcher", CharSequence.class);
     public final static Method MATCHER_MATCHES = getAsmMethod(boolean.class, "matches");
     public final static Method MATCHER_FIND = getAsmMethod(boolean.class, "find");
@@ -131,7 +131,7 @@ public final class WriterConstants {
             // not Java 9 - we set it null, so MethodWriter uses StringBuilder:
             bs = null;
         }
-        INDY_STRING_CONCAT_BOOTSTRAP_HANDLE = bs;
+        INDY_STRING_CONCAT_BOOTSTRAP_HANDLE = null; // Disabled until https://github.com/elastic/elasticsearch/issues/18929
     }
 
     public final static int MAX_INDY_STRING_CONCAT_ARGS = 200;

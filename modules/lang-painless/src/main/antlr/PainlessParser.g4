@@ -189,7 +189,7 @@ argument
     ;
 
 lambda
-    : ( lamtype | LP ( lamtype ( COMMA lamtype )* )? RP ) ARROW block
+    : ( lamtype | LP ( lamtype ( COMMA lamtype )* )? RP ) ARROW ( block | expression )
     ;
 
 lamtype

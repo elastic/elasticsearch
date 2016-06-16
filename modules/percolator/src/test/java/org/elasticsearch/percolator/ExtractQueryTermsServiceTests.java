@@ -471,7 +471,9 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
                 Arrays.asList(termQuery1, termQuery2, termQuery3, termQuery4), 0.1f
         );
 
-        List<Term> terms = new ArrayList<>(extractQueryTerms(disjunctionMaxQuery));
+        Result result = extractQueryTerms(disjunctionMaxQuery);
+        assertThat(result.verified, is(false));
+        List<Term> terms = new ArrayList<>(result.terms);
         Collections.sort(terms);
         assertThat(terms.size(), equalTo(4));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));

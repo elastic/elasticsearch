@@ -604,7 +604,7 @@ public class Node implements Closeable {
 
     public static CircuitBreakerService createCircuitBreakerService(Settings settings, ClusterSettings clusterSettings) {
         String type = BREAKER_TYPE_KEY.get(settings);
-        if (type == null || type.equals("hierarchy")) {
+        if (type.equals("hierarchy")) {
             return new HierarchyCircuitBreakerService(settings, clusterSettings);
         } else if (type.equals("none")) {
             return new NoneCircuitBreakerService();

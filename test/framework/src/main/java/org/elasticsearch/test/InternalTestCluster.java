@@ -1940,7 +1940,7 @@ public final class InternalTestCluster extends TestCluster {
     private void assertRequestsFinished() {
         if (size() > 0) {
             for (NodeAndClient nodeAndClient : nodes.values()) {
-                CircuitBreaker inFlightRequestsBreaker = getInstance(HierarchyCircuitBreakerService.class, nodeAndClient.name)
+                CircuitBreaker inFlightRequestsBreaker = getInstance(CircuitBreakerService.class, nodeAndClient.name)
                     .getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
                 try {
                     // see #ensureEstimatedStats()

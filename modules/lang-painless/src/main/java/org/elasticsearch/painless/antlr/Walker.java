@@ -834,9 +834,12 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
     @Override
     public Object visitRegex(RegexContext ctx) {
-        String pattern = ctx.REGEX().getText().substring(1, ctx.REGEX().getText().length() - 1);
+        String text = ctx.REGEX().getText();
+        int lastSlash = text.lastIndexOf('/');
+        String pattern = text.substring(1, lastSlash);
+        String flags = text.substring(lastSlash + 1);
         List<ALink> links = new ArrayList<>();
-        links.add(new LRegex(location(ctx), pattern));
+        links.add(new LRegex(location(ctx), pattern, flags));
 
         return links;
     }

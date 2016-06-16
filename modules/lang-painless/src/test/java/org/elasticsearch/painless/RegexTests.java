@@ -19,8 +19,12 @@
 
 package org.elasticsearch.painless;
 
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 
@@ -125,6 +129,52 @@ public class RegexTests extends ScriptTestCase {
         assertEquals("o", exec("Matcher m = /(?<first>f)(?<second>o)o/.matcher('foo'); m.find(); return m.namedGroup('second')"));
     }
 
+    // Make sure some methods on Pattern are whitelisted
+    public void testSplit() {
+        assertArrayEquals(new String[] {"cat", "dog"}, (String[]) exec("/,/.split('cat,dog')"));
+    }
+
+    public void testSplitAsStream() {
+        assertEquals(new HashSet<>(Arrays.asList("cat", "dog")), exec("/,/.splitAsStream('cat,dog').collect(Collectors.toSet())"));
+    }
+
+    // Make sure the flags are set
+    public void testMultilineFlag() {
+        assertEquals(Pattern.MULTILINE, exec("/./m.flags()"));
+    }
+
+    public void testSinglelineFlag() {
+        assertEquals(Pattern.DOTALL, exec("/./s.flags()"));
+    }
+
+    public void testInsensitiveFlag() {
+        assertEquals(Pattern.CASE_INSENSITIVE, exec("/./i.flags()"));
+    }
+
+    public void testExtendedFlag() {
+        assertEquals(Pattern.COMMENTS, exec("/./x.flags()"));
+    }
+
+    public void testUnicodeCaseFlag() {
+        assertEquals(Pattern.UNICODE_CASE, exec("/./u.flags()"));
+    }
+
+    public void testUnicodeCharacterClassFlag() {
+        assertEquals(Pattern.UNICODE_CASE | Pattern.UNICODE_CHARACTER_CLASS, exec("/./U.flags()"));
+    }
+
+    public void testLiteralFlag() {
+        assertEquals(Pattern.LITERAL, exec("/./l.flags()"));
+    }
+
+    public void testCanonicalEquivalenceFlag() {
+        assertEquals(Pattern.CANON_EQ, exec("/./c.flags()"));
+    }
+
+    public void testManyFlags() {
+        assertEquals(Pattern.CANON_EQ | Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.COMMENTS, exec("/./ciux.flags()"));
+    }
+
     public void testCantUsePatternCompile() {
         IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("Pattern.compile('aa')");
@@ -145,5 +195,12 @@ public class RegexTests extends ScriptTestCase {
             exec("12 ==~ /cat/");
         });
         assertEquals("Cannot cast from [int] to [String].", e.getMessage());
+    }
+
+    public void testBogusRegexFlag() {
+        IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("/asdf/b", emptyMap(), emptyMap(), null); // Not picky so we get a non-assertion error
+        });
+        assertEquals("invalid sequence of tokens near ['b'].", e.getMessage());
     }
 }

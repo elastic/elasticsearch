@@ -79,7 +79,7 @@ public final class WriterConstants {
      * because it can do it statically. This is both faster and prevents the script from doing something super slow like building a regex
      * per time it is run.
      */
-    public final static Method PATTERN_COMPILE = getAsmMethod(Pattern.class, "compile", String.class);
+    public final static Method PATTERN_COMPILE = getAsmMethod(Pattern.class, "compile", String.class, int.class);
     public final static Method PATTERN_MATCHER = getAsmMethod(Matcher.class, "matcher", CharSequence.class);
     public final static Method MATCHER_MATCHES = getAsmMethod(boolean.class, "matches");
     public final static Method MATCHER_FIND = getAsmMethod(boolean.class, "find");

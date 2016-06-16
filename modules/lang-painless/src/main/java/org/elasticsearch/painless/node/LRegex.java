@@ -35,14 +35,20 @@ import org.elasticsearch.painless.WriterConstants;
  */
 public final class LRegex extends ALink {
     private final String pattern;
+    private final int flags;
     private Constant constant;
 
-    public LRegex(Location location, String pattern) {
+    public LRegex(Location location, String pattern, String flagsString) {
         super(location, 1);
         this.pattern = pattern;
+        int flags = 0;
+        for (int c = 0; c < flagsString.length(); c++) {
+            flags |= flagForChar(flagsString.charAt(c));
+        }
+        this.flags = flags;
         try {
             // Compile the pattern early after parsing so we can throw an error to the user with the location
-            Pattern.compile(pattern);
+            Pattern.compile(pattern, flags);
         } catch (PatternSyntaxException e) {
             throw createError(e);
         }
@@ -82,6 +88,21 @@ public final class LRegex extends ALink {
 
     private void initializeConstant(MethodWriter writer) {
         writer.push(pattern);
+        writer.push(flags);
         writer.invokeStatic(Definition.PATTERN_TYPE.type, WriterConstants.PATTERN_COMPILE);
+    }
+
+    private int flagForChar(char c) {
+        switch (c) {
+        case 'c': return Pattern.CANON_EQ;
+        case 'i': return Pattern.CASE_INSENSITIVE;
+        case 'l': return Pattern.LITERAL;
+        case 'm': return Pattern.MULTILINE;
+        case 's': return Pattern.DOTALL;
+        case 'U': return Pattern.UNICODE_CHARACTER_CLASS;
+        case 'u': return Pattern.UNICODE_CASE;
+        case 'x': return Pattern.COMMENTS;
+        default: throw new IllegalArgumentException("Unknown flag [" + c + "]");
+        }
     }
 }

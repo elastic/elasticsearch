@@ -202,12 +202,15 @@ POST hockey/player/1/_update
 // CONSOLE
 
 [float]
+[[modules-scripting-painless-regex]]
 === Regular expressions
 
 Painless's native support for regular expressions has syntax constructs:
 
 * `/pattern/`: Pattern literals create patterns. This is the only way to create
-a pattern in painless.
+a pattern in painless. The pattern inside the `/`s are just
+http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expressions].
+See <<modules-scripting-painless-regex-flags>> for more.
 * `=~`: The find operator return a `boolean`, `true` if a subsequence of the
 text matches, `false` otherwise.
 * `==~`: The match operator returns a `boolean`, `true` if the text matches,
@@ -265,13 +268,34 @@ Note: all of the `_update_by_query` examples above could really do with a
 because script queries aren't able to use the inverted index to limit the
 documents that they have to check.
 
-The pattern syntax is just
-http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expressions].
 We intentionally don't allow scripts to call `Pattern.compile` to get a new
 pattern on the fly because building a `Pattern` is (comparatively) slow.
 Pattern literals (`/apattern/`) have fancy constant extraction so no matter
 where they show up in the painless script they are built only when the script
 is first used. It is fairly similar to how `String` literals work in Java.
+
+[float]
+[[modules-scripting-painless-regex-flags]]
+==== Regular expression flags
+
+You can define flags on patterns in Painless by adding characters after the
+trailing `/` like `/foo/i` or `/foo \w #comment/iUx`. Painless exposes all the
+flags from
+https://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html[Java's Pattern class]
+using these characters:
+
+[cols="<,<,<",options="header",]
+|=======================================================================
+| Character | Java Constant | Example
+|`c` | CANON_EQ                  | `'å' ==~ /å/c` (open in hex editor to see)
+|`i` | CASE_INSENSITIVE          | `'A' ==~ /a/i`
+|`l` | LITERAL                   | `'[a]' ==~ /[a]/l`
+|`m` | MULTILINE                 | `'a\nb\nc' =~ /^b$/m`
+|`s` | DOTALL (aka single line)  | `'a\nb\nc' =~ /.b./s`
+|`U` | UNICODE_CHARACTER_CLASS   | `'Ɛ' ==~ /\\w/U`
+|`u` | UNICODE_CASE              | `'Ɛ' ==~ /ɛ/iu`
+|`x` | COMMENTS (aka extended)   | `'a' ==~ /a #comment/x`
+|=======================================================================
 
 
 [[painless-api]]

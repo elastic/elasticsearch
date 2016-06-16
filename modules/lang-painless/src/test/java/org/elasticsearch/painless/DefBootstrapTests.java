@@ -25,6 +25,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 
 import org.elasticsearch.test.ESTestCase;
 
@@ -92,7 +93,7 @@ public class DefBootstrapTests extends ESTestCase {
         assertDepthEquals(site, 5);
     }
     
-    /** test that we really revert to a "generic" method that can handle any receiver types */
+    /** test that we revert to the megamorphic classvalue cache and that it works as expected */
     public void testMegamorphic() throws Throwable {
         DefBootstrap.PIC site = (DefBootstrap.PIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
                                                                           "size", 
@@ -102,6 +103,22 @@ public class DefBootstrapTests extends ESTestCase {
         MethodHandle handle = site.dynamicInvoker();
         assertEquals(2, (int)handle.invokeExact((Object) Arrays.asList("1", "2")));
         assertEquals(1, (int)handle.invokeExact((Object) Collections.singletonMap("a", "b")));
+        assertEquals(3, (int)handle.invokeExact((Object) Arrays.asList("x", "y", "z")));
+        assertEquals(2, (int)handle.invokeExact((Object) Arrays.asList("u", "v")));
+        
+        final HashMap<String,String> map = new HashMap<String,String>();
+        map.put("x", "y");
+        map.put("a", "b");
+        assertEquals(2, (int)handle.invokeExact((Object) map));
+        
+        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
+            Integer.toString((int)handle.invokeExact(new Object()));
+        });
+        assertEquals("Unable to find dynamic method [size] with [0] arguments for class [java.lang.Object].", iae.getMessage());
+        assertTrue("Does not fail inside ClassValue.computeValue()", Arrays.stream(iae.getStackTrace()).anyMatch(e -> {
+            return e.getMethodName().equals("computeValue") &&
+                   e.getClassName().startsWith("org.elasticsearch.painless.DefBootstrap$PIC$");
+        }));
     }
     
     // test operators with null guards

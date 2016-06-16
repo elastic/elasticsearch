@@ -149,7 +149,7 @@ public final class DefBootstrap {
          * Creates the {@link MethodHandle} for the megamorphic call site
          * using {@link ClassValue} and {@link MethodHandles#exactInvoker(MethodType)}:
          */
-        private MethodHandle createMegamorphicHandle() throws Throwable {
+        private MethodHandle createMegamorphicHandle() {
             final MethodType type = type();
             final ClassValue<MethodHandle> megamorphicCache = new ClassValue<MethodHandle>() {
                 @Override
@@ -163,10 +163,8 @@ public final class DefBootstrap {
                     }
                 }
             };
-            MethodHandle cacheLookup = MEGAMORPHIC_LOOKUP.bindTo(megamorphicCache);
-            cacheLookup = MethodHandles.dropArguments(cacheLookup,
-                    1, type.parameterList().subList(1, type.parameterCount()));
-            return MethodHandles.foldArguments(MethodHandles.exactInvoker(type), cacheLookup);            
+            return MethodHandles.foldArguments(MethodHandles.exactInvoker(type),
+                    MEGAMORPHIC_LOOKUP.bindTo(megamorphicCache));            
         }
 
         /**

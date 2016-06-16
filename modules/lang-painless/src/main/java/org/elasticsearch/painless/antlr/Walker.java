@@ -183,7 +183,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
     private SourceContext buildAntlrTree(String source) {
         ANTLRInputStream stream = new ANTLRInputStream(source);
-        PainlessLexer lexer = new ErrorHandlingLexer(stream, sourceName);
+        PainlessLexer lexer = new EnhancedPainlessLexer(stream, sourceName);
         PainlessParser parser = new PainlessParser(new CommonTokenStream(lexer));
         ParserErrorStrategy strategy = new ParserErrorStrategy(sourceName);
 

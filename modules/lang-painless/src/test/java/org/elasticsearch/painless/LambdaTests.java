@@ -79,7 +79,11 @@ public class LambdaTests extends ScriptTestCase {
     }
 
     public void testMultipleStatements() {
-        assertEquals(2, exec("int applyOne(IntFunction arg) { arg.apply(1) } applyOne(x -> { x = x + 1; return x;})"));
+        assertEquals(2, exec("int applyOne(IntFunction arg) { arg.apply(1) } applyOne(x -> { x = x + 1; return x })"));
+    }
+
+    public void testUnneededCurlyStatements() {
+        assertEquals(2, exec("int applyOne(IntFunction arg) { arg.apply(1) } applyOne(x -> { x + 1 })"));
     }
 
     public void testTwoLambdas() {

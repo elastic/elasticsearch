@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import com.unboundid.ldap.sdk.LDAPException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -16,7 +17,6 @@ import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.xpack.security.ssl.ClientSSLService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -55,12 +55,12 @@ public class LdapRealm extends AbstractLdapRealm {
                 SessionFactory sessionFactory = sessionFactory(config, clientSSLService);
                 DnRoleMapper roleMapper = new DnRoleMapper(TYPE, config, watcherService, null);
                 return new LdapRealm(config, sessionFactory, roleMapper);
-            } catch (IOException e) {
+            } catch (LDAPException e) {
                 throw new ElasticsearchException("failed to create realm [{}/{}]", e, LdapRealm.TYPE, config.name());
             }
         }
 
-        static SessionFactory sessionFactory(RealmConfig config, ClientSSLService clientSSLService) throws IOException {
+        static SessionFactory sessionFactory(RealmConfig config, ClientSSLService clientSSLService) throws LDAPException {
             Settings searchSettings = userSearchSettings(config);
             if (!searchSettings.names().isEmpty()) {
                 if (config.settings().getAsArray(LdapSessionFactory.USER_DN_TEMPLATES_SETTING).length > 0) {
@@ -68,9 +68,9 @@ public class LdapRealm extends AbstractLdapRealm {
                             "Please remove the settings for the mode you do not wish to use. For more details refer to the ldap " +
                             "authentication section of the X-Pack guide.");
                 }
-                return new LdapUserSearchSessionFactory(config, clientSSLService).init();
+                return new LdapUserSearchSessionFactory(config, clientSSLService);
             }
-            return new LdapSessionFactory(config, clientSSLService).init();
+            return new LdapSessionFactory(config, clientSSLService);
         }
 
         static Settings userSearchSettings(RealmConfig config) {

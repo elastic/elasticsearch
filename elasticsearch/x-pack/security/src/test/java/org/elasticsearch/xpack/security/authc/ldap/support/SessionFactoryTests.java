@@ -63,6 +63,6 @@ public class SessionFactoryTests extends ESTestCase {
             protected LdapSession getSession(String user, SecuredString password) {
                 return null;
             }
-        }.init();
+        };
     }
 }

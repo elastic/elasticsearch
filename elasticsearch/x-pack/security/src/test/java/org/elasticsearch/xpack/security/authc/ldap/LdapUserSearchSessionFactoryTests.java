@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
-import com.carrotsearch.randomizedtesting.ThreadFilter;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.BindRequest;
 import com.unboundid.ldap.sdk.GetEntryLDAPConnectionPoolHealthCheck;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPConnectionPoolHealthCheck;
+import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 import com.unboundid.ldap.sdk.SingleServerSet;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -18,8 +18,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.MockNode;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.activedirectory.ActiveDirectorySessionFactoryTests;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
@@ -31,17 +29,12 @@ import org.elasticsearch.xpack.security.ssl.ClientSSLService;
 import org.elasticsearch.xpack.security.ssl.SSLConfiguration.Global;
 import org.elasticsearch.xpack.security.support.NoOpLogger;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.xpack.watcher.Watcher;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.text.MessageFormat;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -51,12 +44,6 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-// thread leak filter for UnboundID's background connect threads. The background connect threads do not always respect the
-// timeout and linger. Will be fixed in a new version of the library, see
-// http://sourceforge.net/p/ldap-sdk/discussion/1001257/thread/154e3b71/
-@ThreadLeakFilters(filters = {
-        LdapUserSearchSessionFactoryTests.BackgroundConnectThreadLeakFilter.class
-})
 public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
     private ClientSSLService clientSSLService;
@@ -87,9 +74,10 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
                 .put("bind_password", "pass")
                 .put("user_search.attribute", "cn")
+                .put("user_search.pool.enabled", randomBoolean())
                 .build(), globalSettings);
 
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null).init();
+        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null);
         try {
             assertThat(sessionFactory.supportsUnauthenticatedSession(), is(true));
         } finally {
@@ -107,9 +95,10 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
                 .put("bind_password", "pass")
                 .put("user_search.attribute", "cn")
+                .put("user_search.pool.enabled", randomBoolean())
                 .build(), globalSettings);
 
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null).init();
+        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null);
 
         String user = "William Bush";
         SecuredString userPass = SecuredStringTests.build("pass");
@@ -142,9 +131,10 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("bind_password", "pass")
                 .put("user_search.scope", LdapSearchScope.BASE)
                 .put("user_search.attribute", "cn")
+                .put("user_search.pool.enabled", randomBoolean())
                 .build(), globalSettings);
 
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null).init();
+        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null);
 
         String user = "William Bush";
         SecuredString userPass = SecuredStringTests.build("pass");
@@ -181,9 +171,10 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("bind_password", "pass")
                 .put("user_search.scope", LdapSearchScope.BASE)
                 .put("user_search.attribute", "cn")
+                .put("user_search.pool.enabled", randomBoolean())
                 .build(), globalSettings);
 
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null).init();
+        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null);
 
         String user = "William Bush";
         SecuredString userPass = SecuredStringTests.build("pass");
@@ -216,9 +207,10 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("bind_password", "pass")
                 .put("user_search.scope", LdapSearchScope.ONE_LEVEL)
                 .put("user_search.attribute", "cn")
+                .put("user_search.pool.enabled", randomBoolean())
                 .build(), globalSettings);
 
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null).init();
+        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null);
 
         String user = "William Bush";
         SecuredString userPass = SecuredStringTests.build("pass");
@@ -255,9 +247,10 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("bind_password", "pass")
                 .put("user_search.scope", LdapSearchScope.ONE_LEVEL)
                 .put("user_search.attribute", "cn")
+                .put("user_search.pool.enabled", randomBoolean())
                 .build(), globalSettings);
 
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null).init();
+        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null);
 
         String user = "William Bush";
         SecuredString userPass = SecuredStringTests.build("pass");
@@ -289,9 +282,10 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
                 .put("bind_password", "pass")
                 .put("user_search.attribute", "uid1")
+                .put("user_search.pool.enabled", randomBoolean())
                 .build(), globalSettings);
 
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null).init();
+        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null);
 
         String user = "William Bush";
         SecuredString userPass = SecuredStringTests.build("pass");
@@ -326,9 +320,10 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
                 .put("bind_password", "pass")
+                .put("user_search.pool.enabled", randomBoolean())
                 .build(), globalSettings);
 
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null).init();
+        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null);
 
         String user = "wbush";
         SecuredString userPass = SecuredStringTests.build("pass");
@@ -361,9 +356,10 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("bind_dn", "ironman@ad.test.elasticsearch.com")
                 .put("bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)
                 .put("user_search.attribute", "cn")
+                .put("user_search.pool.enabled", randomBoolean())
                 .build();
         RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings);
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, clientSSLService).init();
+        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, clientSSLService);
 
         String user = "Bruce Banner";
         try {
@@ -403,8 +399,9 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "uid=blackwidow,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("bind_password", OpenLdapTests.PASSWORD)
+                .put("user_search.pool.enabled", randomBoolean())
                 .build(), globalSettings);
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, clientSSLService).init();
+        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, clientSSLService);
 
         String[] users = new String[] { "cap", "hawkeye", "hulk", "ironman", "thor" };
         try {
@@ -479,7 +476,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         }
     }
 
-    public void testThatEmptyBindDNThrowsExceptionWithHealthCheckEnabled() throws Exception {
+    public void testThatEmptyBindDNWithHealthCheckEnabledDoesNotThrow() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
         RealmConfig config = new RealmConfig("ldap_realm", Settings.builder()
@@ -488,12 +485,13 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("bind_password", "pass")
                 .build(), globalSettings);
 
+        LdapUserSearchSessionFactory searchSessionFactory = null;
         try {
-            new LdapUserSearchSessionFactory(config, null).init();
-            fail("expected an exception");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("[bind_dn] has not been specified so a value must be specified for [user_search" +
-                    ".pool.health_check.dn] or [user_search.pool.health_check.enabled] must be set to false"));
+            searchSessionFactory = new LdapUserSearchSessionFactory(config, null);
+        } finally {
+            if (searchSessionFactory != null) {
+                searchSessionFactory.shutdown();
+            }
         }
     }
 
@@ -512,12 +510,17 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         assertThat(simpleBindRequest.getBindDN(), is("cn=ironman"));
     }
 
-    @Network
-    public void testThatLDAPServerConnectErrorDoesNotPreventNodeFromStarting() throws IOException {
+    public void testThatConnectErrorIsNotThrownOnConstruction() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
+
+        // pick a random ldap server and stop it
+        InMemoryDirectoryServer inMemoryDirectoryServer = randomFrom(ldapServers);
+        String ldapUrl = new LDAPURL("ldap", "localhost", inMemoryDirectoryServer.getListenPort(), null, null, null, null).toString();
+        inMemoryDirectoryServer.shutDown(true);
+
         Settings ldapSettings = Settings.builder()
-                .put(LdapTestCase.buildLdapSettings(new String[] { "ldaps://elastic.co:636" }, Strings.EMPTY_ARRAY,
+                .put(LdapTestCase.buildLdapSettings(new String[] { ldapUrl }, Strings.EMPTY_ARRAY,
                         groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "ironman@ad.test.elasticsearch.com")
@@ -525,30 +528,18 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("user_search.attribute", "cn")
                 .put("timeout.tcp_connect", "500ms")
                 .put("type", "ldap")
+                .put("user_search.pool.health_check.enabled", false)
+                .put("user_search.pool.enabled", randomBoolean())
                 .build();
 
-        Settings.Builder builder = Settings.builder();
-        for (Map.Entry<String, String> entry : ldapSettings.getAsMap().entrySet()) {
-            builder.put("xpack.security.authc.realms.ldap1." + entry.getKey(), entry.getValue());
-        }
-        builder.put("path.home", createTempDir());
-
-        // disable watcher, because watcher takes some time when starting, which results in problems
-        // having a quick start/stop cycle like below
-        builder.put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false);
-
-        try (Node node = new MockNode(builder.build(), Collections.singletonList(XPackPlugin.class))) {
-            node.start();
-        }
-    }
-
-    public static class BackgroundConnectThreadLeakFilter implements ThreadFilter {
-        @Override
-        public boolean reject(Thread thread) {
-            if (thread.getName().startsWith("Background connect thread for elastic.co")) {
-                return true;
+        RealmConfig config = new RealmConfig("ldap_realm", ldapSettings, globalSettings);
+        LdapUserSearchSessionFactory searchSessionFactory = null;
+        try {
+            searchSessionFactory = new LdapUserSearchSessionFactory(config, null);
+        } finally {
+            if (searchSessionFactory != null) {
+                searchSessionFactory.shutdown();
             }
-            return false;
         }
     }
 }

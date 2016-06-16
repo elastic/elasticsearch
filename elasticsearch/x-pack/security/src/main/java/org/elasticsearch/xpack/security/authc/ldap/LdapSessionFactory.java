@@ -54,13 +54,7 @@ public class LdapSessionFactory extends SessionFactory {
      */
     @Override
     protected LdapSession getSession(String username, SecuredString password) throws Exception {
-        LDAPConnection connection;
-
-        try {
-            connection = serverSet.getConnection();
-        } catch (LDAPException e) {
-            throw new IOException("failed to connect to any LDAP servers", e);
-        }
+        LDAPConnection connection = serverSet.getConnection();
 
         LDAPException lastException = null;
         String passwordString = new String(password.internalChars());
@@ -68,20 +62,22 @@ public class LdapSessionFactory extends SessionFactory {
             String dn = buildDnFromTemplate(username, template);
             try {
                 connection.bind(dn, passwordString);
-                return new LdapSession(connectionLogger, connection, dn, groupResolver, timeout);
+                return new LdapSession(logger, connection, dn, groupResolver, timeout, null);
             } catch (LDAPException e) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("failed LDAP authentication with user template [{}] and DN [{}]", e, template, dn);
+                // we catch the ldapException here since we expect it can happen and we shouldn't be logging this all the time otherwise
+                // it is just noise
+                logger.debug("failed LDAP authentication with user template [{}] and DN [{}]", e, template, dn);
+                if (lastException == null) {
+                    lastException = e;
                 } else {
-                    logger.warn("failed LDAP authentication with user template [{}] and DN [{}]: {}", template, dn, e.getMessage());
+                    lastException.addSuppressed(e);
                 }
-
-                lastException = e;
             }
         }
 
         connection.close();
-        throw Exceptions.authenticationError("failed LDAP authentication", lastException);
+        assert lastException != null;
+        throw lastException;
     }
 
     /**

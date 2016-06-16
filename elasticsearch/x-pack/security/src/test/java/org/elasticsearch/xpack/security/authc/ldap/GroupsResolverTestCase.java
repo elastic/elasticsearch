@@ -45,7 +45,6 @@ public abstract class GroupsResolverTestCase extends ESTestCase {
         LDAPURL ldapurl = new LDAPURL(ldapUrl());
         LDAPConnectionOptions options = new LDAPConnectionOptions();
         options.setFollowReferrals(true);
-        options.setAutoReconnect(true);
         options.setAllowConcurrentSocketFactoryUse(true);
         options.setConnectTimeoutMillis(Math.toIntExact(SessionFactory.TIMEOUT_DEFAULT.millis()));
         options.setResponseTimeoutMillis(SessionFactory.TIMEOUT_DEFAULT.millis());

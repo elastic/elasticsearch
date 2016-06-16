@@ -60,6 +60,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -879,14 +880,15 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             Environment env = InternalSettingsPreparer.prepareEnvironment(settings, null);
             PluginsService pluginsService =new PluginsService(settings, env.modulesFile(), env.pluginsFile(), plugins);
 
-            SettingsModule settingsModule = new SettingsModule(settings, InternalSettingsPlugin.VERSION_CREATED);
             final Client proxy = (Client) Proxy.newProxyInstance(
                     Client.class.getClassLoader(),
                     new Class[]{Client.class},
                     clientInvocationHandler);
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             ScriptModule scriptModule = newTestScriptModule();
-            scriptModule.prepareSettings(settingsModule);
+            List<Setting<?>> scriptSettings = scriptModule.getSettings();
+            scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
+            SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, Collections.emptyList());
             searchModule = new SearchModule(settings, namedWriteableRegistry) {
                 @Override
                 protected void configureSearch() {

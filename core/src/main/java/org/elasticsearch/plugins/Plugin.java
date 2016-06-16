@@ -78,8 +78,14 @@ public abstract class Plugin {
      */
     public void onIndexModule(IndexModule indexModule) {}
 
+    /**
+     * Returns a list of additional {@link Setting} definitions for this plugin.
+     */
     public List<Setting<?>> getSettings() { return Collections.emptyList(); }
 
+    /**
+     * Returns a list of additional settings filter for this plugin
+     */
     public List<String> getSettingsFilter() { return Collections.emptyList(); }
 
     /**

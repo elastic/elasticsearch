@@ -134,6 +134,7 @@ import java.util.function.Function;
  */
 public class Node implements Closeable {
 
+
     public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING =
         Setting.boolSetting("node.portsfile", false, Property.NodeScope);
     public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, Property.NodeScope);
@@ -179,8 +180,9 @@ public class Node implements Closeable {
     protected Node(Environment tmpEnv, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
         Settings tmpSettings = Settings.builder().put(tmpEnv.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
-        tmpSettings = TribeService.processSettings(tmpSettings);
+        final List<Closeable> closeables = new ArrayList<>();
 
+        tmpSettings = TribeService.processSettings(tmpSettings);
         ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(tmpSettings));
         final String displayVersion = version + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
         final JvmInfo jvmInfo = JvmInfo.jvmInfo();
@@ -215,28 +217,33 @@ public class Node implements Closeable {
         this.settings = pluginsService.updatedSettings();
         // create the environment based on the finalized (processed) view of the settings
         this.environment = new Environment(this.settings);
-        final NodeEnvironment nodeEnvironment;
-        try {
-            nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
-        } catch (IOException ex) {
-            throw new IllegalStateException("Failed to created node environment", ex);
-        }
-        final NetworkService networkService = new NetworkService(settings);
         final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
-        final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder[0]));
-        final ScriptModule scriptModule = ScriptModule.create(settings, pluginsService.filterPlugins(ScriptPlugin.class));
-        final List<Setting<?>> additionalSettings = new ArrayList<>();
-        final List<String> additionalSettingsFilter = new ArrayList<>();
-        additionalSettings.addAll(pluginsService.getPluginSettings());
-        additionalSettingsFilter.addAll(pluginsService.getPluginSettingsFilter());
-        for (final ExecutorBuilder<?> builder : threadPool.builders()) {
-            additionalSettings.addAll(builder.getRegisteredSettings());
-        }
-        additionalSettings.addAll(scriptModule.getSettings());
-        SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+
         boolean success = false;
         try {
+            final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder[0]));
+            closeables.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
+            final NodeEnvironment nodeEnvironment;
+            try {
+                nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
+                closeables.add(nodeEnvironment);
+            } catch (IOException ex) {
+                throw new IllegalStateException("Failed to created node environment", ex);
+            }
+            final NetworkService networkService = new NetworkService(settings);
+
+            final ScriptModule scriptModule = ScriptModule.create(settings, pluginsService.filterPlugins(ScriptPlugin.class));
+            final List<Setting<?>> additionalSettings = new ArrayList<>();
+            final List<String> additionalSettingsFilter = new ArrayList<>();
+            additionalSettings.addAll(pluginsService.getPluginSettings());
+            additionalSettingsFilter.addAll(pluginsService.getPluginSettingsFilter());
+            for (final ExecutorBuilder<?> builder : threadPool.builders()) {
+                additionalSettings.addAll(builder.getRegisteredSettings());
+            }
+
+            additionalSettings.addAll(scriptModule.getSettings());
+            SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
+            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new Version.Module(version));
             // plugin modules must be added here, before others or we can get crazy injection errors...
@@ -265,6 +272,7 @@ public class Node implements Closeable {
             pluginsService.processModules(modules);
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
+            closeables.add(circuitBreakerService);
             modules.add(settingsModule);
             modules.add(b -> b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService));
             injector = modules.createInjector();
@@ -274,8 +282,7 @@ public class Node implements Closeable {
             throw new ElasticsearchException("failed to bind service", ex);
         } finally {
             if (!success) {
-                nodeEnvironment.close();
-                ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+                IOUtils.closeWhileHandlingException(closeables);
             }
         }
 

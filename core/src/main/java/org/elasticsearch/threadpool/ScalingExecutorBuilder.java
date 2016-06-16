@@ -77,7 +77,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
     }
 
     @Override
-    List<Setting<?>> getRegisteredSettings() {
+    public List<Setting<?>> getRegisteredSettings() {
         return Arrays.asList(coreSetting, maxSetting, keepAliveSetting);
     }
 

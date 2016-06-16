@@ -51,7 +51,7 @@ public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings
      *
      * @return the list of registered settings
      */
-    abstract List<Setting<?>> getRegisteredSettings();
+    public abstract List<Setting<?>> getRegisteredSettings();
 
     /**
      * Return an executor settings object from the node-level settings.

@@ -24,6 +24,9 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 
+import java.util.Arrays;
+import java.util.List;
+
 public final class InternalSettingsPlugin extends Plugin {
     @Override
     public String name() {
@@ -42,9 +45,8 @@ public final class InternalSettingsPlugin extends Plugin {
     public static final Setting<Long> INDEX_CREATION_DATE_SETTING =
         Setting.longSetting(IndexMetaData.SETTING_CREATION_DATE, -1, -1, Property.IndexScope, Property.NodeScope);
 
-    public void onModule(SettingsModule module) {
-        module.registerSetting(VERSION_CREATED);
-        module.registerSetting(MERGE_ENABLED);
-        module.registerSetting(INDEX_CREATION_DATE_SETTING);
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(VERSION_CREATED, MERGE_ENABLED, INDEX_CREATION_DATE_SETTING);
     }
 }

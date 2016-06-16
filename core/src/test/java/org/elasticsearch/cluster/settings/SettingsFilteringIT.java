@@ -30,7 +30,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -72,12 +74,16 @@ public class SettingsFilteringIT extends ESIntegTestCase {
             return Settings.builder().put("some.node.setting", true).put("some.other.node.setting", true).build();
         }
 
-        public void onModule(SettingsModule module) {
-            module.registerSetting(SOME_NODE_SETTING);
-            module.registerSetting(SOME_OTHER_NODE_SETTING);
-            module.registerSetting(Setting.groupSetting("index.filter_test.", Property.IndexScope));
-            module.registerSettingsFilter("index.filter_test.foo");
-            module.registerSettingsFilter("index.filter_test.bar*");
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(SOME_NODE_SETTING,
+            SOME_OTHER_NODE_SETTING,
+            Setting.groupSetting("index.filter_test.", Property.IndexScope));
+        }
+
+        @Override
+        public List<String> getSettingsFilter() {
+            return Arrays.asList("index.filter_test.foo", "index.filter_test.bar*");
         }
     }
 

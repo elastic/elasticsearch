@@ -1806,8 +1806,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         public String description() {
             return "a test plugin that registers index.tests.seed as an index setting";
         }
-        public void onModule(SettingsModule module) {
-            module.registerSetting(INDEX_TEST_SEED_SETTING);
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(INDEX_TEST_SEED_SETTING);
         }
 
     }

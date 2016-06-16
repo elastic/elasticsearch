@@ -20,6 +20,7 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  *
@@ -27,13 +28,16 @@ import org.elasticsearch.common.inject.AbstractModule;
 public class EnvironmentModule extends AbstractModule {
 
     private final Environment environment;
+    private final ThreadPool threadPool;
 
-    public EnvironmentModule(Environment environment) {
+    public EnvironmentModule(Environment environment, ThreadPool threadPool) {
+        this.threadPool = threadPool;
         this.environment = environment;
     }
 
     @Override
     protected void configure() {
+        bind(ThreadPool.class).toInstance(threadPool);
         bind(Environment.class).toInstance(environment);
     }
 }

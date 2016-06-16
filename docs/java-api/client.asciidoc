@@ -37,7 +37,7 @@ be "two hop" operations).
 --------------------------------------------------
 // on startup
 
-Client client = TransportClient.builder().build()
+TransportClient client = TransportClient.builder().build()
         .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("host1"), 9300))
         .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("host2"), 9300));
 
@@ -53,7 +53,7 @@ Note that you have to set the cluster name if you use one different than
 --------------------------------------------------
 Settings settings = Settings.builder()
         .put("cluster.name", "myClusterName").build();
-Client client = TransportClient.builder().settings(settings).build();
+TransportClient client = TransportClient.builder().settings(settings).build();
 //Add transport addresses and do something with the client...
 --------------------------------------------------
 

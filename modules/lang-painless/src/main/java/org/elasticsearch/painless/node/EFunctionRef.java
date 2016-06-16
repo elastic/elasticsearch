@@ -40,6 +40,7 @@ public class EFunctionRef extends AExpression {
     public final String call;
 
     private FunctionRef ref;
+    String defPointer;
 
     public EFunctionRef(Location location, String type, String call) {
         super(location);
@@ -53,7 +54,9 @@ public class EFunctionRef extends AExpression {
         if (expected == null) {
             ref = null;
             actual = Definition.getType("String");
+            defPointer = "S" + type + "." + call + ",0";
         } else {
+            defPointer = null;
             try {
                 if ("this".equals(type)) {
                     // user's own function
@@ -81,9 +84,7 @@ public class EFunctionRef extends AExpression {
 
     @Override
     void write(MethodWriter writer) {
-        if (ref == null) {
-            writer.push("S" + type + "." + call + ",0");
-        } else {
+        if (ref != null) {
             writer.writeDebugInfo(location);
             // convert MethodTypes to asm Type for the constant pool.
             String invokedType = ref.invokedType.toMethodDescriptorString();
@@ -108,6 +109,9 @@ public class EFunctionRef extends AExpression {
                                      samMethodType,
                                      0);
             }
+        } else {
+            // TODO: don't do this: its just to cutover :)
+            writer.push((String)null);
         }
     }
 }

@@ -49,6 +49,7 @@ import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
@@ -200,9 +201,9 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
         public static final Setting<Double> EXCEPTION_LOW_LEVEL_RATIO_SETTING =
             Setting.doubleSetting(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
         public static class TestPlugin extends Plugin {
-            public void onModule(SettingsModule module) {
-                module.registerSetting(EXCEPTION_TOP_LEVEL_RATIO_SETTING);
-                module.registerSetting(EXCEPTION_LOW_LEVEL_RATIO_SETTING);
+            @Override
+            public List<Setting<?>> getSettings() {
+                return Arrays.asList(EXCEPTION_TOP_LEVEL_RATIO_SETTING, EXCEPTION_LOW_LEVEL_RATIO_SETTING);
             }
 
             public void onModule(MockEngineFactoryPlugin.MockEngineReaderModule module) {

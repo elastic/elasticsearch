@@ -38,12 +38,11 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -78,11 +77,11 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateIT extends ESIntegTestCase {
 
-    public static class PutFieldValuesScriptPlugin extends Plugin {
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(PutFieldValuesScriptEngine.class, PutFieldValuesScriptEngine.NAME, true));
+    public static class PutFieldValuesScriptPlugin extends Plugin implements ScriptPlugin {
+        @Override
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new PutFieldValuesScriptEngine();
         }
-
     }
 
     public static class PutFieldValuesScriptEngine implements ScriptEngineService {
@@ -149,13 +148,17 @@ public class UpdateIT extends ESIntegTestCase {
         public void scriptRemoved(CompiledScript script) {
         }
 
+        @Override
+        public boolean isInlineScriptEnabled() {
+            return true;
+        }
     }
 
-    public static class FieldIncrementScriptPlugin extends Plugin {
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldIncrementScriptEngine.class, FieldIncrementScriptEngine.NAME, true));
+    public static class FieldIncrementScriptPlugin extends Plugin implements ScriptPlugin {
+        @Override
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new FieldIncrementScriptEngine();
         }
-
     }
 
     public static class FieldIncrementScriptEngine implements ScriptEngineService {
@@ -215,13 +218,18 @@ public class UpdateIT extends ESIntegTestCase {
         public void scriptRemoved(CompiledScript script) {
         }
 
-    }
-
-    public static class ScriptedUpsertScriptPlugin extends Plugin {
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ScriptedUpsertScriptEngine.class, ScriptedUpsertScriptEngine.NAME, true));
+        @Override
+        public boolean isInlineScriptEnabled() {
+            return true;
         }
 
+    }
+
+    public static class ScriptedUpsertScriptPlugin extends Plugin implements ScriptPlugin {
+        @Override
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new ScriptedUpsertScriptEngine();
+        }
     }
 
     public static class ScriptedUpsertScriptEngine implements ScriptEngineService {
@@ -281,13 +289,18 @@ public class UpdateIT extends ESIntegTestCase {
         public void scriptRemoved(CompiledScript script) {
         }
 
-    }
-
-    public static class ExtractContextInSourceScriptPlugin extends Plugin {
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractContextInSourceScriptEngine.class, ExtractContextInSourceScriptEngine.NAME, true));
+        @Override
+        public boolean isInlineScriptEnabled() {
+            return true;
         }
 
+    }
+
+    public static class ExtractContextInSourceScriptPlugin extends Plugin implements ScriptPlugin {
+        @Override
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new ExtractContextInSourceScriptEngine();
+        }
     }
 
     public static class ExtractContextInSourceScriptEngine implements ScriptEngineService {
@@ -348,6 +361,10 @@ public class UpdateIT extends ESIntegTestCase {
         public void scriptRemoved(CompiledScript script) {
         }
 
+        @Override
+        public boolean isInlineScriptEnabled() {
+            return true;
+        }
     }
 
     @Override

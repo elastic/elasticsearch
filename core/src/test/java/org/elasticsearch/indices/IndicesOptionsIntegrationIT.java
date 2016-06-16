@@ -50,7 +50,9 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -597,10 +599,9 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
             new Setting<>("index.e", "", Function.identity(), Property.IndexScope);
 
 
-        public void onModule(SettingsModule module) {
-            module.registerSetting(INDEX_A);
-            module.registerSetting(INDEX_C);
-            module.registerSetting(INDEX_E);
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(INDEX_A, INDEX_C, INDEX_E);
         }
     }
 

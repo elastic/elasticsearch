@@ -20,6 +20,7 @@ package org.elasticsearch.update;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.AbstractExecutableScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptEngineService;
@@ -32,7 +33,9 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.hasKey;
@@ -65,10 +68,11 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
         assertThat(data.get("foo").toString(), is("SETVALUE"));
     }
 
-    public static class CustomNativeScriptFactory implements NativeScriptFactory {
-        public static class TestPlugin extends Plugin {
-            public void onModule(ScriptModule scriptModule) {
-                scriptModule.registerScript("custom", CustomNativeScriptFactory.class);
+    public static class CustomNativeScriptFactory implements NativeScriptFactory  {
+        public static class TestPlugin extends Plugin implements ScriptPlugin {
+            @Override
+            public List<NativeScriptFactory> getNativeScripts() {
+                return Collections.singletonList(new CustomNativeScriptFactory());
             }
         }
         @Override
@@ -78,6 +82,11 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
         @Override
         public boolean needsScores() {
             return false;
+        }
+
+        @Override
+        public String getName() {
+            return "custom";
         }
     }
 

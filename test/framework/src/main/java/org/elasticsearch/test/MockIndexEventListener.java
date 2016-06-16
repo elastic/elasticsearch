@@ -34,8 +34,10 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * This is a testing plugin that registers a generic {@link org.elasticsearch.test.MockIndexEventListener.TestEventListener} as a node level service as well as a listener
@@ -57,8 +59,9 @@ public final class MockIndexEventListener {
          * For tests to pass in to fail on listener invocation
          */
         public static final Setting<Boolean> INDEX_FAIL = Setting.boolSetting("index.fail", false, Property.IndexScope);
-        public void onModule(SettingsModule module) {
-            module.registerSetting(INDEX_FAIL);
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(INDEX_FAIL);
         }
 
         @Override

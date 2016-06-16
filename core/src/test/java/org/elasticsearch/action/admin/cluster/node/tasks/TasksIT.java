@@ -363,6 +363,10 @@ public class TasksIT extends ESIntegTestCase {
                         taskFinishLock.lock();
                         taskFinishLock.unlock();
                     }
+
+                    @Override
+                    public void waitForTaskCompletion(Task task) {
+                    }
                 });
             }
             indexFuture = client().prepareIndex("test", "test").setSource("test", "test").execute();
@@ -470,8 +474,30 @@ public class TasksIT extends ESIntegTestCase {
             // Wait for the task to start
             assertBusy(() -> client().admin().cluster().prepareGetTask(taskId).get());
 
-            // Spin up a request to wait for that task to finish
+            // Register listeners so we can be sure the waiting started
+            CountDownLatch waitForWaitingToStart = new CountDownLatch(1);
+            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                ((MockTaskManager) transportService.getTaskManager()).addListener(new MockTaskManagerListener() {
+                    @Override
+                    public void waitForTaskCompletion(Task task) {
+                    }
+
+                    @Override
+                    public void onTaskRegistered(Task task) {
+                    }
+
+                    @Override
+                    public void onTaskUnregistered(Task task) {
+                        waitForWaitingToStart.countDown();
+                    }
+                });
+            }
+
+            // Spin up a request to wait for the test task to finish
             waitResponseFuture = wait.apply(taskId);
+
+            // Wait for the wait to start
+            waitForWaitingToStart.await();
         } finally {
             // Unblock the request so the wait for completion request can finish
             TestTaskPlugin.UnblockTestTasksAction.INSTANCE.newRequestBuilder(client()).get();

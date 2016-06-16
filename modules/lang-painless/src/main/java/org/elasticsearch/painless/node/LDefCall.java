@@ -25,6 +25,7 @@ import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
@@ -37,6 +38,7 @@ final class LDefCall extends ALink implements IDefLink {
     final String name;
     final List<AExpression> arguments;
     long recipe;
+    List<String> pointers = new ArrayList<>();
 
     LDefCall(Location location, String name, List<AExpression> arguments) {
         super(location, -1);
@@ -59,14 +61,18 @@ final class LDefCall extends ALink implements IDefLink {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
+            expression.internal = true;
+            expression.analyze(locals);
+
             if (expression instanceof EFunctionRef) {
+                pointers.add(((EFunctionRef)expression).defPointer);
                 recipe |= (1L << (argument + totalCaptures)); // mark argument as deferred reference
             } else if (expression instanceof ECapturingFunctionRef) {
+                pointers.add(((ECapturingFunctionRef)expression).defPointer);
                 recipe |= (1L << (argument + totalCaptures)); // mark argument as deferred reference
                 totalCaptures++;
             }
-            expression.internal = true;
-            expression.analyze(locals);
+
             expression.expected = expression.actual;
             arguments.set(argument, expression.cast(locals));
         }
@@ -105,7 +111,11 @@ final class LDefCall extends ALink implements IDefLink {
         // return value
         signature.append(after.type.getDescriptor());
 
-        writer.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.METHOD_CALL, recipe);
+        List<Object> args = new ArrayList<>();
+        args.add(DefBootstrap.METHOD_CALL);
+        args.add(recipe);
+        args.addAll(pointers);
+        writer.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, args.toArray());
     }
 
     @Override

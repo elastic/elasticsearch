@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
@@ -28,7 +29,9 @@ import org.elasticsearch.script.ScriptModule;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -39,11 +42,10 @@ public class DateScriptMocks {
     /**
      * Mock plugin for the {@link DateScriptMocks.ExtractFieldScript} and {@link DateScriptMocks.PlusOneMonthScript}
      */
-    public static class DateScriptsMockPlugin extends Plugin {
-
-        public void onModule(ScriptModule module) {
-            module.registerScript(ExtractFieldScript.NAME, ExtractFieldScriptFactory.class);
-            module.registerScript(PlusOneMonthScript.NAME, PlusOneMonthScriptFactory.class);
+    public static class DateScriptsMockPlugin extends Plugin implements ScriptPlugin {
+        @Override
+        public List<NativeScriptFactory> getNativeScripts() {
+            return Arrays.asList(new ExtractFieldScriptFactory(), new PlusOneMonthScriptFactory());
         }
     }
 
@@ -55,6 +57,11 @@ public class DateScriptMocks {
         @Override
         public boolean needsScores() {
             return false;
+        }
+
+        @Override
+        public String getName() {
+            return ExtractFieldScript.NAME;
         }
     }
 
@@ -83,6 +90,11 @@ public class DateScriptMocks {
         @Override
         public boolean needsScores() {
             return false;
+        }
+
+        @Override
+        public String getName() {
+            return PlusOneMonthScript.NAME;
         }
     }
 

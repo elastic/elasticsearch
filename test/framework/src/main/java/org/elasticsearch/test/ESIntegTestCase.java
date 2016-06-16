@@ -1798,8 +1798,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public static final class TestSeedPlugin extends Plugin {
-        public void onModule(SettingsModule module) {
-            module.registerSetting(INDEX_TEST_SEED_SETTING);
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(INDEX_TEST_SEED_SETTING);
         }
 
     }

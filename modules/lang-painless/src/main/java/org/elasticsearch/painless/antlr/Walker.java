@@ -114,7 +114,6 @@ import org.elasticsearch.painless.node.EConditional;
 import org.elasticsearch.painless.node.EDecimal;
 import org.elasticsearch.painless.node.EExplicit;
 import org.elasticsearch.painless.node.EFunctionRef;
-import org.elasticsearch.painless.node.ELambda;
 import org.elasticsearch.painless.node.ENull;
 import org.elasticsearch.painless.node.ENumeric;
 import org.elasticsearch.painless.node.EUnary;
@@ -170,6 +169,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
     private final Deque<Reserved> reserved = new ArrayDeque<>();
     private final List<SFunction> synthetic = new ArrayList<>();
+    private int syntheticCounter = 0;
 
     private Walker(String sourceName, String sourceText, CompilerSettings settings) {
         this.settings = settings;
@@ -512,6 +512,10 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             operation = Operation.ADD;
         } else if (ctx.SUB() != null) {
             operation = Operation.SUB;
+        } else if (ctx.FIND() != null) {
+            operation = Operation.FIND;
+        } else if (ctx.MATCH() != null) {
+            operation = Operation.MATCH;
         } else if (ctx.LSH() != null) {
             operation = Operation.LSH;
         } else if (ctx.RSH() != null) {
@@ -947,7 +951,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
         for (LamtypeContext lamtype : ctx.lamtype()) {
             if (lamtype.decltype() == null) {
-                paramTypes.add(null);
+                paramTypes.add("def");
             } else {
                 paramTypes.add(lamtype.decltype().getText());
             }
@@ -958,8 +962,12 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         for (StatementContext statement : ctx.block().statement()) {
             statements.add((AStatement)visit(statement));
         }
-
-        return new ELambda((FunctionReserved)reserved.pop(), location(ctx), paramTypes, paramNames, statements);
+        
+        String name = nextLambda();
+        synthetic.add(new SFunction((FunctionReserved)reserved.pop(), location(ctx), "def", name, 
+                      paramTypes, paramNames, statements, true));
+        return new EFunctionRef(location(ctx), "this", name);
+        // TODO: use a real node for captures and shit
     }
 
     @Override
@@ -999,7 +1007,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
                            new LNewArray(location, arrayType, Arrays.asList(
                            new EChain(location, 
                            new LVariable(location, "size"))))));
-            String name = "lambda$" + synthetic.size();
+            String name = nextLambda();
             synthetic.add(new SFunction(new FunctionReserved(), location, arrayType, name, 
                           Arrays.asList("int"), Arrays.asList("size"), Arrays.asList(code), true));
             return new EFunctionRef(location(ctx), "this", name);
@@ -1015,5 +1023,10 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
     @Override
     public Object visitLocalFuncref(LocalFuncrefContext ctx) {
         return new EFunctionRef(location(ctx), ctx.THIS().getText(), ctx.ID().getText());
+    }
+    
+    /** Returns name of next lambda */
+    private String nextLambda() {
+        return "lambda$" + syntheticCounter++;
     }
 }

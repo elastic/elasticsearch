@@ -28,6 +28,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -37,8 +38,10 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 public class GceDiscoveryPlugin extends Plugin {
 
@@ -83,13 +86,15 @@ public class GceDiscoveryPlugin extends Plugin {
             discoveryModule.addUnicastHostProvider(GCE, GceUnicastHostsProvider.class);
     }
 
-    public void onModule(SettingsModule settingsModule) {
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(
         // Register GCE settings
-        settingsModule.registerSetting(GceComputeService.PROJECT_SETTING);
-        settingsModule.registerSetting(GceComputeService.ZONE_SETTING);
-        settingsModule.registerSetting(GceUnicastHostsProvider.TAGS_SETTING);
-        settingsModule.registerSetting(GceComputeService.REFRESH_SETTING);
-        settingsModule.registerSetting(GceComputeService.RETRY_SETTING);
-        settingsModule.registerSetting(GceComputeService.MAX_WAIT_SETTING);
+        GceComputeService.PROJECT_SETTING,
+        GceComputeService.ZONE_SETTING,
+        GceUnicastHostsProvider.TAGS_SETTING,
+        GceComputeService.REFRESH_SETTING,
+        GceComputeService.RETRY_SETTING,
+        GceComputeService.MAX_WAIT_SETTING);
     }
 }

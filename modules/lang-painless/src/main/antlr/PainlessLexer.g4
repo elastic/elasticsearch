@@ -80,6 +80,8 @@ COND:    '?';
 COLON:   ':';
 REF:     '::';
 ARROW:   '->';
+FIND:    '=~';
+MATCH:   '==~';
 INCR:    '++';
 DECR:    '--';
 

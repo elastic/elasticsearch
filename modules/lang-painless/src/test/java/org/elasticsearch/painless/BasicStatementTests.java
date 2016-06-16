@@ -215,13 +215,6 @@ public class BasicStatementTests extends ScriptTestCase {
         assertEquals(10, ((Map)exec("Map s = new HashMap(); s.put(\"x\", 10); return s;")).get("x"));
     }
 
-    public void testLambdas() {
-        Exception exception = expectThrows(Exception.class, () -> {
-            exec("Math.max(2, p -> {p.doSomething();})");
-        });
-        assertTrue(exception.getCause().getMessage().contains("Lambda functions are not supported."));
-    }
-
     public void testLastInBlockDoesntNeedSemi() {
         // One statement in the block in case that is a special case
         assertEquals(10, exec("def i = 1; if (i == 1) {return 10}"));

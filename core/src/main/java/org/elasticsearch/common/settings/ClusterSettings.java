@@ -420,6 +420,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
                     ResourceWatcherService.RELOAD_INTERVAL_LOW,
                     SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
-                    ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING
+                    ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
+                    Node.BREAKER_TYPE_KEY
             )));
 }

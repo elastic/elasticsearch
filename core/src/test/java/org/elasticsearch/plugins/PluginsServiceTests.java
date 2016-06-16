@@ -19,16 +19,17 @@
 
 package org.elasticsearch.plugins;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
-
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Arrays;
 
 public class PluginsServiceTests extends ESTestCase {
     public static class AdditionalSettingsPlugin1 extends Plugin {
@@ -49,6 +50,8 @@ public class PluginsServiceTests extends ESTestCase {
             throw new IllegalStateException("boom");
         }
     }
+
+    public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
     public static class BrokenModule extends AbstractModule {
 
@@ -110,5 +113,16 @@ public class PluginsServiceTests extends ESTestCase {
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage(), e.getMessage().contains("Could not load plugin descriptor for existing plugin"));
         }
+    }
+
+    public void testFilterPlugins() {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put("my.setting", "test")
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.SIMPLEFS.getSettingsKey()).build();
+        PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class, FilterablePlugin.class);
+        List<ScriptPlugin> scriptPlugins = service.filterPlugins(ScriptPlugin.class);
+        assertEquals(1, scriptPlugins.size());
+        assertEquals(FilterablePlugin.class, scriptPlugins.get(0).getClass());
     }
 }

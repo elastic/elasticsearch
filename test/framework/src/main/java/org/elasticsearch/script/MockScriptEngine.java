@@ -22,12 +22,12 @@ package org.elasticsearch.script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -52,12 +52,11 @@ public class MockScriptEngine implements ScriptEngineService {
         }
     }
 
-    public static class TestPlugin extends Plugin {
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class,
-                            MockScriptEngine.NAME, true));
+    public static class TestPlugin extends Plugin implements ScriptPlugin {
+        @Override
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new MockScriptEngine();
         }
-
     }
 
     @Override
@@ -117,5 +116,10 @@ public class MockScriptEngine implements ScriptEngineService {
 
     @Override
     public void close() throws IOException {
+    }
+
+    @Override
+    public boolean isInlineScriptEnabled() {
+        return true;
     }
 }

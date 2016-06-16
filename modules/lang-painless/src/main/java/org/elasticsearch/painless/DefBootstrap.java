@@ -125,10 +125,10 @@ public final class DefBootstrap {
         /**
          * Does a slow lookup against the whitelist.
          */
-        private MethodHandle lookup(int flavor, String name, Class<?> receiver, Object[] callArgs) throws Throwable {
+        private MethodHandle lookup(int flavor, String name, Class<?> receiver) throws Throwable {
             switch(flavor) {
                 case METHOD_CALL:
-                    return Def.lookupMethod(lookup, type(), receiver, name, callArgs, (Long) this.args[0]);
+                    return Def.lookupMethod(lookup, type(), receiver, name, args);
                 case LOAD:
                     return Def.lookupGetter(receiver, name);
                 case STORE:
@@ -140,7 +140,7 @@ public final class DefBootstrap {
                 case ITERATOR:
                     return Def.lookupIterator(receiver);
                 case REFERENCE:
-                    return Def.lookupReference(lookup, (String) this.args[0], receiver, name);
+                    return Def.lookupReference(lookup, (String) args[0], receiver, name);
                 default: throw new AssertionError();
             }
         }
@@ -148,27 +148,23 @@ public final class DefBootstrap {
         /**
          * Creates the {@link MethodHandle} for the megamorphic call site
          * using {@link ClassValue} and {@link MethodHandles#exactInvoker(MethodType)}:
-         * <p>
-         * TODO: Remove the variable args and just use {@code type()}!
          */
-        private MethodHandle createMegamorphicHandle(final Object[] callArgs) throws Throwable {
+        private MethodHandle createMegamorphicHandle() {
             final MethodType type = type();
             final ClassValue<MethodHandle> megamorphicCache = new ClassValue<MethodHandle>() {
                 @Override
                 protected MethodHandle computeValue(Class<?> receiverType) {
                     // it's too stupid that we cannot throw checked exceptions... (use rethrow puzzler):
                     try {
-                        return lookup(flavor, name, receiverType, callArgs).asType(type);
+                        return lookup(flavor, name, receiverType).asType(type);
                     } catch (Throwable t) {
                         Def.rethrow(t);
                         throw new AssertionError();
                     }
                 }
             };
-            MethodHandle cacheLookup = MEGAMORPHIC_LOOKUP.bindTo(megamorphicCache);
-            cacheLookup = MethodHandles.dropArguments(cacheLookup,
-                    1, type.parameterList().subList(1, type.parameterCount()));
-            return MethodHandles.foldArguments(MethodHandles.exactInvoker(type), cacheLookup);            
+            return MethodHandles.foldArguments(MethodHandles.exactInvoker(type),
+                    MEGAMORPHIC_LOOKUP.bindTo(megamorphicCache));            
         }
 
         /**
@@ -180,13 +176,13 @@ public final class DefBootstrap {
         Object fallback(final Object[] callArgs) throws Throwable {
             if (depth >= MAX_DEPTH) {
                 // we revert the whole cache and build a new megamorphic one
-                final MethodHandle target = this.createMegamorphicHandle(callArgs);
+                final MethodHandle target = this.createMegamorphicHandle();
                 
                 setTarget(target);
                 return target.invokeWithArguments(callArgs);                    
             } else {
                 final Class<?> receiver = callArgs[0].getClass();
-                final MethodHandle target = lookup(flavor, name, receiver, callArgs).asType(type());
+                final MethodHandle target = lookup(flavor, name, receiver).asType(type());
     
                 MethodHandle test = CHECK_CLASS.bindTo(receiver);
                 MethodHandle guard = MethodHandles.guardWithTest(test, target, getTarget());
@@ -270,7 +266,7 @@ public final class DefBootstrap {
             }
         }
         
-        private MethodHandle lookupGeneric() throws Throwable {
+        private MethodHandle lookupGeneric() {
             if ((flags & OPERATOR_COMPOUND_ASSIGNMENT) != 0) {
                 return DefMath.lookupGenericWithCast(name);
             } else {
@@ -279,8 +275,8 @@ public final class DefBootstrap {
         }
         
         /**
-         * Called when a new type is encountered (or, when we have encountered more than {@code MAX_DEPTH}
-         * types at this call site and given up on caching).
+         * Called when a new type is encountered or if cached type does not match.
+         * In that case we revert to a generic, but slower operator handling.
          */
         @SuppressForbidden(reason = "slow path")
         Object fallback(Object[] args) throws Throwable {
@@ -398,15 +394,19 @@ public final class DefBootstrap {
         switch(flavor) {
             // "function-call" like things get a polymorphic cache
             case METHOD_CALL:
-                if (args.length != 1) {
+                if (args.length == 0) {
                     throw new BootstrapMethodError("Invalid number of parameters for method call");
                 }
                 if (args[0] instanceof Long == false) {
                     throw new BootstrapMethodError("Illegal parameter for method call: " + args[0]);
                 }
                 long recipe = (Long) args[0];
-                if (Long.bitCount(recipe) > type.parameterCount()) {
+                int numLambdas = Long.bitCount(recipe);
+                if (numLambdas > type.parameterCount()) {
                     throw new BootstrapMethodError("Illegal recipe for method call: too many bits");
+                }
+                if (args.length != numLambdas + 1) {
+                    throw new BootstrapMethodError("Illegal number of parameters: expected " + numLambdas + " references");
                 }
                 return new PIC(lookup, name, type, flavor, args);
             case LOAD:

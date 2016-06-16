@@ -98,7 +98,7 @@ public class FunctionRef {
         implMethod = impl.handle;
         
         // remove any prepended captured arguments for the 'natural' signature.
-        samMethodType = impl.getMethodType().dropParameterTypes(0, captures.length);
+        samMethodType = adapt(interfaceMethodType, impl.getMethodType().dropParameterTypes(0, captures.length));
     }
 
     /**
@@ -119,7 +119,7 @@ public class FunctionRef {
         implMethodASM = null;
         
         // remove any prepended captured arguments for the 'natural' signature.
-        samMethodType = impl.type().dropParameterTypes(0, captures.length);
+        samMethodType = adapt(interfaceMethodType, impl.type().dropParameterTypes(0, captures.length));
     }
 
     /** 
@@ -170,5 +170,16 @@ public class FunctionRef {
         // currently if the interface differs, we ask for a bridge, but maybe we should do smarter checking?
         // either way, stuff will fail if its wrong :)
         return interfaceMethodType.equals(samMethodType) == false;
+    }
+    
+    /** 
+     * If the interface expects a primitive type to be returned, we can't return Object,
+     * But we can set SAM to the wrapper version, and a cast will take place 
+     */
+    private static MethodType adapt(MethodType expected, MethodType actual) {
+        if (expected.returnType().isPrimitive() && actual.returnType() == Object.class) {
+            actual = actual.changeReturnType(MethodType.methodType(expected.returnType()).wrap().returnType());
+        }
+        return actual;
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
@@ -33,6 +34,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -64,10 +66,10 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         assertThat(searchResponse.isTimedOut(), equalTo(true));
     }
 
-    public static class ScriptedTimeoutPlugin extends Plugin {
-
-        public void onModule(ScriptModule module) {
-            module.registerScript(NativeTestScriptedTimeout.TEST_NATIVE_SCRIPT_TIMEOUT, NativeTestScriptedTimeout.Factory.class);
+    public static class ScriptedTimeoutPlugin extends Plugin implements ScriptPlugin {
+        @Override
+        public List<NativeScriptFactory> getNativeScripts() {
+            return Collections.singletonList(new NativeTestScriptedTimeout.Factory());
         }
     }
 
@@ -85,6 +87,11 @@ public class SearchTimeoutIT extends ESIntegTestCase {
             @Override
             public boolean needsScores() {
                 return false;
+            }
+
+            @Override
+            public String getName() {
+                return TEST_NATIVE_SCRIPT_TIMEOUT;
             }
         }
 

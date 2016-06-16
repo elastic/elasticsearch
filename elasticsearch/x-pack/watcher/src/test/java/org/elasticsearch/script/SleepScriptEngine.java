@@ -23,19 +23,6 @@ public class SleepScriptEngine implements ScriptEngineService {
 
     public static class TestPlugin extends Plugin {
 
-        public TestPlugin() {
-        }
-
-        @Override
-        public String name() {
-            return NAME;
-        }
-
-        @Override
-        public String description() {
-            return "Mock script engine for integration tests";
-        }
-
         public void onModule(ScriptModule module) {
             module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(SleepScriptEngine.class,
                             SleepScriptEngine.NAME, true));

@@ -22,11 +22,6 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
 
     public static class TestPlugin extends MockScriptEngine.TestPlugin {
 
-        @Override
-        public String name() {
-            return NAME;
-        }
-
         public void onModule(ScriptModule module) {
             module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MockMustacheScriptEngine.class, NAME, true));
         }

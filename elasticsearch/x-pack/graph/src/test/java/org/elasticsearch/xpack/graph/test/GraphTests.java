@@ -347,15 +347,6 @@ public class GraphTests extends ESSingleNodeTestCase {
     }
 
     public static class ScriptedTimeoutPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "test-scripted-graph-timeout";
-        }
-
-        @Override
-        public String description() {
-            return "Test for scripted timeouts on graph searches";
-        }
 
         public void onModule(ScriptModule module) {
             module.registerScript(NativeTestScriptedTimeout.TEST_NATIVE_SCRIPT_TIMEOUT, NativeTestScriptedTimeout.Factory.class);

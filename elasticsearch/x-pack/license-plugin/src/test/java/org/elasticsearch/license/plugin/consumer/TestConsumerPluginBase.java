@@ -25,17 +25,6 @@ public abstract class TestConsumerPluginBase extends Plugin {
     }
 
     @Override
-    public String name() {
-        return pluginName();
-    }
-
-    @Override
-    public String description() {
-        return "test licensing consumer plugin";
-    }
-
-
-    @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         if (isEnabled) {
@@ -54,8 +43,6 @@ public abstract class TestConsumerPluginBase extends Plugin {
     }
 
     public abstract Class<? extends TestPluginServiceBase> service();
-
-    protected abstract String pluginName();
 
     public abstract String id();
 }

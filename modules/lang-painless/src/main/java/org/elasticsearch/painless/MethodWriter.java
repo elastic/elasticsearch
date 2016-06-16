@@ -209,15 +209,20 @@ public final class MethodWriter extends GeneratorAdapter {
         }
     }
 
-    public void writeNewStrings() {
+    /** Starts a new string concat.
+     * @return the size of arguments pushed to stack (the object that does string concats, e.g. a StringBuilder)
+     */
+    public int writeNewStrings() {
         if (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE != null) {
             // Java 9+: we just push our argument collector onto deque
             stringConcatArgs.push(new ArrayList<>());
+            return 0; // nothing added to stack
         } else {
             // Java 8: create a StringBuilder in bytecode
             newInstance(STRINGBUILDER_TYPE);
             dup();
             invokeConstructor(STRINGBUILDER_TYPE, STRINGBUILDER_CONSTRUCTOR);
+            return 1; // StringBuilder on stack
         }
     }
 

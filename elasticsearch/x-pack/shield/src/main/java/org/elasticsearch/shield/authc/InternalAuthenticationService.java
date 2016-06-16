@@ -29,6 +29,7 @@ import org.elasticsearch.transport.TransportMessage;
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.List;
 
 import static org.elasticsearch.shield.Security.setting;
 import static org.elasticsearch.shield.support.Exceptions.authenticationError;
@@ -316,9 +317,9 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         return null;
     }
 
-    public static void registerSettings(SettingsModule settingsModule) {
-        settingsModule.registerSetting(SIGN_USER_HEADER);
-        settingsModule.registerSetting(RUN_AS_ENABLED);
+    public static void addSettings(List<Setting<?>> settings) {
+        settings.add(SIGN_USER_HEADER);
+        settings.add(RUN_AS_ENABLED);
     }
 
     // these methods are package private for testing. They are also needed so that a AuditableRequest can be created in tests

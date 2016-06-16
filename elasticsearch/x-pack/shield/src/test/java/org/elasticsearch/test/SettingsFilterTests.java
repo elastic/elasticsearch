@@ -15,7 +15,9 @@ import org.elasticsearch.shield.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -85,13 +87,14 @@ public class SettingsFilterTests extends ESTestCase {
                 .build();
 
         XPackPlugin xPackPlugin = new XPackPlugin(settings);
-        SettingsModule settingsModule = new SettingsModule(settings);
+        List<Setting<?>> settingList = new ArrayList<>();
+        settingList.add(Setting.simpleString("foo.bar", Setting.Property.NodeScope));
+        settingList.add(Setting.simpleString("foo.baz", Setting.Property.NodeScope));
+        settingList.add(Setting.simpleString("bar.baz", Setting.Property.NodeScope));
+        settingList.add(Setting.simpleString("baz.foo", Setting.Property.NodeScope));
+        settingList.addAll(xPackPlugin.getSettings());
         // custom settings, potentially added by a plugin
-        settingsModule.registerSetting(Setting.simpleString("foo.bar", Setting.Property.NodeScope));
-        settingsModule.registerSetting(Setting.simpleString("foo.baz", Setting.Property.NodeScope));
-        settingsModule.registerSetting(Setting.simpleString("bar.baz", Setting.Property.NodeScope));
-        settingsModule.registerSetting(Setting.simpleString("baz.foo", Setting.Property.NodeScope));
-        xPackPlugin.onModule(settingsModule);
+        SettingsModule settingsModule = new SettingsModule(settings, settingList, xPackPlugin.getSettingsFilter());
 
         Injector injector = Guice.createInjector(settingsModule);
         SettingsFilter settingsFilter = injector.getInstance(SettingsFilter.class);

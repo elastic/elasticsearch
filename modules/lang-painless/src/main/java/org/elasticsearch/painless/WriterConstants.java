@@ -131,7 +131,7 @@ public final class WriterConstants {
             // not Java 9 - we set it null, so MethodWriter uses StringBuilder:
             bs = null;
         }
-        INDY_STRING_CONCAT_BOOTSTRAP_HANDLE = bs;
+        INDY_STRING_CONCAT_BOOTSTRAP_HANDLE = null; // Disabled until https://github.com/elastic/elasticsearch/issues/18929
     }
 
     public final static int MAX_INDY_STRING_CONCAT_ARGS = 200;

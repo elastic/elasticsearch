@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.Version;
@@ -40,6 +42,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.hamcrest.Matchers;
@@ -98,22 +101,25 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         AllocationService strategy = createAllocationService(settings.build());
 
         ClusterState clusterState = initCluster(strategy);
-        assertReplicaBalance(logger, clusterState.getRoutingNodes(), numberOfNodes, numberOfIndices, numberOfReplicas, numberOfShards, balanceTreshold);
+        assertReplicaWeightBalance(clusterState, balanceTreshold);
 
         clusterState = addNode(clusterState, strategy);
-        assertReplicaBalance(logger, clusterState.getRoutingNodes(), numberOfNodes + 1, numberOfIndices, numberOfReplicas, numberOfShards, balanceTreshold);
+        assertReplicaWeightBalance(clusterState, balanceTreshold);
 
         clusterState = removeNodes(clusterState, strategy);
-        assertReplicaBalance(logger, clusterState.getRoutingNodes(), (numberOfNodes + 1) - (numberOfNodes + 1) / 2, numberOfIndices, numberOfReplicas, numberOfShards, balanceTreshold);
-
+        assertReplicaWeightBalance(clusterState, balanceTreshold);
     }
+
 
     private ClusterState initCluster(AllocationService strategy) {
         MetaData.Builder metaDataBuilder = MetaData.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
         for (int i = 0; i < numberOfIndices; i++) {
-            IndexMetaData.Builder index = IndexMetaData.builder("test" + i).settings(settings(Version.CURRENT)).numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas);
+            IndexMetaData.Builder index = IndexMetaData.builder("test" + i)
+                .settings(settings(Version.CURRENT)
+                    .put(BalancedShardsAllocator.INDEX_BALANCE_SHARD_WEIGHT.getKey(), randomIntBetween(1, 20)))
+                .numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas);
             metaDataBuilder = metaDataBuilder.put(index);
         }
 
@@ -227,17 +233,35 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         return clusterState;
     }
 
+    private void assertReplicaWeightBalance(ClusterState clusterState, float treshold) {
+        int totalWeight = 0;
+        int lowestWeight = Integer.MAX_VALUE;
+        int highestWeight = Integer.MIN_VALUE;
+        ObjectIntMap<Index> weights = new ObjectIntHashMap<>();
+        for (IndexMetaData indexMetaData : clusterState.getMetaData()) {
+            int shardWeight = BalancedShardsAllocator.INDEX_BALANCE_SHARD_WEIGHT.get(indexMetaData.getSettings());
+            totalWeight += shardWeight * indexMetaData.getTotalNumberOfShards();
+            lowestWeight = Math.min(lowestWeight, shardWeight);
+            highestWeight = Math.max(highestWeight, shardWeight);
+            weights.put(indexMetaData.getIndex(), shardWeight);
+        }
 
-    private void assertReplicaBalance(ESLogger logger, RoutingNodes nodes, int numberOfNodes, int numberOfIndices, int numberOfReplicas, int numberOfShards, float treshold) {
-        final int numShards = numberOfIndices * numberOfShards * (numberOfReplicas + 1);
-        final float avgNumShards = (float) (numShards) / (float) (numberOfNodes);
-        final int minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards - treshold)));
-        final int maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + treshold)));
+        float avgWeight = ((float) totalWeight) / clusterState.getRoutingNodes().size();
+        int diffWeight = highestWeight - lowestWeight;
+        final float minWeight = avgWeight - diffWeight - treshold;
+        final float maxWeight = avgWeight + diffWeight + treshold;
 
-        for (RoutingNode node : nodes) {
-//            logger.info(node.nodeId() + ": " + node.shardsWithState(INITIALIZING, STARTED).size() + " shards ("+minAvgNumberOfShards+" to "+maxAvgNumberOfShards+")");
-            assertThat(node.shardsWithState(STARTED).size(), Matchers.greaterThanOrEqualTo(minAvgNumberOfShards));
-            assertThat(node.shardsWithState(STARTED).size(), Matchers.lessThanOrEqualTo(maxAvgNumberOfShards));
+        logger.trace("diffWeight is {}, minWeight is {}, maxWeight is {}", diffWeight, minWeight, maxWeight);
+
+        for (RoutingNode node : clusterState.getRoutingNodes()) {
+            int nodeWeight = 0;
+            for (ShardRouting shardRouting : node.shardsWithState(STARTED)) {
+                nodeWeight += weights.get(shardRouting.index());
+            }
+            logger.trace("node weight is {}", nodeWeight);
+
+            assertThat((float) nodeWeight, Matchers.greaterThanOrEqualTo(minWeight));
+            assertThat((float) nodeWeight, Matchers.lessThanOrEqualTo(maxWeight));
         }
     }
 

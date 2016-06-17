@@ -195,7 +195,7 @@ public class TransportFieldStatsAction extends
                 fieldNames.addAll(shard.mapperService().simpleMatchToIndexNames(field));
             }
             for (String field : fieldNames) {
-                FieldStats<?> stats = indicesService.getFieldStats(shard, searcher, field, request.shouldUseCache());
+                FieldStats<?> stats = indicesService.getFieldStats(shardId, shard, searcher, field, request.shouldUseCache());
                 if (stats != null) {
                     fieldStats.put(field, stats);
                 }

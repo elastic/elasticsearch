@@ -27,10 +27,19 @@ import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.fieldstats.IndexConstraint;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.IndicesRequestCacheKeyBuilder;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.GTE;
@@ -48,6 +57,14 @@ import static org.hamcrest.Matchers.nullValue;
  * Tests for the {@link FieldStatsAction}.
  */
 public class FieldStatsIntegrationIT extends ESIntegTestCase {
+    public static volatile String overrideCacheKeyPrefix;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(TestCacheKeyPlugin.class);
+        return plugins;
+    }
 
     public void testRandom() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
@@ -505,6 +522,16 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
         fieldStats = client().prepareFieldStats().setFields("value").get();
         assertEquals(200, fieldStats.getAllFieldStats().get("value").getDocCount());
         assertEquals(oldHitCount, indexStats.getHitCount());
+
+        // Over use the pluggable cache key strategy to dodge the cache
+        overrideCacheKeyPrefix = "test";
+        try {
+            fieldStats = client().prepareFieldStats().setFields("value").get();
+            assertEquals(200, fieldStats.getAllFieldStats().get("value").getDocCount());
+            assertEquals(oldHitCount, indexStats.getHitCount());
+        } finally {
+            overrideCacheKeyPrefix = null;
+        }
     }
 
     private void indexRange(String index, long from, long to) throws Exception {
@@ -517,5 +544,25 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
             requests.add(client().prepareIndex(index, "test").setSource(field, value));
         }
         indexRandom(true, false, requests);
+    }
+
+    public static class TestCacheKeyPlugin extends Plugin {
+        public void onModule(IndicesModule module) {
+            IndicesRequestCacheKeyBuilder delegate = module.getIndicesRequstCacheKeyBuilder();
+            module.setIndicesRequstCacheKeyBuilder(new IndicesRequestCacheKeyBuilder() {
+                @Override
+                public BytesReference searchRequestKey(ShardSearchRequest request) throws IOException {
+                    return delegate.searchRequestKey(request);
+                }
+
+                @Override
+                public BytesReference fieldStatsKey(ShardId shardId, String field) throws IOException {
+                    if (overrideCacheKeyPrefix == null) {
+                        return delegate.fieldStatsKey(shardId, field);
+                    }
+                    return new BytesArray(overrideCacheKeyPrefix + ":" + field);
+                }
+            });
+        }
     }
 }

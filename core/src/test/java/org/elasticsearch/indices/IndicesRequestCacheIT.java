@@ -22,15 +22,24 @@ package org.elasticsearch.indices;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
@@ -40,12 +49,23 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class IndicesRequestCacheIT extends ESIntegTestCase {
+    public static volatile String overrideCacheKeyPrefix;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(TestCacheKeyPlugin.class);
+        return plugins;
+    }
 
     // One of the primary purposes of the query cache is to cache aggs results
     public void testCacheAggs() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("index")
                 .addMapping("type", "f", "type=date")
-                .setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true).get());
+                .setSettings(
+                        IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true,
+                        "number_of_replicas", 0 // No replicas so we always cache after the first hit
+                ).get());
         indexRandom(true,
                 client().prepareIndex("index", "type").setSource("f", "2014-03-10T00:00:00.000Z"),
                 client().prepareIndex("index", "type").setSource("f", "2014-05-13T00:00:00.000Z"));
@@ -61,9 +81,12 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertSearchResponse(r1);
 
         // The cached is actually used
-        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache()
-            .getMemorySizeInBytes(), greaterThan(0L));
+        RequestCacheStats stats = client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache();
+        assertThat(stats.getMemorySizeInBytes(), greaterThan(0L));
+        assertEquals(0, stats.getHitCount());
 
+        long oldMemorySize = stats.getMemorySizeInBytes();
+        long oldHitCount = 0;
         for (int i = 0; i < 10; ++i) {
             final SearchResponse r2 = client().prepareSearch("index").setSize(0)
                     .setSearchType(SearchType.QUERY_THEN_FETCH).addAggregation(dateHistogram("histo").field("f")
@@ -81,6 +104,25 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 assertEquals(b1.getKey(), b2.getKey());
                 assertEquals(b1.getDocCount(), b2.getDocCount());
             }
+            stats = client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache();
+            assertEquals(oldMemorySize, stats.getMemorySizeInBytes());
+            assertThat(stats.getHitCount(), greaterThan(oldHitCount));
+            oldHitCount = stats.getHitCount();
+        }
+
+        // We can dodge the cache by changing the cache key using the fancy cache key pluggability
+        overrideCacheKeyPrefix = "test";
+        try {
+            SearchResponse r3 = client().prepareSearch("index").setSize(0)
+                    .setSearchType(SearchType.QUERY_THEN_FETCH).addAggregation(dateHistogram("histo").field("f")
+                            .timeZone(DateTimeZone.forID("+01:00")).minDocCount(0).dateHistogramInterval(DateHistogramInterval.MONTH))
+                    .get();
+            assertSearchResponse(r3);
+            stats = client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache();
+            assertThat(stats.getMemorySizeInBytes(), greaterThan(oldMemorySize));
+            assertEquals(oldHitCount, stats.getHitCount());
+        } finally {
+            overrideCacheKeyPrefix = null;
         }
     }
 
@@ -354,4 +396,28 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 equalTo(0L));
     }
 
+    public static class TestCacheKeyPlugin extends Plugin {
+        public void onModule(IndicesModule module) {
+            IndicesRequestCacheKeyBuilder delegate = module.getIndicesRequstCacheKeyBuilder();
+            module.setIndicesRequstCacheKeyBuilder(new IndicesRequestCacheKeyBuilder() {
+                @Override
+                public BytesReference searchRequestKey(ShardSearchRequest request) throws IOException {
+                    BytesReference cacheKey = delegate.searchRequestKey(request);
+                    if (overrideCacheKeyPrefix != null) {
+                        try (BytesStreamOutput newKey = new BytesStreamOutput()) {
+                            newKey.writeString(overrideCacheKeyPrefix);
+                            newKey.writeBytesReference(cacheKey);
+                            cacheKey = newKey.bytes();
+                        }
+                    }
+                    return cacheKey;
+                }
+
+                @Override
+                public BytesReference fieldStatsKey(ShardId shardId, String field) throws IOException {
+                    return delegate.fieldStatsKey(shardId, field);
+                }
+            });
+        }
+    }
 }

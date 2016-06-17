@@ -35,10 +35,10 @@ import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
@@ -78,6 +78,7 @@ public class IndicesModule extends AbstractModule {
     // Use a LinkedHashMap for metadataMappers because iteration order matters
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers
         = new LinkedHashMap<>();
+    private IndicesRequestCacheKeyBuilder indicesRequstCacheKeyBuilder = new IndicesRequestCacheKeyBuilder.Default();
     private final NamedWriteableRegistry namedWritableRegistry;
 
     public IndicesModule(NamedWriteableRegistry namedWriteableRegistry) {
@@ -153,6 +154,20 @@ public class IndicesModule extends AbstractModule {
         metadataMapperParsers.put(name, parser);
     }
 
+    /**
+     * Get the builder for keys into the indices request cache.
+     */
+    public IndicesRequestCacheKeyBuilder getIndicesRequstCacheKeyBuilder() {
+        return indicesRequstCacheKeyBuilder;
+    }
+
+    /**
+     * Set the builder for keys into the indices request cache. This may only be set before {@link #configure()} is called.
+     */
+    public void setIndicesRequstCacheKeyBuilder(IndicesRequestCacheKeyBuilder indicesRequstCacheKeyBuilder) {
+        this.indicesRequstCacheKeyBuilder = indicesRequstCacheKeyBuilder;
+    }
+
     @Override
     protected void configure() {
         bindMapperExtension();
@@ -169,6 +184,7 @@ public class IndicesModule extends AbstractModule {
         bind(UpdateHelper.class).asEagerSingleton();
         bind(MetaDataIndexUpgradeService.class).asEagerSingleton();
         bind(NodeServicesProvider.class).asEagerSingleton();
+        bind(IndicesRequestCacheKeyBuilder.class).toInstance(indicesRequstCacheKeyBuilder);
     }
 
     // public for testing

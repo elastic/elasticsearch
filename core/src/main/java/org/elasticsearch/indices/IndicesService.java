@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -161,6 +160,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
     private final IndexingMemoryController indexingMemoryController;
     private final TimeValue cleanInterval;
     private final IndicesRequestCache indicesRequestCache;
+    private final IndicesRequestCacheKeyBuilder indicesRequestCacheKeyBuilder;
     private final IndicesQueryCache indicesQueryCache;
     private final MetaStateService metaStateService;
 
@@ -176,7 +176,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
                           IndicesQueriesRegistry indicesQueriesRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
                           MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry,
                           ThreadPool threadPool, IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService,
-                          MetaStateService metaStateService) {
+                          MetaStateService metaStateService, IndicesRequestCacheKeyBuilder indicesRequestCacheKeyBuilder) {
         super(settings);
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -187,6 +187,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indicesRequestCache = new IndicesRequestCache(settings);
+        this.indicesRequestCacheKeyBuilder = indicesRequestCacheKeyBuilder;
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = mapperRegistry;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -1106,7 +1107,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
             context.queryResult().writeToNoId(out);
         });
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
-        final BytesReference bytesReference = indicesRequestCache.getOrCompute(entity, directoryReader, request.cacheKey());
+        BytesReference cacheKey = indicesRequestCacheKeyBuilder.searchRequestKey(request);
+        final BytesReference bytesReference = indicesRequestCache.getOrCompute(entity, directoryReader, cacheKey);
         if (entity.loadedFromCache()) {
             // restore the cached query result into the context
             final QuerySearchResult result = context.queryResult();
@@ -1123,7 +1125,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
      * @param field the actual field
      * @param useCache should this request use the cache?
      */
-    public FieldStats<?> getFieldStats(IndexShard shard, Engine.Searcher searcher, String field, boolean useCache) throws Exception {
+    public FieldStats<?> getFieldStats(ShardId shardId, IndexShard shard, Engine.Searcher searcher, String field, boolean useCache)
+            throws Exception {
         MappedFieldType fieldType = shard.mapperService().fullName(field);
         if (fieldType == null) {
             return null;
@@ -1131,7 +1134,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
         if (useCache == false) {
             return fieldType.stats(searcher.reader());
         }
-        BytesReference cacheKey = new BytesArray("fieldstats:" + field);
+        BytesReference cacheKey = indicesRequestCacheKeyBuilder.fieldStatsKey(shardId, field);
         BytesReference statsRef = cacheShardLevelResult(shard, searcher.getDirectoryReader(), cacheKey, out -> {
             out.writeOptionalWriteable(fieldType.stats(searcher.reader()));
         });

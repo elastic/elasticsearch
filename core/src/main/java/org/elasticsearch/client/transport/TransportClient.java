@@ -48,6 +48,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.ThreadPoolPlugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -124,6 +125,9 @@ public class TransportClient extends AbstractClient {
             Version version = Version.CURRENT;
 
             final ThreadPool threadPool = new ThreadPool(settings);
+            for (ThreadPoolPlugin plugin : pluginsService.filterPlugins(ThreadPoolPlugin.class)) {
+                plugin.setThreadPool(threadPool);
+            }
             final NetworkService networkService = new NetworkService(settings);
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             boolean success = false;

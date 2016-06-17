@@ -92,6 +92,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.plugins.ThreadPoolPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptModule;
@@ -223,6 +224,9 @@ public class Node implements Closeable {
         try {
             final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder[0]));
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
+            for (ThreadPoolPlugin plugin : pluginsService.filterPlugins(ThreadPoolPlugin.class)) {
+                plugin.setThreadPool(threadPool);
+            }
             final List<Setting<?>> additionalSettings = new ArrayList<>();
             final List<String> additionalSettingsFilter = new ArrayList<>();
             additionalSettings.addAll(pluginsService.getPluginSettings());

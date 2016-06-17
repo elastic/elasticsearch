@@ -65,11 +65,6 @@ public enum  Preference {
     ONLY_LOCAL("_only_local"),
 
     /**
-     * Route to specific node only
-     */
-    ONLY_NODE("_only_node"),
-
-    /**
      * Route to only node with attribute
      */
     ONLY_NODES("_only_nodes");
@@ -100,8 +95,6 @@ public enum  Preference {
                 return SHARDS;
             case "_prefer_nodes":
                 return PREFER_NODES;
-            case "_only_node":
-                return ONLY_NODE;
             case "_local":
                 return LOCAL;
             case "_primary":

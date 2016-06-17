@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -369,8 +370,13 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             }
         }
         if (ordered.isEmpty()) {
-            throw new IllegalArgumentException("no data nodes with critera(s) " +
-                Strings.arrayToCommaDelimitedString(nodeAttributes) + "] found for shard:" + shardId());
+            final String message = String.format(
+                    Locale.ROOT,
+                    "no data nodes with %s [%s] found for shard: %s",
+                    nodeAttributes.length == 1 ? "criteria" : "criterion",
+                    String.join(",", nodeAttributes),
+                    shardId());
+            throw new IllegalArgumentException(message);
         }
         return new PlainShardIterator(shardId, ordered);
     }

@@ -129,7 +129,6 @@ public class TransportClient extends AbstractClient {
             boolean success = false;
             try {
                 ModulesBuilder modules = new ModulesBuilder();
-                modules.add(new Version.Module(version));
                 // plugin modules must be added here, before others or we can get crazy injection errors...
                 for (Module pluginModule : pluginsService.nodeModules()) {
                     modules.add(pluginModule);

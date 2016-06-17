@@ -58,7 +58,7 @@ public class NetworkModuleTests extends ModuleTestCase {
 
     static class FakeTransport extends AssertingLocalTransport {
         public FakeTransport() {
-            super(null, null, null, null, null);
+            super(null, null, null, null);
         }
     }
 

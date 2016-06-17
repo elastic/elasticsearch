@@ -96,17 +96,26 @@ public class MockTransportService extends TransportService {
 
     public static MockTransportService local(Settings settings, Version version, ThreadPool threadPool) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        Transport transport = new LocalTransport(settings, threadPool, version, namedWriteableRegistry, new NoneCircuitBreakerService());
+        Transport transport = new LocalTransport(settings, threadPool, namedWriteableRegistry, new NoneCircuitBreakerService()) {
+            @Override
+            protected Version getVersion() {
+                return version;
+            }
+        };
         return new MockTransportService(settings, transport, threadPool);
     }
 
     public static MockTransportService nettyFromThreadPool(
             Settings settings,
-            Version version,
-            ThreadPool threadPool) {
+            ThreadPool threadPool, final Version version) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         Transport transport = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE,
-                version, namedWriteableRegistry, new NoneCircuitBreakerService());
+                namedWriteableRegistry, new NoneCircuitBreakerService()) {
+            @Override
+            protected Version getCurrentVersion() {
+                return version;
+            }
+        };
         return new MockTransportService(Settings.EMPTY, transport, threadPool);
     }
 

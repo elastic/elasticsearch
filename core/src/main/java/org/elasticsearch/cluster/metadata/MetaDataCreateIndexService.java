@@ -103,7 +103,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final AllocationService allocationService;
-    private final Version version;
     private final AliasValidator aliasValidator;
     private final IndexTemplateFilter indexTemplateFilter;
     private final Environment env;
@@ -114,13 +113,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     @Inject
     public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,
                                       IndicesService indicesService, AllocationService allocationService,
-                                      Version version, AliasValidator aliasValidator,
+                                      AliasValidator aliasValidator,
                                       Set<IndexTemplateFilter> indexTemplateFilters, Environment env, NodeServicesProvider nodeServicesProvider, IndexScopedSettings indexScopedSettings) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.allocationService = allocationService;
-        this.version = version;
         this.aliasValidator = aliasValidator;
         this.env = env;
         this.nodeServicesProvider = nodeServicesProvider;
@@ -287,7 +285,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                             if (indexSettingsBuilder.get(SETTING_VERSION_CREATED) == null) {
                                 DiscoveryNodes nodes = currentState.nodes();
-                                final Version createdVersion = Version.smallest(version, nodes.getSmallestNonClientNodeVersion());
+                                final Version createdVersion = Version.smallest(Version.CURRENT, nodes.getSmallestNonClientNodeVersion());
                                 indexSettingsBuilder.put(SETTING_VERSION_CREATED, createdVersion);
                             }
 

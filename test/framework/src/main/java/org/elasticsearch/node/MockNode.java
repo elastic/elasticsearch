@@ -35,13 +35,10 @@ import java.util.Collection;
  */
 public class MockNode extends Node {
 
-    // these are kept here so a copy of this MockNode can be created, since Node does not store them
-    private Version version;
     private Collection<Class<? extends Plugin>> plugins;
 
-    public MockNode(Settings settings, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(InternalSettingsPreparer.prepareEnvironment(settings, null), version, classpathPlugins);
-        this.version = version;
+    public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
+        super(InternalSettingsPreparer.prepareEnvironment(settings, null), classpathPlugins);
         this.plugins = classpathPlugins;
     }
 
@@ -49,7 +46,4 @@ public class MockNode extends Node {
         return plugins;
     }
 
-    public Version getVersion() {
-        return version;
-    }
 }

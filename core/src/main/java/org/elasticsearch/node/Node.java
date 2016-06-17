@@ -174,17 +174,17 @@ public class Node implements Closeable {
      * @param preparedSettings Base settings to configure the node with
      */
     public Node(Settings preparedSettings) {
-        this(InternalSettingsPreparer.prepareEnvironment(preparedSettings, null), Version.CURRENT, Collections.<Class<? extends Plugin>>emptyList());
+        this(InternalSettingsPreparer.prepareEnvironment(preparedSettings, null), Collections.<Class<? extends Plugin>>emptyList());
     }
 
-    protected Node(Environment tmpEnv, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
+    protected Node(Environment tmpEnv, Collection<Class<? extends Plugin>> classpathPlugins) {
         Settings tmpSettings = Settings.builder().put(tmpEnv.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
 
         tmpSettings = TribeService.processSettings(tmpSettings);
         ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(tmpSettings));
-        final String displayVersion = version + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
+        final String displayVersion = Version.CURRENT + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
         final JvmInfo jvmInfo = JvmInfo.jvmInfo();
         logger.info(
             "version[{}], pid[{}], build[{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
@@ -247,7 +247,6 @@ public class Node implements Closeable {
             resourcesToClose.add(clusterService);
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             ModulesBuilder modules = new ModulesBuilder();
-            modules.add(new Version.Module(version));
             // plugin modules must be added here, before others or we can get crazy injection errors...
             for (Module pluginModule : pluginsService.nodeModules()) {
                 modules.add(pluginModule);

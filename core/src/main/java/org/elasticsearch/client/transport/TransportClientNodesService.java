@@ -112,12 +112,12 @@ public class TransportClientNodesService extends AbstractComponent {
 
     @Inject
     public TransportClientNodesService(Settings settings,TransportService transportService,
-                                       ThreadPool threadPool, Version version) {
+                                       ThreadPool threadPool) {
         super(settings);
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.transportService = transportService;
         this.threadPool = threadPool;
-        this.minCompatibilityVersion = version.minimumCompatibilityVersion();
+        this.minCompatibilityVersion = Version.CURRENT.minimumCompatibilityVersion();
 
         this.nodesSamplerInterval = CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL.get(this.settings);
         this.pingTimeout = CLIENT_TRANSPORT_PING_TIMEOUT.get(this.settings).millis();

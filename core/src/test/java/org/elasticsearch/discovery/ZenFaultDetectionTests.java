@@ -141,7 +141,12 @@ public class ZenFaultDetectionTests extends ESTestCase {
                              // trace zenfd actions but keep the default otherwise
                             .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), singleton(TransportLivenessAction.NAME))
                             .build(),
-                        new LocalTransport(settings, threadPool, version, namedWriteableRegistry, circuitBreakerService),
+                        new LocalTransport(settings, threadPool, namedWriteableRegistry, circuitBreakerService) {
+                            @Override
+                            protected Version getVersion() {
+                                return version;
+                            }
+                        },
                         threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();

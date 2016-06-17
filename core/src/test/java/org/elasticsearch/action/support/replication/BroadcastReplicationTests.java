@@ -89,7 +89,7 @@ public class BroadcastReplicationTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        LocalTransport transport = new LocalTransport(Settings.EMPTY, threadPool, Version.CURRENT, new NamedWriteableRegistry(), circuitBreakerService);
+        LocalTransport transport = new LocalTransport(Settings.EMPTY, threadPool, new NamedWriteableRegistry(), circuitBreakerService);
         clusterService = createClusterService(threadPool);
         transportService = new TransportService(clusterService.getSettings(), transport, threadPool);
         transportService.start();

@@ -53,7 +53,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     public static final ParseField SHOW_TERM_DOC_COUNT_ERROR = new ParseField("show_term_doc_count_error");
     public static final ParseField ORDER_FIELD = new ParseField("order");
 
-    private Terms.Order order = Terms.Order.compound(Terms.Order.count(false), Terms.Order.term(true));
+    private Terms.Order order = Terms.Order.compound(Terms.Order.count(), Terms.Order.term(true));
     private IncludeExclude includeExclude = null;
     private String executionHint = null;
     private SubAggCollectionMode collectMode = null;

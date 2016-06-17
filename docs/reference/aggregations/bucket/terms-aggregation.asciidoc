@@ -239,9 +239,7 @@ determined and is given a value of -1 to indicate this.
 ==== Order
 
 The order of the buckets can be customized by setting the `order` parameter. By default, the buckets are ordered by
-their `doc_count` descending. It is also possible to change this behaviour as follows:
-
-Ordering the buckets by their `doc_count` in an ascending manner:
+their `doc_count` descending:
 
 [source,js]
 --------------------------------------------------
@@ -250,12 +248,15 @@ Ordering the buckets by their `doc_count` in an ascending manner:
         "genders" : {
             "terms" : {
                 "field" : "gender",
-                "order" : { "_count" : "asc" }
+                "order" : "_count" <1>
             }
         }
     }
 }
 --------------------------------------------------
+<1> This is the default if the order is missing.
+
+It is also possible to change this behaviour as follows:
 
 Ordering the buckets alphabetically by their terms in an ascending manner:
 
@@ -312,7 +313,9 @@ Ordering the buckets by multi value metrics sub-aggregation (identified by the a
 }
 --------------------------------------------------
 
-WARNING: Sorting by ascending `_count` or by sub aggregation is discouraged as it increases the
+Ordering the buckets by their `doc_count` in an ascending manner is not supported.
+
+WARNING: Sorting by sub aggregation is discouraged as it increases the
 <<search-aggregations-bucket-terms-aggregation-approximate-counts,error>> on document counts.
 It is fine when a single shard is queried, or when the field that is being aggregated was used
 as a routing key at index time: in these cases results will be accurate since shards have disjoint

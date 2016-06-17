@@ -100,10 +100,10 @@ public interface Terms extends MultiBucketsAggregation {
     static abstract class Order implements ToXContent {
 
         /**
-         * @return a bucket ordering strategy that sorts buckets by their document counts (ascending or descending)
+         * @return a bucket ordering strategy that sorts buckets by their document counts (descending)
          */
-        public static Order count(boolean asc) {
-            return asc ? InternalOrder.COUNT_ASC : InternalOrder.COUNT_DESC;
+        public static Order count() {
+            return InternalOrder.COUNT_DESC;
         }
 
         /**

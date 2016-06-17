@@ -26,3 +26,7 @@ for `from` and `to` anymore.
 `size: 0` is no longer valid for the terms, significant terms and geohash grid
 aggregations. Instead a size should be explicitly specified with a number greater
 than zero.
+
+==== `order: {"count": "asc"}` on Terms
+
+The ability to sort the terms aggregation by ascending count has been removed.

@@ -29,7 +29,7 @@ setting the `geohash_prefix` option:
 }
 --------------------------------------------------
 
-The geohash cell can defined by all formats of `geo_points`. If such a cell is
+The geohash cell can be defined by all formats of `geo_points`. If such a cell is
 defined by a latitude and longitude pair the size of the cell needs to be
 setup. This can be done by the `precision` parameter of the filter. This
 parameter can be set to an integer value which sets the length of the geohash

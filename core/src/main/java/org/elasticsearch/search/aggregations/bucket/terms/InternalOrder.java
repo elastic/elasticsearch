@@ -46,8 +46,9 @@ import java.util.Objects;
 class InternalOrder extends Terms.Order {
 
     private static final byte COUNT_DESC_ID = 1;
-    private static final byte TERM_DESC_ID = 2;
-    private static final byte TERM_ASC_ID = 3;
+    private static final byte COUNT_ASC_ID = 2;
+    private static final byte TERM_DESC_ID = 3;
+    private static final byte TERM_ASC_ID = 4;
 
     /**
      * Order by the (higher) count of each term.
@@ -56,6 +57,17 @@ class InternalOrder extends Terms.Order {
         @Override
         public int compare(Terms.Bucket o1, Terms.Bucket o2) {
             return  Long.compare(o2.getDocCount(), o1.getDocCount());
+        }
+    });
+
+    /**
+     * Order by the (lower) count of each term.
+     */
+    public static final InternalOrder COUNT_ASC = new InternalOrder(COUNT_ASC_ID, "_count", true, new Comparator<Terms.Bucket>() {
+
+        @Override
+        public int compare(Terms.Bucket o1, Terms.Bucket o2) {
+            return Long.compare(o1.getDocCount(), o2.getDocCount());
         }
     });
 
@@ -81,7 +93,7 @@ class InternalOrder extends Terms.Order {
         }
     });
 
-    public static boolean isCountOrder(Terms.Order order) {
+    public static boolean isCountDesc(Terms.Order order) {
         if (order == COUNT_DESC) {
             return true;
         } else if (order instanceof CompoundOrder) {
@@ -336,6 +348,7 @@ class InternalOrder extends Terms.Order {
             byte id = in.readByte();
             switch (id) {
                 case COUNT_DESC_ID: return absoluteOrder ? new CompoundOrder(Collections.singletonList((Terms.Order) InternalOrder.COUNT_DESC)) : InternalOrder.COUNT_DESC;
+                case COUNT_ASC_ID: return absoluteOrder ? new CompoundOrder(Collections.singletonList((Terms.Order) InternalOrder.COUNT_ASC)) : InternalOrder.COUNT_ASC;
                 case TERM_DESC_ID: return InternalOrder.TERM_DESC;
                 case TERM_ASC_ID: return InternalOrder.TERM_ASC;
                 case Aggregation.ID:

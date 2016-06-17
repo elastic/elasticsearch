@@ -41,16 +41,6 @@ import java.util.List;
 public abstract class Plugin {
 
     /**
-     * The name of the plugin.
-     */
-    public abstract String name();
-
-    /**
-     * The description of the plugin.
-     */
-    public abstract String description();
-
-    /**
      * Node level modules.
      */
     public Collection<Module> nodeModules() {

@@ -29,16 +29,6 @@ import org.elasticsearch.script.ScriptModule;
 public class GroovyPlugin extends Plugin implements ScriptPlugin {
 
     @Override
-    public String name() {
-        return "lang-groovy";
-    }
-
-    @Override
-    public String description() {
-        return "Groovy scripting integration for Elasticsearch";
-    }
-
-    @Override
     public ScriptEngineService getScriptEngineService(Settings settings) {
         return new GroovyScriptEngineService(settings);
     }

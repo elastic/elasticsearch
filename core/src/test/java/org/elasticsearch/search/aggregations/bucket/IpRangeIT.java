@@ -219,17 +219,6 @@ public class IpRangeIT extends ESIntegTestCase {
     }
 
     public static class DummyScriptPlugin extends Plugin implements ScriptPlugin {
-
-        @Override
-        public String name() {
-            return "DummyScriptPlugin";
-        }
-
-        @Override
-        public String description() {
-            return "A mock script plugin.";
-        }
-
         @Override
         public List<NativeScriptFactory> getNativeScripts() {
             return Collections.singletonList(new DummyScriptFactory());

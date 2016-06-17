@@ -103,14 +103,6 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
     public static class InternalTransportService extends TransportService {
 
         public static class TestPlugin extends Plugin {
-            @Override
-            public String name() {
-                return "mock-transport-service";
-            }
-            @Override
-            public String description() {
-                return "a mock transport service";
-            }
             public void onModule(NetworkModule transportModule) {
                 transportModule.registerTransportService("internal", InternalTransportService.class);
             }

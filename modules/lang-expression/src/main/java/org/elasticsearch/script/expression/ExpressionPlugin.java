@@ -29,16 +29,6 @@ import org.elasticsearch.script.ScriptModule;
 public class ExpressionPlugin extends Plugin implements ScriptPlugin {
 
     @Override
-    public String name() {
-        return "lang-expression";
-    }
-
-    @Override
-    public String description() {
-        return "Lucene expressions integration for Elasticsearch";
-    }
-
-    @Override
     public ScriptEngineService getScriptEngineService(Settings settings) {
         return new ExpressionScriptEngineService(settings);
     }

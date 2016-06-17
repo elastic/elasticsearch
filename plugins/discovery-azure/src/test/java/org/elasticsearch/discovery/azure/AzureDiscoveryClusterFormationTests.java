@@ -73,17 +73,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
 public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
 
     public static class TestPlugin extends Plugin {
-
-        @Override
-        public String name() {
-            return AzureDiscoveryClusterFormationTests.class.getName();
-        }
-
-        @Override
-        public String description() {
-            return AzureDiscoveryClusterFormationTests.class.getName();
-        }
-
         @Override
         public List<Setting<?>> getSettings() {
             return Arrays.asList(AzureComputeService.Management.ENDPOINT_SETTING);

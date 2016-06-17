@@ -76,16 +76,6 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
     public static class TestPlugin extends Plugin {
 
-        @Override
-        public String name() {
-            return "ClusterInfoServiceIT";
-        }
-
-        @Override
-        public String description() {
-            return "ClusterInfoServiceIT";
-        }
-
         public void onModule(ActionModule module) {
             module.registerFilter(BlockingActionFilter.class);
         }

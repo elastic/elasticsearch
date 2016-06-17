@@ -69,23 +69,6 @@ public class Ec2DiscoveryPlugin extends Plugin {
         });
     }
 
-    private final Settings settings;
-    protected final ESLogger logger = Loggers.getLogger(Ec2DiscoveryPlugin.class);
-
-    public Ec2DiscoveryPlugin(Settings settings) {
-        this.settings = settings;
-    }
-
-    @Override
-    public String name() {
-        return "discovery-ec2";
-    }
-
-    @Override
-    public String description() {
-        return "EC2 Discovery Plugin";
-    }
-
     @Override
     public Collection<Module> nodeModules() {
         Collection<Module> modules = new ArrayList<>();

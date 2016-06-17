@@ -294,8 +294,9 @@ public final class EChain extends AExpression {
         // track types going onto the stack.  This must be done before the
         // links in the chain are read because we need the StringBuilder to
         // be placed on the stack ahead of any potential concatenation arguments.
+        int catElementStackSize = 0;
         if (cat) {
-            writer.writeNewStrings();
+            catElementStackSize = writer.writeNewStrings();
         }
 
         ALink last = links.get(links.size() - 1);
@@ -312,7 +313,7 @@ public final class EChain extends AExpression {
                     // Handle the case where we are doing a compound assignment
                     // representing a String concatenation.
 
-                    writer.writeDup(link.size, 1);         // dup the StringBuilder
+                    writer.writeDup(link.size, catElementStackSize);  // dup the top element and insert it before concat helper on stack
                     link.load(writer);                     // read the current link's value
                     writer.writeAppendStrings(link.after); // append the link's value using the StringBuilder
 
@@ -323,7 +324,7 @@ public final class EChain extends AExpression {
                         writer.writeAppendStrings(expression.actual); // append the expression's value unless it's also a concatenation
                     }
 
-                    writer.writeToStrings(); // put the value of the StringBuilder on the stack
+                    writer.writeToStrings(); // put the value for string concat onto the stack
                     writer.writeCast(back);  // if necessary, cast the String to the lhs actual type
 
                     if (link.load) {

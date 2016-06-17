@@ -31,6 +31,7 @@ import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.WriterConstants;
+import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
@@ -146,8 +147,8 @@ public class SFunction extends AStatement {
         locals.addConstant(location, WriterConstants.METHOD_HANDLE_TYPE, staticHandleFieldName, this::initializeConstant);
     }
     
-    /** Writes the function to given ClassWriter. */
-    void write (ClassWriter writer, BitSet statements) {
+    /** Writes the function to given ClassVisitor. */
+    void write (ClassVisitor writer, BitSet statements) {
         int access = Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC;
         if (synthetic) {
             access |= Opcodes.ACC_SYNTHETIC;

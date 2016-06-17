@@ -51,16 +51,6 @@ public class AzureRepositoryPlugin extends Plugin {
     }
 
     @Override
-    public String name() {
-        return "repository-azure";
-    }
-
-    @Override
-    public String description() {
-        return "Azure Repository Plugin";
-    }
-
-    @Override
     public Collection<Module> nodeModules() {
         return Collections.singletonList((Module) new AzureRepositoryModule(settings));
     }

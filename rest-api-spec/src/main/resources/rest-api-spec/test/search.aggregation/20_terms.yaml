@@ -350,4 +350,17 @@ setup:
   
   - match: { aggregations.date_terms.buckets.0.key_as_string: "2014-09-01T00:00:00.000Z" }
 
-  - match: { aggregations.date_terms.buckets.0.doc_count: 1 }  
+  - match: { aggregations.date_terms.buckets.0.doc_count: 1 }
+
+---
+"Terms count order test":
+  - do:
+      catch:  /Sort by ascending _count is not supported in/
+      search:
+        body: { "size" : 0, "aggs" : { "count_order" : { "terms" : { "field" : "f1", "order": {"_count": "asc"} } } } }
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "count_order" : { "terms" : { "field" : "f1", "order": "_count" } } } }
+
+

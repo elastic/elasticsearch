@@ -191,16 +191,6 @@ public class CancelTests extends ReindexTestCase {
     public static class ReindexCancellationPlugin extends Plugin {
 
         @Override
-        public String name() {
-            return "reindex-cancellation";
-        }
-
-        @Override
-        public String description() {
-            return "See " + CancelTests.class.getName() + " documentation";
-        }
-
-        @Override
         public void onIndexModule(IndexModule indexModule) {
             indexModule.addIndexOperationListener(new BlockingDeleteListener());
         }

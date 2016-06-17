@@ -614,5 +614,9 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         public static DiscoveryNodes readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
             return PROTO.readFrom(in, localNode);
         }
+
+        public boolean isLocalNodeElectedMaster() {
+            return masterNodeId != null && masterNodeId.equals(localNodeId);
+        }
     }
 }

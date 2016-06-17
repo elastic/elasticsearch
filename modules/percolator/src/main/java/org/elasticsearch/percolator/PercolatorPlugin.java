@@ -48,16 +48,6 @@ public class PercolatorPlugin extends Plugin {
         this.settings = settings;
     }
 
-    @Override
-    public String name() {
-        return NAME;
-    }
-
-    @Override
-    public String description() {
-        return "Percolator module adds capability to index queries and query these queries by specifying documents";
-    }
-
     public void onModule(ActionModule module) {
         module.registerAction(PercolateAction.INSTANCE, TransportPercolateAction.class);
         module.registerAction(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class);

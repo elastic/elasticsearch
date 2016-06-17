@@ -53,22 +53,6 @@ public class SettingsFilteringIT extends ESIntegTestCase {
         public static final Setting<Boolean> SOME_OTHER_NODE_SETTING =
             Setting.boolSetting("some.other.node.setting", false, Property.NodeScope);
 
-        /**
-         * The name of the plugin.
-         */
-        @Override
-        public String name() {
-            return "settings-filtering";
-        }
-
-        /**
-         * The description of the plugin.
-         */
-        @Override
-        public String description() {
-            return "Settings Filtering Plugin";
-        }
-
         @Override
         public Settings additionalSettings() {
             return Settings.builder().put("some.node.setting", true).put("some.other.node.setting", true).build();

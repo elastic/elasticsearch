@@ -52,14 +52,6 @@ public class MockFSIndexStore extends IndexStore {
 
     public static class TestPlugin extends Plugin {
         @Override
-        public String name() {
-            return "mock-index-store";
-        }
-        @Override
-        public String description() {
-            return "a mock index store for testing";
-        }
-        @Override
         public Settings additionalSettings() {
             return Settings.builder().put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "mock").build();
         }

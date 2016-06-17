@@ -31,10 +31,10 @@ public class ExtendedStatsBucketParser extends BucketMetricsParser {
     static final ParseField SIGMA = new ParseField("sigma");
 
     @Override
-    protected ExtendedStatsBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+    protected ExtendedStatsBucketPipelineAggregationBuilder buildFactory(String pipelineAggregatorName,
             String bucketsPath, Map<String, Object> params) {
-        ExtendedStatsBucketPipelineAggregatorBuilder factory =
-            new ExtendedStatsBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+        ExtendedStatsBucketPipelineAggregationBuilder factory =
+            new ExtendedStatsBucketPipelineAggregationBuilder(pipelineAggregatorName, bucketsPath);
         Double sigma = (Double) params.get(SIGMA.getPreferredName());
         if (sigma != null) {
             factory.sigma(sigma);

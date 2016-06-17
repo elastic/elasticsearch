@@ -78,20 +78,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class UpdateIT extends ESIntegTestCase {
 
     public static class PutFieldValuesScriptPlugin extends Plugin implements ScriptPlugin {
-
-        public PutFieldValuesScriptPlugin() {
-        }
-
-        @Override
-        public String name() {
-            return PutFieldValuesScriptEngine.NAME;
-        }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + UpdateIT.class;
-        }
-
         @Override
         public ScriptEngineService getScriptEngineService(Settings settings) {
             return new PutFieldValuesScriptEngine();
@@ -169,20 +155,6 @@ public class UpdateIT extends ESIntegTestCase {
     }
 
     public static class FieldIncrementScriptPlugin extends Plugin implements ScriptPlugin {
-
-        public FieldIncrementScriptPlugin() {
-        }
-
-        @Override
-        public String name() {
-            return FieldIncrementScriptEngine.NAME;
-        }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + UpdateIT.class;
-        }
-
         @Override
         public ScriptEngineService getScriptEngineService(Settings settings) {
             return new FieldIncrementScriptEngine();
@@ -254,20 +226,6 @@ public class UpdateIT extends ESIntegTestCase {
     }
 
     public static class ScriptedUpsertScriptPlugin extends Plugin implements ScriptPlugin {
-
-        public ScriptedUpsertScriptPlugin() {
-        }
-
-        @Override
-        public String name() {
-            return ScriptedUpsertScriptEngine.NAME;
-        }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + UpdateIT.class + ".testScriptedUpsert";
-        }
-
         @Override
         public ScriptEngineService getScriptEngineService(Settings settings) {
             return new ScriptedUpsertScriptEngine();
@@ -339,20 +297,6 @@ public class UpdateIT extends ESIntegTestCase {
     }
 
     public static class ExtractContextInSourceScriptPlugin extends Plugin implements ScriptPlugin {
-
-        public ExtractContextInSourceScriptPlugin() {
-        }
-
-        @Override
-        public String name() {
-            return ExtractContextInSourceScriptEngine.NAME;
-        }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + UpdateIT.class;
-        }
-
         @Override
         public ScriptEngineService getScriptEngineService(Settings settings) {
             return new ExtractContextInSourceScriptEngine();

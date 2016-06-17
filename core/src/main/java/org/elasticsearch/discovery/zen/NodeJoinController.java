@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -58,7 +58,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class NodeJoinController extends AbstractComponent {
 
     private final ClusterService clusterService;
-    private final RoutingService routingService;
+    private final AllocationService allocationService;
     private final ElectMasterService electMaster;
     private final DiscoverySettings discoverySettings;
     private final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor();
@@ -68,10 +68,11 @@ public class NodeJoinController extends AbstractComponent {
     private ElectionContext electionContext = null;
 
 
-    public NodeJoinController(ClusterService clusterService, RoutingService routingService, ElectMasterService electMaster, DiscoverySettings discoverySettings, Settings settings) {
+    public NodeJoinController(ClusterService clusterService, AllocationService allocationService, ElectMasterService electMaster,
+                              DiscoverySettings discoverySettings, Settings settings) {
         super(settings);
         this.clusterService = clusterService;
-        this.routingService = routingService;
+        this.allocationService = allocationService;
         this.electMaster = electMaster;
         this.discoverySettings = discoverySettings;
     }
@@ -425,7 +426,8 @@ public class NodeJoinController extends AbstractComponent {
                     for (DiscoveryNode existingNode : currentNodes) {
                         if (node.getAddress().equals(existingNode.getAddress())) {
                             nodesBuilder.remove(existingNode.getId());
-                            logger.warn("received join request from node [{}], but found existing node {} with same address, removing existing node", node, existingNode);
+                            logger.warn("received join request from node [{}], but found existing node {} with same address, " +
+                                "removing existing node", node, existingNode);
                         }
                     }
                 }
@@ -435,7 +437,7 @@ public class NodeJoinController extends AbstractComponent {
             if (nodesChanged) {
                 newState.nodes(nodesBuilder);
                 final ClusterState tmpState = newState.build();
-                RoutingAllocation.Result result = routingService.getAllocationService().reroute(tmpState, "node_join");
+                RoutingAllocation.Result result = allocationService.reroute(tmpState, "node_join");
                 newState = ClusterState.builder(tmpState);
                 if (result.changed()) {
                     newState.routingResult(result);

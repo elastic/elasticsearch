@@ -85,7 +85,7 @@ import static org.hamcrest.Matchers.nullValue;
 @TestLogging("discovery.zen.publish:TRACE")
 public class PublishClusterStateActionTests extends ESTestCase {
 
-    private static final ClusterName CLUSTER_NAME = ClusterName.DEFAULT;
+    private static final ClusterName CLUSTER_NAME = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
 
     protected ThreadPool threadPool;
     protected Map<String, MockNode> nodes = new HashMap<>();
@@ -233,7 +233,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
     }
 
     protected MockTransportService buildTransportService(Settings settings, Version version) {
-        MockTransportService transportService = MockTransportService.local(Settings.EMPTY, version, threadPool, CLUSTER_NAME);
+        MockTransportService transportService = MockTransportService.local(Settings.EMPTY, version, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
         return transportService;

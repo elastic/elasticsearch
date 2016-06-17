@@ -302,7 +302,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                                         .build())
                 )
                 .build();
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
+        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metaData(metaData)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
@@ -324,7 +324,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                                         .build())
                 )
                 .build();
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
+        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metaData(metaData)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();

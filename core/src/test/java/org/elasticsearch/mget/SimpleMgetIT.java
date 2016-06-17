@@ -153,8 +153,8 @@ public class SimpleMgetIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS))));
         ensureYellow();
 
-        final String id = routingKeyForShard("test", "test", 0);
-        final String routingOtherShard = routingKeyForShard("test", "test", 1);
+        final String id = routingKeyForShard("test", 0);
+        final String routingOtherShard = routingKeyForShard("test", 1);
 
         client().prepareIndex("test", "test", id).setRefreshPolicy(IMMEDIATE).setRouting(routingOtherShard)
                 .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())

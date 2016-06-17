@@ -79,8 +79,8 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
                         .build())
                 .build();
 
-        this.clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData)
-                .routingTable(testRoutingTable).build();
+        this.clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metaData(metaData).routingTable(testRoutingTable).build();
     }
 
     /**

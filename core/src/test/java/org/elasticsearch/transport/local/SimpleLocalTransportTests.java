@@ -29,8 +29,8 @@ import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 public class SimpleLocalTransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
-    protected MockTransportService build(Settings settings, Version version, ClusterName clusterName) {
-        MockTransportService transportService = MockTransportService.local(settings, version, threadPool, clusterName);
+    protected MockTransportService build(Settings settings, Version version) {
+        MockTransportService transportService = MockTransportService.local(settings, version, threadPool);
         transportService.start();
         return transportService;
     }

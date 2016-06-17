@@ -267,7 +267,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final Executor executor = mock(Executor.class);
         when(threadPool.generic()).thenReturn(executor);
         final MockIndicesService indicesService = new MockIndicesService();
-        final TransportService transportService = new TransportService(Settings.EMPTY, null, threadPool, null);
+        final TransportService transportService = new TransportService(Settings.EMPTY, null, threadPool);
         final ClusterService clusterService = mock(ClusterService.class);
         final RepositoriesService repositoriesService = new RepositoriesService(Settings.EMPTY, clusterService,
             transportService, null, null);

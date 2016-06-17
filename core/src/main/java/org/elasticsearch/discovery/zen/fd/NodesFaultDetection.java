@@ -314,7 +314,7 @@ public class NodesFaultDetection extends FaultDetection {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             nodeId = in.readString();
-            clusterName = ClusterName.readClusterName(in);
+            clusterName = new ClusterName(in);
             masterNode = new DiscoveryNode(in);
             clusterStateVersion = in.readLong();
         }

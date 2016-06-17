@@ -246,9 +246,9 @@ public class TestTaskPlugin extends Plugin {
     public static class TransportTestTaskAction extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
 
         @Inject
-        public TransportTestTaskAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+        public TransportTestTaskAction(Settings settings, ThreadPool threadPool,
                                        ClusterService clusterService, TransportService transportService) {
-            super(settings, TestTaskAction.NAME, clusterName, threadPool, clusterService, transportService,
+            super(settings, TestTaskAction.NAME, threadPool, clusterService, transportService,
                   new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
                   NodesRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeResponse.class);
         }
@@ -258,7 +258,7 @@ public class TestTaskPlugin extends Plugin {
             if (request.getShouldFail()) {
                 throw new IllegalStateException("Simulating operation failure");
             }
-            return new NodesResponse(clusterName, responses, failures);
+            return new NodesResponse(clusterService.getClusterName(), responses, failures);
         }
 
         @Override
@@ -425,10 +425,10 @@ public class TestTaskPlugin extends Plugin {
         UnblockTestTasksResponse, UnblockTestTaskResponse> {
 
         @Inject
-        public TransportUnblockTestTasksAction(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService
+        public TransportUnblockTestTasksAction(Settings settings,ThreadPool threadPool, ClusterService
             clusterService,
                                                TransportService transportService) {
-            super(settings, UnblockTestTasksAction.NAME, clusterName, threadPool, clusterService, transportService, new ActionFilters(new
+            super(settings, UnblockTestTasksAction.NAME, threadPool, clusterService, transportService, new ActionFilters(new
                 HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
                 UnblockTestTasksRequest::new, UnblockTestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
         }

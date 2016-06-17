@@ -1760,7 +1760,7 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    synchronized String routingKeyForShard(Index index, String type, int shard, Random random) {
+    synchronized String routingKeyForShard(Index index, int shard, Random random) {
         assertThat(shard, greaterThanOrEqualTo(0));
         assertThat(shard, greaterThanOrEqualTo(0));
         for (NodeAndClient n : nodes.values()) {
@@ -1770,7 +1770,7 @@ public final class InternalTestCluster extends TestCluster {
             IndexService indexService = indicesService.indexService(index);
             if (indexService != null) {
                 assertThat(indexService.getIndexSettings().getSettings().getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), greaterThan(shard));
-                OperationRouting operationRouting = getInstanceFromNode(OperationRouting.class, node);
+                OperationRouting operationRouting = clusterService.operationRouting();
                 while (true) {
                     String routing = RandomStrings.randomAsciiOfLength(random, 10);
                     final int targetShard = operationRouting.indexShards(clusterService.state(), index.getName(), null, routing).shardId().getId();

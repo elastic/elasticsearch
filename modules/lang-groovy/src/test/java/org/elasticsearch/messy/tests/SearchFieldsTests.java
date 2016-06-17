@@ -67,6 +67,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -368,24 +369,20 @@ public class SearchFieldsTests extends ESIntegTestCase {
     }
 
     public void testScriptFieldsForNullReturn() throws Exception {
-        createIndex("test");
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-
         client().prepareIndex("test", "type1", "1")
-            .setSource(jsonBuilder().startObject().startObject("obj1").field("test", "something").endObject())
-            .execute().actionGet();
-        client().admin().indices().refresh(refreshRequest()).actionGet();
+            .setSource("foo", "bar")
+            .setRefresh(true).get();
 
         SearchResponse response = client().prepareSearch().setQuery(matchAllQuery())
             .addScriptField("test_script_1", new Script("return null"))
-            .execute().actionGet();
+            .get();
 
-        assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
+        assertNoFailures(response);
 
         SearchHitField fieldObj = response.getHits().getAt(0).field("test_script_1");
         assertThat(fieldObj, notNullValue());
         List<?> fieldValues = fieldObj.values();
-        assertThat(fieldValues.size(), equalTo(1));
+        assertThat(fieldValues, hasSize(1));
         assertThat(fieldValues.get(0), nullValue());
     }
 

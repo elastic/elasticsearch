@@ -69,8 +69,8 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
 
         List<IndexRequestBuilder> docs = new ArrayList<>();
 
-        routing1 = routingKeyForShard("idx", "type", 0);
-        routing2 = routingKeyForShard("idx", "type", 1);
+        routing1 = routingKeyForShard("idx", 0);
+        routing2 = routingKeyForShard("idx", 1);
 
         docs.addAll(indexDoc(routing1, "1", 5));
         docs.addAll(indexDoc(routing1, "2", 4));

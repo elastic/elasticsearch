@@ -137,7 +137,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
-        this.clusterName = transportService.getClusterName();
+        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.electMasterService = electMasterService;
 
         if (unicastHostsProviders != null) {
@@ -206,10 +206,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         hostsProviders.add(provider);
     }
 
-    public void removeHostsProvider(UnicastHostsProvider provider) {
-        hostsProviders.remove(provider);
-    }
-
     @Override
     public void setPingContextProvider(PingContextProvider contextProvider) {
         this.contextProvider = contextProvider;
@@ -222,16 +218,13 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         temporalResponses.clear();
     }
 
-    public PingResponse[] pingAndWait(TimeValue timeout) {
+    public PingResponse[] pingAndWait(TimeValue duration) {
         final AtomicReference<PingResponse[]> response = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        ping(new PingListener() {
-            @Override
-            public void onPing(PingResponse[] pings) {
-                response.set(pings);
-                latch.countDown();
-            }
-        }, timeout);
+        ping(pings -> {
+            response.set(pings);
+            latch.countDown();
+        }, duration);
         try {
             latch.await();
             return response.get();
@@ -241,25 +234,26 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     @Override
-    public void ping(final PingListener listener, final TimeValue timeout) {
+    public void ping(final PingListener listener, final TimeValue duration) {
         final SendPingsHandler sendPingsHandler = new SendPingsHandler(pingHandlerIdGenerator.incrementAndGet());
         try {
             receivedResponses.put(sendPingsHandler.id(), sendPingsHandler);
             try {
-                sendPings(timeout, null, sendPingsHandler);
+                sendPings(duration, null, sendPingsHandler);
             } catch (RejectedExecutionException e) {
                 logger.debug("Ping execution rejected", e);
                 // The RejectedExecutionException can come from the fact unicastConnectExecutor is at its max down in sendPings
                 // But don't bail here, we can retry later on after the send ping has been scheduled.
             }
-            threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
+
+            threadPool.schedule(TimeValue.timeValueMillis(duration.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
                 @Override
                 protected void doRun() {
-                    sendPings(timeout, null, sendPingsHandler);
-                    threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
+                    sendPings(duration, null, sendPingsHandler);
+                    threadPool.schedule(TimeValue.timeValueMillis(duration.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
                         @Override
                         protected void doRun() throws Exception {
-                            sendPings(timeout, TimeValue.timeValueMillis(timeout.millis() / 2), sendPingsHandler);
+                            sendPings(duration, TimeValue.timeValueMillis(duration.millis() / 2), sendPingsHandler);
                             sendPingsHandler.close();
                             listener.onPing(sendPingsHandler.pingCollection().toArray());
                             for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {

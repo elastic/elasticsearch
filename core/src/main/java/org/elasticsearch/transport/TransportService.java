@@ -1050,9 +1050,4 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
 
     }
-
-    public ClusterName getClusterName() {
-        return clusterName;
-    }
-
 }

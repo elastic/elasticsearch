@@ -76,13 +76,15 @@ public class UnicastZenPingIT extends ESTestCase {
         // just fake that no versions are compatible with this node
         Version previousVersion = VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion());
         Version versionD = VersionUtils.randomVersionBetween(random(), previousVersion.minimumCompatibilityVersion(), previousVersion);
-        NetworkHandle handleD = startServices(settings, threadPool, networkService, "UZP_D", versionD);
+        NetworkHandle handleD = startServices(settingsMismatch, threadPool, networkService, "UZP_D", versionD);
 
-        Settings hostsSettings = Settings.builder().putArray("discovery.zen.ping.unicast.hosts",
+        Settings hostsSettings = Settings.builder()
+                .putArray("discovery.zen.ping.unicast.hosts",
                 NetworkAddress.format(new InetSocketAddress(handleA.address.address().getAddress(), handleA.address.address().getPort())),
                 NetworkAddress.format(new InetSocketAddress(handleB.address.address().getAddress(), handleB.address.address().getPort())),
                 NetworkAddress.format(new InetSocketAddress(handleC.address.address().getAddress(), handleC.address.address().getPort())),
                 NetworkAddress.format(new InetSocketAddress(handleD.address.address().getAddress(), handleD.address.address().getPort())))
+                .put("cluster.name", "test")
                 .build();
 
         Settings hostsSettingsMismatch = Settings.builder().put(hostsSettings).put(settingsMismatch).build();
@@ -144,7 +146,7 @@ public class UnicastZenPingIT extends ESTestCase {
 
         try {
             logger.info("ping from UZP_A");
-            ZenPing.PingResponse[] pingResponses = zenPingA.pingAndWait(TimeValue.timeValueSeconds(10));
+            ZenPing.PingResponse[] pingResponses = zenPingA.pingAndWait(TimeValue.timeValueSeconds(1));
             assertThat(pingResponses.length, equalTo(1));
             assertThat(pingResponses[0].node().getId(), equalTo("UZP_B"));
             assertTrue(pingResponses[0].hasJoinedOnce());
@@ -152,19 +154,19 @@ public class UnicastZenPingIT extends ESTestCase {
 
             // ping again, this time from B,
             logger.info("ping from UZP_B");
-            pingResponses = zenPingB.pingAndWait(TimeValue.timeValueSeconds(10));
+            pingResponses = zenPingB.pingAndWait(TimeValue.timeValueSeconds(1));
             assertThat(pingResponses.length, equalTo(1));
             assertThat(pingResponses[0].node().getId(), equalTo("UZP_A"));
             assertFalse(pingResponses[0].hasJoinedOnce());
             assertCounters(handleB, handleA, handleB, handleC, handleD);
 
             logger.info("ping from UZP_C");
-            pingResponses = zenPingC.pingAndWait(TimeValue.timeValueSeconds(10));
+            pingResponses = zenPingC.pingAndWait(TimeValue.timeValueSeconds(1));
             assertThat(pingResponses.length, equalTo(0));
             assertCounters(handleC, handleA, handleB, handleC, handleD);
 
             logger.info("ping from UZP_D");
-            pingResponses = zenPingD.pingAndWait(TimeValue.timeValueSeconds(10));
+            pingResponses = zenPingD.pingAndWait(TimeValue.timeValueSeconds(1));
             assertThat(pingResponses.length, equalTo(0));
             assertCounters(handleD, handleA, handleB, handleC, handleD);
         } finally {

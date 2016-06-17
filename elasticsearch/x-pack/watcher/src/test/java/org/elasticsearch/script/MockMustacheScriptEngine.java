@@ -20,12 +20,6 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
     public static final String NAME = "mustache";
 
     public static class TestPlugin extends MockScriptEngine.TestPlugin {
-
-        @Override
-        public String name() {
-            return NAME;
-        }
-
         @Override
         public ScriptEngineService getScriptEngineService(Settings settings) {
             return new MockMustacheScriptEngine();

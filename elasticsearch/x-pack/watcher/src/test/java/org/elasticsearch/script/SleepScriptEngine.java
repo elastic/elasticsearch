@@ -23,20 +23,6 @@ public class SleepScriptEngine implements ScriptEngineService {
     public static final String NAME = "sleep";
 
     public static class TestPlugin extends Plugin implements ScriptPlugin {
-
-        public TestPlugin() {
-        }
-
-        @Override
-        public String name() {
-            return NAME;
-        }
-
-        @Override
-        public String description() {
-            return "Mock script engine for integration tests";
-        }
-
         @Override
         public ScriptEngineService getScriptEngineService(Settings settings) {
             return new SleepScriptEngine();

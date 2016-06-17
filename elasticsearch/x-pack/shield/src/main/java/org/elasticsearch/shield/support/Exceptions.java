@@ -19,13 +19,13 @@ public class Exceptions {
 
     public static ElasticsearchSecurityException authenticationError(String msg, Throwable cause, Object... args) {
         ElasticsearchSecurityException e = new ElasticsearchSecurityException(msg, RestStatus.UNAUTHORIZED, cause, args);
-        e.addHeader("WWW-Authenticate", "Basic realm=\"" + Security.NAME + "\"");
+        e.addHeader("WWW-Authenticate", "Basic realm=\"" + Security.NAME + "\" charset=\"UTF-8\"");
         return e;
     }
 
     public static ElasticsearchSecurityException authenticationError(String msg, Object... args) {
         ElasticsearchSecurityException e = new ElasticsearchSecurityException(msg, RestStatus.UNAUTHORIZED, args);
-        e.addHeader("WWW-Authenticate", "Basic realm=\"" + Security.NAME + "\"");
+        e.addHeader("WWW-Authenticate", "Basic realm=\"" + Security.NAME + "\" charset=\"UTF-8\"");
         return e;
     }
 

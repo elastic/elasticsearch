@@ -267,7 +267,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         assertThat("There is a must_not clause, so candidate matches are not verified", result.verified, is(false));
 
         builder = new BooleanQuery.Builder();
-        builder.setMinimumNumberShouldMatch(randomIntBetween(2, 32));
+        builder.setMinimumNumberShouldMatch(randomIntBetween(1, 32));
         builder.add(termQuery1, BooleanClause.Occur.SHOULD);
         builder.add(termQuery2, BooleanClause.Occur.SHOULD);
         result = extractQueryTerms(builder.build());

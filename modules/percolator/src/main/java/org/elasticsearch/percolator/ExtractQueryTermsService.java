@@ -197,7 +197,7 @@ public final class ExtractQueryTermsService {
                 }
                 if (bestClause != null) {
                     // 1 required clause, no prohibited clause, maybe some optional clauses, so it is verified:
-                    boolean verified = mnsm <= 1 && numProhibitedClauses == 0 && numRequiredClauses == 1;
+                    boolean verified = mnsm == 0 && numProhibitedClauses == 0 && numRequiredClauses == 1;
                     return new Result(verified, bestClause);
                 } else {
                     if (uqe != null) {

@@ -1,0 +1,24 @@
+{
+  "xpack.security.delete_user": {
+    "documentation": "Remove a user from the native realm",
+    "methods": [ "DELETE" ],
+    "url": {
+      "path": "/_xpack/security/user/{username}",
+      "paths": [ "/_xpack/security/user/{username}" ],
+      "parts": {
+        "username": {
+          "type" : "string",
+          "description" : "username",
+          "required" : true
+        }
+      },
+      "params": {
+        "refresh": {
+          "type" : "boolean",
+          "description" : "Refresh the index after performing the operation"
+        }
+      }
+    },
+    "body": null
+  }
+}

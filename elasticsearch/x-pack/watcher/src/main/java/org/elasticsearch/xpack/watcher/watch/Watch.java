@@ -250,9 +250,9 @@ public class Watch implements TriggerEngine.Job, ToXContent {
          * source might contain (e.g. passwords) will be converted to {@link Secret secrets}
          * Such that the returned watch will potentially hide this sensitive data behind a "secret". A secret
          * is an abstraction around sensitive data (text). There can be different implementations of how the
-         * secret holds the data, depending on the wired up {@link SecretService}. When shield is installed, a
+         * secret holds the data, depending on the wired up {@link SecretService}. When security is enabled, a
          * {@link SecretService.Secure} is used, that potentially encrypts the data
-         * using Shield's configured system key.
+         * using the configured system key.
          *
          * This method is only called once - when the user adds a new watch. From that moment on, all representations
          * of the watch in the system will be use secrets for sensitive data.

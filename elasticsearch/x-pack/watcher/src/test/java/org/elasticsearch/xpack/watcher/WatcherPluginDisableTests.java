@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.marvel.Monitoring;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.Security;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
@@ -43,7 +43,7 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
 
-                // disable shield because of query cache check and authentication/authorization
+                // disable security because of query cache check and authentication/authorization
                 .put(XPackPlugin.featureEnabledSetting(Security.NAME), false)
                 .put(XPackPlugin.featureEnabledSetting(Monitoring.NAME), false)
 

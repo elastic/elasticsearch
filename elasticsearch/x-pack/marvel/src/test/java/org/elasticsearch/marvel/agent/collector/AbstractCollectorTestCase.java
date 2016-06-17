@@ -26,7 +26,7 @@ import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.InternalClient;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.XPackPlugin;

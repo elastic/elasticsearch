@@ -25,7 +25,7 @@ import org.elasticsearch.license.plugin.core.LicensesMetaData;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.marvel.Monitoring;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.Security;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.watcher.Watcher;

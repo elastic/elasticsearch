@@ -19,8 +19,8 @@ import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.MonitoringLicensee;
-import org.elasticsearch.shield.InternalClient;
-import org.elasticsearch.shield.Security;
+import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.Security;
 
 import java.util.ArrayList;
 import java.util.Arrays;

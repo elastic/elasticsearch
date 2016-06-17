@@ -12,7 +12,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.shield.InternalClient;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.common.init.LazyInitializable;
 

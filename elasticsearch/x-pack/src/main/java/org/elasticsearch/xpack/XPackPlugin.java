@@ -26,8 +26,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.shield.Security;
-import org.elasticsearch.shield.authc.AuthenticationModule;
+import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.authc.AuthenticationModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.xpack.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.action.TransportXPackUsageAction;
@@ -84,7 +84,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin {
                     return null;
                 }
             });
-            // TODO: fix gradle to add all shield resources (plugin metadata) to test classpath
+            // TODO: fix gradle to add all security resources (plugin metadata) to test classpath
             // of watcher plugin, which depends on it directly. This prevents these plugins
             // from being initialized correctly by the test framework, and means we have to
             // have this leniency.

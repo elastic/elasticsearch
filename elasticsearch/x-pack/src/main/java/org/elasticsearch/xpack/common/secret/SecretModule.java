@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.common.secret;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.Security;
+import org.elasticsearch.xpack.security.Security;
 
 /**
  *

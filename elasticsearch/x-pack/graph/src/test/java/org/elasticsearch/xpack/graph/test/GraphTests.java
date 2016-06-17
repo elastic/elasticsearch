@@ -22,7 +22,7 @@ import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.shield.Security;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -127,7 +127,7 @@ public class GraphTests extends ESSingleNodeTestCase {
     
     @Override
     public Settings nodeSettings()  {
-        // Disable Shield otherwise authentication failures happen creating indices. 
+        // Disable security otherwise authentication failures happen creating indices.
         Builder newSettings = Settings.builder();
         newSettings.put(XPackPlugin.featureEnabledSetting(Security.NAME), false);
         newSettings.put(XPackPlugin.featureEnabledSetting(Monitoring.NAME), false);

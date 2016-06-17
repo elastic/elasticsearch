@@ -62,7 +62,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
             server = EmailServer.localhost("2500-2600", USERNAME, PASSWORD, logger);
         }
         if (encryptSensitiveData == null) {
-            encryptSensitiveData = shieldEnabled() && randomBoolean();
+            encryptSensitiveData = securityEnabled() && randomBoolean();
         }
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
@@ -95,7 +95,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         Map<String, Object> source = response.getSource();
         Object value = XContentMapValues.extractValue("actions._email.email.password", source);
         assertThat(value, notNullValue());
-        if (shieldEnabled() && encryptSensitiveData) {
+        if (securityEnabled() && encryptSensitiveData) {
             assertThat(value, not(is((Object) PASSWORD)));
             SecretService secretService = getInstanceFromMaster(SecretService.class);
             assertThat(secretService, instanceOf(SecretService.Secure.class));
@@ -103,7 +103,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         } else {
             assertThat(value, is((Object) PASSWORD));
             SecretService secretService = getInstanceFromMaster(SecretService.class);
-            if (shieldEnabled()) {
+            if (securityEnabled()) {
                 assertThat(secretService, instanceOf(SecretService.Secure.class));
             } else {
                 assertThat(secretService, instanceOf(SecretService.Insecure.class));

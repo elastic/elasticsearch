@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.extensions;
 
-import org.elasticsearch.shield.authc.AuthenticationModule;
+import org.elasticsearch.xpack.security.authc.AuthenticationModule;
 
 
 /**

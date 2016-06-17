@@ -33,14 +33,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.plugin.TestUtils;
-import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.junit.After;
 import org.junit.Before;
 
-import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
 
 public abstract class XPackRestTestCase extends ESRestTestCase {
@@ -100,7 +100,7 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
     }
 
     @After
-    public void clearShieldUsersAndRoles() throws Exception {
+    public void clearUsersAndRoles() throws Exception {
         // we cannot delete the .security index from a rest test since we aren't the internal user, lets wipe the data
         // TODO remove this once the built-in SUPERUSER role is added that can delete the index and we use the built in admin user here
         try (CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {

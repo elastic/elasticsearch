@@ -22,7 +22,7 @@ import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.marvel.Monitoring;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.Security;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.watcher.Watcher;

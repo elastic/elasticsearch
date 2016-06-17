@@ -32,8 +32,8 @@ public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherInte
     }
 
     @Override
-    protected boolean enableShield() {
-        return false; // remove shield noise from this test
+    protected boolean enableSecurity() {
+        return false; // remove security noise from this test
     }
 
     public void testIndexActionFields() throws Exception {

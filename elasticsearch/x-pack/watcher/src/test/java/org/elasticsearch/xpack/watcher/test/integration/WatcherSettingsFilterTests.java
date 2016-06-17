@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -21,10 +21,10 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
-import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase.ShieldSettings.TEST_PASSWORD;
-import static org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase.ShieldSettings.TEST_USERNAME;
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase.SecuritySettings.TEST_PASSWORD;
+import static org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase.SecuritySettings.TEST_USERNAME;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.is;
 
@@ -79,7 +79,7 @@ public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCa
         if (body != null) {
             requestBuilder.body(body);
         }
-        if (shieldEnabled()) {
+        if (securityEnabled()) {
             requestBuilder.addHeader(BASIC_AUTH_HEADER,
                     basicAuthHeaderValue(TEST_USERNAME, new SecuredString(TEST_PASSWORD.toCharArray())));
         }

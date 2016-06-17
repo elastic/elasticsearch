@@ -6,7 +6,7 @@
 package org.elasticsearch.marvel.support.init.proxy;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.shield.InternalClient;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.common.init.proxy.ClientProxy;
 
 public class MonitoringClientProxy extends ClientProxy {

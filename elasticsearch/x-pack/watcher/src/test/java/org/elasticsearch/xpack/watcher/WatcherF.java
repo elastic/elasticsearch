@@ -19,7 +19,7 @@ import java.util.concurrent.CountDownLatch;
 
 /**
  * Main class to easily run Watcher from a IDE.
- * It sets all the options to run the Watcher plugin and access it from Sense, but doesn't run with Shield.
+ * It sets all the options to run the Watcher plugin and access it from Sense, but doesn't run with security.
  *
  * In order to run this class set configure the following:
  * 1) Set `-Des.path.home=` to a directory containing an ES config directory

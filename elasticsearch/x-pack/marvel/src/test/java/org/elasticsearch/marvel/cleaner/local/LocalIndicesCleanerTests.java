@@ -50,7 +50,7 @@ public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
             try {
                 assertThat(client().admin().indices().prepareGetSettings().get().getIndexToSettings().size(), equalTo(count));
             } catch (IndexNotFoundException e) {
-                if (shieldEnabled) {
+                if (securityEnabled) {
                     assertThat(0, equalTo(count));
                 } else {
                     throw e;

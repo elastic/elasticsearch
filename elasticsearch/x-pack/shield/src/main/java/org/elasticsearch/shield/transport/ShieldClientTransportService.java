@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.transport;
 
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -24,8 +23,8 @@ public class ShieldClientTransportService extends TransportService {
 
     @Inject
     public ShieldClientTransportService(Settings settings, Transport transport, ThreadPool threadPool,
-            ClusterName clusterName, ClientTransportFilter clientFilter) {
-        super(settings, transport, threadPool, clusterName);
+            ClientTransportFilter clientFilter) {
+        super(settings, transport, threadPool);
         this.clientFilter = clientFilter;
     }
 

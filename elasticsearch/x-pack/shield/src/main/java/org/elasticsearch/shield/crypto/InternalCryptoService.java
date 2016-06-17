@@ -676,10 +676,10 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         }
     }
 
-    public static void registerSettings(SettingsModule settingsModule) {
-        settingsModule.registerSetting(FILE_SETTING);
-        settingsModule.registerSetting(ENCRYPTION_KEY_LENGTH_SETTING);
-        settingsModule.registerSetting(ENCRYPTION_KEY_ALGO_SETTING);
-        settingsModule.registerSetting(ENCRYPTION_ALGO_SETTING);
+    public static void addSettings(List<Setting<?>> settings) {
+        settings.add(FILE_SETTING);
+        settings.add(ENCRYPTION_KEY_LENGTH_SETTING);
+        settings.add(ENCRYPTION_KEY_ALGO_SETTING);
+        settings.add(ENCRYPTION_ALGO_SETTING);
     }
 }

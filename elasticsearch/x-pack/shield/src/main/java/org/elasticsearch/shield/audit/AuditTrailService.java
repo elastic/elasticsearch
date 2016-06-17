@@ -188,4 +188,13 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
             }
         }
     }
+
+    @Override
+    public void runAsDenied(User user, RestRequest request) {
+        if (securityLicenseState.auditingEnabled()) {
+            for (AuditTrail auditTrail : auditTrails) {
+                auditTrail.runAsDenied(user, request);
+            }
+        }
+    }
 }

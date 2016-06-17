@@ -36,6 +36,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -93,7 +94,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
                 Collections.emptyMap(), Collections.emptyMap());
         SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
         mapperService = new MapperService(indexSettings, analysisService, similarityService,
-                new IndicesModule().getMapperRegistry(), () -> null);
+                new IndicesModule(new NamedWriteableRegistry()).getMapperRegistry(), () -> null);
 
         ShardId shardId = new ShardId(index, 0);
         licenseState = mock(SecurityLicenseState.class);

@@ -31,7 +31,6 @@ import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -604,9 +603,9 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
         }
     }
 
-    public static void registerSettings(SettingsModule settingsModule) {
-        settingsModule.registerSetting(SCROLL_SIZE_SETTING);
-        settingsModule.registerSetting(SCROLL_KEEP_ALIVE_SETTING);
-        settingsModule.registerSetting(POLL_INTERVAL_SETTING);
+    public static void addSettings(List<Setting<?>> settings) {
+        settings.add(SCROLL_SIZE_SETTING);
+        settings.add(SCROLL_KEEP_ALIVE_SETTING);
+        settings.add(POLL_INTERVAL_SETTING);
     }
 }

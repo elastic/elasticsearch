@@ -260,13 +260,13 @@ public class IPFilter {
         updateRules();
     }
 
-    public static void registerSettings(SettingsModule settingsModule) {
-        settingsModule.registerSetting(ALLOW_BOUND_ADDRESSES_SETTING);
-        settingsModule.registerSetting(IP_FILTER_ENABLED_SETTING);
-        settingsModule.registerSetting(IP_FILTER_ENABLED_HTTP_SETTING);
-        settingsModule.registerSetting(HTTP_FILTER_ALLOW_SETTING);
-        settingsModule.registerSetting(HTTP_FILTER_DENY_SETTING);
-        settingsModule.registerSetting(TRANSPORT_FILTER_ALLOW_SETTING);
-        settingsModule.registerSetting(TRANSPORT_FILTER_DENY_SETTING);
+    public static void addSettings(List<Setting<?>> settings) {
+        settings.add(ALLOW_BOUND_ADDRESSES_SETTING);
+        settings.add(IP_FILTER_ENABLED_SETTING);
+        settings.add(IP_FILTER_ENABLED_HTTP_SETTING);
+        settings.add(HTTP_FILTER_ALLOW_SETTING);
+        settings.add(HTTP_FILTER_DENY_SETTING);
+        settings.add(TRANSPORT_FILTER_ALLOW_SETTING);
+        settings.add(TRANSPORT_FILTER_DENY_SETTING);
     }
 }

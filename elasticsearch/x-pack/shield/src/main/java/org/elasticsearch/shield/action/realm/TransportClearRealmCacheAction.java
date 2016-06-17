@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
@@ -31,11 +30,11 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
     private final Realms realms;
 
     @Inject
-    public TransportClearRealmCacheAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+    public TransportClearRealmCacheAction(Settings settings, ThreadPool threadPool,
                                           ClusterService clusterService, TransportService transportService,
                                           ActionFilters actionFilters, Realms realms,
                                           IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClearRealmCacheAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+        super(settings, ClearRealmCacheAction.NAME, threadPool, clusterService, transportService, actionFilters,
               indexNameExpressionResolver, ClearRealmCacheRequest::new, ClearRealmCacheRequest.Node::new, ThreadPool.Names.MANAGEMENT,
               ClearRealmCacheResponse.Node.class);
         this.realms = realms;
@@ -44,7 +43,7 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
     @Override
     protected ClearRealmCacheResponse newResponse(ClearRealmCacheRequest request,
                                                   List<ClearRealmCacheResponse.Node> responses, List<FailedNodeException> failures) {
-        return new ClearRealmCacheResponse(clusterName, responses, failures);
+        return new ClearRealmCacheResponse(clusterService.getClusterName(), responses, failures);
     }
 
     @Override

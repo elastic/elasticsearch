@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.shield.authz.permission;
 
-import org.elasticsearch.shield.user.User;
+import org.elasticsearch.shield.authc.Authentication;
+import org.elasticsearch.shield.authc.esnative.NativeRealm;
+import org.elasticsearch.shield.authc.esnative.ReservedRealm;
 import org.elasticsearch.shield.action.user.AuthenticateAction;
 import org.elasticsearch.shield.action.user.ChangePasswordAction;
 import org.elasticsearch.shield.action.user.UserRequest;
@@ -40,18 +42,47 @@ public class DefaultRole extends Role {
         }
 
         @Override
-        public boolean check(String action, TransportRequest request, User user) {
-            final boolean actionAllowed = super.check(action, request, user);
+        public boolean check(String action, TransportRequest request, Authentication authentication) {
+            final boolean actionAllowed = super.check(action, request, authentication);
             if (actionAllowed) {
-                assert request instanceof UserRequest;
+                if (request instanceof UserRequest == false) {
+                    assert false : "right now only a user request should be allowed";
+                    return false;
+                }
                 UserRequest userRequest = (UserRequest) request;
                 String[] usernames = userRequest.usernames();
-                assert usernames != null && usernames.length == 1;
+                if (usernames == null || usernames.length != 1 || usernames[0] == null) {
+                    assert false : "this role should only be used for actions to apply to a single user";
+                    return false;
+                }
                 final String username = usernames[0];
-                assert username != null;
-                return user.principal().equals(username);
+                final boolean sameUsername = authentication.getRunAsUser().principal().equals(username);
+                if (sameUsername && ChangePasswordAction.NAME.equals(action)) {
+                    return checkChangePasswordAction(authentication);
+                }
+
+                assert AuthenticateAction.NAME.equals(action) || sameUsername == false;
+                return sameUsername;
             }
             return false;
         }
+    }
+
+    static boolean checkChangePasswordAction(Authentication authentication) {
+        // we need to verify that this user was authenticated by or looked up by a realm type that support password changes
+        // otherwise we open ourselves up to issues where a user in a different realm could be created with the same username
+        // and do malicious things
+        final boolean isRunAs = authentication.getUser() != authentication.getRunAsUser();
+        final String realmType;
+        if (isRunAs) {
+            realmType = authentication.getLookedUpBy().getType();
+        } else {
+            realmType = authentication.getAuthenticatedBy().getType();
+        }
+
+        assert realmType != null;
+        // ensure the user was authenticated by a realm that we can change a password for. The native realm is an internal realm and right
+        // now only one can exist in the realm configuration - if this changes we should update this check
+        return ReservedRealm.TYPE.equals(realmType) || NativeRealm.TYPE.equals(realmType);
     }
 }

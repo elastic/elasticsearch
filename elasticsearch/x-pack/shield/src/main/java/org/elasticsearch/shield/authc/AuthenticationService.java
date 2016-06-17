@@ -23,12 +23,12 @@ public interface AuthenticationService {
      * the user and that user is then "attached" to the request's context.
      *
      * @param request   The request to be authenticated
-     * @return          The authenticated user
+     * @return          A object containing the authentication information (user, realm, etc)
      * @throws ElasticsearchSecurityException   If no user was associated with the request or if the associated
      *                                          user credentials were found to be invalid
      * @throws IOException If an error occurs when reading or writing
      */
-    User authenticate(RestRequest request) throws IOException, ElasticsearchSecurityException;
+    Authentication authenticate(RestRequest request) throws IOException, ElasticsearchSecurityException;
 
     /**
      * Authenticates the user that is associated with the given message. If the user was authenticated successfully (i.e.
@@ -43,13 +43,13 @@ public interface AuthenticationService {
      *                      authentication will be based on the whether there's an attached user to in the message and
      *                      if there is, whether its credentials are valid.
      *
-     * @return              The authenticated user (either the attached one or if there isn't the fallback one if provided)
+     * @return              A object containing the authentication information (user, realm, etc)
      *
      * @throws ElasticsearchSecurityException   If the associated user credentials were found to be invalid or in the
      *                                          case where there was no user associated with the request, if the defautl
  *                                              token could not be authenticated.
      */
-    User authenticate(String action, TransportMessage message, User fallbackUser) throws IOException;
+    Authentication authenticate(String action, TransportMessage message, User fallbackUser) throws IOException;
 
     /**
      * Checks if there's already a user header attached to the given message. If missing, a new header is
@@ -57,7 +57,7 @@ public interface AuthenticationService {
      *
      * @param user      The user to be attached if the header is missing
      */
-    void attachUserHeaderIfMissing(User user) throws IOException;
+    void attachUserIfMissing(User user) throws IOException, IllegalArgumentException;
 
-    User getCurrentUser();
+    Authentication getCurrentAuthentication();
 }

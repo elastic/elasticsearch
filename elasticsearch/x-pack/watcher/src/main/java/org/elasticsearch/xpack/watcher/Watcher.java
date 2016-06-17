@@ -19,12 +19,10 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
-import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.common.init.LazyInitializationModule;
 import org.elasticsearch.xpack.watcher.actions.WatcherActionModule;
@@ -140,33 +138,32 @@ public class Watcher {
         return Settings.EMPTY;
     }
 
-    public void onModule(ScriptModule module) {
-        module.registerScriptContext(ScriptServiceProxy.INSTANCE);
-    }
 
-    public void onModule(SettingsModule module) {
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> settings = new ArrayList<>();
         for (TemplateConfig templateConfig : WatcherIndexTemplateRegistry.TEMPLATE_CONFIGS) {
-            module.registerSetting(templateConfig.getSetting());
+            settings.add(templateConfig.getSetting());
         }
-        module.registerSetting(INDEX_WATCHER_VERSION_SETTING);
-        module.registerSetting(INDEX_WATCHER_TEMPLATE_VERSION_SETTING);
-        module.registerSetting(Setting.intSetting("xpack.watcher.execution.scroll.size", 0, Setting.Property.NodeScope));
-        module.registerSetting(Setting.intSetting("xpack.watcher.watch.scroll.size", 0, Setting.Property.NodeScope));
-        module.registerSetting(Setting.boolSetting(XPackPlugin.featureEnabledSetting(Watcher.NAME), true, Setting.Property.NodeScope));
-        module.registerSetting(ENCRYPT_SENSITIVE_DATA_SETTING);
+        settings.add(INDEX_WATCHER_VERSION_SETTING);
+        settings.add(INDEX_WATCHER_TEMPLATE_VERSION_SETTING);
+        settings.add(Setting.intSetting("xpack.watcher.execution.scroll.size", 0, Setting.Property.NodeScope));
+        settings.add(Setting.intSetting("xpack.watcher.watch.scroll.size", 0, Setting.Property.NodeScope));
+        settings.add(Setting.boolSetting(XPackPlugin.featureEnabledSetting(Watcher.NAME), true, Setting.Property.NodeScope));
+        settings.add(ENCRYPT_SENSITIVE_DATA_SETTING);
 
-        module.registerSetting(Setting.simpleString("xpack.watcher.internal.ops.search.default_timeout", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.internal.ops.bulk.default_timeout", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.internal.ops.index.default_timeout", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.execution.default_throttle_period", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.actions.index.default_timeout", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.index.rest.direct_access", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.trigger.schedule.engine", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.input.search.default_timeout", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.transform.search.default_timeout", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.trigger.schedule.ticker.tick_interval", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.execution.scroll.timeout", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.start_immediately", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.internal.ops.search.default_timeout", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.internal.ops.bulk.default_timeout", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.internal.ops.index.default_timeout", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.execution.default_throttle_period", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.actions.index.default_timeout", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.index.rest.direct_access", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.trigger.schedule.engine", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.input.search.default_timeout", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.transform.search.default_timeout", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.trigger.schedule.ticker.tick_interval", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.execution.scroll.timeout", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.start_immediately", Setting.Property.NodeScope));
+        return settings;
     }
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
@@ -282,4 +279,5 @@ public class Watcher {
                 "[.watcher-history-YYYY.MM.dd] are allowed to be created", value);
     }
 
+    
 }

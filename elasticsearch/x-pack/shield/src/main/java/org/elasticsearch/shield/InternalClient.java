@@ -62,7 +62,7 @@ public abstract class InternalClient extends FilterClient {
 
             try (ThreadContext.StoredContext ctx = threadPool().getThreadContext().stashContext()) {
                 try {
-                    authcService.attachUserHeaderIfMissing(XPackUser.INSTANCE);
+                    authcService.attachUserIfMissing(XPackUser.INSTANCE);
                 } catch (IOException ioe) {
                     throw new ElasticsearchException("failed to attach internal user to request", ioe);
                 }

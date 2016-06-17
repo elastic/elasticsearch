@@ -28,6 +28,7 @@ import org.elasticsearch.license.plugin.rest.RestPutLicenseAction;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.xpack.XPackPlugin.isTribeClientNode;
 import static org.elasticsearch.xpack.XPackPlugin.isTribeNode;
@@ -80,8 +81,8 @@ public class Licensing {
         return Collections.emptyList();
     }
 
-    public void onModule(SettingsModule module) {
+    public List<Setting<?>> getSettings() {
         // TODO convert this wildcard to a real setting
-        module.registerSetting(Setting.groupSetting("license.", Setting.Property.NodeScope));
+        return Collections.singletonList(Setting.groupSetting("license.", Setting.Property.NodeScope));
     }
 }

@@ -867,9 +867,9 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         void onUsersChanged(List<String> username);
     }
 
-    public static void registerSettings(SettingsModule settingsModule) {
-        settingsModule.registerSetting(SCROLL_SIZE_SETTING);
-        settingsModule.registerSetting(SCROLL_KEEP_ALIVE_SETTING);
-        settingsModule.registerSetting(POLL_INTERVAL_SETTING);
+    public static void addSettings(List<Setting<?>> settings) {
+        settings.add(SCROLL_SIZE_SETTING);
+        settings.add(SCROLL_KEEP_ALIVE_SETTING);
+        settings.add(POLL_INTERVAL_SETTING);
     }
 }

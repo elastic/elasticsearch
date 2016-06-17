@@ -134,8 +134,7 @@ public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
                 internalCluster().getInstance(MonitoringSettings.class, nodeId),
                 internalCluster().getInstance(MonitoringLicensee.class, nodeId),
                 securedClient(nodeId),
-                internalCluster().getInstance(LicensesManagerService.class, nodeId),
-                internalCluster().getInstance(ClusterName.class, nodeId));
+                internalCluster().getInstance(LicensesManagerService.class, nodeId));
     }
 
     private void assertCanCollect(AbstractCollector collector, Class<?>... classes) {

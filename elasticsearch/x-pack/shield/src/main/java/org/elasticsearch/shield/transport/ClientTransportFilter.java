@@ -56,7 +56,7 @@ public interface ClientTransportFilter {
                 the system user will be attached. There cannot be a request outgoing from this
                 node that is not associated with a user.
              */
-            authcService.attachUserHeaderIfMissing(SystemUser.INSTANCE);
+            authcService.attachUserIfMissing(SystemUser.INSTANCE);
         }
     }
 }

@@ -7,9 +7,10 @@ package org.elasticsearch.shield.authz;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.shield.authc.Authentication;
+import org.elasticsearch.shield.authc.Authentication.RealmRef;
 import org.elasticsearch.shield.user.SystemUser;
 import org.elasticsearch.shield.user.User;
-import org.elasticsearch.shield.authc.InternalAuthenticationService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -33,21 +34,24 @@ public class AuthorizationUtilsTests extends ESTestCase {
 
     public void testSystemUserSwitchWithNullorSystemUser() {
         if (randomBoolean()) {
-            threadContext.putTransient(InternalAuthenticationService.USER_KEY, SystemUser.INSTANCE);
+            threadContext.putTransient(Authentication.AUTHENTICATION_KEY,
+                    new Authentication(SystemUser.INSTANCE, new RealmRef("test", "test", "foo"), null));
         }
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(true));
     }
 
     public void testSystemUserSwitchWithNonSystemUser() {
         User user = new User(randomAsciiOfLength(6), new String[] {});
-        threadContext.putTransient(InternalAuthenticationService.USER_KEY, user);
+        Authentication authentication =  new Authentication(user, new RealmRef("test", "test", "foo"), null);
+        threadContext.putTransient(Authentication.AUTHENTICATION_KEY, authentication);
         threadContext.putTransient(InternalAuthorizationService.ORIGINATING_ACTION_KEY, randomFrom("indices:foo", "cluster:bar"));
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(true));
     }
 
     public void testSystemUserSwitchWithNonSystemUserAndInternalAction() {
         User user = new User(randomAsciiOfLength(6), new String[] {});
-        threadContext.putTransient(InternalAuthenticationService.USER_KEY, user);
+        Authentication authentication =  new Authentication(user, new RealmRef("test", "test", "foo"), null);
+        threadContext.putTransient(Authentication.AUTHENTICATION_KEY, authentication);
         threadContext.putTransient(InternalAuthorizationService.ORIGINATING_ACTION_KEY, randomFrom("internal:foo/bar"));
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(false));
     }

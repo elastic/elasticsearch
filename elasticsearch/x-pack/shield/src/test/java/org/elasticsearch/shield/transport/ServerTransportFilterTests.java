@@ -8,7 +8,7 @@ package org.elasticsearch.shield.transport;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.shield.user.User;
+import org.elasticsearch.shield.authc.Authentication;
 import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
@@ -48,10 +48,10 @@ public class ServerTransportFilterTests extends ESTestCase {
 
     public void testInbound() throws Exception {
         TransportRequest request = mock(TransportRequest.class);
-        User user = mock(User.class);
-        when(authcService.authenticate("_action", request, null)).thenReturn(user);
+        Authentication authentication = mock(Authentication.class);
+        when(authcService.authenticate("_action", request, null)).thenReturn(authentication);
         filter.inbound("_action", request, channel);
-        verify(authzService).authorize(user, "_action", request);
+        verify(authzService).authorize(authentication, "_action", request);
     }
 
     public void testInboundAuthenticationException() throws Exception {
@@ -68,9 +68,9 @@ public class ServerTransportFilterTests extends ESTestCase {
 
     public void testInboundAuthorizationException() throws Exception {
         TransportRequest request = mock(TransportRequest.class);
-        User user = mock(User.class);
-        when(authcService.authenticate("_action", request, null)).thenReturn(user);
-        doThrow(authorizationError("authz failed")).when(authzService).authorize(user, "_action", request);
+        Authentication authentication = mock(Authentication.class);
+        when(authcService.authenticate("_action", request, null)).thenReturn(authentication);
+        doThrow(authorizationError("authz failed")).when(authzService).authorize(authentication, "_action", request);
         try {
             filter.inbound("_action", request, channel);
             fail("expected filter inbound to throw an authorization exception on authorization error");

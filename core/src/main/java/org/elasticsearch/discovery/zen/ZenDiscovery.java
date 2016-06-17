@@ -205,6 +205,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
     }
 
+    @Override
     public void setAllocationService(AllocationService allocationService) {
         this.allocationService = allocationService;
     }

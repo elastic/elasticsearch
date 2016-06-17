@@ -40,6 +40,7 @@ public class NoopDiscovery implements Discovery {
         return null;
     }
 
+    @Override
     public void setAllocationService(AllocationService allocationService) {
 
     }

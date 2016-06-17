@@ -82,6 +82,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
     }
 
+    @Override
     public void setAllocationService(AllocationService allocationService) {
         this.allocationService = allocationService;
     }

@@ -19,30 +19,22 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.MethodWriter;
-
-/**
- * Represents a boolean constant.
+/** 
+ * Interface for lambda/method reference nodes. They need special handling by LDefCall.
+ * <p>
+ * This is because they know nothing about the target interface, and can only push
+ * all their captures onto the stack and defer everything until link-time.
  */
-public final class EBoolean extends AExpression {
+interface ILambda {
 
-    public EBoolean(Location location, boolean constant) {
-        super(location);
+    /** Returns reference to resolve at link-time */
+    String getPointer();
 
-        this.constant = constant;
-    }
+    /** Returns the types of captured parameters. Can be empty */
+    org.objectweb.asm.Type[] getCaptures();
 
-    @Override
-    void analyze(Locals locals) {
-        actual = Definition.BOOLEAN_TYPE;
-    }
-
-    @Override
-    void write(MethodWriter adapter, Globals globals) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
+    /** Returns the number of captured parameters */
+    default int getCaptureCount() {
+        return getCaptures().length;
     }
 }

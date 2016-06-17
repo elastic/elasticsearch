@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Location;
@@ -436,15 +437,15 @@ public final class EComp extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         boolean branch = tru != null || fals != null;
 
-        left.write(writer);
+        left.write(writer, globals);
 
         if (!right.isNull) {
-            right.write(writer);
+            right.write(writer, globals);
         }
 
         Label jump = tru != null ? tru : fals != null ? fals : new Label();

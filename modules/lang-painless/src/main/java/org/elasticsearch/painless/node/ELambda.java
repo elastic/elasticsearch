@@ -20,23 +20,33 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.FunctionReserved;
+import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.node.SFunction.FunctionReserved;
+import org.elasticsearch.painless.Globals;
+import org.objectweb.asm.Type;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class ELambda extends AExpression {
+public class ELambda extends AExpression implements ILambda {
+    final String name;
     final FunctionReserved reserved;
     final List<String> paramTypeStrs;
     final List<String> paramNameStrs;
     final List<AStatement> statements;
+    // desugared synthetic method (lambda body)
+    SFunction desugared;
+    // method ref (impl detail)
+    ILambda impl;
 
-    public ELambda(FunctionReserved reserved, Location location,
-                   List<String> paramTypes, List<String> paramNames, List<AStatement> statements) {
+    public ELambda(String name, FunctionReserved reserved, 
+                   Location location, List<String> paramTypes, List<String> paramNames, 
+                   List<AStatement> statements) {
         super(location);
-
+        this.name = name;
         this.reserved = reserved;
         this.paramTypeStrs = Collections.unmodifiableList(paramTypes);
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
@@ -45,11 +55,40 @@ public class ELambda extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        throw createError(new UnsupportedOperationException("Lambda functions are not supported."));
+        // desugar lambda body into a synthetic method
+        desugared = new SFunction(reserved, location, "def", name, 
+                                            paramTypeStrs, paramNameStrs, statements, true);
+        desugared.generate();
+        List<Variable> captures = new ArrayList<>();
+        desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), desugared.parameters, captures));
+        
+        // setup reference
+        EFunctionRef ref = new EFunctionRef(location, "this", name);
+        ref.expected = expected;
+        // hack, create a new scope, with our method, so the ref can see it (impl detail)
+        locals = Locals.newLocalScope(locals);
+        locals.addMethod(desugared.method);
+        ref.analyze(locals);
+        actual = ref.actual;
+        impl = ref;
     }
 
     @Override
-    void write(MethodWriter writer) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
+    void write(MethodWriter writer, Globals globals) {
+        AExpression expr = (AExpression) impl;
+        expr.write(writer, globals);
+        // add synthetic method to the queue to be written
+        globals.addSyntheticMethod(desugared);
     }
+
+    @Override
+    public String getPointer() {
+        return impl.getPointer();
+    }
+
+    @Override
+    public Type[] getCaptures() {
+        return impl.getCaptures();
+    }
+    
 }

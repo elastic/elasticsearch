@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.objectweb.asm.Opcodes;
@@ -32,7 +33,7 @@ public final class LVariable extends ALink {
 
     final String name;
 
-    int slot;
+    Variable variable;
 
     public LVariable(Location location, String name) {
         super(location, 0);
@@ -46,30 +47,29 @@ public final class LVariable extends ALink {
             throw createError(new IllegalArgumentException("Illegal variable [" + name + "] access with target already defined."));
         }
 
-        Variable variable = locals.getVariable(location, name);
+        variable = locals.getVariable(location, name);
 
         if (store && variable.readonly) {
             throw createError(new IllegalArgumentException("Variable [" + variable.name + "] is read-only."));
         }
 
-        slot = variable.slot;
         after = variable.type;
 
         return this;
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter writer) {
-        writer.visitVarInsn(after.type.getOpcode(Opcodes.ILOAD), slot);
+    void load(MethodWriter writer, Globals globals) {
+        writer.visitVarInsn(after.type.getOpcode(Opcodes.ILOAD), variable.getSlot());
     }
 
     @Override
-    void store(MethodWriter writer) {
-        writer.visitVarInsn(after.type.getOpcode(Opcodes.ISTORE), slot);
+    void store(MethodWriter writer, Globals globals) {
+        writer.visitVarInsn(after.type.getOpcode(Opcodes.ISTORE), variable.getSlot());
     }
 }

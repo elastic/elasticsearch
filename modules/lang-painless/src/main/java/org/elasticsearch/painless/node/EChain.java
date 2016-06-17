@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
@@ -286,7 +287,7 @@ public final class EChain extends AExpression {
      * 10. call link{[0]}.store(...) -- store the value on the stack into the 0th index of the array x [...]
      */
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         // For the case where the chain represents a String concatenation
@@ -306,7 +307,7 @@ public final class EChain extends AExpression {
         // See individual links for more information on what each of the
         // write, load, and store methods do.
         for (ALink link : links) {
-            link.write(writer); // call the write method on the link to prepare for a load/store operation
+            link.write(writer, globals); // call the write method on the link to prepare for a load/store operation
 
             if (link == last && link.store) {
                 if (cat) {
@@ -314,10 +315,10 @@ public final class EChain extends AExpression {
                     // representing a String concatenation.
 
                     writer.writeDup(link.size, catElementStackSize);  // dup the top element and insert it before concat helper on stack
-                    link.load(writer);                     // read the current link's value
+                    link.load(writer, globals);                       // read the current link's value
                     writer.writeAppendStrings(link.after); // append the link's value using the StringBuilder
 
-                    expression.write(writer); // write the bytecode for the rhs expression
+                    expression.write(writer, globals); // write the bytecode for the rhs expression
 
                     if (!(expression instanceof EBinary) ||
                         ((EBinary)expression).operation != Operation.ADD || expression.actual.sort != Sort.STRING) {
@@ -331,13 +332,13 @@ public final class EChain extends AExpression {
                         writer.writeDup(link.after.sort.size, link.size); // if this link is also read from dup the value onto the stack
                     }
 
-                    link.store(writer); // store the link's value from the stack in its respective variable/field/array
+                    link.store(writer, globals); // store the link's value from the stack in its respective variable/field/array
                 } else if (operation != null) {
                     // Handle the case where we are doing a compound assignment that
                     // does not represent a String concatenation.
 
                     writer.writeDup(link.size, 0); // if necessary, dup the previous link's value to be both loaded from and stored to
-                    link.load(writer);             // load the current link's value
+                    link.load(writer, globals);             // load the current link's value
 
                     if (link.load && post) {
                         writer.writeDup(link.after.sort.size, link.size); // dup the value if the link is also
@@ -346,7 +347,7 @@ public final class EChain extends AExpression {
 
                     writer.writeCast(there);                                     // if necessary cast the current link's value
                                                                                  // to the promotion type between the lhs and rhs types
-                    expression.write(writer);                                    // write the bytecode for the rhs expression
+                    expression.write(writer, globals);                           // write the bytecode for the rhs expression
                     // XXX: fix these types, but first we need def compound assignment tests.
                     // its tricky here as there are possibly explicit casts, too.
                     // write the operation instruction for compound assignment
@@ -364,22 +365,22 @@ public final class EChain extends AExpression {
                                                                           // read from and is not a post increment
                     }
 
-                    link.store(writer); // store the link's value from the stack in its respective variable/field/array
+                    link.store(writer, globals); // store the link's value from the stack in its respective variable/field/array
                 } else {
                     // Handle the case for a simple write.
 
-                    expression.write(writer); // write the bytecode for the rhs expression
+                    expression.write(writer, globals); // write the bytecode for the rhs expression
 
                     if (link.load) {
                         writer.writeDup(link.after.sort.size, link.size); // dup the value if the link is also read from
                     }
 
-                    link.store(writer); // store the link's value from the stack in its respective variable/field/array
+                    link.store(writer, globals); // store the link's value from the stack in its respective variable/field/array
                 }
             } else {
                 // Handle the case for a simple read.
 
-                link.load(writer); // read the link's value onto the stack
+                link.load(writer, globals); // read the link's value onto the stack
             }
         }
 

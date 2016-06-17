@@ -1375,6 +1375,11 @@ public class StringTermsTests extends AbstractTermsTestCase {
         assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("avg_l", false), Terms.Order.term(true));
     }
 
+    public void testSingleValuedFieldOrderedByCountAscAndSingleValueSubAggregationAsc() throws Exception {
+        String[] expectedKeys = new String[] { "val6", "val7", "val3", "val4", "val5", "val1", "val2" };
+        assertMultiSortResponse(expectedKeys, Terms.Order.count(true), Terms.Order.aggregation("avg_l", true));
+    }
+
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscSingleValueSubAggregationAsc() throws Exception {
         String[] expectedKeys = new String[] { "val6", "val7", "val3", "val5", "val4", "val1", "val2" };
         assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("sum_d", true), Terms.Order.aggregation("avg_l", true));
@@ -1382,7 +1387,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedByThreeCriteria() throws Exception {
         String[] expectedKeys = new String[] { "val2", "val1", "val4", "val5", "val3", "val6", "val7" };
-        assertMultiSortResponse(expectedKeys, Terms.Order.count(), Terms.Order.aggregation("sum_d", false),
+        assertMultiSortResponse(expectedKeys, Terms.Order.count(false), Terms.Order.aggregation("sum_d", false),
                 Terms.Order.aggregation("avg_l", false));
     }
 

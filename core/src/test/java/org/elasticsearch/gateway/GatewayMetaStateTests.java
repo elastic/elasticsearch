@@ -72,7 +72,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 .build();
 
         // assign all shards
-        ClusterState init = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
+        ClusterState init = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metaData(metaDataOldClusterState)
                 .routingTable(routingTableOldClusterState)
                 .nodes(generateDiscoveryNodes(masterEligible))
@@ -129,7 +129,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 .build();
 
         // assign all shards
-        ClusterState init = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
+        ClusterState init = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metaData(metaDataIndexCreated)
                 .routingTable(routingTableIndexCreated)
                 .nodes(generateDiscoveryNodes(masterEligible))

@@ -63,11 +63,11 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
     private final SnapshotShardsService snapshotShardsService;
 
     @Inject
-    public TransportNodesSnapshotsStatus(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+    public TransportNodesSnapshotsStatus(Settings settings, ThreadPool threadPool,
                                          ClusterService clusterService, TransportService transportService,
                                          SnapshotShardsService snapshotShardsService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
               Request::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeSnapshotStatus.class);
         this.snapshotShardsService = snapshotShardsService;
     }
@@ -89,7 +89,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
     @Override
     protected NodesSnapshotStatus newResponse(Request request, List<NodeSnapshotStatus> responses, List<FailedNodeException> failures) {
-        return new NodesSnapshotStatus(clusterName, responses, failures);
+        return new NodesSnapshotStatus(clusterService.getClusterName(), responses, failures);
     }
 
     @Override
@@ -157,9 +157,6 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
     }
 
     public static class NodesSnapshotStatus extends BaseNodesResponse<NodeSnapshotStatus> {
-
-        NodesSnapshotStatus() {
-        }
 
         public NodesSnapshotStatus(ClusterName clusterName, List<NodeSnapshotStatus> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);

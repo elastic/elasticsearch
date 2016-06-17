@@ -23,7 +23,7 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.10.33'
+  'aws': '1.10.69'
 ]
 
 dependencies {
@@ -54,11 +54,6 @@ test {
 }
 
 thirdPartyAudit.excludes = [
-  // uses internal java api: com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderFactoryImpl
-  // uses internal java api: com.sun.org.apache.xml.internal.dtm.ref.DTMManagerDefault
-  // uses internal java api: com.sun.org.apache.xpath.internal.XPathContext
-  'com.amazonaws.util.XpathUtils',
-
   // classes are missing
   'javax.servlet.ServletContextEvent', 
   'javax.servlet.ServletContextListener', 
@@ -169,3 +164,8 @@ thirdPartyAudit.excludes = [
   'javax.xml.bind.util.Messages',
   'javax.xml.bind.util.ValidationEventCollector'
 ]
+
+// AWS SDK is exposing some deprecated methods which we call using a delegate:
+// * setObjectRedirectLocation(String bucketName, String key, String newRedirectLocation)
+// * changeObjectStorageClass(String bucketName, String key, StorageClass newStorageClass)
+compileTestJava.options.compilerArgs << "-Xlint:-deprecation"

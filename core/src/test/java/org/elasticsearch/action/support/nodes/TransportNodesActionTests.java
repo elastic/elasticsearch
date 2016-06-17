@@ -63,7 +63,6 @@ import static org.mockito.Mockito.mock;
 public class TransportNodesActionTests extends ESTestCase {
 
     private static ThreadPool THREAD_POOL;
-    private static ClusterName CLUSTER_NAME = new ClusterName("test-cluster");
 
     private ClusterService clusterService;
     private CapturingTransport transport;
@@ -178,7 +177,7 @@ public class TransportNodesActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = new TransportService(transport, THREAD_POOL, clusterService.state().getClusterName());
+        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL);
         transportService.start();
         transportService.acceptIncomingRequests();
         int numNodes = randomIntBetween(3, 10);
@@ -196,7 +195,7 @@ public class TransportNodesActionTests extends ESTestCase {
         }
         discoBuilder.localNodeId(randomFrom(discoveryNodes).getId());
         discoBuilder.masterNodeId(randomFrom(discoveryNodes).getId());
-        ClusterState.Builder stateBuilder = ClusterState.builder(CLUSTER_NAME);
+        ClusterState.Builder stateBuilder = ClusterState.builder(clusterService.getClusterName());
         stateBuilder.nodes(discoBuilder);
         ClusterState clusterState = stateBuilder.build();
         setState(clusterService, clusterState);
@@ -246,14 +245,14 @@ public class TransportNodesActionTests extends ESTestCase {
         TestTransportNodesAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService
                 transportService, ActionFilters actionFilters, Supplier<TestNodesRequest> request,
                                  Supplier<TestNodeRequest> nodeRequest, String nodeExecutor) {
-            super(settings, "indices:admin/test", CLUSTER_NAME, threadPool, clusterService, transportService, actionFilters,
+            super(settings, "indices:admin/test", threadPool, clusterService, transportService, actionFilters,
                     null, request, nodeRequest, nodeExecutor, TestNodeResponse.class);
         }
 
         @Override
         protected TestNodesResponse newResponse(TestNodesRequest request,
                                                 List<TestNodeResponse> responses, List<FailedNodeException> failures) {
-            return new TestNodesResponse(request, responses, failures);
+            return new TestNodesResponse(clusterService.getClusterName(), request, responses, failures);
         }
 
         @Override
@@ -302,8 +301,9 @@ public class TransportNodesActionTests extends ESTestCase {
 
         private final TestNodesRequest request;
 
-        TestNodesResponse(TestNodesRequest request, List<TestNodeResponse> nodeResponses, List<FailedNodeException> failures) {
-            super(CLUSTER_NAME, nodeResponses, failures);
+        TestNodesResponse(ClusterName clusterName, TestNodesRequest request, List<TestNodeResponse> nodeResponses,
+                          List<FailedNodeException> failures) {
+            super(clusterName, nodeResponses, failures);
             this.request = request;
         }
 

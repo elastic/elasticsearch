@@ -180,7 +180,7 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             orders.add(Terms.Order.term(randomBoolean()));
             break;
         case 1:
-            orders.add(Terms.Order.count());
+            orders.add(Terms.Order.count(randomBoolean()));
             break;
         case 2:
             orders.add(Terms.Order.aggregation(randomAsciiOfLengthBetween(3, 20), randomBoolean()));

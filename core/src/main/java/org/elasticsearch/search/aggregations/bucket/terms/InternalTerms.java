@@ -192,7 +192,7 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
             final long thisAggDocCountError;
             if (terms.buckets.size() < this.shardSize || InternalOrder.isTermOrder(order)) {
                 thisAggDocCountError = 0;
-            } else if (InternalOrder.isCountOrder(this.order)) {
+            } else if (InternalOrder.isCountDesc(this.order)) {
                 thisAggDocCountError = terms.buckets.get(terms.buckets.size() - 1).docCount;
             } else {
                 thisAggDocCountError = -1;

@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -47,16 +46,14 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportClusterHealthAction extends TransportMasterNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
 
-    private final ClusterName clusterName;
     private final GatewayAllocator gatewayAllocator;
 
     @Inject
     public TransportClusterHealthAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                        ThreadPool threadPool, ClusterName clusterName, ActionFilters actionFilters,
+                                        ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver, GatewayAllocator gatewayAllocator) {
         super(settings, ClusterHealthAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver, ClusterHealthRequest::new);
-        this.clusterName = clusterName;
         this.gatewayAllocator = gatewayAllocator;
     }
 
@@ -284,14 +281,14 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         } catch (IndexNotFoundException e) {
             // one of the specified indices is not there - treat it as RED.
-            ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), Strings.EMPTY_ARRAY, clusterState,
+            ClusterHealthResponse response = new ClusterHealthResponse(clusterState.getClusterName().value(), Strings.EMPTY_ARRAY, clusterState,
                     numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
                     pendingTaskTimeInQueue);
             response.setStatus(ClusterHealthStatus.RED);
             return response;
         }
 
-        return new ClusterHealthResponse(clusterName.value(), concreteIndices, clusterState, numberOfPendingTasks,
+        return new ClusterHealthResponse(clusterState.getClusterName().value(), concreteIndices, clusterState, numberOfPendingTasks,
                 numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), pendingTaskTimeInQueue);
     }
 }

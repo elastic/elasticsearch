@@ -173,20 +173,36 @@ public class MinDocCountTests extends AbstractTermsTestCase {
         testMinDocCountOnTerms("s", Script.YES, Terms.Order.term(false));
     }
 
+    public void testStringCountAsc() throws Exception {
+        testMinDocCountOnTerms("s", Script.NO, Terms.Order.count(true));
+    }
+
+    public void testStringScriptCountAsc() throws Exception {
+        testMinDocCountOnTerms("s", Script.YES, Terms.Order.count(true));
+    }
+
     public void testStringCountDesc() throws Exception {
-        testMinDocCountOnTerms("s", Script.NO, Terms.Order.count());
+        testMinDocCountOnTerms("s", Script.NO, Terms.Order.count(false));
     }
 
     public void testStringScriptCountDesc() throws Exception {
-        testMinDocCountOnTerms("s", Script.YES, Terms.Order.count());
+        testMinDocCountOnTerms("s", Script.YES, Terms.Order.count(false));
+    }
+
+    public void testStringCountAscWithInclude() throws Exception {
+        testMinDocCountOnTerms("s", Script.NO, Terms.Order.count(true), ".*a.*", true);
+    }
+
+    public void testStringScriptCountAscWithInclude() throws Exception {
+        testMinDocCountOnTerms("s", Script.YES, Terms.Order.count(true), ".*a.*", true);
     }
 
     public void testStringCountDescWithInclude() throws Exception {
-        testMinDocCountOnTerms("s", Script.NO, Terms.Order.count(), ".*a.*", true);
+        testMinDocCountOnTerms("s", Script.NO, Terms.Order.count(false), ".*a.*", true);
     }
 
     public void testStringScriptCountDescWithInclude() throws Exception {
-        testMinDocCountOnTerms("s", Script.YES, Terms.Order.count(), ".*a.*", true);
+        testMinDocCountOnTerms("s", Script.YES, Terms.Order.count(false), ".*a.*", true);
     }
 
     public void testLongTermAsc() throws Exception {
@@ -205,12 +221,20 @@ public class MinDocCountTests extends AbstractTermsTestCase {
         testMinDocCountOnTerms("l", Script.YES, Terms.Order.term(false));
     }
 
+    public void testLongCountAsc() throws Exception {
+        testMinDocCountOnTerms("l", Script.NO, Terms.Order.count(true));
+    }
+
+    public void testLongScriptCountAsc() throws Exception {
+        testMinDocCountOnTerms("l", Script.YES, Terms.Order.count(true));
+    }
+
     public void testLongCountDesc() throws Exception {
-        testMinDocCountOnTerms("l", Script.NO, Terms.Order.count());
+        testMinDocCountOnTerms("l", Script.NO, Terms.Order.count(false));
     }
 
     public void testLongScriptCountDesc() throws Exception {
-        testMinDocCountOnTerms("l", Script.YES, Terms.Order.count());
+        testMinDocCountOnTerms("l", Script.YES, Terms.Order.count(false));
     }
 
     public void testDoubleTermAsc() throws Exception {
@@ -229,12 +253,20 @@ public class MinDocCountTests extends AbstractTermsTestCase {
         testMinDocCountOnTerms("d", Script.YES, Terms.Order.term(false));
     }
 
+    public void testDoubleCountAsc() throws Exception {
+        testMinDocCountOnTerms("d", Script.NO, Terms.Order.count(true));
+    }
+
+    public void testDoubleScriptCountAsc() throws Exception {
+        testMinDocCountOnTerms("d", Script.YES, Terms.Order.count(true));
+    }
+
     public void testDoubleCountDesc() throws Exception {
-        testMinDocCountOnTerms("d", Script.NO, Terms.Order.count());
+        testMinDocCountOnTerms("d", Script.NO, Terms.Order.count(false));
     }
 
     public void testDoubleScriptCountDesc() throws Exception {
-        testMinDocCountOnTerms("d", Script.YES, Terms.Order.count());
+        testMinDocCountOnTerms("d", Script.YES, Terms.Order.count(false));
     }
 
     private void testMinDocCountOnTerms(String field, Script script, Terms.Order order) throws Exception {

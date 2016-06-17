@@ -63,7 +63,8 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         private final int nodesCount;
 
         TestIteration() {
-            ClusterName clusterName = new ClusterName("test");
+            Settings settings = Settings.builder().put("cluster.name", "test").build();
+            ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
             threadPool = new TestThreadPool("transport-client-nodes-service-tests");
             transport = new FailAndRetryMockTransport<TestResponse>(random(), clusterName) {
                 @Override
@@ -76,7 +77,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     return  new TestResponse();
                 }
             };
-            transportService = new TransportService(Settings.EMPTY, transport, threadPool, clusterName) {
+            transportService = new TransportService(settings, transport, threadPool) {
                 @Override
                 public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action,
                                                                       TransportRequest request, final TransportResponseHandler<T> handler) {
@@ -101,7 +102,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             transportService.start();
             transportService.acceptIncomingRequests();
             transportClientNodesService =
-                    new TransportClientNodesService(Settings.EMPTY, clusterName, transportService, threadPool, Version.CURRENT);
+                    new TransportClientNodesService(settings, transportService, threadPool, Version.CURRENT);
             this.nodesCount = randomIntBetween(1, 10);
             for (int i = 0; i < nodesCount; i++) {
                 transportClientNodesService.addTransportAddresses(new LocalTransportAddress("node" + i));

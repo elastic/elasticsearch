@@ -18,12 +18,9 @@
  */
 package org.elasticsearch.cluster.health;
 
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,16 +46,6 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
     private final double activeShardsPercent;
     private final ClusterHealthStatus status;
     private final Map<String, ClusterIndexHealth> indices = new HashMap<>();
-
-    /**
-     * Creates a new <code>ClusterStateHealth</code> instance based on cluster meta data and its routing table as a convenience.
-     *
-     * @param clusterMetaData Current cluster meta data. Must not be null.
-     * @param routingTables   Current routing table. Must not be null.
-     */
-    public ClusterStateHealth(final MetaData clusterMetaData, final RoutingTable routingTables) {
-        this(ClusterState.builder(ClusterName.DEFAULT).metaData(clusterMetaData).routingTable(routingTables).build());
-    }
 
     /**
      * Creates a new <code>ClusterStateHealth</code> instance considering the current cluster state and all indices in the cluster.

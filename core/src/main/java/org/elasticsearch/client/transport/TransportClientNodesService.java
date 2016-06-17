@@ -111,10 +111,10 @@ public class TransportClientNodesService extends AbstractComponent {
         Setting.boolSetting("client.transport.sniff", false, Property.NodeScope);
 
     @Inject
-    public TransportClientNodesService(Settings settings, ClusterName clusterName, TransportService transportService,
+    public TransportClientNodesService(Settings settings,TransportService transportService,
                                        ThreadPool threadPool, Version version) {
         super(settings);
-        this.clusterName = clusterName;
+        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.transportService = transportService;
         this.threadPool = threadPool;
         this.minCompatibilityVersion = version.minimumCompatibilityVersion();

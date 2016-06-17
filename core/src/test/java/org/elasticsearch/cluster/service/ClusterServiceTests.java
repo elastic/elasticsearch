@@ -108,9 +108,9 @@ public class ClusterServiceTests extends ESTestCase {
     }
 
     TimedClusterService createTimedClusterService(boolean makeMaster) throws InterruptedException {
-        TimedClusterService timedClusterService = new TimedClusterService(Settings.EMPTY, null,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool, new ClusterName("ClusterServiceTests"));
+        TimedClusterService timedClusterService = new TimedClusterService(Settings.builder().put("cluster.name",
+            "ClusterServiceTests").build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool);
         timedClusterService.setLocalNode(new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, emptyMap(),
             emptySet(), Version.CURRENT));
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
@@ -941,9 +941,8 @@ public class ClusterServiceTests extends ESTestCase {
 
         public volatile Long currentTimeOverride = null;
 
-        public TimedClusterService(Settings settings, OperationRouting operationRouting, ClusterSettings clusterSettings,
-                                   ThreadPool threadPool, ClusterName clusterName) {
-            super(settings, operationRouting, clusterSettings, threadPool, clusterName);
+        public TimedClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+            super(settings, clusterSettings, threadPool);
         }
 
         @Override

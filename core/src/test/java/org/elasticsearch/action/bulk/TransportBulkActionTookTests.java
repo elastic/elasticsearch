@@ -87,7 +87,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     private TransportBulkAction createAction(boolean controlled, AtomicLong expected) {
         CapturingTransport capturingTransport = new CapturingTransport();
-        TransportService transportService = new TransportService(capturingTransport, threadPool, clusterService.state().getClusterName());
+        TransportService transportService = new TransportService(clusterService.getSettings(), capturingTransport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
         IndexNameExpressionResolver resolver = new Resolver(Settings.EMPTY);

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.http;
 
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.ByteBufferBytesReference;
@@ -73,8 +72,8 @@ public class HttpServerTests extends ESTestCase {
                 throw new IllegalArgumentException("test error");
             });
 
-        ClusterService clusterService = new ClusterService(Settings.EMPTY, null,
-            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null, ClusterName.DEFAULT);
+        ClusterService clusterService = new ClusterService(Settings.EMPTY,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null);
         NodeService nodeService = new NodeService(Settings.EMPTY, null, null, null, null, null, null, null, null, null,
             clusterService, null);
         httpServer = new HttpServer(settings, httpServerTransport, restController, nodeService, circuitBreakerService);

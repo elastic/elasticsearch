@@ -719,8 +719,8 @@ public class IndicesRequestTests extends ESIntegTestCase {
         private final Map<String, List<TransportRequest>> requests = new HashMap<>();
 
         @Inject
-        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool, ClusterName clusterName) {
-            super(settings, transport, threadPool, clusterName);
+        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
+            super(settings, transport, threadPool);
         }
 
         synchronized List<TransportRequest> consumeRequests(String action) {

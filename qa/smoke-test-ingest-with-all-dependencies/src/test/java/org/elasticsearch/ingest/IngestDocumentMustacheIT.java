@@ -31,7 +31,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class IngestDocumentMustacheIT extends AbstractMustacheTestCase {
+public class IngestDocumentMustacheIT extends AbstractScriptTestCase {
 
     public void testAccessMetaDataViaTemplate() {
         Map<String, Object> document = new HashMap<>();

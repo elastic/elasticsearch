@@ -33,6 +33,8 @@ to `painless`.
 
 * Shortcuts for list, map access using the dot `.` operator
 
+* Native support for regular expressions with `/pattern/`, `=~`, and `==~`
+
 
 [[painless-examples]]
 [float]
@@ -198,6 +200,103 @@ POST hockey/player/1/_update
 }
 ----------------------------------------------------------------
 // CONSOLE
+
+[float]
+[[modules-scripting-painless-regex]]
+=== Regular expressions
+
+Painless's native support for regular expressions has syntax constructs:
+
+* `/pattern/`: Pattern literals create patterns. This is the only way to create
+a pattern in painless. The pattern inside the `/`s are just
+http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expressions].
+See <<modules-scripting-painless-regex-flags>> for more.
+* `=~`: The find operator return a `boolean`, `true` if a subsequence of the
+text matches, `false` otherwise.
+* `==~`: The match operator returns a `boolean`, `true` if the text matches,
+`false` if it doesn't.
+
+Using the find operator (`=~`) you can update all hockey players with "b" in
+their last name:
+
+[source,js]
+----------------------------------------------------------------
+POST hockey/player/_update_by_query
+{
+  "script": {
+    "lang": "painless",
+    "inline": "if (ctx._source.last =~ /b/) {ctx._source.last += \"matched\"} else {ctx.op = 'noop'}"
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+
+Using the match operator (`==~`) you can update all the hockey players who's
+names start with a consonant and end with a vowel:
+
+[source,js]
+----------------------------------------------------------------
+POST hockey/player/_update_by_query
+{
+  "script": {
+    "lang": "painless",
+    "inline": "if (ctx._source.last ==~ /[^aeiou].*[aeiou]/) {ctx._source.last += \"matched\"} else {ctx.op = 'noop'}"
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+
+Or you can use the `Pattern.matcher` directory to get a `Matcher` instance and
+remove all of the vowels in all of their names:
+
+[source,js]
+----------------------------------------------------------------
+POST hockey/player/_update_by_query
+{
+  "script": {
+    "lang": "painless",
+    "inline": "ctx._source.last = /[aeiou]/.matcher(ctx._source.last).replaceAll('')"
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+
+
+Note: all of the `_update_by_query` examples above could really do with a
+`query` to limit the data that they pull back. While you *could* use a
+<<query-dsl-script-query>> it wouldn't be as efficient as using any other query
+because script queries aren't able to use the inverted index to limit the
+documents that they have to check.
+
+We intentionally don't allow scripts to call `Pattern.compile` to get a new
+pattern on the fly because building a `Pattern` is (comparatively) slow.
+Pattern literals (`/apattern/`) have fancy constant extraction so no matter
+where they show up in the painless script they are built only when the script
+is first used. It is fairly similar to how `String` literals work in Java.
+
+[float]
+[[modules-scripting-painless-regex-flags]]
+==== Regular expression flags
+
+You can define flags on patterns in Painless by adding characters after the
+trailing `/` like `/foo/i` or `/foo \w #comment/iUx`. Painless exposes all the
+flags from
+https://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html[Java's Pattern class]
+using these characters:
+
+[cols="<,<,<",options="header",]
+|=======================================================================
+| Character | Java Constant | Example
+|`c` | CANON_EQ                  | `'å' ==~ /å/c` (open in hex editor to see)
+|`i` | CASE_INSENSITIVE          | `'A' ==~ /a/i`
+|`l` | LITERAL                   | `'[a]' ==~ /[a]/l`
+|`m` | MULTILINE                 | `'a\nb\nc' =~ /^b$/m`
+|`s` | DOTALL (aka single line)  | `'a\nb\nc' =~ /.b./s`
+|`U` | UNICODE_CHARACTER_CLASS   | `'Ɛ' ==~ /\\w/U`
+|`u` | UNICODE_CASE              | `'Ɛ' ==~ /ɛ/iu`
+|`x` | COMMENTS (aka extended)   | `'a' ==~ /a #comment/x`
+|=======================================================================
+
 
 [[painless-api]]
 [float]

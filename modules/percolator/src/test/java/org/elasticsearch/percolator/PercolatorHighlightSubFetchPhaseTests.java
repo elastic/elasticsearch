@@ -53,10 +53,6 @@ public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
         Mockito.when(searchContext.query()).thenReturn(new MatchAllDocsQuery());
 
         assertThat(subFetchPhase.hitsExecutionNeeded(searchContext), is(false));
-        IllegalStateException exception = expectThrows(IllegalStateException.class,
-                () -> subFetchPhase.hitsExecute(searchContext, null));
-        assertThat(exception.getMessage(), equalTo("couldn't locate percolator query"));
-
         Mockito.when(searchContext.query()).thenReturn(percolateQuery);
         assertThat(subFetchPhase.hitsExecutionNeeded(searchContext), is(true));
     }

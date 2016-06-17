@@ -1133,7 +1133,7 @@ public class DefMath {
         return handle;
     }
     
-    /** Returns an appropriate method handle for a binary operator, based only promotion of the LHS and RHS arguments */
+    /** Returns an appropriate method handle for a binary operator, based on promotion of the LHS and RHS arguments */
     public static MethodHandle lookupBinary(Class<?> classA, Class<?> classB, String name) {
         MethodHandle handle = TYPE_OP_MAPPING.get(promote(promote(unbox(classA)), promote(unbox(classB)))).get(name);
         if (handle == null) {
@@ -1145,5 +1145,88 @@ public class DefMath {
     /** Returns a generic method handle for any operator, that can handle all valid signatures, nulls, corner cases */
     public static MethodHandle lookupGeneric(String name) {
         return TYPE_OP_MAPPING.get(Object.class).get(name);
+    }
+    
+    
+    /**
+     * Slow dynamic cast: casts {@code returnValue} to the runtime type of {@code lhs}
+     * based upon inspection. If {@code lhs} is null, no cast takes place.
+     * This is used for the generic fallback case of compound assignment.
+     */
+    static Object dynamicCast(Object returnValue, Object lhs) {
+        if (lhs != null) {
+            Class<?> c = lhs.getClass();
+            if (c == returnValue.getClass()) {
+                return returnValue;
+            }
+            if (c == Integer.class) {
+                return getNumber(returnValue).intValue();
+            } else if (c == Long.class) {
+                return getNumber(returnValue).longValue();
+            } else if (c == Double.class) {
+                return getNumber(returnValue).doubleValue();
+            } else if (c == Float.class) {
+                return getNumber(returnValue).floatValue();
+            } else if (c == Short.class) {
+                return getNumber(returnValue).shortValue();
+            } else if (c == Byte.class) {
+                return getNumber(returnValue).byteValue();
+            } else if (c == Character.class) {
+                return (char) getNumber(returnValue).intValue();
+            }
+            return lhs.getClass().cast(returnValue);
+        } else {
+            return returnValue;
+        }
+    }
+    
+    /** Slowly returns a Number for o. Just for supporting dynamicCast */
+    static Number getNumber(Object o) {
+        if (o instanceof Number) {
+            return (Number)o;
+        } else if (o instanceof Character) {
+            return Integer.valueOf((char)o);
+        } else {
+            throw new ClassCastException("Cannot convert [" + o.getClass() + "] to a Number");
+        }
+    }
+    
+    private static final MethodHandle DYNAMIC_CAST;
+    static {
+        final Lookup lookup = MethodHandles.lookup();
+        try {
+            DYNAMIC_CAST = lookup.findStatic(lookup.lookupClass(), 
+                                             "dynamicCast", 
+                                             MethodType.methodType(Object.class, Object.class, Object.class));
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /** Looks up generic method, with a dynamic cast to the receiver's type. (compound assignment) */
+    public static MethodHandle lookupGenericWithCast(String name) {
+        MethodHandle generic = lookupGeneric(name);
+        // adapt dynamic cast to the generic method
+        MethodHandle cast = DYNAMIC_CAST.asType(MethodType.methodType(generic.type().returnType(), 
+                                                                      generic.type().returnType(),
+                                                                      generic.type().parameterType(0)));
+        // drop the RHS parameter
+        cast = MethodHandles.dropArguments(cast, 2, generic.type().parameterType(1));
+        // combine: f(x,y) -> g(f(x,y), x, y);
+        return MethodHandles.foldArguments(cast, generic);
+    }
+    
+    /** Forces a cast to class A for target (only if types differ) */
+    public static MethodHandle cast(Class<?> classA, MethodHandle target) {
+        MethodType newType = MethodType.methodType(classA).unwrap();
+        MethodType targetType = MethodType.methodType(target.type().returnType()).unwrap();
+        
+        if (newType.returnType() == targetType.returnType()) {
+            return target; // no conversion
+        }
+        
+        // this is safe for our uses of it here only, because we change just the return value,
+        // the original method itself does all the type checks correctly.
+        return MethodHandles.explicitCastArguments(target, target.type().changeReturnType(newType.returnType()));
     }
 }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.tasks;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -28,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.transport.TransportRequest;
@@ -43,10 +46,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+
 /**
  * Task Manager service for keeping track of currently running tasks on the nodes
  */
 public class TaskManager extends AbstractComponent implements ClusterStateListener {
+    private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
 
     private final ConcurrentMapLong<Task> tasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
@@ -339,6 +345,23 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
         if (holder != null) {
             holder.registerChildTaskNode(node);
         }
+    }
+
+    /**
+     * Blocks the calling thread, waiting for the task to vanish from the TaskManager.
+     */
+    public void waitForTaskCompletion(Task task, long untilInNanos) {
+        while (System.nanoTime() - untilInNanos < 0) {
+            if (getTask(task.getId()) == null) {
+                return;
+            }
+            try {
+                Thread.sleep(WAIT_FOR_COMPLETION_POLL.millis());
+            } catch (InterruptedException e) {
+                throw new ElasticsearchException("Interrupted waiting for completion of [{}]", e, task);
+            }
+        }
+        throw new ElasticsearchTimeoutException("Timed out waiting for completion of [{}]", task);
     }
 
     private static class CancellableTaskHolder {

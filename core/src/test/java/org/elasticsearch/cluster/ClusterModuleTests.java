@@ -67,32 +67,32 @@ public class ClusterModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterClusterDynamicSettingDuplicate() {
-        SettingsModule module = new SettingsModule(Settings.EMPTY);
         try {
-            module.registerSetting(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING);
+            new SettingsModule(Settings.EMPTY, EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING);
         } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Cannot register setting [" + EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey() + "] twice");
+            assertEquals(e.getMessage(),
+                "Cannot register setting [" + EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey() + "] twice");
         }
     }
 
     public void testRegisterClusterDynamicSetting() {
-        SettingsModule module = new SettingsModule(Settings.EMPTY);
-        module.registerSetting(Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.NodeScope));
+        SettingsModule module = new SettingsModule(Settings.EMPTY,
+            Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.NodeScope));
         assertInstanceBinding(module, ClusterSettings.class, service -> service.hasDynamicSetting("foo.bar"));
     }
 
     public void testRegisterIndexDynamicSettingDuplicate() {
-        SettingsModule module = new SettingsModule(Settings.EMPTY);
         try {
-            module.registerSetting(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING);
+            new SettingsModule(Settings.EMPTY, EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING);
         } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Cannot register setting [" + EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey() + "] twice");
+            assertEquals(e.getMessage(),
+                "Cannot register setting [" + EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey() + "] twice");
         }
     }
 
     public void testRegisterIndexDynamicSetting() {
-        SettingsModule module = new SettingsModule(Settings.EMPTY);
-        module.registerSetting(Setting.boolSetting("index.foo.bar", false, Property.Dynamic, Property.IndexScope));
+        SettingsModule module = new SettingsModule(Settings.EMPTY,
+            Setting.boolSetting("index.foo.bar", false, Property.Dynamic, Property.IndexScope));
         assertInstanceBinding(module, IndexScopedSettings.class, service -> service.hasDynamicSetting("index.foo.bar"));
     }
 
@@ -101,7 +101,8 @@ public class ClusterModuleTests extends ModuleTestCase {
         try {
             module.registerAllocationDecider(EnableAllocationDecider.class);
         } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Can't register the same [allocation_decider] more than once for [" + EnableAllocationDecider.class.getName() + "]");
+            assertEquals(e.getMessage(),
+                "Can't register the same [allocation_decider] more than once for [" + EnableAllocationDecider.class.getName() + "]");
         }
     }
 
@@ -146,7 +147,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             module.registerIndexTemplateFilter(FakeIndexTemplateFilter.class);
             module.registerIndexTemplateFilter(FakeIndexTemplateFilter.class);
         } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Can't register the same [index_template_filter] more than once for [" + FakeIndexTemplateFilter.class.getName() + "]");
+            assertEquals(e.getMessage(),
+                "Can't register the same [index_template_filter] more than once for [" + FakeIndexTemplateFilter.class.getName() + "]");
         }
     }
 

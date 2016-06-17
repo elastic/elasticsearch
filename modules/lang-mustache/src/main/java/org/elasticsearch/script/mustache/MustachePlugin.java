@@ -19,24 +19,17 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptModule;
 
-public class MustachePlugin extends Plugin {
+public class MustachePlugin extends Plugin implements ScriptPlugin {
 
     @Override
-    public String name() {
-        return "lang-mustache";
-    }
-
-    @Override
-    public String description() {
-        return "Mustache scripting integration for Elasticsearch";
-    }
-
-    public void onModule(ScriptModule module) {
-        module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class,
-                        MustacheScriptEngineService.NAME, true));
+    public ScriptEngineService getScriptEngineService(Settings settings) {
+        return new MustacheScriptEngineService(settings);
     }
 }

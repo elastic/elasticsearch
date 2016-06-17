@@ -30,6 +30,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -52,6 +54,7 @@ import org.elasticsearch.test.search.aggregations.bucket.SharedSignificantTermsT
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -164,24 +167,15 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         }
     }
 
-    public static class CustomSignificanceHeuristicPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "test-plugin-significance-heuristic";
-        }
-
-        @Override
-        public String description() {
-            return "Significance heuristic plugin";
-        }
+    public static class CustomSignificanceHeuristicPlugin extends Plugin implements ScriptPlugin {
 
         public void onModule(SearchModule searchModule) {
             searchModule.registerSignificanceHeuristic(SimpleHeuristic.NAMES_FIELD, SimpleHeuristic::new, SimpleHeuristic::parse);
         }
 
-        public void onModule(ScriptModule module) {
-            module.registerScript(NativeSignificanceScoreScriptNoParams.NATIVE_SIGNIFICANCE_SCORE_SCRIPT_NO_PARAMS, NativeSignificanceScoreScriptNoParams.Factory.class);
-            module.registerScript(NativeSignificanceScoreScriptWithParams.NATIVE_SIGNIFICANCE_SCORE_SCRIPT_WITH_PARAMS, NativeSignificanceScoreScriptWithParams.Factory.class);
+        @Override
+        public List<NativeScriptFactory> getNativeScripts() {
+            return Arrays.asList(new NativeSignificanceScoreScriptNoParams.Factory(), new NativeSignificanceScoreScriptWithParams.Factory());
         }
     }
 

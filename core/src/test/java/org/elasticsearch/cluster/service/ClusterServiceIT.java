@@ -583,16 +583,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
     public static class TestPlugin extends Plugin {
 
         @Override
-        public String name() {
-            return "test plugin";
-        }
-
-        @Override
-        public String description() {
-            return "test plugin";
-        }
-
-        @Override
         public Collection<Class<? extends LifecycleComponent>> nodeServices() {
             List<Class<? extends LifecycleComponent>> services = new ArrayList<>(1);
             services.add(MasterAwareService.class);

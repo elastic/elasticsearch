@@ -91,4 +91,9 @@ public class RestListTasksAction extends BaseRestHandler {
             }
         };
     }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
 }

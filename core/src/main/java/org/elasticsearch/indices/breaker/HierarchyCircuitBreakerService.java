@@ -23,7 +23,6 @@ import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -79,7 +78,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
 
-    @Inject
     public HierarchyCircuitBreakerService(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         this.fielddataSettings = new BreakerSettings(CircuitBreaker.FIELDDATA,

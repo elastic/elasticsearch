@@ -21,6 +21,7 @@ package org.elasticsearch.test.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.transport.TransportService;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -79,20 +80,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class MockTransportService extends TransportService {
 
     public static class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "mock-transport-service";
-        }
-        @Override
-        public String description() {
-            return "a mock transport service for testing";
-        }
         public void onModule(NetworkModule module) {
             module.registerTransportService("mock", MockTransportService.class);
         }
 
-        public void onModule(SettingsModule module) {
-            module.registerSetting(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
         }
         @Override
         public Settings additionalSettings() {

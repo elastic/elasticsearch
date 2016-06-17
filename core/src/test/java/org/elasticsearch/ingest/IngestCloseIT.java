@@ -53,19 +53,8 @@ public class IngestCloseIT extends ESSingleNodeTestCase {
     }
 
     public static class IngestPlugin extends Plugin {
-
-        @Override
-        public String name() {
-            return "ingest";
-        }
-
-        @Override
-        public String description() {
-            return "ingest mock";
-        }
-
         public void onModule(NodeModule nodeModule) {
-            nodeModule.registerProcessor("test", (templateService, registry) -> new Factory());
+            nodeModule.registerProcessor("test", (registry) -> new Factory());
         }
     }
 

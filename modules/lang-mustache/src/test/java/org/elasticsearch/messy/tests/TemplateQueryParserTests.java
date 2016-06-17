@@ -32,6 +32,7 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -67,13 +68,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.lang.reflect.Proxy;
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
@@ -102,17 +103,15 @@ public class TemplateQueryParserTests extends ESTestCase {
                 });
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
         Index index = idxSettings.getIndex();
-        SettingsModule settingsModule = new SettingsModule(settings);
-        ScriptModule scriptModule = new ScriptModule();
-        scriptModule.prepareSettings(settingsModule);
         // TODO: make this use a mock engine instead of mustache and it will no longer be messy!
-        scriptModule.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.NAME, true));
-        settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
+        ScriptModule scriptModule = new ScriptModule(new MustacheScriptEngineService(settings));
+        List<Setting<?>> scriptSettings = scriptModule.getSettings();
+        scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
+        SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, Collections.emptyList());
         final ThreadPool threadPool = new ThreadPool(settings);
         injector = new ModulesBuilder().add(
-                new EnvironmentModule(new Environment(settings)),
+                new EnvironmentModule(new Environment(settings), threadPool),
                 settingsModule,
-                new ThreadPoolModule(threadPool),
                 new SearchModule(settings, new NamedWriteableRegistry()) {
                     @Override
                     protected void configureSearch() {

@@ -205,4 +205,24 @@ public class StringTests extends ScriptTestCase {
             exec("def x = null; def y = null; return x + y");
         });
     }
+    
+    public void testDefCompoundAssignment() {
+        assertEquals("a" + (byte)2, exec("def x = 'a'; x += (byte)2; return x"));
+        assertEquals("a" + (short)2, exec("def x = 'a'; x  += (short)2; return x"));
+        assertEquals("a" + (char)2, exec("def x = 'a'; x += (char)2; return x"));
+        assertEquals("a" + 2, exec("def x = 'a'; x += (int)2; return x"));
+        assertEquals("a" + 2L, exec("def x = 'a'; x += (long)2; return x"));
+        assertEquals("a" + 2F, exec("def x = 'a'; x += (float)2; return x"));
+        assertEquals("a" + 2D, exec("def x = 'a'; x += (double)2; return x"));
+        assertEquals("ab", exec("def x = 'a'; def y = 'b'; x += y; return x"));
+        assertEquals("anull", exec("def x = 'a'; x += null; return x"));
+        assertEquals("nullb", exec("def x = null; x += 'b'; return x"));
+        expectScriptThrows(NullPointerException.class, () -> {
+            exec("def x = null; def y = null; x += y");
+        });
+    }
+
+    public void testAppendStringIntoMap() {
+        assertEquals("nullcat", exec("def a = new HashMap(); a.cat += 'cat'"));
+    }
 }

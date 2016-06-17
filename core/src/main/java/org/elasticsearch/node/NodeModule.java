@@ -23,11 +23,10 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.ingest.core.Processor;
-import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.service.NodeService;
 
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 /**
  *
@@ -71,7 +70,7 @@ public class NodeModule extends AbstractModule {
     /**
      * Adds a processor factory under a specific type name.
      */
-    public void registerProcessor(String type, BiFunction<TemplateService, ProcessorsRegistry, Processor.Factory<?>> provider) {
+    public void registerProcessor(String type, Function<ProcessorsRegistry, Processor.Factory<?>> provider) {
         processorsRegistryBuilder.registerProcessor(type, provider);
     }
 }

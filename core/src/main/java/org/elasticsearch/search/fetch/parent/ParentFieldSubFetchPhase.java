@@ -25,10 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.search.SearchHitField;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -37,17 +34,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ParentFieldSubFetchPhase implements FetchSubPhase {
-
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        return Collections.emptyMap();
-    }
-
-    @Override
-    public boolean hitExecutionNeeded(SearchContext context) {
-        return true;
-    }
+public final class ParentFieldSubFetchPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
@@ -63,15 +50,6 @@ public class ParentFieldSubFetchPhase implements FetchSubPhase {
             hitContext.hit().fields(fields);
         }
         fields.put(ParentFieldMapper.NAME, new InternalSearchHitField(ParentFieldMapper.NAME, Collections.singletonList(parentId)));
-    }
-
-    @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
-        return false;
-    }
-
-    @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
     }
 
     public static String getParentId(ParentFieldMapper fieldMapper, LeafReader reader, int docId) {

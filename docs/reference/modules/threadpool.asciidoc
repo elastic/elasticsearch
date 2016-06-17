@@ -66,8 +66,6 @@ thread_pool:
         size: 30
 --------------------------------------------------
 
-NOTE: you can update thread pool settings dynamically using <<cluster-update-settings>>.
-
 [float]
 [[types]]
 === Thread pool types

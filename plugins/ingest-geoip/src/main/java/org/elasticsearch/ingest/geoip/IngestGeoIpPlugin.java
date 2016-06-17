@@ -38,20 +38,10 @@ import java.util.zip.GZIPInputStream;
 
 public class IngestGeoIpPlugin extends Plugin {
 
-    @Override
-    public String name() {
-        return "ingest-geoip";
-    }
-
-    @Override
-    public String description() {
-        return "Ingest processor that adds information about the geographical location of ip addresses";
-    }
-
     public void onModule(NodeModule nodeModule) throws IOException {
         Path geoIpConfigDirectory = nodeModule.getNode().getEnvironment().configFile().resolve("ingest-geoip");
         Map<String, DatabaseReader> databaseReaders = loadDatabaseReaders(geoIpConfigDirectory);
-        nodeModule.registerProcessor(GeoIpProcessor.TYPE, (templateService, registry) -> new GeoIpProcessor.Factory(databaseReaders));
+        nodeModule.registerProcessor(GeoIpProcessor.TYPE, (registry) -> new GeoIpProcessor.Factory(databaseReaders));
     }
 
     public static Map<String, DatabaseReader> loadDatabaseReaders(Path geoIpConfigDirectory) throws IOException {

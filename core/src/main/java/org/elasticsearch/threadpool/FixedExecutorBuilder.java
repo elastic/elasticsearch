@@ -86,7 +86,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
     }
 
     @Override
-    List<Setting<?>> getRegisteredSettings() {
+    public List<Setting<?>> getRegisteredSettings() {
         return Arrays.asList(sizeSetting, queueSizeSetting);
     }
 

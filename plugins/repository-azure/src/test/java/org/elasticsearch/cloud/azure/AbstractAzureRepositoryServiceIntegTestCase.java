@@ -41,14 +41,6 @@ import java.util.Collection;
 public abstract class AbstractAzureRepositoryServiceIntegTestCase extends AbstractAzureIntegTestCase {
 
     public static class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "mock-storage-service";
-        }
-        @Override
-        public String description() {
-            return "plugs in a mock storage service for testing";
-        }
         public void onModule(AzureRepositoryModule azureRepositoryModule) {
             AzureRepositoryModule.storageServiceImpl = AzureStorageServiceMock.class;
         }

@@ -56,7 +56,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     private Terms.Order order = Terms.Order.compound(Terms.Order.count(false), Terms.Order.term(true));
     private IncludeExclude includeExclude = null;
     private String executionHint = null;
-    private SubAggCollectionMode collectMode = SubAggCollectionMode.DEPTH_FIRST;
+    private SubAggCollectionMode collectMode = null;
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(
             DEFAULT_BUCKET_COUNT_THRESHOLDS);
     private boolean showTermDocCountError = false;
@@ -71,7 +71,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     public TermsAggregationBuilder(StreamInput in) throws IOException {
         super(in, StringTerms.TYPE, ValuesSourceType.ANY);
         bucketCountThresholds = new BucketCountThresholds(in);
-        collectMode = SubAggCollectionMode.readFromStream(in);
+        collectMode = in.readOptionalWriteable(SubAggCollectionMode::readFromStream);
         executionHint = in.readOptionalString();
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         order = InternalOrder.Streams.readOrder(in);
@@ -86,7 +86,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         bucketCountThresholds.writeTo(out);
-        collectMode.writeTo(out);
+        out.writeOptionalWriteable(collectMode);
         out.writeOptionalString(executionHint);
         out.writeOptionalWriteable(includeExclude);
         InternalOrder.Streams.writeOrder(order, out);
@@ -266,7 +266,9 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
         }
         builder.field(ORDER_FIELD.getPreferredName());
         order.toXContent(builder, params);
-        builder.field(SubAggCollectionMode.KEY.getPreferredName(), collectMode.parseField().getPreferredName());
+        if (collectMode != null) {
+            builder.field(SubAggCollectionMode.KEY.getPreferredName(), collectMode.parseField().getPreferredName());
+        }
         if (includeExclude != null) {
             includeExclude.toXContent(builder, params);
         }

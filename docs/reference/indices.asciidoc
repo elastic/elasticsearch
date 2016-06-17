@@ -76,6 +76,8 @@ include::indices/open-close.asciidoc[]
 
 include::indices/shrink-index.asciidoc[]
 
+include::indices/rollover-index.asciidoc[]
+
 include::indices/put-mapping.asciidoc[]
 
 include::indices/get-mapping.asciidoc[]

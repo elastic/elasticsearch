@@ -121,6 +121,7 @@ public class S3RepositoryPlugin extends Plugin {
         S3Repository.Repositories.STORAGE_CLASS_SETTING,
         S3Repository.Repositories.CANNED_ACL_SETTING,
         S3Repository.Repositories.BASE_PATH_SETTING,
+        S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING,
 
         // Register S3 single repository settings
         S3Repository.Repository.KEY_SETTING,

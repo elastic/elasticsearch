@@ -26,7 +26,6 @@ import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.OutputFile
-
 /**
  * Runs NamingConventionsCheck on a classpath/directory combo to verify that
  * tests are named according to our conventions so they'll be picked up by
@@ -90,9 +89,11 @@ public class NamingConventionsTask extends LoggedExec {
             doFirst {
                 args('-Djna.nosys=true')
                 args('-cp', (classpath + extraClasspath).asPath, 'org.elasticsearch.test.NamingConventionsCheck')
-                args(testClass, integTestClass)
+                args('--test-class', testClass)
                 if (skipIntegTestInDisguise) {
                     args('--skip-integ-tests-in-disguise')
+                } else {
+                    args('--integ-test-class', integTestClass)
                 }
                 /*
                  * The test framework has classes that fail the checks to validate that the checks fail properly.

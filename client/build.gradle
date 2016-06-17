@@ -59,8 +59,11 @@ forbiddenApisTest {
 
 //JarHell is part of es core, which we don't want to pull in
 jarHell.enabled=false
-//NamingConventionCheck is part of test-framework, which we don't want to pull in as it depends on es core
-namingConventions.enabled=false
+
+namingConventions {
+  //we don't have integration tests
+  skipIntegTestInDisguise = true
+}
 
 thirdPartyAudit.excludes = [
   //commons-logging optional dependencies

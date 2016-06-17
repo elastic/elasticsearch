@@ -18,12 +18,13 @@
  */
 package org.elasticsearch.index.replication;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -42,12 +43,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -55,9 +56,9 @@ import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -74,6 +75,7 @@ import org.elasticsearch.indices.recovery.StartRecoveryRequest;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 import org.junit.After;
@@ -85,17 +87,19 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -158,16 +162,12 @@ public class ESIndexLevelReplicationTestCase extends ESTestCase {
 
     @Before
     public void setup() {
-        threadPool = new ThreadPool(
-            Settings.builder()
-                .put("node.name", getClass().getName())
-                .build()
-        );
+        threadPool = new TestThreadPool(getClass().getName());
     }
 
     @After
     public void destroy() {
-        threadPool.shutdown();
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 
     private Store createStore(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
@@ -226,7 +226,7 @@ public class ESIndexLevelReplicationTestCase extends ESTestCase {
     }
 
 
-    class ReplicationGroup implements AutoCloseable {
+    class ReplicationGroup implements AutoCloseable, Iterable<IndexShard> {
         private final IndexShard primary;
         private final List<IndexShard> replicas;
         private final IndexMetaData indexMetaData;
@@ -283,7 +283,6 @@ public class ESIndexLevelReplicationTestCase extends ESTestCase {
             throws IOException {
             final DiscoveryNode pNode;
             synchronized (this) {
-                assertTrue(replicas.contains(replica));
                 pNode = getDiscoveryNode(primary.routingEntry().currentNodeId());
             }
             final DiscoveryNode rNode = getDiscoveryNode(replica.routingEntry().currentNodeId());
@@ -327,57 +326,54 @@ public class ESIndexLevelReplicationTestCase extends ESTestCase {
             shard.refresh("get_uids");
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
                 Set<Uid> ids = new HashSet<>();
-                searcher.searcher().search(new MatchAllDocsQuery(), new SimpleCollector() {
-                    private LeafReader reader;
-                    private FieldsVisitor fieldVisitor = new FieldsVisitor(false);
-
-                    @Override
-                    protected void doSetNextReader(LeafReaderContext context) throws IOException {
-                        reader = context.reader();
+                for (LeafReaderContext leafContext : searcher.reader().leaves()) {
+                    LeafReader reader = leafContext.reader();
+                    Bits liveDocs = reader.getLiveDocs();
+                    for (int i = 0; i < reader.maxDoc(); i++) {
+                        if (liveDocs == null || liveDocs.get(i)) {
+                            Document uuid = reader.document(i, Collections.singleton(UidFieldMapper.NAME));
+                            ids.add(Uid.createUid(uuid.get(UidFieldMapper.NAME)));
+                        }
                     }
-
-                    @Override
-                    public void collect(int doc) throws IOException {
-                        fieldVisitor.reset();
-                        reader.document(doc, fieldVisitor);
-                        ids.add(fieldVisitor.uid());
-                    }
-
-                    @Override
-                    public boolean needsScores() {
-                        return false;
-                    }
-                });
+                }
                 return ids;
             }
         }
 
         public synchronized void refresh(String source) {
-            Stream.concat(replicas.stream(), Stream.of(primary)).forEach(s -> s.refresh(source));
+            for (IndexShard shard : this) {
+                shard.refresh(source);
+            }
         }
 
         public synchronized void flush() {
             final FlushRequest request = new FlushRequest();
-            Stream.concat(replicas.stream(), Stream.of(primary)).forEach(s -> s.flush(request));
+            for (IndexShard shard : this) {
+                shard.flush(request);
+            }
         }
 
         public synchronized List<ShardRouting> shardRoutings() {
-            return Stream.concat(replicas.stream(), Stream.of(primary)).map(IndexShard::routingEntry).collect(Collectors.toList());
+            return StreamSupport.stream(this.spliterator(), false).map(IndexShard::routingEntry).collect(Collectors.toList());
         }
 
         @Override
         public synchronized void close() throws Exception {
             if (closed == false) {
                 closed = true;
-                for (IndexShard shard : Iterables.<IndexShard>concat(replicas, Collections.singletonList(primary))) {
+                for (IndexShard shard : this) {
                     shard.close("eol", false);
-                    shard.store().close();
+                    IOUtils.close(shard.store());
                 }
             } else {
                 throw new AlreadyClosedException("too bad");
             }
         }
 
+        @Override
+        public Iterator<IndexShard> iterator() {
+            return Iterators.<IndexShard>concat(replicas.iterator(), Collections.singleton(primary).iterator());
+        }
     }
 
     class IndexingOp extends ReplicationOperation<IndexRequest, IndexRequest, IndexingResult> {

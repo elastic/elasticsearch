@@ -71,11 +71,12 @@ POST my_alias/_rollover/my_new_index_name
 [float]
 === Defining the new index
 
-The settings, mappings, and aliases for the new index will be taken from any
-matching <<indices-templates,index templates>>. Additionally, the body of the
-request accepts `settings`, `mappings`, and `aliases` just like the
-<<indices-create-index,create index>> API, which will override any values
-set in matching index templates:
+The settings, mappings, and aliases for the new index are taken from any
+matching <<indices-templates,index templates>>. Additionally, you can specify
+`settings`, `mappings`, and `aliases` in the body of the request, just like the
+<<indices-create-index,create index>> API. Values specified in the request 
+override any values set in matching index templates. For example, the following
+`rollover` request overrides the `index.number_of_shards` setting:
 
 [source,js]
 --------------------------------------------------
@@ -92,17 +93,15 @@ POST logs_write/_rollover
     "max_age": "7d",
     "max_docs": 1000
   },
-  "settings": { <1>
-    "index.number_of_shards": 2 <1>
+  "settings": { 
+    "index.number_of_shards": 2 
   }
 }
 --------------------------------------------------
 // CONSOLE
-<1> Set settings to override matching index template, `mappings` and `aliases`
-    can also be provided.
 
- [float]
- === Dry run
+[float]
+=== Dry run
 
 The rollover API supports `dry_run` mode, where request conditions can be
 checked without performing the actual rollover:

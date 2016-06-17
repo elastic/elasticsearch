@@ -1025,11 +1025,6 @@ public class LongTermsTests extends AbstractTermsTestCase {
         assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("avg_l", false), Terms.Order.term(true));
     }
 
-    public void testSingleValuedFieldOrderedByCountAscAndSingleValueSubAggregationAsc() throws Exception {
-        long[] expectedKeys = new long[] { 6, 7, 3, 4, 5, 1, 2 };
-        assertMultiSortResponse(expectedKeys, Terms.Order.count(true), Terms.Order.aggregation("avg_l", true));
-    }
-
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscSingleValueSubAggregationAsc() throws Exception {
         long[] expectedKeys = new long[] { 6, 7, 3, 5, 4, 1, 2 };
         assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("sum_d", true), Terms.Order.aggregation("avg_l", true));
@@ -1037,7 +1032,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedByThreeCriteria() throws Exception {
         long[] expectedKeys = new long[] { 2, 1, 4, 5, 3, 6, 7 };
-        assertMultiSortResponse(expectedKeys, Terms.Order.count(false), Terms.Order.aggregation("sum_d", false), Terms.Order.aggregation("avg_l", false));
+        assertMultiSortResponse(expectedKeys, Terms.Order.count(), Terms.Order.aggregation("sum_d", false), Terms.Order.aggregation("avg_l", false));
     }
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscAsCompound() throws Exception {

@@ -271,37 +271,6 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         assertNoDocCountErrorSingleResponse(size, testResponse);
     }
 
-    public void testStringValueFieldDocCountAsc() throws Exception {
-        int size = randomIntBetween(1, 20);
-        int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
-                .addAggregation(terms("terms")
-                        .executionHint(randomExecutionHint())
-                        .field(STRING_FIELD_NAME)
-                        .showTermDocCountError(true)
-                        .size(10000).shardSize(10000)
-                        .order(Order.count(true))
-                        .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
-
-        assertSearchResponse(accurateResponse);
-
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
-                .addAggregation(terms("terms")
-                        .executionHint(randomExecutionHint())
-                        .field(STRING_FIELD_NAME)
-                        .showTermDocCountError(true)
-                        .size(size)
-                        .shardSize(shardSize)
-                        .order(Order.count(true))
-                        .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
-
-        assertSearchResponse(testResponse);
-
-        assertUnboundedDocCountError(size, accurateResponse, testResponse);
-    }
-
     public void testStringValueFieldTermSortAsc() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
@@ -507,37 +476,6 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         assertNoDocCountErrorSingleResponse(size, testResponse);
     }
 
-    public void testLongValueFieldDocCountAsc() throws Exception {
-        int size = randomIntBetween(1, 20);
-        int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
-                .addAggregation(terms("terms")
-                        .executionHint(randomExecutionHint())
-                        .field(LONG_FIELD_NAME)
-                        .showTermDocCountError(true)
-                        .size(10000).shardSize(10000)
-                        .order(Order.count(true))
-                        .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
-
-        assertSearchResponse(accurateResponse);
-
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
-                .addAggregation(terms("terms")
-                        .executionHint(randomExecutionHint())
-                        .field(LONG_FIELD_NAME)
-                        .showTermDocCountError(true)
-                        .size(size)
-                        .shardSize(shardSize)
-                        .order(Order.count(true))
-                        .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
-
-        assertSearchResponse(testResponse);
-
-        assertUnboundedDocCountError(size, accurateResponse, testResponse);
-    }
-
     public void testLongValueFieldTermSortAsc() throws Exception {
         int size = randomIntBetween(1, 20);
         int shardSize = randomIntBetween(size, size * 2);
@@ -741,37 +679,6 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         assertSearchResponse(testResponse);
 
         assertNoDocCountErrorSingleResponse(size, testResponse);
-    }
-
-    public void testDoubleValueFieldDocCountAsc() throws Exception {
-        int size = randomIntBetween(1, 20);
-        int shardSize = randomIntBetween(size, size * 2);
-        SearchResponse accurateResponse = client().prepareSearch("idx_single_shard").setTypes("type")
-                .addAggregation(terms("terms")
-                        .executionHint(randomExecutionHint())
-                        .field(DOUBLE_FIELD_NAME)
-                        .showTermDocCountError(true)
-                        .size(10000).shardSize(10000)
-                        .order(Order.count(true))
-                        .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
-
-        assertSearchResponse(accurateResponse);
-
-        SearchResponse testResponse = client().prepareSearch("idx_single_shard").setTypes("type")
-                .addAggregation(terms("terms")
-                        .executionHint(randomExecutionHint())
-                        .field(DOUBLE_FIELD_NAME)
-                        .showTermDocCountError(true)
-                        .size(size)
-                        .shardSize(shardSize)
-                        .order(Order.count(true))
-                        .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
-
-        assertSearchResponse(testResponse);
-
-        assertUnboundedDocCountError(size, accurateResponse, testResponse);
     }
 
     public void testDoubleValueFieldTermSortAsc() throws Exception {

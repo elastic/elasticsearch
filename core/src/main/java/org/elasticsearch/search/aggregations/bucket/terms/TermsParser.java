@@ -77,9 +77,19 @@ public class TermsParser extends AbstractTermsParser {
     @Override
     public boolean parseSpecial(String aggregationName, XContentParser parser, ParseFieldMatcher parseFieldMatcher, Token token,
             String currentFieldName, Map<ParseField, Object> otherOptions) throws IOException {
-        if (token == XContentParser.Token.START_OBJECT) {
+        if (token == Token.VALUE_STRING) {
             if (parseFieldMatcher.match(currentFieldName, TermsAggregationBuilder.ORDER_FIELD)) {
-                otherOptions.put(TermsAggregationBuilder.ORDER_FIELD, Collections.singletonList(parseOrderParam(aggregationName, parser)));
+                if ("_count".equals(parser.text())) {
+                    otherOptions.put(TermsAggregationBuilder.ORDER_FIELD,
+                        Collections.singletonList(new OrderElement(parser.text(), false)));
+                    return true;
+                }
+            }
+            return false;
+        } else if (token == XContentParser.Token.START_OBJECT) {
+            if (parseFieldMatcher.match(currentFieldName, TermsAggregationBuilder.ORDER_FIELD)) {
+                otherOptions.put(TermsAggregationBuilder.ORDER_FIELD,
+                    Collections.singletonList(parseOrderParam(aggregationName, parser)));
                 return true;
             }
         } else if (token == XContentParser.Token.START_ARRAY) {
@@ -117,6 +127,10 @@ public class TermsParser extends AbstractTermsParser {
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 String dir = parser.text();
                 if ("asc".equalsIgnoreCase(dir)) {
+                    if ("_count".equals(orderKey)) {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "Sort by ascending _count is not supported in [" + aggregationName + "].");
+                    }
                     orderAsc = true;
                 } else if ("desc".equalsIgnoreCase(dir)) {
                     orderAsc = false;
@@ -167,7 +181,7 @@ public class TermsParser extends AbstractTermsParser {
             return Order.term(asc);
         }
         if ("_count".equals(key)) {
-            return Order.count(asc);
+            return Order.count();
         }
         return Order.aggregation(key, asc);
     }

@@ -399,7 +399,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
 
     public void testExtractQueryMetadata_matchNoDocsQuery() {
         Result result = extractQueryTerms(new MatchNoDocsQuery("sometimes there is no reason at all"));
-        assertThat(result.verified, is(false));
+        assertThat(result.verified, is(true));
         assertEquals(0, result.terms.size());
 
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
@@ -428,21 +428,41 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
     public void testExtractQueryMetadata_matchAllDocsQuery() {
         Result result = extractQueryTerms(new MatchAllDocsQuery());
         assertThat(result.verified, is(true));
-        assertTermsEqual(result.terms, new Term("", ""));
+        assertThat(result.alwaysMatch, is(true));
 
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
         bq.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.MUST);
         bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
         result = extractQueryTerms(bq.build());
         assertThat(result.verified, is(false));
+        assertThat(result.alwaysMatch, is(false));
         assertTermsEqual(result.terms, new Term("field", "value"));
+
+        bq = new BooleanQuery.Builder();
+        bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        result = extractQueryTerms(bq.build());
+        assertThat(result.verified, is(true));
+        assertThat(result.alwaysMatch, is(true));
+        assertThat(result.terms.size(), is(0));
+
+        bq = new BooleanQuery.Builder();
+        bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+        bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+        bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+        result = extractQueryTerms(bq.build());
+        assertThat(result.verified, is(true));
+        assertThat(result.alwaysMatch, is(true));
+        assertThat(result.terms.size(), is(0));
 
         bq = new BooleanQuery.Builder();
         bq.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.SHOULD);
         bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
         result = extractQueryTerms(bq.build());
         assertThat(result.verified, is(true));
-        assertTermsEqual(result.terms, new Term("", ""), new Term("field", "value"));
+        assertThat(result.alwaysMatch, is(false));
+        assertTermsEqual(result.terms, new Term("field", "value"));
     }
 
     public void testExtractQueryMetadata_unsupportedQuery() {
@@ -545,9 +565,8 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
                 createQueryTermsQuery(indexReader, QUERY_TERMS_FIELD, new Term(EXTRACTION_RESULT_FIELD, EXTRACTION_FAILED));
 
         PrefixCodedTerms terms = query.getTermData();
-        assertThat(terms.size(), equalTo(16L));
+        assertThat(terms.size(), equalTo(15L));
         PrefixCodedTerms.TermIterator termIterator = terms.iterator();
-        assertTermIterator(termIterator, "\u0000", QUERY_TERMS_FIELD);
         assertTermIterator(termIterator, "_field3\u0000me", QUERY_TERMS_FIELD);
         assertTermIterator(termIterator, "_field3\u0000unhide", QUERY_TERMS_FIELD);
         assertTermIterator(termIterator, "field1\u0000brown", QUERY_TERMS_FIELD);

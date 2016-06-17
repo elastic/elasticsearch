@@ -20,7 +20,6 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
@@ -55,13 +54,10 @@ import org.elasticsearch.index.mapper.ParseContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * Utility to extract query terms from queries and create queries from documents.
@@ -69,6 +65,7 @@ import java.util.function.Function;
 public final class ExtractQueryTermsService {
 
     private static final byte FIELD_VALUE_SEPARATOR = 0;  // nul code point
+    public static final String EXTRACTION_ALWAYS_MATCH = "always_match";
     public static final String EXTRACTION_COMPLETE = "complete";
     public static final String EXTRACTION_PARTIAL = "partial";
     public static final String EXTRACTION_FAILED = "failed";
@@ -107,6 +104,9 @@ public final class ExtractQueryTermsService {
         } else {
             document.add(new Field(extractionResultField, EXTRACTION_PARTIAL, fieldType));
         }
+        if (result.alwaysMatch) {
+            document.add(new Field(extractionResultField, EXTRACTION_ALWAYS_MATCH, fieldType));
+        }
     }
 
     /**
@@ -122,11 +122,9 @@ public final class ExtractQueryTermsService {
     // All functions then sit in a Map<Class<? extends Query>, Function<Query, Result>> and we lookup via map.get(query.getClass())
     static Result extractQueryTerms(Query query) {
         if (query instanceof MatchAllDocsQuery) {
-            // we need to emit an empty term otherwise a percolator query with this query may never end up as a
-            // candidate match:
-            return new Result(true, new Term("", ""));
+            return new Result(true, true);
         } else  if (query instanceof MatchNoDocsQuery) {
-            return new Result(false);
+            return new Result(true);
         } else if (query instanceof TermQuery) {
             TermQuery termQuery = (TermQuery) query;
             return new Result(true, termQuery.getTerm());
@@ -158,6 +156,7 @@ public final class ExtractQueryTermsService {
             List<BooleanClause> clauses = bq.clauses();
             int mnsm = bq.getMinimumNumberShouldMatch();
             int numRequiredClauses = 0;
+            int numOptionalClauses = 0;
             int numProhibitedClauses = 0;
             for (BooleanClause clause : clauses) {
                 if (clause.isRequired()) {
@@ -166,8 +165,12 @@ public final class ExtractQueryTermsService {
                 if (clause.isProhibited()) {
                    numProhibitedClauses++;
                 }
+                if (clause.isScoring()) {
+                    numOptionalClauses++;
+                }
             }
             if (numRequiredClauses > 0) {
+                boolean alwaysMatch = true;
                 Set<Term> bestClause = null;
                 UnsupportedQueryException uqe = null;
                 for (BooleanClause clause : clauses) {
@@ -181,6 +184,11 @@ public final class ExtractQueryTermsService {
                     Result temp;
                     try {
                         temp = extractQueryTerms(clause.getQuery());
+                        if (temp.alwaysMatch) {
+                            continue;
+                        } else {
+                            alwaysMatch = false;
+                        }
                     } catch (UnsupportedQueryException e) {
                         uqe = e;
                         continue;
@@ -195,9 +203,10 @@ public final class ExtractQueryTermsService {
                     if (uqe != null) {
                         throw uqe;
                     }
-                    return new Result(true);
+                    return new Result(true, alwaysMatch);
                 }
             } else {
+                boolean alwaysMatch = numOptionalClauses > 0;
                 boolean verified = true;
                 Set<Term> terms = new HashSet<>();
                 for (BooleanClause clause : clauses) {
@@ -206,15 +215,19 @@ public final class ExtractQueryTermsService {
                         continue;
                     }
                     Result subResult = extractQueryTerms(clause.getQuery());
-                    if (subResult.canIgnore()) {
-                        continue;
-                    }
-
                     if (subResult.verified == false){
                         verified = false;
                     }
+                    if (subResult.alwaysMatch == false) {
+                        alwaysMatch = false;
+                    }
                     terms.addAll(subResult.terms);
                 }
+
+                if (alwaysMatch) {
+                    return new Result(true, true);
+                }
+
                 boolean justOptionalClauses = mnsm <= 1 && numProhibitedClauses == 0;
                 return new Result(verified && justOptionalClauses, terms);
             }
@@ -236,10 +249,6 @@ public final class ExtractQueryTermsService {
             Set<Term> terms = new HashSet<>();
             for (Query disjunct : disjuncts) {
                 Result subResult = extractQueryTerms(disjunct);
-                if (subResult.canIgnore()) {
-                    continue;
-                }
-
                 if (subResult.verified == false){
                     verified = false;
                 }
@@ -307,12 +316,6 @@ public final class ExtractQueryTermsService {
 
         List<Term> extractedTerms = new ArrayList<>();
         Collections.addAll(extractedTerms, optionalTerms);
-        // to include percolator queries with match_all queries as candidate matches:
-        BytesRefBuilder emptyDoc = new BytesRefBuilder();
-        emptyDoc.append(new BytesRef(""));
-        emptyDoc.append(FIELD_VALUE_SEPARATOR);
-        emptyDoc.append(new BytesRef(""));
-        extractedTerms.add(new Term(queryMetadataField, emptyDoc.toBytesRef()));
 
         Fields fields = MultiFields.getFields(indexReader);
         for (String field : fields) {
@@ -338,32 +341,30 @@ public final class ExtractQueryTermsService {
 
         final Set<Term> terms;
         final boolean verified;
+        final boolean alwaysMatch;
 
         Result(boolean verified) {
             this.terms = Collections.emptySet();
             this.verified = verified;
+            this.alwaysMatch = false;
+        }
+
+        Result(boolean verified, boolean alwaysMatch) {
+            this.verified = verified;
+            this.alwaysMatch = alwaysMatch;
+            this.terms = Collections.emptySet();
         }
 
         Result(boolean verified, Term term) {
             this.terms = Collections.singleton(term);
             this.verified = verified;
+            this.alwaysMatch = false;
         }
 
         Result(boolean verified, Set<Term> terms) {
             this.terms = terms;
             this.verified = verified;
-        }
-
-        /**
-         * @return  Whether this result can be ignored if it is part of a larger query
-         *
-         *          For example if MatchNoDocsQuery is part of a disjunction query we
-         *          can safely ignore it, but if it stands on its own or is part of a
-         *          conjunction query we have to take it into account and make the
-         *          entire percolator query not match by default
-         */
-        boolean canIgnore() {
-            return verified == false && terms.isEmpty();
+            this.alwaysMatch = false;
         }
 
     }

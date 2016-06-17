@@ -91,7 +91,10 @@ public final class PercolateQuery extends Query implements Accountable {
                     // include extractionResultField:FAILED, because docs with this term have no extractedTermsField
                     // and otherwise we would fail to return these docs. Docs that failed query term extraction
                     // always need to be verified by MemoryIndex:
-                    new Term(extractionResultField, ExtractQueryTermsService.EXTRACTION_FAILED)
+                    new Term(extractionResultField, ExtractQueryTermsService.EXTRACTION_FAILED),
+                    // include extractionResultField:ALWYAYS_MATCH otherwise we can't include percolator queries
+                    // that only have a match_all query. Since these queries have no terms that can be extracted.
+                    new Term(extractionResultField, ExtractQueryTermsService.EXTRACTION_ALWAYS_MATCH)
             );
         }
 

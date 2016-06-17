@@ -129,6 +129,22 @@ public class S3RepositoryPlugin extends Plugin {
         settingsModule.registerSetting(S3Repository.Repositories.CANNED_ACL_SETTING);
         settingsModule.registerSetting(S3Repository.Repositories.BASE_PATH_SETTING);
         settingsModule.registerSetting(S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING);
+
+        // Register S3 single repository settings
+        settingsModule.registerSetting(S3Repository.Repository.KEY_SETTING);
+        settingsModule.registerSetting(S3Repository.Repository.SECRET_SETTING);
+        settingsModule.registerSetting(S3Repository.Repository.BUCKET_SETTING);
+        settingsModule.registerSetting(S3Repository.Repository.ENDPOINT_SETTING);
+        settingsModule.registerSetting(S3Repository.Repository.PROTOCOL_SETTING);
+        settingsModule.registerSetting(S3Repository.Repository.REGION_SETTING);
+        settingsModule.registerSetting(S3Repository.Repository.SERVER_SIDE_ENCRYPTION_SETTING);
+        settingsModule.registerSetting(S3Repository.Repository.BUFFER_SIZE_SETTING);
+        settingsModule.registerSetting(S3Repository.Repository.MAX_RETRIES_SETTING);
+        settingsModule.registerSetting(S3Repository.Repository.CHUNK_SIZE_SETTING);
+        settingsModule.registerSetting(S3Repository.Repository.COMPRESS_SETTING);
+        settingsModule.registerSetting(S3Repository.Repository.STORAGE_CLASS_SETTING);
+        settingsModule.registerSetting(S3Repository.Repository.CANNED_ACL_SETTING);
+        settingsModule.registerSetting(S3Repository.Repository.BASE_PATH_SETTING);
     }
 
     /**

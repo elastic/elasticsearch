@@ -79,7 +79,14 @@ set in matching index templates:
 
 [source,js]
 --------------------------------------------------
-POST /logs_writes/_rollover
+PUT /logs-0001
+{
+  "aliases": {
+    "logs_write": {}
+  }
+}
+
+POST logs_write/_rollover
 {
   "conditions" : {
     "max_age": "7d",
@@ -91,7 +98,8 @@ POST /logs_writes/_rollover
 }
 --------------------------------------------------
 // CONSOLE
-<1> Set settings to override matching index template, `mappings` and `aliases` can also be provided.
+<1> Set settings to override matching index template, `mappings` and `aliases`
+    can also be provided.
 
  [float]
  === Dry run
@@ -101,7 +109,14 @@ checked without performing the actual rollover:
 
 [source,js]
 --------------------------------------------------
-POST /logs_writes/_rollover?dry_run
+PUT /logs-0001
+{
+  "aliases": {
+    "logs_write": {}
+  }
+}
+
+POST logs_write/_rollover?dry_run
 {
   "conditions" : {
     "max_age": "7d",

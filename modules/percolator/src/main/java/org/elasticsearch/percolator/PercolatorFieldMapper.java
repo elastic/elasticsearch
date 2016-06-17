@@ -75,15 +75,15 @@ public class PercolatorFieldMapper extends FieldMapper {
             context.path().add(name());
             KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(EXTRACTED_TERMS_FIELD_NAME, context);
             ((PercolatorFieldType) fieldType).queryTermsField = extractedTermsField.fieldType();
-            KeywordFieldMapper ExtractionResultField = createExtractQueryFieldBuilder(EXTRACTION_RESULT_FIELD_NAME, context);
-            ((PercolatorFieldType) fieldType).extractionResultField = ExtractionResultField.fieldType();
+            KeywordFieldMapper extractionResultField = createExtractQueryFieldBuilder(EXTRACTION_RESULT_FIELD_NAME, context);
+            ((PercolatorFieldType) fieldType).extractionResultField = extractionResultField.fieldType();
             BinaryFieldMapper queryBuilderField = createQueryBuilderFieldBuilder(context);
             ((PercolatorFieldType) fieldType).queryBuilderField = queryBuilderField.fieldType();
             context.path().remove();
             setupFieldType(context);
             return new PercolatorFieldMapper(name(), fieldType, defaultFieldType, context.indexSettings(),
                     multiFieldsBuilder.build(this, context), copyTo, queryShardContext, extractedTermsField,
-                    ExtractionResultField, queryBuilderField);
+                    extractionResultField, queryBuilderField);
         }
 
         static KeywordFieldMapper createExtractQueryFieldBuilder(String name, BuilderContext context) {

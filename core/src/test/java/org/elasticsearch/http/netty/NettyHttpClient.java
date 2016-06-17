@@ -94,10 +94,22 @@ public class NettyHttpClient implements Closeable {
     @SafeVarargs // Safe not because it doesn't do anything with the type parameters but because it won't leak them into other methods.
     public final Collection<HttpResponse> post(SocketAddress remoteAddress, Tuple<String, CharSequence>... urisAndBodies)
             throws InterruptedException {
+        return processRequestsWithBody(HttpMethod.POST, remoteAddress, urisAndBodies);
+    }
+
+    @SafeVarargs // Safe not because it doesn't do anything with the type parameters but because it won't leak them into other methods.
+    public final Collection<HttpResponse> put(SocketAddress remoteAddress, Tuple<String, CharSequence>... urisAndBodies)
+            throws InterruptedException {
+        return processRequestsWithBody(HttpMethod.PUT, remoteAddress, urisAndBodies);
+    }
+
+    @SafeVarargs // Safe not because it doesn't do anything with the type parameters but because it won't leak them into other methods.
+    private final Collection<HttpResponse> processRequestsWithBody(HttpMethod method, SocketAddress remoteAddress, Tuple<String,
+        CharSequence>... urisAndBodies) throws InterruptedException {
         Collection<HttpRequest> requests = new ArrayList<>(urisAndBodies.length);
         for (Tuple<String, CharSequence> uriAndBody : urisAndBodies) {
             ChannelBuffer content = ChannelBuffers.copiedBuffer(uriAndBody.v2(), StandardCharsets.UTF_8);
-            HttpRequest request = new DefaultHttpRequest(HTTP_1_1, HttpMethod.POST, uriAndBody.v1());
+            HttpRequest request = new DefaultHttpRequest(HTTP_1_1, method, uriAndBody.v1());
             request.headers().add(HOST, "localhost");
             request.headers().add(HttpHeaders.Names.CONTENT_LENGTH, content.readableBytes());
             request.setContent(content);

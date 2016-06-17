@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -212,8 +213,8 @@ public class OperationRoutingTests extends ESTestCase{
                 }
             }
             final ShardIterator it =
-                new OperationRouting(Settings.EMPTY, new AwarenessAllocationDecider())
-                    .getShards(clusterService.state(), indexName, 0, "_prefer_nodes:" + String.join(",", nodes));
+                    new OperationRouting(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+                            .getShards(clusterService.state(), indexName, 0, "_prefer_nodes:" + String.join(",", nodes));
             final List<ShardRouting> all = new ArrayList<>();
             ShardRouting shard;
             while ((shard = it.nextOrNull()) != null) {
@@ -256,7 +257,7 @@ public class OperationRoutingTests extends ESTestCase{
             }
             if (expected.size() > 0) {
                 final ShardIterator it =
-                    new OperationRouting(Settings.EMPTY, new AwarenessAllocationDecider())
+                    new OperationRouting(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
                         .getShards(clusterService.state(), indexName, 0, "_only_nodes:" + String.join(",", nodes));
                 final List<ShardRouting> only = new ArrayList<>();
                 ShardRouting shard;
@@ -268,7 +269,9 @@ public class OperationRoutingTests extends ESTestCase{
                 final ClusterService cs = clusterService;
                 final IllegalArgumentException e = expectThrows(
                     IllegalArgumentException.class,
-                    () -> new OperationRouting(Settings.EMPTY, new AwarenessAllocationDecider())
+                    () -> new OperationRouting(
+                            Settings.EMPTY,
+                            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
                         .getShards(cs.state(), indexName, 0, "_only_nodes:" + String.join(",", nodes)));
                 if (nodes.size() == 1) {
                     assertThat(

@@ -68,13 +68,6 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         assertTrue(configDir, configDir.startsWith(home));
     }
 
-    public void testClusterNameDefault() {
-        Settings settings = InternalSettingsPreparer.prepareSettings(Settings.EMPTY);
-        assertEquals(ClusterName.DEFAULT.value(), settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()));
-        settings = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null).settings();
-        assertEquals(ClusterName.DEFAULT.value(), settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()));
-    }
-
     public void testReplacePromptPlaceholders() {
         MockTerminal terminal = new MockTerminal();
         terminal.addTextInput("text");

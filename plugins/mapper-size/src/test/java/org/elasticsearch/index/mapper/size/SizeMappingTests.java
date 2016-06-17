@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.size;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -47,7 +48,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
     @Before
     public void before() {
         indexService = createIndex("test");
-        IndicesModule indices = new IndicesModule();
+        IndicesModule indices = new IndicesModule(new NamedWriteableRegistry());
         indices.registerMetadataMapper(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser());
         mapperService = new MapperService(indexService.getIndexSettings(), indexService.analysisService(), indexService.similarityService(), indices.getMapperRegistry(), indexService::newQueryShardContext);
         parser = mapperService.documentMapperParser();

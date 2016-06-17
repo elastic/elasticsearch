@@ -43,7 +43,7 @@ public class ECapturingFunctionRef extends AExpression {
     
     private FunctionRef ref;
     Variable captured;
-    private boolean defInterface;
+    String defPointer;
 
     public ECapturingFunctionRef(Location location, String type, String call) {
         super(location);
@@ -56,10 +56,16 @@ public class ECapturingFunctionRef extends AExpression {
     void analyze(Locals variables) {
         captured = variables.getVariable(location, type);
         if (expected == null) {
-            defInterface = true;
+            if (captured.type.sort == Definition.Sort.DEF) {
+                // dynamic implementation
+                defPointer = "D" + type + "." + call + ",1";
+            } else {
+                // typed implementation
+                defPointer = "S" + captured.type.name + "." + call + ",1";
+            }
             actual = Definition.getType("String");
         } else {
-            defInterface = false;
+            defPointer = null;
             // static case
             if (captured.type.sort != Definition.Sort.DEF) {
                 try {
@@ -75,13 +81,10 @@ public class ECapturingFunctionRef extends AExpression {
     @Override
     void write(MethodWriter writer) {
         writer.writeDebugInfo(location);
-        if (defInterface && captured.type.sort == Definition.Sort.DEF) {
-            // dynamic interface, dynamic implementation
-            writer.push("D" + type + "." + call + ",1");
-            writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.slot);
-        } else if (defInterface) {
-            // dynamic interface, typed implementation
-            writer.push("S" + captured.type.name + "." + call + ",1");
+        if (defPointer != null) {
+            // dynamic interface: push captured parameter on stack
+            // TODO: don't do this: its just to cutover :)
+            writer.push((String)null);
             writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.slot);
         } else if (ref == null) {
             // typed interface, dynamic implementation

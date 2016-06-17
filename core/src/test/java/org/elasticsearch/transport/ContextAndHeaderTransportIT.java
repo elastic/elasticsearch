@@ -295,16 +295,6 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
     public static class ActionLoggingPlugin extends Plugin {
 
         @Override
-        public String name() {
-            return "test-action-logging";
-        }
-
-        @Override
-        public String description() {
-            return "Test action logging";
-        }
-
-        @Override
         public Collection<Module> nodeModules() {
             return Collections.<Module>singletonList(new ActionLoggingModule());
         }

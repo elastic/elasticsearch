@@ -1,0 +1,128 @@
+[[indices-rollover-index]]
+== Rollover Index
+
+The rollover index API rolls an alias over to a new index when the existing
+index is considered to be too large or too old.
+
+The API accepts a single alias name and a list of `conditions`.  The alias
+must point to a single index only.  If the index satisfies the specified
+conditions then a new index is created and the alias is switched to point to
+the new alias.
+
+
+[source,js]
+--------------------------------------------------
+PUT /logs-0001 <1>
+{
+  "aliases": {
+    "logs_write": {}
+  }
+}
+
+POST logs_write/_rollover <2>
+{
+  "conditions": {
+    "max_age":   "7d",
+    "max_docs":  1000
+  }
+}
+--------------------------------------------------
+// CONSOLE
+<1> Creates an index called `logs-0001` with the alias `logs_write`.
+<2> If the index pointed to by `logs_write` was created 7 or more days ago, or
+    contains 1,000 or more documents, then the `logs-0002` index is created
+    and the `logs_write` alias is updated to point to `logs-0002`.
+
+The above request might return the following response:
+
+[source,js]
+--------------------------------------------------
+{
+  "old_index": "logs-0001",
+  "new_index": "logs-0002",
+  "rolled_over": true, <1>
+  "dry_run": false, <2>
+  "conditions": { <3>
+    "[max_age: 7d]": false,
+    "[max_docs: 1000]": true
+  }
+}
+--------------------------------------------------
+ <1> Whether the index was rolled over.
+ <2> Whether the rollover was dry run.
+ <3> The result of each condition.
+
+[float]
+=== Naming the new index
+
+If the name of the existing index ends with `-` and a number -- e.g.
+`logs-0001` -- then the name of the new index will follow the same pattern,
+just incrementing the number (`logs-0002`).
+
+If the old name doesn't match this pattern then you must specify the name for
+the new index as follows:
+
+[source,js]
+--------------------------------------------------
+POST my_alias/_rollover/my_new_index_name
+{...}
+--------------------------------------------------
+
+[float]
+=== Defining the new index
+
+The settings, mappings, and aliases for the new index will be taken from any
+matching <<indices-templates,index templates>>. Additionally, the body of the
+request accepts `settings`, `mappings`, and `aliases` just like the
+<<indices-create-index,create index>> API, which will override any values
+set in matching index templates:
+
+[source,js]
+--------------------------------------------------
+PUT /logs-0001
+{
+  "aliases": {
+    "logs_write": {}
+  }
+}
+
+POST logs_write/_rollover
+{
+  "conditions" : {
+    "max_age": "7d",
+    "max_docs": 1000
+  },
+  "settings": { <1>
+    "index.number_of_shards": 2 <1>
+  }
+}
+--------------------------------------------------
+// CONSOLE
+<1> Set settings to override matching index template, `mappings` and `aliases`
+    can also be provided.
+
+ [float]
+ === Dry run
+
+The rollover API supports `dry_run` mode, where request conditions can be
+checked without performing the actual rollover:
+
+[source,js]
+--------------------------------------------------
+PUT /logs-0001
+{
+  "aliases": {
+    "logs_write": {}
+  }
+}
+
+POST logs_write/_rollover?dry_run
+{
+  "conditions" : {
+    "max_age": "7d",
+    "max_docs": 1000
+  }
+}
+--------------------------------------------------
+// CONSOLE
+

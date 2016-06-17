@@ -67,6 +67,7 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
@@ -305,6 +306,12 @@ public class InstallPluginCommandTests extends ESTestCase {
         // has two colons, so it appears similar to maven coordinates
         MalformedURLException e = expectThrows(MalformedURLException.class, () -> installPlugin("://host:1234", env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("no protocol"));
+    }
+
+    public void testUnknownPlugin() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        UserError e = expectThrows(UserError.class, () -> installPlugin("foo", env.v1()));
+        assertTrue(e.getMessage(), e.getMessage().contains("Unknown plugin foo"));
     }
 
     public void testPluginsDirMissing() throws Exception {
@@ -559,6 +566,21 @@ public class InstallPluginCommandTests extends ESTestCase {
         MockTerminal terminal = new MockTerminal();
         new InstallPluginCommand().main(new String[] { "--help" }, terminal);
         assertTrue(terminal.getOutput(), terminal.getOutput().contains("x-pack"));
+    }
+
+    public void testInstallMisspelledOfficialPlugins() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        UserError e = expectThrows(UserError.class, () -> installPlugin("xpack", env.v1()));
+        assertThat(e.getMessage(), containsString("Unknown plugin xpack, did you mean [x-pack]?"));
+
+        e = expectThrows(UserError.class, () -> installPlugin("analysis-smartnc", env.v1()));
+        assertThat(e.getMessage(), containsString("Unknown plugin analysis-smartnc, did you mean [analysis-smartcn]?"));
+
+        e = expectThrows(UserError.class, () -> installPlugin("repository", env.v1()));
+        assertThat(e.getMessage(), containsString("Unknown plugin repository, did you mean any of [repository-s3, repository-gcs]?"));
+
+        e = expectThrows(UserError.class, () -> installPlugin("unknown_plugin", env.v1()));
+        assertThat(e.getMessage(), containsString("Unknown plugin unknown_plugin"));
     }
 
     // TODO: test batch flag?

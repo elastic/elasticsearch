@@ -22,7 +22,6 @@ package org.elasticsearch.painless;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.script.CompiledScript;
@@ -79,7 +78,6 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
      * Constructor.
      * @param settings The settings to initialize the engine with.
      */
-    @Inject
     public PainlessScriptEngineService(final Settings settings) {
         super(settings);
     }
@@ -101,7 +99,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
     public String getExtension() {
         return NAME;
     }
-    
+
     /**
      * When a script is anonymous (inline), we give it this name.
      */
@@ -220,7 +218,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
     public void close() {
         // Nothing to do.
     }
-    
+
     private ScriptException convertToScriptException(String scriptName, String scriptSource, Throwable t) {
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
@@ -258,13 +256,18 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
         }
         throw new ScriptException("compile error", t, scriptStack, scriptSource, PainlessScriptEngineService.NAME);
     }
-    
+
     // very simple heuristic: +/- 25 chars. can be improved later.
     private int getPreviousStatement(String scriptSource, int offset) {
         return Math.max(0, offset - 25);
     }
-    
+
     private int getNextStatement(String scriptSource, int offset) {
         return Math.min(scriptSource.length(), offset + 25);
+    }
+
+    @Override
+    public boolean isInlineScriptEnabled() {
+        return true;
     }
 }

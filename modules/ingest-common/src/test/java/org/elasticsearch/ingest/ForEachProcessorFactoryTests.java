@@ -19,7 +19,9 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.ingest.core.Processor;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -27,13 +29,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.mockito.Mockito.mock;
+
 public class ForEachProcessorFactoryTests extends ESTestCase {
 
     public void testCreate() throws Exception {
         ProcessorsRegistry.Builder builder = new ProcessorsRegistry.Builder();
         Processor processor = new TestProcessor(ingestDocument -> {});
-        builder.registerProcessor("_name", (templateService, registry) -> config -> processor);
-        ProcessorsRegistry registry = builder.build(TestTemplateService.instance());
+        builder.registerProcessor("_name", (registry) -> config -> processor);
+        ProcessorsRegistry registry = builder.build(mock(ScriptService.class), mock(ClusterService.class));
         ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(registry);
 
         Map<String, Object> config = new HashMap<>();

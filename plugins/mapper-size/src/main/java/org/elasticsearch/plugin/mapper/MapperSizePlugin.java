@@ -25,16 +25,6 @@ import org.elasticsearch.plugins.Plugin;
 
 public class MapperSizePlugin extends Plugin {
 
-    @Override
-    public String name() {
-        return "mapper-size";
-    }
-
-    @Override
-    public String description() {
-        return "A mapper that allows document to record their uncompressed size";
-    }
-
     public void onModule(IndicesModule indicesModule) {
         indicesModule.registerMetadataMapper(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser());
     }

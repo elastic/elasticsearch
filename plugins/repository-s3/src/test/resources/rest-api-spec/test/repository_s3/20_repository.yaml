@@ -14,7 +14,7 @@
               canned_acl: "public-read"
               storage_class: "standard"
 
-    # Get repositry
+    # Get repository
     - do:
         snapshot.get_repository:
           repository: test_repo_s3_1

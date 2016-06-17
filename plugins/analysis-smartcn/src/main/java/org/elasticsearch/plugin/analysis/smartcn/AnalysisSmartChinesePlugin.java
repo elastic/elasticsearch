@@ -25,20 +25,7 @@ import org.elasticsearch.index.analysis.SmartChineseTokenizerTokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.Plugin;
 
-/**
- *
- */
 public class AnalysisSmartChinesePlugin extends Plugin {
-
-    @Override
-    public String name() {
-        return "analysis-smartcn";
-    }
-
-    @Override
-    public String description() {
-        return "Smart Chinese analysis support";
-    }
 
     public void onModule(AnalysisModule module) {
             module.registerAnalyzer("smartcn", SmartChineseAnalyzerProvider::new);

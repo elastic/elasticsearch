@@ -66,6 +66,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -91,7 +92,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     private final String defaultLang;
 
-    private final Set<ScriptEngineService> scriptEngines;
+    private final Collection<ScriptEngineService> scriptEngines;
     private final Map<String, ScriptEngineService> scriptEnginesByLang;
     private final Map<String, ScriptEngineService> scriptEnginesByExt;
 
@@ -132,7 +133,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     public static final ParseField SCRIPT_INLINE = new ParseField("script");
 
     @Inject
-    public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines,
+    public ScriptService(Settings settings, Environment env,
                          ResourceWatcherService resourceWatcherService, ScriptEngineRegistry scriptEngineRegistry,
                          ScriptContextRegistry scriptContextRegistry, ScriptSettings scriptSettings) throws IOException {
         super(settings);
@@ -145,7 +146,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     "Dynamic scripts can be enabled for all languages and all operations by replacing `script.disable_dynamic: false` with `script.inline: true` and `script.stored: true` in elasticsearch.yml");
         }
 
-        this.scriptEngines = scriptEngines;
+        this.scriptEngines = scriptEngineRegistry.getRegisteredLanguages().values();
         this.scriptContextRegistry = scriptContextRegistry;
         int cacheMaxSize = SCRIPT_CACHE_SIZE_SETTING.get(settings);
 

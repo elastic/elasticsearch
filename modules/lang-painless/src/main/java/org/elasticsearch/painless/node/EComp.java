@@ -497,7 +497,8 @@ public final class EComp extends AExpression {
                     if (right.isNull) {
                         writer.ifNull(jump);
                     } else if (!left.isNull && (operation == Operation.EQ || operation == Operation.NE)) {
-                        writer.invokeDynamic("eq", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                        writer.invokeDynamic("eq", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR,
+                                                                                                     DefBootstrap.OPERATOR_ALLOWS_NULL);
                         writejump = false;
                     } else {
                         writer.ifCmp(promotedType.type, MethodWriter.EQ, jump);
@@ -506,22 +507,23 @@ public final class EComp extends AExpression {
                     if (right.isNull) {
                         writer.ifNonNull(jump);
                     } else if (!left.isNull && (operation == Operation.EQ || operation == Operation.NE)) {
-                        writer.invokeDynamic("eq", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                        writer.invokeDynamic("eq", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR,
+                                                                                                     DefBootstrap.OPERATOR_ALLOWS_NULL);
                         writer.ifZCmp(MethodWriter.EQ, jump);
                     } else {
                         writer.ifCmp(promotedType.type, MethodWriter.NE, jump);
                     }
                 } else if (lt) {
-                    writer.invokeDynamic("lt", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                    writer.invokeDynamic("lt", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, 0);
                     writejump = false;
                 } else if (lte) {
-                    writer.invokeDynamic("lte", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                    writer.invokeDynamic("lte", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, 0);
                     writejump = false;
                 } else if (gt) {
-                    writer.invokeDynamic("gt", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                    writer.invokeDynamic("gt", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, 0);
                     writejump = false;
                 } else if (gte) {
-                    writer.invokeDynamic("gte", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR);
+                    writer.invokeDynamic("gte", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, 0);
                     writejump = false;
                 } else {
                     throw createError(new IllegalStateException("Illegal tree structure."));

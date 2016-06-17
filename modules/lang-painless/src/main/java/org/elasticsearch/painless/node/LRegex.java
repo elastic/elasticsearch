@@ -34,17 +34,21 @@ import org.elasticsearch.painless.WriterConstants;
  * Represents a regex constant. All regexes are constants.
  */
 public final class LRegex extends ALink {
-    private static final Definition.Type PATTERN_TYPE = Definition.getType("Pattern");
-
     private final String pattern;
+    private final int flags;
     private Constant constant;
 
-    public LRegex(Location location, String pattern) {
+    public LRegex(Location location, String pattern, String flagsString) {
         super(location, 1);
         this.pattern = pattern;
+        int flags = 0;
+        for (int c = 0; c < flagsString.length(); c++) {
+            flags |= flagForChar(flagsString.charAt(c));
+        }
+        this.flags = flags;
         try {
             // Compile the pattern early after parsing so we can throw an error to the user with the location
-            Pattern.compile(pattern);
+            Pattern.compile(pattern, flags);
         } catch (PatternSyntaxException e) {
             throw createError(e);
         }
@@ -60,8 +64,8 @@ public final class LRegex extends ALink {
             throw createError(new IllegalArgumentException("Regex constant may only be read [" + pattern + "]."));
         }
 
-        constant = locals.addConstant(location, PATTERN_TYPE, "regexAt$" + location.getOffset(), this::initializeConstant);
-        after = PATTERN_TYPE;
+        constant = locals.addConstant(location, Definition.PATTERN_TYPE, "regexAt$" + location.getOffset(), this::initializeConstant);
+        after = Definition.PATTERN_TYPE;
 
         return this;
     }
@@ -74,7 +78,7 @@ public final class LRegex extends ALink {
     @Override
     void load(MethodWriter writer) {
         writer.writeDebugInfo(location);
-        writer.getStatic(WriterConstants.CLASS_TYPE, constant.name, PATTERN_TYPE.type);
+        writer.getStatic(WriterConstants.CLASS_TYPE, constant.name, Definition.PATTERN_TYPE.type);
     }
 
     @Override
@@ -84,6 +88,21 @@ public final class LRegex extends ALink {
 
     private void initializeConstant(MethodWriter writer) {
         writer.push(pattern);
-        writer.invokeStatic(PATTERN_TYPE.type, WriterConstants.PATTERN_COMPILE);
+        writer.push(flags);
+        writer.invokeStatic(Definition.PATTERN_TYPE.type, WriterConstants.PATTERN_COMPILE);
+    }
+
+    private int flagForChar(char c) {
+        switch (c) {
+        case 'c': return Pattern.CANON_EQ;
+        case 'i': return Pattern.CASE_INSENSITIVE;
+        case 'l': return Pattern.LITERAL;
+        case 'm': return Pattern.MULTILINE;
+        case 's': return Pattern.DOTALL;
+        case 'U': return Pattern.UNICODE_CHARACTER_CLASS;
+        case 'u': return Pattern.UNICODE_CASE;
+        case 'x': return Pattern.COMMENTS;
+        default: throw new IllegalArgumentException("Unknown flag [" + c + "]");
+        }
     }
 }

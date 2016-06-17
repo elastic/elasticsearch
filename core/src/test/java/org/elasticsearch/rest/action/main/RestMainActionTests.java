@@ -33,7 +33,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -82,7 +81,7 @@ public class RestMainActionTests extends ESTestCase {
         if (prettyPrint == false) {
             params.put("pretty", String.valueOf(prettyPrint));
         }
-        RestRequest restRequest = new FakeRestRequest(Collections.emptyMap(), params);
+        RestRequest restRequest = new FakeRestRequest.Builder().withParams(params).build();
 
         BytesRestResponse response = RestMainAction.convertMainResponse(mainResponse, restRequest, builder);
         assertNotNull(response);

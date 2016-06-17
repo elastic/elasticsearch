@@ -47,8 +47,7 @@ public class AzureStorageSettingsFilterTests extends ESTestCase {
 
     public void testSettingsFiltering() throws IOException {
         AzureRepositoryPlugin p = new AzureRepositoryPlugin(Settings.EMPTY);
-        SettingsModule module = new SettingsModule(Settings.EMPTY);
-        p.onModule(module);
+        SettingsModule module = new SettingsModule(Settings.EMPTY, p.getSettings(), p.getSettingsFilter());
         SettingsFilter settingsFilter = ModuleTestCase.bindAndGetInstance(module, SettingsFilter.class);
 
         // Test using direct filtering

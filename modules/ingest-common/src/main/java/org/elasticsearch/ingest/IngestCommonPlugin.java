@@ -41,34 +41,26 @@ public class IngestCommonPlugin extends Plugin {
         this.builtinPatterns = loadBuiltinPatterns();
     }
 
-    @Override
-    public String name() {
-        return NAME;
-    }
-
-    @Override
-    public String description() {
-        return "Module for ingest processors that do not require additional security permissions or have large dependencies and resources";
-    }
-
     public void onModule(NodeModule nodeModule) {
-        nodeModule.registerProcessor(DateProcessor.TYPE, (templateService, registry) -> new DateProcessor.Factory());
-        nodeModule.registerProcessor(SetProcessor.TYPE, (templateService, registry) -> new SetProcessor.Factory(templateService));
-        nodeModule.registerProcessor(AppendProcessor.TYPE, (templateService, registry) -> new AppendProcessor.Factory(templateService));
-        nodeModule.registerProcessor(RenameProcessor.TYPE, (templateService, registry) -> new RenameProcessor.Factory());
-        nodeModule.registerProcessor(RemoveProcessor.TYPE, (templateService, registry) -> new RemoveProcessor.Factory(templateService));
-        nodeModule.registerProcessor(SplitProcessor.TYPE, (templateService, registry) -> new SplitProcessor.Factory());
-        nodeModule.registerProcessor(JoinProcessor.TYPE, (templateService, registry) -> new JoinProcessor.Factory());
-        nodeModule.registerProcessor(UppercaseProcessor.TYPE, (templateService, registry) -> new UppercaseProcessor.Factory());
-        nodeModule.registerProcessor(LowercaseProcessor.TYPE, (templateService, registry) -> new LowercaseProcessor.Factory());
-        nodeModule.registerProcessor(TrimProcessor.TYPE, (templateService, registry) -> new TrimProcessor.Factory());
-        nodeModule.registerProcessor(ConvertProcessor.TYPE, (templateService, registry) -> new ConvertProcessor.Factory());
-        nodeModule.registerProcessor(GsubProcessor.TYPE, (templateService, registry) -> new GsubProcessor.Factory());
-        nodeModule.registerProcessor(FailProcessor.TYPE, (templateService, registry) -> new FailProcessor.Factory(templateService));
-        nodeModule.registerProcessor(ForEachProcessor.TYPE, (templateService, registry) -> new ForEachProcessor.Factory(registry));
-        nodeModule.registerProcessor(DateIndexNameProcessor.TYPE, (templateService, registry) -> new DateIndexNameProcessor.Factory());
-        nodeModule.registerProcessor(SortProcessor.TYPE, (templateService, registry) -> new SortProcessor.Factory());
-        nodeModule.registerProcessor(GrokProcessor.TYPE, (templateService, registry) -> new GrokProcessor.Factory(builtinPatterns));
+        nodeModule.registerProcessor(DateProcessor.TYPE, (registry) -> new DateProcessor.Factory());
+        nodeModule.registerProcessor(SetProcessor.TYPE, (registry) -> new SetProcessor.Factory(registry.getTemplateService()));
+        nodeModule.registerProcessor(AppendProcessor.TYPE, (registry) -> new AppendProcessor.Factory(registry.getTemplateService()));
+        nodeModule.registerProcessor(RenameProcessor.TYPE, (registry) -> new RenameProcessor.Factory());
+        nodeModule.registerProcessor(RemoveProcessor.TYPE, (registry) -> new RemoveProcessor.Factory(registry.getTemplateService()));
+        nodeModule.registerProcessor(SplitProcessor.TYPE, (registry) -> new SplitProcessor.Factory());
+        nodeModule.registerProcessor(JoinProcessor.TYPE, (registry) -> new JoinProcessor.Factory());
+        nodeModule.registerProcessor(UppercaseProcessor.TYPE, (registry) -> new UppercaseProcessor.Factory());
+        nodeModule.registerProcessor(LowercaseProcessor.TYPE, (registry) -> new LowercaseProcessor.Factory());
+        nodeModule.registerProcessor(TrimProcessor.TYPE, (registry) -> new TrimProcessor.Factory());
+        nodeModule.registerProcessor(ConvertProcessor.TYPE, (registry) -> new ConvertProcessor.Factory());
+        nodeModule.registerProcessor(GsubProcessor.TYPE, (registry) -> new GsubProcessor.Factory());
+        nodeModule.registerProcessor(FailProcessor.TYPE, (registry) -> new FailProcessor.Factory(registry.getTemplateService()));
+        nodeModule.registerProcessor(ForEachProcessor.TYPE, (registry) -> new ForEachProcessor.Factory(registry));
+        nodeModule.registerProcessor(DateIndexNameProcessor.TYPE, (registry) -> new DateIndexNameProcessor.Factory());
+        nodeModule.registerProcessor(SortProcessor.TYPE, (registry) -> new SortProcessor.Factory());
+        nodeModule.registerProcessor(GrokProcessor.TYPE, (registry) -> new GrokProcessor.Factory(builtinPatterns));
+        nodeModule.registerProcessor(ScriptProcessor.TYPE, (registry) ->
+            new ScriptProcessor.Factory(registry.getScriptService(), registry.getClusterService()));
     }
 
     // Code for loading built-in grok patterns packaged with the jar file:

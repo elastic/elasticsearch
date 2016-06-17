@@ -30,9 +30,9 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 
-// Code 
+// Code
 public final class HdfsPlugin extends Plugin {
-  
+
     // initialize some problematic classes with elevated privileges
     static {
         SecurityManager sm = System.getSecurityManager();
@@ -82,16 +82,6 @@ public final class HdfsPlugin extends Plugin {
             } catch (IOException thisIsBestEffort) {}
         }
         return null;
-    }
-
-    @Override
-    public String name() {
-        return "repository-hdfs";
-    }
-
-    @Override
-    public String description() {
-        return "HDFS Repository Plugin";
     }
 
     public void onModule(RepositoriesModule repositoriesModule) {

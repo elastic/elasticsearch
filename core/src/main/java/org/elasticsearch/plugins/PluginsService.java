@@ -39,7 +39,11 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.script.NativeScriptFactory;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 
 import java.io.IOException;
@@ -60,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
@@ -77,6 +82,14 @@ public class PluginsService extends AbstractComponent {
         Setting.listSetting("plugin.mandatory", Collections.emptyList(), Function.identity(), Property.NodeScope);
 
     private final Map<Plugin, List<OnModuleReference>> onModuleReferences;
+
+    public List<Setting<?>> getPluginSettings() {
+        return plugins.stream().flatMap(p -> p.v2().getSettings().stream()).collect(Collectors.toList());
+    }
+
+    public List<String> getPluginSettingsFilter() {
+        return plugins.stream().flatMap(p -> p.v2().getSettingsFilter().stream()).collect(Collectors.toList());
+    }
 
     static class OnModuleReference {
         public final Class<? extends Module> moduleClass;
@@ -104,7 +117,7 @@ public class PluginsService extends AbstractComponent {
         // first we load plugins that are on the classpath. this is for tests and transport clients
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings);
-            PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), "NA", pluginClass.getName());
+            PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", pluginClass.getName());
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
@@ -188,12 +201,12 @@ public class PluginsService extends AbstractComponent {
                     continue;
                 }
                 if (method.getParameterTypes().length == 0 || method.getParameterTypes().length > 1) {
-                    logger.warn("Plugin: {} implementing onModule with no parameters or more than one parameter", plugin.name());
+                    logger.warn("Plugin: {} implementing onModule with no parameters or more than one parameter", pluginEntry.v1().getName());
                     continue;
                 }
                 Class moduleClass = method.getParameterTypes()[0];
                 if (!Module.class.isAssignableFrom(moduleClass)) {
-                    logger.warn("Plugin: {} implementing onModule by the type is not of Module type {}", plugin.name(), moduleClass);
+                    logger.warn("Plugin: {} implementing onModule by the type is not of Module type {}", pluginEntry.v1().getName(), moduleClass);
                     continue;
                 }
                 list.add(new OnModuleReference(moduleClass, method));
@@ -225,10 +238,10 @@ public class PluginsService extends AbstractComponent {
                         try {
                             reference.onModuleMethod.invoke(plugin.v2(), module);
                         } catch (IllegalAccessException | InvocationTargetException e) {
-                            logger.warn("plugin {}, failed to invoke custom onModule method", e, plugin.v2().name());
+                            logger.warn("plugin {}, failed to invoke custom onModule method", e, plugin.v1().getName());
                             throw new ElasticsearchException("failed to invoke onModule", e);
                         } catch (Exception e) {
-                            logger.warn("plugin {}, failed to invoke custom onModule method", e, plugin.v2().name());
+                            logger.warn("plugin {}, failed to invoke custom onModule method", e, plugin.v1().getName());
                             throw e;
                         }
                     }
@@ -283,6 +296,7 @@ public class PluginsService extends AbstractComponent {
             plugin.v2().onIndexModule(indexModule);
         }
     }
+
     /**
      * Get information about plugins and modules
      */
@@ -439,5 +453,10 @@ public class PluginsService extends AbstractComponent {
         } catch (Throwable e) {
             throw new ElasticsearchException("Failed to load plugin class [" + pluginClass.getName() + "]", e);
         }
+    }
+
+    public <T> List<T> filterPlugins(Class<T> type) {
+        return plugins.stream().filter(x -> type.isAssignableFrom(x.v2().getClass()))
+            .map(p -> ((T)p.v2())).collect(Collectors.toList());
     }
 }

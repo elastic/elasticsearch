@@ -80,7 +80,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -1799,15 +1798,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     public static final class TestSeedPlugin extends Plugin {
         @Override
-        public String name() {
-            return "test-seed-plugin";
-        }
-        @Override
-        public String description() {
-            return "a test plugin that registers index.tests.seed as an index setting";
-        }
-        public void onModule(SettingsModule module) {
-            module.registerSetting(INDEX_TEST_SEED_SETTING);
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(INDEX_TEST_SEED_SETTING);
         }
 
     }
@@ -1987,8 +1979,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Compute a routing key that will route documents to the <code>shard</code>-th shard
      * of the provided index.
      */
-    protected String routingKeyForShard(String index, String type, int shard) {
-        return internalCluster().routingKeyForShard(resolveIndex(index), type, shard, random());
+    protected String routingKeyForShard(String index, int shard) {
+        return internalCluster().routingKeyForShard(resolveIndex(index), shard, random());
     }
 
     /**

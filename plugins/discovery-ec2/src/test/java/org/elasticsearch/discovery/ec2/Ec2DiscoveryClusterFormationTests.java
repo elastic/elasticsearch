@@ -62,25 +62,12 @@ import static org.hamcrest.Matchers.equalTo;
 // TODO this should be a IT but currently all ITs in this project run against a real cluster
 public class Ec2DiscoveryClusterFormationTests extends ESIntegTestCase {
 
-    public static class TestPlugin extends Plugin {
-
-        @Override
-        public String name() {
-            return Ec2DiscoveryClusterFormationTests.class.getName();
-        }
-
-        @Override
-        public String description() {
-            return Ec2DiscoveryClusterFormationTests.class.getName();
-        }
-    }
-
     private static HttpServer httpServer;
     private static Path logDir;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(Ec2DiscoveryPlugin.class, TestPlugin.class);
+        return pluginList(Ec2DiscoveryPlugin.class);
     }
 
     @Override

@@ -56,33 +56,39 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class UnicastZenPingIT extends ESTestCase {
     public void testSimplePings() throws InterruptedException {
-        Settings settings = Settings.EMPTY;
         int startPort = 11000 + randomIntBetween(0, 1000);
         int endPort = startPort + 10;
-        settings = Settings.builder().put(settings).put(TransportSettings.PORT.getKey(), startPort + "-" + endPort).build();
+        Settings settings = Settings.builder()
+            .put("cluster.name", "test")
+            .put(TransportSettings.PORT.getKey(), startPort + "-" + endPort).build();
+
+        Settings settingsMismatch = Settings.builder().put(settings)
+            .put("cluster.name", "mismatch")
+            .put(TransportSettings.PORT.getKey(), startPort + "-" + endPort).build();
 
         ThreadPool threadPool = new TestThreadPool(getClass().getName());
-        ClusterName test = new ClusterName("test");
-        ClusterName mismatch = new ClusterName("mismatch");
         NetworkService networkService = new NetworkService(settings);
         ElectMasterService electMasterService = new ElectMasterService(settings, Version.CURRENT);
 
-        NetworkHandle handleA = startServices(settings, threadPool, networkService, "UZP_A", test, Version.CURRENT);
-        NetworkHandle handleB = startServices(settings, threadPool, networkService, "UZP_B", test, Version.CURRENT);
-        NetworkHandle handleC = startServices(settings, threadPool, networkService, "UZP_C", new ClusterName("mismatch"), Version.CURRENT);
+        NetworkHandle handleA = startServices(settings, threadPool, networkService, "UZP_A", Version.CURRENT);
+        NetworkHandle handleB = startServices(settings, threadPool, networkService, "UZP_B", Version.CURRENT);
+        NetworkHandle handleC = startServices(settingsMismatch, threadPool, networkService, "UZP_C", Version.CURRENT);
         // just fake that no versions are compatible with this node
         Version previousVersion = VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion());
         Version versionD = VersionUtils.randomVersionBetween(random(), previousVersion.minimumCompatibilityVersion(), previousVersion);
-        NetworkHandle handleD = startServices(settings, threadPool, networkService, "UZP_D", test, versionD);
+        NetworkHandle handleD = startServices(settingsMismatch, threadPool, networkService, "UZP_D", versionD);
 
-        Settings hostsSettings = Settings.builder().putArray("discovery.zen.ping.unicast.hosts",
+        Settings hostsSettings = Settings.builder()
+                .putArray("discovery.zen.ping.unicast.hosts",
                 NetworkAddress.format(new InetSocketAddress(handleA.address.address().getAddress(), handleA.address.address().getPort())),
                 NetworkAddress.format(new InetSocketAddress(handleB.address.address().getAddress(), handleB.address.address().getPort())),
                 NetworkAddress.format(new InetSocketAddress(handleC.address.address().getAddress(), handleC.address.address().getPort())),
                 NetworkAddress.format(new InetSocketAddress(handleD.address.address().getAddress(), handleD.address.address().getPort())))
+                .put("cluster.name", "test")
                 .build();
 
-        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, handleA.transportService, test, Version.CURRENT, electMasterService, null);
+        Settings hostsSettingsMismatch = Settings.builder().put(hostsSettings).put(settingsMismatch).build();
+        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, handleA.transportService, Version.CURRENT, electMasterService, null);
         zenPingA.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -96,7 +102,7 @@ public class UnicastZenPingIT extends ESTestCase {
         });
         zenPingA.start();
 
-        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, handleB.transportService, test, Version.CURRENT, electMasterService, null);
+        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, handleB.transportService, Version.CURRENT, electMasterService, null);
         zenPingB.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -110,7 +116,7 @@ public class UnicastZenPingIT extends ESTestCase {
         });
         zenPingB.start();
 
-        UnicastZenPing zenPingC = new UnicastZenPing(hostsSettings, threadPool, handleC.transportService, mismatch, versionD, electMasterService, null);
+        UnicastZenPing zenPingC = new UnicastZenPing(hostsSettingsMismatch, threadPool, handleC.transportService, versionD, electMasterService, null);
         zenPingC.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -124,7 +130,7 @@ public class UnicastZenPingIT extends ESTestCase {
         });
         zenPingC.start();
 
-        UnicastZenPing zenPingD = new UnicastZenPing(hostsSettings, threadPool, handleD.transportService, mismatch, Version.CURRENT, electMasterService, null);
+        UnicastZenPing zenPingD = new UnicastZenPing(hostsSettingsMismatch, threadPool, handleD.transportService, Version.CURRENT, electMasterService, null);
         zenPingD.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -140,7 +146,7 @@ public class UnicastZenPingIT extends ESTestCase {
 
         try {
             logger.info("ping from UZP_A");
-            ZenPing.PingResponse[] pingResponses = zenPingA.pingAndWait(TimeValue.timeValueSeconds(10));
+            ZenPing.PingResponse[] pingResponses = zenPingA.pingAndWait(TimeValue.timeValueSeconds(1));
             assertThat(pingResponses.length, equalTo(1));
             assertThat(pingResponses[0].node().getId(), equalTo("UZP_B"));
             assertTrue(pingResponses[0].hasJoinedOnce());
@@ -148,19 +154,19 @@ public class UnicastZenPingIT extends ESTestCase {
 
             // ping again, this time from B,
             logger.info("ping from UZP_B");
-            pingResponses = zenPingB.pingAndWait(TimeValue.timeValueSeconds(10));
+            pingResponses = zenPingB.pingAndWait(TimeValue.timeValueSeconds(1));
             assertThat(pingResponses.length, equalTo(1));
             assertThat(pingResponses[0].node().getId(), equalTo("UZP_A"));
             assertFalse(pingResponses[0].hasJoinedOnce());
             assertCounters(handleB, handleA, handleB, handleC, handleD);
 
             logger.info("ping from UZP_C");
-            pingResponses = zenPingC.pingAndWait(TimeValue.timeValueSeconds(10));
+            pingResponses = zenPingC.pingAndWait(TimeValue.timeValueSeconds(1));
             assertThat(pingResponses.length, equalTo(0));
             assertCounters(handleC, handleA, handleB, handleC, handleD);
 
             logger.info("ping from UZP_D");
-            pingResponses = zenPingD.pingAndWait(TimeValue.timeValueSeconds(10));
+            pingResponses = zenPingD.pingAndWait(TimeValue.timeValueSeconds(1));
             assertThat(pingResponses.length, equalTo(0));
             assertCounters(handleD, handleA, handleB, handleC, handleD);
         } finally {
@@ -185,9 +191,9 @@ public class UnicastZenPingIT extends ESTestCase {
         }
     }
 
-    private NetworkHandle startServices(Settings settings, ThreadPool threadPool, NetworkService networkService, String nodeId, ClusterName clusterName, Version version) {
+    private NetworkHandle startServices(Settings settings, ThreadPool threadPool, NetworkService networkService, String nodeId, Version version) {
         NettyTransport transport = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, version, new NamedWriteableRegistry(), new NoneCircuitBreakerService());
-        final TransportService transportService = new TransportService(transport, threadPool, clusterName);
+        final TransportService transportService = new TransportService(settings, transport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
         ConcurrentMap<TransportAddress, AtomicInteger> counters = new ConcurrentHashMap<>();

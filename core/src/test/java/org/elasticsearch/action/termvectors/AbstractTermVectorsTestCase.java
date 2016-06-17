@@ -238,7 +238,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
                 contentArray[j] = fieldContentOptions[randomInt(fieldContentOptions.length - 1)];
                 docSource.put(fieldSettings[j].name, contentArray[j]);
             }
-            final String id = routingKeyForShard(index, "type", i);
+            final String id = routingKeyForShard(index, i);
             TestDoc doc = new TestDoc(id, fieldSettings, contentArray.clone());
             index(doc.index, doc.type, doc.id, docSource);
             testDocs[i] = doc;

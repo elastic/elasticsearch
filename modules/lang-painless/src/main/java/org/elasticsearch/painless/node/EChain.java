@@ -45,6 +45,7 @@ public final class EChain extends AExpression {
 
     boolean cat = false;
     Type promote = null;
+    Type shiftDistance; // for shifts, the RHS is promoted independently
     Cast there = null;
     Cast back = null;
     
@@ -163,6 +164,7 @@ public final class EChain extends AExpression {
         ALink last = links.get(links.size() - 1);
 
         expression.analyze(variables);
+        boolean shift = false;
 
         if (operation == Operation.MUL) {
             promote = AnalyzerCaster.promoteNumeric(last.after, expression.actual, true);
@@ -176,10 +178,16 @@ public final class EChain extends AExpression {
             promote = AnalyzerCaster.promoteNumeric(last.after, expression.actual, true);
         } else if (operation == Operation.LSH) {
             promote = AnalyzerCaster.promoteNumeric(last.after, false);
+            shiftDistance = AnalyzerCaster.promoteNumeric(expression.actual, false);
+            shift = true;
         } else if (operation == Operation.RSH) {
             promote = AnalyzerCaster.promoteNumeric(last.after, false);
+            shiftDistance = AnalyzerCaster.promoteNumeric(expression.actual, false);
+            shift = true;
         } else if (operation == Operation.USH) {
             promote = AnalyzerCaster.promoteNumeric(last.after, false);
+            shiftDistance = AnalyzerCaster.promoteNumeric(expression.actual, false);
+            shift = true;
         } else if (operation == Operation.BWAND) {
             promote = AnalyzerCaster.promoteXor(last.after, expression.actual);
         } else if (operation == Operation.XOR) {
@@ -190,7 +198,7 @@ public final class EChain extends AExpression {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        if (promote == null) {
+        if (promote == null || (shift && shiftDistance == null)) {
             throw createError(new ClassCastException("Cannot apply compound assignment " +
                 "[" + operation.symbol + "=] to types [" + last.after + "] and [" + expression.actual + "]."));
         }
@@ -204,9 +212,13 @@ public final class EChain extends AExpression {
             }
 
             expression.expected = expression.actual;
-        } else if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
-            expression.expected = Definition.INT_TYPE;
-            expression.explicit = true;
+        } else if (shift) {
+            if (shiftDistance.sort == Sort.LONG) {
+                expression.expected = Definition.INT_TYPE;
+                expression.explicit = true;   
+            } else {
+                expression.expected = shiftDistance;
+            }
         } else {
             expression.expected = promote;
         }
@@ -282,8 +294,9 @@ public final class EChain extends AExpression {
         // track types going onto the stack.  This must be done before the
         // links in the chain are read because we need the StringBuilder to
         // be placed on the stack ahead of any potential concatenation arguments.
+        int catElementStackSize = 0;
         if (cat) {
-            writer.writeNewStrings();
+            catElementStackSize = writer.writeNewStrings();
         }
 
         ALink last = links.get(links.size() - 1);
@@ -300,7 +313,7 @@ public final class EChain extends AExpression {
                     // Handle the case where we are doing a compound assignment
                     // representing a String concatenation.
 
-                    writer.writeDup(link.size, 1);         // dup the StringBuilder
+                    writer.writeDup(link.size, catElementStackSize);  // dup the top element and insert it before concat helper on stack
                     link.load(writer);                     // read the current link's value
                     writer.writeAppendStrings(link.after); // append the link's value using the StringBuilder
 
@@ -311,7 +324,7 @@ public final class EChain extends AExpression {
                         writer.writeAppendStrings(expression.actual); // append the expression's value unless it's also a concatenation
                     }
 
-                    writer.writeToStrings(); // put the value of the StringBuilder on the stack
+                    writer.writeToStrings(); // put the value for string concat onto the stack
                     writer.writeCast(back);  // if necessary, cast the String to the lhs actual type
 
                     if (link.load) {
@@ -335,11 +348,11 @@ public final class EChain extends AExpression {
                                                                                  // to the promotion type between the lhs and rhs types
                     expression.write(writer);                                    // write the bytecode for the rhs expression
                     // XXX: fix these types, but first we need def compound assignment tests.
-                    // (and also corner cases such as shifts). its tricky here as there are possibly explicit casts, too.
+                    // its tricky here as there are possibly explicit casts, too.
                     // write the operation instruction for compound assignment
                     if (promote.sort == Sort.DEF) {
                         writer.writeDynamicBinaryInstruction(location, promote, 
-                            Definition.DEF_TYPE, Definition.DEF_TYPE, operation);
+                            Definition.DEF_TYPE, Definition.DEF_TYPE, operation, true);
                     } else {
                         writer.writeBinaryInstruction(location, promote, operation);
                     }

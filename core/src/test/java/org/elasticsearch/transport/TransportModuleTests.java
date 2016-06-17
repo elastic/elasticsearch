@@ -44,8 +44,8 @@ public class TransportModuleTests extends ModuleTestCase {
 
     static class FakeTransportService extends TransportService {
         @Inject
-        public FakeTransportService(Settings settings, Transport transport, ThreadPool threadPool, ClusterName clusterName) {
-            super(settings, transport, threadPool, clusterName);
+        public FakeTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
+            super(settings, transport, threadPool);
         }
     }
 }

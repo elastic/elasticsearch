@@ -16,6 +16,7 @@ index settings, aliases, mappings, and index templates.
 * <<indices-exists>>
 * <<indices-open-close>>
 * <<indices-shrink-index>>
+* <<indices-rollover-index>>
 
 [float]
 [[mapping-management]]
@@ -74,6 +75,8 @@ include::indices/indices-exists.asciidoc[]
 include::indices/open-close.asciidoc[]
 
 include::indices/shrink-index.asciidoc[]
+
+include::indices/rollover-index.asciidoc[]
 
 include::indices/put-mapping.asciidoc[]
 

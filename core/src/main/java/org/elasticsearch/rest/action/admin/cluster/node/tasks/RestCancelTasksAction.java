@@ -64,4 +64,9 @@ public class RestCancelTasksAction extends BaseRestHandler {
         ActionListener<CancelTasksResponse> listener = nodeSettingListener(clusterService, new RestToXContentListener<>(channel));
         client.admin().cluster().cancelTasks(cancelTasksRequest, listener);
     }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
 }

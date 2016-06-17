@@ -92,6 +92,9 @@ The queue size setting for a fixed thread pool must be `queue_size`
 (all other variants that were previously supported are no longer
 supported).
 
+Thread pool settings are now node-level settings. As such, it is not
+possible to update thread pool settings via the cluster settings API.
+
 ==== Analysis settings
 
 The `index.analysis.analyzer.default_index` analyzer is not supported anymore.

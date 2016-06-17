@@ -23,7 +23,6 @@ import com.github.mustachejava.Mustache;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -40,7 +39,6 @@ import java.lang.ref.SoftReference;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -77,7 +75,6 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
     /**
      * @param settings automatically wired by Guice.
      * */
-    @Inject
     public MustacheScriptEngineService(Settings settings) {
         super(settings);
     }
@@ -189,5 +186,10 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
             }
             return result.bytes();
         }
+    }
+
+    @Override
+    public boolean isInlineScriptEnabled() {
+        return true;
     }
 }

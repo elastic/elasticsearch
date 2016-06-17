@@ -826,6 +826,10 @@ public final class AnalyzerCaster {
         final Sort sort0 = from0.sort;
         final Sort sort1 = from1.sort;
 
+        if (sort0 == Sort.DEF || sort1 == Sort.DEF) {
+            return Definition.DEF_TYPE;
+        }
+
         if (sort0.bool || sort1.bool) {
             return Definition.BOOLEAN_TYPE;
         }

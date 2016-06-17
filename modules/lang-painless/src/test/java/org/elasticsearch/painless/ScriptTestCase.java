@@ -79,6 +79,15 @@ public abstract class ScriptTestCase extends ESTestCase {
         assertTrue("bytecode not found, got: \n" + asm , asm.contains(bytecode));
     }
     
+    /**
+     * Uses the {@link Debugger} to get the bytecode output for a script and compare
+     * it against an expected bytecode pattern as a regular expression (please try to avoid!)
+     */
+    public void assertBytecodeHasPattern(String script, String pattern) {
+        final String asm = Debugger.toString(script);
+        assertTrue("bytecode not found, got: \n" + asm , asm.matches(pattern));
+    }
+    
     /** Checks a specific exception class is thrown (boxed inside ScriptException) and returns it. */
     public static <T extends Throwable> T expectScriptThrows(Class<T> expectedType, ThrowingRunnable runnable) {
         try {

@@ -36,17 +36,6 @@ import org.elasticsearch.plugins.Plugin;
  */
 public class AnalysisKuromojiPlugin extends Plugin {
 
-    @Override
-    public String name() {
-        return "analysis-kuromoji";
-    }
-
-    @Override
-    public String description() {
-        return "Kuromoji analysis support";
-    }
-
-
     public void onModule(AnalysisModule module) {
         module.registerCharFilter("kuromoji_iteration_mark", KuromojiIterationMarkCharFilterFactory::new);
         module.registerAnalyzer("kuromoji", KuromojiAnalyzerProvider::new);

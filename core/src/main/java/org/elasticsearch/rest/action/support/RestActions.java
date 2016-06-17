@@ -275,7 +275,7 @@ public class RestActions {
 
         @Override
         public RestResponse buildResponse(NodesResponse response, XContentBuilder builder) throws Exception {
-            return RestActions.nodesResponse(builder, ToXContent.EMPTY_PARAMS, response);
+            return RestActions.nodesResponse(builder, channel.request(), response);
         }
 
     }

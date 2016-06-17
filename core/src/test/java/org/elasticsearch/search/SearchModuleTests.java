@@ -71,7 +71,8 @@ public class SearchModuleTests extends ModuleTestCase {
 
     public void testRegisterHighlighter() {
         SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
-        module.registerHighlighter("custom",  new CustomHighlighter());
+        CustomHighlighter customHighlighter = new CustomHighlighter();
+        module.registerHighlighter("custom",  customHighlighter);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> module.registerHighlighter("custom", new CustomHighlighter()));
         assertEquals("Can't register the same [highlighter] more than once for [custom]", exception.getMessage());
@@ -79,10 +80,11 @@ public class SearchModuleTests extends ModuleTestCase {
         exception = expectThrows(IllegalArgumentException.class,
             () -> module.registerHighlighter("custom", null));
         assertEquals("Can't register null highlighter for key: [custom]", exception.getMessage());
-        assertInstanceBinding(module, Highlighters.class, (h) -> h.get("custom").getClass() == CustomHighlighter.class
-        && h.get("fvh").getClass() == FastVectorHighlighter.class
-        && h.get("plain").getClass() == PlainHighlighter.class
-        && h.get("postings").getClass() == PostingsHighlighter.class);
+        Highlighters highlighters = module.getHighlighters();
+        assertEquals(highlighters.get("fvh").getClass(), FastVectorHighlighter.class);
+        assertEquals(highlighters.get("plain").getClass(), PlainHighlighter.class);
+        assertEquals(highlighters.get("postings").getClass(), PostingsHighlighter.class);
+        assertSame(highlighters.get("custom"), customHighlighter);
     }
 
     public void testRegisterQueryParserDuplicate() {

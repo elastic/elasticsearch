@@ -24,13 +24,11 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,21 +57,19 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                                            NodeResponse extends BaseNodeResponse>
     extends HandledTransportAction<NodesRequest, NodesResponse> {
 
-    protected final ClusterName clusterName;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
     protected final Class<NodeResponse> nodeResponseClass;
 
     final String transportNodeAction;
 
-    protected TransportNodesAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
+    protected TransportNodesAction(Settings settings, String actionName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver,
                                    Supplier<NodesRequest> request, Supplier<NodeRequest> nodeRequest,
                                    String nodeExecutor,
                                    Class<NodeResponse> nodeResponseClass) {
         super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
-        this.clusterName = Objects.requireNonNull(clusterName);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.transportService = Objects.requireNonNull(transportService);
         this.nodeResponseClass = Objects.requireNonNull(nodeResponseClass);

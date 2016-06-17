@@ -23,13 +23,14 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -46,24 +47,10 @@ public class SettingsListenerIT extends ESIntegTestCase {
         private final SettingsTestingService service = new SettingsTestingService();
         private static final Setting<Integer> SETTING = Setting.intSetting("index.test.new.setting", 0,
             Property.Dynamic, Property.IndexScope);
-        /**
-         * The name of the plugin.
-         */
-        @Override
-        public String name() {
-            return "settings-listener";
-        }
 
-        /**
-         * The description of the plugin.
-         */
         @Override
-        public String description() {
-            return "Settings Listenern Plugin";
-        }
-
-        public void onModule(SettingsModule settingsModule) {
-            settingsModule.registerSetting(SettingsTestingService.VALUE);
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(SettingsTestingService.VALUE);
         }
 
         @Override

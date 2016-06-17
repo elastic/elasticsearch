@@ -113,6 +113,7 @@ expression returns [boolean s = true]
     :               u = unary[false]                                       { $s = $u.s; }           # single
     |               expression ( MUL | DIV | REM ) expression              { $s = false; }          # binary
     |               expression ( ADD | SUB ) expression                    { $s = false; }          # binary
+    |               expression ( FIND | MATCH ) expression                 { $s = false; }          # binary
     |               expression ( LSH | RSH | USH ) expression              { $s = false; }          # binary
     |               expression ( LT | LTE | GT | GTE ) expression          { $s = false; }          # comp
     |               expression ( EQ | EQR | NE | NER ) expression          { $s = false; }          # comp
@@ -188,7 +189,7 @@ argument
     ;
 
 lambda
-    : ( lamtype | LP ( lamtype ( COMMA lamtype )* )? RP ) ARROW block
+    : ( lamtype | LP ( lamtype ( COMMA lamtype )* )? RP ) ARROW ( block | expression )
     ;
 
 lamtype

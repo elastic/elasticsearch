@@ -203,7 +203,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             final float weightIndex = node.numShards(index) + numAdditionalShards - balancer.avgShardsPerNode(index);
             return theta0 * weightShard + theta1 * weightIndex;
         }
-
     }
 
     /**

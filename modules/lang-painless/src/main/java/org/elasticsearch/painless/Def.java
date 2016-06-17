@@ -138,7 +138,7 @@ public final class Def {
 
     /** Hack to rethrow unknown Exceptions from {@link MethodHandle#invokeExact}: */
     @SuppressWarnings("unchecked")
-    private static <T extends Throwable> void rethrow(Throwable t) throws T {
+    static <T extends Throwable> void rethrow(Throwable t) throws T {
         throw (T) t;
     }
     
@@ -215,25 +215,27 @@ public final class Def {
      * @param callSiteType callsite's type
      * @param receiverClass Class of the object to invoke the method on.
      * @param name Name of the method.
-     * @param args args passed to callsite
-     * @param recipe bitset marking functional parameters
+     * @param args bootstrap args passed to callsite
      * @return pointer to matching method to invoke. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      * @throws Throwable if a method reference cannot be converted to an functional interface
      */
      static MethodHandle lookupMethod(Lookup lookup, MethodType callSiteType, 
-             Class<?> receiverClass, String name, Object args[], long recipe) throws Throwable {
+             Class<?> receiverClass, String name, Object args[]) throws Throwable {
+         long recipe = (Long) args[0];
+         int numArguments = callSiteType.parameterCount();
          // simple case: no lambdas
          if (recipe == 0) {
-             return lookupMethodInternal(receiverClass, name, args.length - 1).handle;
+             return lookupMethodInternal(receiverClass, name, numArguments - 1).handle;
          }
          
          // otherwise: first we have to compute the "real" arity. This is because we have extra arguments:
          // e.g. f(a, g(x), b, h(y), i()) looks like f(a, g, x, b, h, y, i). 
-         int arity = args.length - 1;
-         for (int i = 0; i < args.length; i++) {
+         int arity = callSiteType.parameterCount() - 1;
+         int upTo = 1;
+         for (int i = 0; i < numArguments; i++) {
              if ((recipe & (1L << (i - 1))) != 0) {
-                 String signature = (String) args[i];
+                 String signature = (String) args[upTo++];
                  int numCaptures = Integer.parseInt(signature.substring(signature.indexOf(',')+1));
                  arity -= numCaptures;
              }
@@ -245,11 +247,12 @@ public final class Def {
          MethodHandle handle = method.handle;
 
          int replaced = 0;
-         for (int i = 1; i < args.length; i++) {
+         upTo = 1;
+         for (int i = 1; i < numArguments; i++) {
              // its a functional reference, replace the argument with an impl
              if ((recipe & (1L << (i - 1))) != 0) {
                  // decode signature of form 'type.call,2' 
-                 String signature = (String) args[i];
+                 String signature = (String) args[upTo++];
                  int separator = signature.indexOf('.');
                  int separator2 = signature.indexOf(',');
                  String type = signature.substring(1, separator);

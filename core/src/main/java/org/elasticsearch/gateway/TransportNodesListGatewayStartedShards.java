@@ -69,12 +69,12 @@ public class TransportNodesListGatewayStartedShards extends
 
 
     @Inject
-    public TransportNodesListGatewayStartedShards(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+    public TransportNodesListGatewayStartedShards(Settings settings, ThreadPool threadPool,
                                                   ClusterService clusterService, TransportService transportService,
                                                   ActionFilters actionFilters,
                                                   IndexNameExpressionResolver indexNameExpressionResolver,
                                                   NodeEnvironment env) {
-        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
               indexNameExpressionResolver, Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED,
               NodeGatewayStartedShards.class);
         this.nodeEnv = env;
@@ -111,7 +111,7 @@ public class TransportNodesListGatewayStartedShards extends
     @Override
     protected NodesGatewayStartedShards newResponse(Request request,
                                                     List<NodeGatewayStartedShards> responses, List<FailedNodeException> failures) {
-        return new NodesGatewayStartedShards(clusterName, responses, failures);
+        return new NodesGatewayStartedShards(clusterService.getClusterName(), responses, failures);
     }
 
     @Override

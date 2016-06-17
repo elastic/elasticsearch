@@ -19,6 +19,7 @@
 
 package org.elasticsearch.fieldstats;
 
+import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldstats.FieldStats;
@@ -54,6 +55,7 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
                     "string", "type=text",
                     "date", "type=date",
                     "double", "type=double",
+                    "half_float", "type=half_float",
                     "float", "type=float",
                     "long", "type=long",
                     "integer", "type=integer",
@@ -67,6 +69,7 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
             "string", "type=text,index=false",
             "date", "type=date,index=false",
             "double", "type=double,index=false",
+            "half_float", "type=half_float",
             "float", "type=float,index=false",
             "long", "type=long,index=false",
             "integer", "type=integer,index=false",
@@ -81,6 +84,7 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
             "string", "type=text,index=false",
             "date", "type=date,index=false",
             "double", "type=double,index=false",
+            "half_float", "type=half_float",
             "float", "type=float,index=false",
             "long", "type=long,index=false",
             "integer", "type=integer,index=false",
@@ -97,10 +101,12 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
         long maxInt = Integer.MIN_VALUE;
         long minLong = Long.MAX_VALUE;
         long maxLong = Long.MIN_VALUE;
-        double minFloat = Float.MAX_VALUE;
-        double maxFloat = Float.MIN_VALUE;
-        double minDouble = Double.MAX_VALUE;
-        double maxDouble = Double.MIN_VALUE;
+        double minHalfFloat = Double.POSITIVE_INFINITY;
+        double maxHalfFloat = Double.NEGATIVE_INFINITY;
+        double minFloat = Double.POSITIVE_INFINITY;
+        double maxFloat = Double.NEGATIVE_INFINITY;
+        double minDouble = Double.POSITIVE_INFINITY;
+        double maxDouble = Double.NEGATIVE_INFINITY;
         String minString = new String(Character.toChars(1114111));
         String maxString = "0";
 
@@ -119,6 +125,10 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
             long l = randomLong();
             minLong = Math.min(minLong, l);
             maxLong = Math.max(maxLong, l);
+            float hf = randomFloat();
+            hf = HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(hf));
+            minHalfFloat = Math.min(minHalfFloat, hf);
+            maxHalfFloat = Math.max(maxHalfFloat, hf);
             float f = randomFloat();
             minFloat = Math.min(minFloat, f);
             maxFloat = Math.max(maxFloat, f);
@@ -138,6 +148,7 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
                                 "short", s,
                                 "integer", i,
                                 "long", l,
+                                "half_float", hf,
                                 "float", f,
                                 "double", d,
                                 "string", str)
@@ -147,7 +158,7 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
 
         FieldStatsResponse response = client()
             .prepareFieldStats()
-            .setFields("byte", "short", "integer", "long", "float", "double", "string").get();
+            .setFields("byte", "short", "integer", "long", "half_float", "float", "double", "string").get();
         assertAllSuccessful(response);
 
         for (FieldStats<?> stats : response.getAllFieldStats().values()) {
@@ -164,6 +175,8 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
         assertThat(response.getAllFieldStats().get("integer").getMaxValue(), equalTo(maxInt));
         assertThat(response.getAllFieldStats().get("long").getMinValue(), equalTo(minLong));
         assertThat(response.getAllFieldStats().get("long").getMaxValue(), equalTo(maxLong));
+        assertThat(response.getAllFieldStats().get("half_float").getMinValue(), equalTo(minHalfFloat));
+        assertThat(response.getAllFieldStats().get("half_float").getMaxValue(), equalTo(maxHalfFloat));
         assertThat(response.getAllFieldStats().get("float").getMinValue(), equalTo(minFloat));
         assertThat(response.getAllFieldStats().get("float").getMaxValue(), equalTo(maxFloat));
         assertThat(response.getAllFieldStats().get("double").getMinValue(), equalTo(minDouble));
@@ -486,6 +499,11 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
         fieldStats = client().prepareFieldStats().setFields("value").get();
         assertEquals(200, fieldStats.getAllFieldStats().get("value").getDocCount());
         // Because we refreshed the index we don't have any more hits in the cache. This is read from the index.
+        assertEquals(oldHitCount, indexStats.getHitCount());
+
+        // We can also turn off the cache entirely
+        fieldStats = client().prepareFieldStats().setFields("value").get();
+        assertEquals(200, fieldStats.getAllFieldStats().get("value").getDocCount());
         assertEquals(oldHitCount, indexStats.getHitCount());
     }
 

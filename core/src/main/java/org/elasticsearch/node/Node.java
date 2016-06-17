@@ -29,7 +29,6 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClientModule;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
@@ -38,6 +37,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
@@ -78,7 +78,9 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.indices.breaker.CircuitBreakerModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
@@ -89,6 +91,7 @@ import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptModule;
@@ -100,7 +103,6 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskPersistenceService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.tribe.TribeModule;
 import org.elasticsearch.tribe.TribeService;
@@ -132,6 +134,7 @@ import java.util.function.Function;
  */
 public class Node implements Closeable {
 
+
     public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING =
         Setting.boolSetting("node.portsfile", false, Property.NodeScope);
     public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, Property.NodeScope);
@@ -145,6 +148,16 @@ public class Node implements Closeable {
         Setting.boolSetting("node.ingest", true, Property.NodeScope);
     public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
     public static final Setting<Settings> NODE_ATTRIBUTES = Setting.groupSetting("node.attr.", Property.NodeScope);
+    public static final Setting<String> BREAKER_TYPE_KEY = new Setting<>("indices.breaker.type", "hierarchy", (s) -> {
+        switch (s) {
+            case "hierarchy":
+            case "none":
+                return s;
+            default:
+                throw new IllegalArgumentException("indices.breaker.type must be one of [hierarchy, none] but was: " + s);
+        }
+    }, Setting.Property.NodeScope);
+
 
 
     private static final String CLIENT_TYPE = "node";
@@ -167,8 +180,9 @@ public class Node implements Closeable {
     protected Node(Environment tmpEnv, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
         Settings tmpSettings = Settings.builder().put(tmpEnv.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
-        tmpSettings = TribeService.processSettings(tmpSettings);
+        final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
 
+        tmpSettings = TribeService.processSettings(tmpSettings);
         ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(tmpSettings));
         final String displayVersion = version + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
         final JvmInfo jvmInfo = JvmInfo.jvmInfo();
@@ -202,44 +216,52 @@ public class Node implements Closeable {
         this.pluginsService = new PluginsService(tmpSettings, tmpEnv.modulesFile(), tmpEnv.pluginsFile(), classpathPlugins);
         this.settings = pluginsService.updatedSettings();
         // create the environment based on the finalized (processed) view of the settings
-        this.environment = new Environment(this.settings());
-
-        final NodeEnvironment nodeEnvironment;
-        try {
-            nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
-        } catch (IOException ex) {
-            throw new IllegalStateException("Failed to created node environment", ex);
-        }
-        final NetworkService networkService = new NetworkService(settings);
+        this.environment = new Environment(this.settings);
         final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
-        final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder[0]));
 
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         boolean success = false;
         try {
+            final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder[0]));
+            resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
+            final List<Setting<?>> additionalSettings = new ArrayList<>();
+            final List<String> additionalSettingsFilter = new ArrayList<>();
+            additionalSettings.addAll(pluginsService.getPluginSettings());
+            additionalSettingsFilter.addAll(pluginsService.getPluginSettingsFilter());
+            for (final ExecutorBuilder<?> builder : threadPool.builders()) {
+                additionalSettings.addAll(builder.getRegisteredSettings());
+            }
+            final ScriptModule scriptModule = ScriptModule.create(settings, pluginsService.filterPlugins(ScriptPlugin.class));
+            additionalSettings.addAll(scriptModule.getSettings());
+            // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
+            // so we might be late here already
+            final SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
+            final NodeEnvironment nodeEnvironment;
+            try {
+                nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
+                resourcesToClose.add(nodeEnvironment);
+            } catch (IOException ex) {
+                throw new IllegalStateException("Failed to created node environment", ex);
+            }
+            final NetworkService networkService = new NetworkService(settings);
+            final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
+            resourcesToClose.add(clusterService);
+            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new Version.Module(version));
-            modules.add(new CircuitBreakerModule(settings));
             // plugin modules must be added here, before others or we can get crazy injection errors...
             for (Module pluginModule : pluginsService.nodeModules()) {
                 modules.add(pluginModule);
             }
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             modules.add(new PluginsModule(pluginsService));
-            SettingsModule settingsModule = new SettingsModule(this.settings);
-            modules.add(settingsModule);
-            modules.add(new EnvironmentModule(environment));
+            modules.add(new EnvironmentModule(environment, threadPool));
             modules.add(new NodeModule(this, monitorService));
             modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
-            ScriptModule scriptModule = new ScriptModule();
             modules.add(scriptModule);
             modules.add(new NodeEnvironmentModule(nodeEnvironment));
-            modules.add(new ClusterNameModule(this.settings));
-            final ThreadPoolModule threadPoolModule = new ThreadPoolModule(threadPool);
-            modules.add(threadPoolModule);
             modules.add(new DiscoveryModule(this.settings));
-            modules.add(new ClusterModule(this.settings));
-            modules.add(new IndicesModule());
+            modules.add(new ClusterModule(this.settings, clusterService));
+            modules.add(new IndicesModule(namedWriteableRegistry));
             modules.add(new SearchModule(settings, namedWriteableRegistry));
             modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false));
             modules.add(new GatewayModule(settings));
@@ -248,23 +270,20 @@ public class Node implements Closeable {
             modules.add(new RepositoriesModule());
             modules.add(new TribeModule());
             modules.add(new AnalysisModule(environment));
-
             pluginsService.processModules(modules);
-
-            scriptModule.prepareSettings(settingsModule);
-
-            threadPoolModule.prepareSettings(settingsModule);
-
+            CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
+                settingsModule.getClusterSettings());
+            resourcesToClose.add(circuitBreakerService);
+            modules.add(settingsModule);
+            modules.add(b -> b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService));
             injector = modules.createInjector();
-
             client = injector.getInstance(Client.class);
             success = true;
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to bind service", ex);
         } finally {
             if (!success) {
-                nodeEnvironment.close();
-                ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+                IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
 
@@ -303,7 +322,7 @@ public class Node implements Closeable {
         ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
         logger.info("starting ...");
         // hack around dependency injection problem (for now...)
-        injector.getInstance(Discovery.class).setRoutingService(injector.getInstance(RoutingService.class));
+        injector.getInstance(Discovery.class).setAllocationService(injector.getInstance(AllocationService.class));
         for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
             injector.getInstance(plugin).start();
         }
@@ -588,6 +607,21 @@ public class Node implements Closeable {
             Files.move(tmpPortsFile, portsFile, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {
             throw new RuntimeException("Failed to rename ports file", e);
+        }
+    }
+
+    /**
+     * Creates a new {@link CircuitBreakerService} based on the settings provided.
+     * @see #BREAKER_TYPE_KEY
+     */
+    public static CircuitBreakerService createCircuitBreakerService(Settings settings, ClusterSettings clusterSettings) {
+        String type = BREAKER_TYPE_KEY.get(settings);
+        if (type.equals("hierarchy")) {
+            return new HierarchyCircuitBreakerService(settings, clusterSettings);
+        } else if (type.equals("none")) {
+            return new NoneCircuitBreakerService();
+        } else {
+            throw new IllegalArgumentException("Unknown circuit breaker type [" + type + "]");
         }
     }
 }

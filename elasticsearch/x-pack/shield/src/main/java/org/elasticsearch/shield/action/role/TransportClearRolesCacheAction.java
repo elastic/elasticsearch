@@ -8,7 +8,6 @@ package org.elasticsearch.shield.action.role;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
@@ -28,10 +27,10 @@ public class TransportClearRolesCacheAction extends TransportNodesAction<ClearRo
     private final NativeRolesStore rolesStore;
 
     @Inject
-    public TransportClearRolesCacheAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+    public TransportClearRolesCacheAction(Settings settings, ThreadPool threadPool,
                                           ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
                                           NativeRolesStore rolesStore, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClearRolesCacheAction.NAME, clusterName, threadPool, clusterService, transportService,
+        super(settings, ClearRolesCacheAction.NAME, threadPool, clusterService, transportService,
               actionFilters, indexNameExpressionResolver, ClearRolesCacheRequest::new, ClearRolesCacheRequest.Node::new,
               ThreadPool.Names.MANAGEMENT, ClearRolesCacheResponse.Node.class);
         this.rolesStore = rolesStore;
@@ -40,7 +39,7 @@ public class TransportClearRolesCacheAction extends TransportNodesAction<ClearRo
     @Override
     protected ClearRolesCacheResponse newResponse(ClearRolesCacheRequest request,
                                                   List<ClearRolesCacheResponse.Node> responses, List<FailedNodeException> failures) {
-        return new ClearRolesCacheResponse(clusterName, responses, failures);
+        return new ClearRolesCacheResponse(clusterService.getClusterName(), responses, failures);
     }
 
     @Override

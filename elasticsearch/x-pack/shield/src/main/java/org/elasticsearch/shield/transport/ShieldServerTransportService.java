@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.transport;
 
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -56,13 +55,12 @@ public class ShieldServerTransportService extends TransportService {
 
     @Inject
     public ShieldServerTransportService(Settings settings, Transport transport, ThreadPool threadPool,
-                                        ClusterName clusterName,
                                         AuthenticationService authcService,
                                         AuthorizationService authzService,
                                         ShieldActionMapper actionMapper,
                                         ClientTransportFilter clientTransportFilter,
                                         SecurityLicenseState licenseState) {
-        super(settings, transport, threadPool, clusterName);
+        super(settings, transport, threadPool);
         this.authcService = authcService;
         this.authzService = authzService;
         this.actionMapper = actionMapper;

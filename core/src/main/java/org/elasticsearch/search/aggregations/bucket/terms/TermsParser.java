@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -36,6 +38,8 @@ import java.util.List;
  *
  */
 public class TermsParser implements Aggregator.Parser {
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(TermsParser.class));
 
     @Override
     public String type() {
@@ -52,6 +56,10 @@ public class TermsParser implements Aggregator.Parser {
         List<OrderElement> orderElements = aggParser.getOrderElements();
         List<Terms.Order> orders = new ArrayList<>(orderElements.size());
         for (OrderElement orderElement : orderElements) {
+            Terms.Order order = resolveOrder(orderElement.key(), orderElement.asc());
+            if (InternalOrder.isCountDesc(order)) {
+                DEPRECATION_LOGGER.deprecated("sorting by ascending count is deprecated and will be removed in the next major version");
+            }
             orders.add(resolveOrder(orderElement.key(), orderElement.asc()));
         }
         Terms.Order order;

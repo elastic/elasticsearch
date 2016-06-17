@@ -77,7 +77,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     private final CountDownLatch blockIncomingRequestsLatch = new CountDownLatch(1);
     protected final Transport transport;
     protected final ThreadPool threadPool;
-    private final ClusterName clusterName;
+    protected final ClusterName clusterName;
     protected final TaskManager taskManager;
 
     volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();

@@ -67,7 +67,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.setState;
 public abstract class TaskManagerTestCase extends ESTestCase {
 
     protected static ThreadPool threadPool;
-    public static final ClusterName CLUSTER_NAME = new ClusterName("test-cluster");
+    public static final Settings CLUSTER_SETTINGS = Settings.builder().put("cluster.name", "test-cluster").build();
     protected TestNode[] testNodes;
     protected int nodesCount;
 
@@ -136,7 +136,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     abstract class AbstractTestNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>, NodeRequest extends BaseNodeRequest>
             extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
 
-        AbstractTestNodesAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
+        AbstractTestNodesAction(Settings settings, String actionName, ThreadPool threadPool,
                                 ClusterService clusterService, TransportService transportService, Supplier<NodesRequest> request,
                                 Supplier<NodeRequest> nodeRequest) {
             super(settings, actionName, threadPool, clusterService, transportService,

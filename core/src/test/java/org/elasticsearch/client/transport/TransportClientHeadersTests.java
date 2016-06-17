@@ -67,6 +67,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
         TransportClient client = TransportClient.builder()
             .settings(Settings.builder()
                 .put("client.transport.sniff", false)
+                .put("cluster.name", "cluster1")
                 .put("node.name", "transport_client_" + this.getTestName())
                 .put(headersSettings)
                 .build())
@@ -124,8 +125,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                                                               TransportRequestOptions options, TransportResponseHandler<T> handler) {
             if (TransportLivenessAction.NAME.equals(action)) {
                 assertHeaders(threadPool);
-                ((TransportResponseHandler<LivenessResponse>) handler).handleResponse(new LivenessResponse(ClusterName.CLUSTER_NAME_SETTING
-                    .getDefault(Settings.EMPTY), node));
+                ((TransportResponseHandler<LivenessResponse>) handler).handleResponse(new LivenessResponse(clusterName, node));
                 return;
             }
             if (ClusterStateAction.NAME.equals(action)) {

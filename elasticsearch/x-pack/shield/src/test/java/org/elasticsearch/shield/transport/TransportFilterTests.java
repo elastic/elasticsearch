@@ -117,16 +117,6 @@ public class TransportFilterTests extends ESIntegTestCase {
 
     public static class InternalPlugin extends Plugin {
         @Override
-        public String name() {
-            return "test-transport-filter";
-        }
-
-        @Override
-        public String description() {
-            return "";
-        }
-
-        @Override
         public Collection<Module> nodeModules() {
             return Collections.<Module>singletonList(new TestTransportFilterModule());
         }
@@ -289,14 +279,6 @@ public class TransportFilterTests extends ESIntegTestCase {
     // Sub class the Shield transport to always inject a mock for testing
     public static class InternalPluginServerTransportService extends ShieldServerTransportService {
         public static class TestPlugin extends Plugin {
-            @Override
-            public String name() {
-                return "mock-transport-service";
-            }
-            @Override
-            public String description() {
-                return "a mock transport service for testing";
-            }
             public void onModule(NetworkModule module) {
                 module.registerTransportService("filter-mock", InternalPluginServerTransportService.class);
             }

@@ -22,7 +22,7 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
     }
 
     @Override
-    public void disableFeatures(SearchRequest request) {
+    public void disableFeatures(SearchRequest request, boolean fieldLevelSecurityEnabled, boolean documentLevelSecurityEnabled) {
         request.requestCache(false);
     }
 

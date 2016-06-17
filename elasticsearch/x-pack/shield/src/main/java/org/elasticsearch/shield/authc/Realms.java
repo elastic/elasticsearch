@@ -212,7 +212,7 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
         }
     }
 
-    public static void registerSettings(SettingsModule settingsModule) {
-        settingsModule.registerSetting(REALMS_GROUPS_SETTINGS);
+    public static void addSettings(List<Setting<?>> settingsModule) {
+        settingsModule.add(REALMS_GROUPS_SETTINGS);
     }
 }

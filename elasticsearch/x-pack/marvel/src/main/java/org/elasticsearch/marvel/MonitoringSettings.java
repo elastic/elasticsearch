@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.XPackPlugin;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
@@ -125,22 +126,23 @@ public class MonitoringSettings extends AbstractComponent {
     public static final Setting<Settings> EXPORTERS_SETTINGS =
             groupSetting(key("agent.exporters."), Property.Dynamic, Property.NodeScope);
 
-    static void register(SettingsModule module) {
-        module.registerSetting(INDICES);
-        module.registerSetting(INTERVAL);
-        module.registerSetting(INDEX_RECOVERY_TIMEOUT);
-        module.registerSetting(INDEX_STATS_TIMEOUT);
-        module.registerSetting(INDICES_STATS_TIMEOUT);
-        module.registerSetting(INDEX_RECOVERY_ACTIVE_ONLY);
-        module.registerSetting(COLLECTORS);
-        module.registerSetting(CLUSTER_STATE_TIMEOUT);
-        module.registerSetting(CLUSTER_STATS_TIMEOUT);
-        module.registerSetting(HISTORY_DURATION);
-        module.registerSetting(EXPORTERS_SETTINGS);
-        module.registerSetting(ENABLED);
+    public static List<Setting<?>> getSettings() {
+        return Arrays.asList(INDICES,
+                INTERVAL,
+                INDEX_RECOVERY_TIMEOUT,
+                INDEX_STATS_TIMEOUT,
+                INDICES_STATS_TIMEOUT,
+                INDEX_RECOVERY_ACTIVE_ONLY,
+                COLLECTORS,
+                CLUSTER_STATE_TIMEOUT,
+                CLUSTER_STATS_TIMEOUT,
+                HISTORY_DURATION,
+                EXPORTERS_SETTINGS,
+                ENABLED);
+    }
 
-        module.registerSettingsFilter("xpack.monitoring.agent.exporters.*.auth.*");
-        module.registerSettingsFilter("xpack.monitoring.agent.exporters.*.ssl.*");
+    public static List<String> getSettingsFilter() {
+        return Arrays.asList("xpack.monitoring.agent.exporters.*.auth.*", "xpack.monitoring.agent.exporters.*.ssl.*");
     }
 
 

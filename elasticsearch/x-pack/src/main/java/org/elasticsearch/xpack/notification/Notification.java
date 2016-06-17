@@ -36,18 +36,22 @@ public class Notification {
         this.transportClient = "transport".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
     }
 
-    public void onModule(SettingsModule module) {
-        module.registerSetting(InternalSlackService.SLACK_ACCOUNT_SETTING);
-        module.registerSetting(InternalEmailService.EMAIL_ACCOUNT_SETTING);
-        module.registerSetting(InternalHipChatService.HIPCHAT_ACCOUNT_SETTING);
-        module.registerSetting(InternalPagerDutyService.PAGERDUTY_ACCOUNT_SETTING);
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(InternalSlackService.SLACK_ACCOUNT_SETTING,
+        InternalEmailService.EMAIL_ACCOUNT_SETTING,
+        InternalHipChatService.HIPCHAT_ACCOUNT_SETTING,
+        InternalPagerDutyService.PAGERDUTY_ACCOUNT_SETTING);
+    }
 
-        module.registerSettingsFilter("xpack.notification.email.account.*.smtp.password");
-        module.registerSettingsFilter("xpack.notification.slack.account.*.url");
-        module.registerSettingsFilter("xpack.notification.pagerduty.account.*.url");
-        module.registerSettingsFilter("xpack.notification.pagerduty." + PagerDutyAccount.SERVICE_KEY_SETTING);
-        module.registerSettingsFilter("xpack.notification.pagerduty.account.*." + PagerDutyAccount.SERVICE_KEY_SETTING);
-        module.registerSettingsFilter("xpack.notification.hipchat.account.*.auth_token");
+    public List<String> getSettingsFilter() {
+        ArrayList<String> settingsFilter = new ArrayList<>();
+        settingsFilter.add("xpack.notification.email.account.*.smtp.password");
+        settingsFilter.add("xpack.notification.slack.account.*.url");
+        settingsFilter.add("xpack.notification.pagerduty.account.*.url");
+        settingsFilter.add("xpack.notification.pagerduty." + PagerDutyAccount.SERVICE_KEY_SETTING);
+        settingsFilter.add("xpack.notification.pagerduty.account.*." + PagerDutyAccount.SERVICE_KEY_SETTING);
+        settingsFilter.add("xpack.notification.hipchat.account.*.auth_token");
+        return settingsFilter;
     }
 
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {

@@ -260,7 +260,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
         }
     }
 
-    public static void registerSettings(SettingsModule settingsModule) {
-        settingsModule.registerSetting(ROLES_FILE_SETTING);
+    public static void addSettings(List<Setting<?>> settings) {
+        settings.add(ROLES_FILE_SETTING);
     }
 }

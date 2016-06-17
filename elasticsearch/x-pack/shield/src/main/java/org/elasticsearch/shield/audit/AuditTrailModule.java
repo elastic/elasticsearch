@@ -102,10 +102,10 @@ public class AuditTrailModule extends AbstractShieldModule.Node {
         return false;
     }
 
-    public static void registerSettings(SettingsModule settingsModule) {
-        settingsModule.registerSetting(ENABLED_SETTING);
-        settingsModule.registerSetting(OUTPUTS_SETTING);
-        LoggingAuditTrail.registerSettings(settingsModule);
-        IndexAuditTrail.registerSettings(settingsModule);
+    public static void addSettings(List<Setting<?>> settings) {
+        settings.add(ENABLED_SETTING);
+        settings.add(OUTPUTS_SETTING);
+        LoggingAuditTrail.registerSettings(settings);
+        IndexAuditTrail.registerSettings(settings);
     }
 }

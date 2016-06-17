@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
@@ -74,19 +76,12 @@ public class WatcherIndexTemplateRegistryTests extends AbstractWatcherIntegratio
     }
 
     public static class SettingTestPlugin extends Plugin {
-        public String name() {
-            return "watcher-index-template-registry-settings-plugin";
-        }
-
-        @Override
-        public String description() {
-            return "installs a setting this test needs";
-        }
 
         public static final Setting<String> KEY_1 = new Setting<>("index.key1", "", Function.identity(), Setting.Property.IndexScope);
 
-        public void onModule(SettingsModule module) {
-            module.registerSetting(KEY_1);
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(KEY_1);
         }
     }
 }

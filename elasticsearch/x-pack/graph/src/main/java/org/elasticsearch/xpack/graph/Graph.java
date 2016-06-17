@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.graph.rest.action.RestGraphAction;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 public class Graph extends Plugin {
 
@@ -31,16 +32,6 @@ public class Graph extends Plugin {
     public Graph(Settings settings) {
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
         enabled = enabled(settings);
-    }    
-    
-    @Override
-    public String name() {
-        return NAME;
-    }
-
-    @Override
-    public String description() {
-        return "Elasticsearch Graph Plugin";
     }
     
     public static boolean enabled(Settings settings) {
@@ -69,10 +60,12 @@ public class Graph extends Plugin {
         if (enabled && transportClientMode == false) {
             module.registerRestHandler(RestGraphAction.class);        
         }
-    }    
-    
-    public void onModule(SettingsModule module) {
-        module.registerSetting(Setting.boolSetting(XPackPlugin.featureEnabledSetting(NAME), true, Setting.Property.NodeScope));
-    }    
+    }
+
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Collections.singletonList(Setting.boolSetting(XPackPlugin.featureEnabledSetting(NAME), true, Setting.Property.NodeScope));
+    }
 
 }

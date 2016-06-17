@@ -109,7 +109,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertQueryBuilder(qbSource, queryBuilder);
 
         // add an query for which we don't extract terms from
-        queryBuilder = matchAllQuery();
+        queryBuilder = rangeQuery("field").from("a").to("z");
         doc = mapperService.documentMapper(typeName).parse("test", typeName, "1", XContentFactory.jsonBuilder().startObject()
                 .field(fieldName, queryBuilder)
                 .endObject().bytes());

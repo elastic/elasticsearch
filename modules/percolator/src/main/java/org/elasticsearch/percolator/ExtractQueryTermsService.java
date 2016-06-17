@@ -36,6 +36,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -120,9 +121,12 @@ public final class ExtractQueryTermsService {
     // TODO: restructure this method? For example have a Function<Query, Result> per supported query.
     // All functions then sit in a Map<Class<? extends Query>, Function<Query, Result>> and we lookup via map.get(query.getClass())
     static Result extractQueryTerms(Query query) {
-        if (query instanceof MatchNoDocsQuery) {
-            // no terms to extract as this query matches no docs
-            return new Result();
+        if (query instanceof MatchAllDocsQuery) {
+            // we need to emit an empty term otherwise a percolator query with this query may never end up as a
+            // candidate match:
+            return new Result(true, new Term("", ""));
+        } else  if (query instanceof MatchNoDocsQuery) {
+            return new Result(false);
         } else if (query instanceof TermQuery) {
             TermQuery termQuery = (TermQuery) query;
             return new Result(true, termQuery.getTerm());
@@ -137,7 +141,7 @@ public final class ExtractQueryTermsService {
         } else if (query instanceof PhraseQuery) {
             Term[] terms = ((PhraseQuery) query).getTerms();
             if (terms.length == 0) {
-                return new Result();
+                return new Result(true);
             }
 
             // the longest term is likely to be the rarest,
@@ -191,7 +195,7 @@ public final class ExtractQueryTermsService {
                     if (uqe != null) {
                         throw uqe;
                     }
-                    return new Result();
+                    return new Result(true);
                 }
             } else {
                 boolean verified = true;
@@ -202,6 +206,10 @@ public final class ExtractQueryTermsService {
                         continue;
                     }
                     Result subResult = extractQueryTerms(clause.getQuery());
+                    if (subResult.canIgnore()) {
+                        continue;
+                    }
+
                     if (subResult.verified == false){
                         verified = false;
                     }
@@ -228,6 +236,10 @@ public final class ExtractQueryTermsService {
             Set<Term> terms = new HashSet<>();
             for (Query disjunct : disjuncts) {
                 Result subResult = extractQueryTerms(disjunct);
+                if (subResult.canIgnore()) {
+                    continue;
+                }
+
                 if (subResult.verified == false){
                     verified = false;
                 }
@@ -295,6 +307,12 @@ public final class ExtractQueryTermsService {
 
         List<Term> extractedTerms = new ArrayList<>();
         Collections.addAll(extractedTerms, optionalTerms);
+        // to include percolator queries with match_all queries as candidate matches:
+        BytesRefBuilder emptyDoc = new BytesRefBuilder();
+        emptyDoc.append(new BytesRef(""));
+        emptyDoc.append(FIELD_VALUE_SEPARATOR);
+        emptyDoc.append(new BytesRef(""));
+        extractedTerms.add(new Term(queryMetadataField, emptyDoc.toBytesRef()));
 
         Fields fields = MultiFields.getFields(indexReader);
         for (String field : fields) {
@@ -321,9 +339,9 @@ public final class ExtractQueryTermsService {
         final Set<Term> terms;
         final boolean verified;
 
-        Result() {
+        Result(boolean verified) {
             this.terms = Collections.emptySet();
-            this.verified = true;
+            this.verified = verified;
         }
 
         Result(boolean verified, Term term) {
@@ -335,6 +353,19 @@ public final class ExtractQueryTermsService {
             this.terms = terms;
             this.verified = verified;
         }
+
+        /**
+         * @return  Whether this result can be ignored if it is part of a larger query
+         *
+         *          For example if MatchNoDocsQuery is part of a disjunction query we
+         *          can safely ignore it, but if it stands on its own or is part of a
+         *          conjunction query we have to take it into account and make the
+         *          entire percolator query not match by default
+         */
+        boolean canIgnore() {
+            return verified == false && terms.isEmpty();
+        }
+
     }
 
     /**

@@ -88,7 +88,7 @@ public final class PercolateQuery extends Query implements Accountable {
             }
             this.queriesMetaDataQuery = ExtractQueryTermsService.createQueryTermsQuery(
                     percolatorIndexSearcher.getIndexReader(), extractedTermsFieldName,
-                    // only include unknownQueryField:FAILED, because any doc with this term has no extractedTermsField
+                    // include extractionResultField:FAILED, because docs with this term have no extractedTermsField
                     // and otherwise we would fail to return these docs. Docs that failed query term extraction
                     // always need to be verified by MemoryIndex:
                     new Term(extractionResultField, ExtractQueryTermsService.EXTRACTION_FAILED)

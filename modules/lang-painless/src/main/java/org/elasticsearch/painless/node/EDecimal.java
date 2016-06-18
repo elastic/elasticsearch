@@ -25,8 +25,11 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.util.Objects;
+import java.util.Set;
+
 /**
- * Respresents a decimal constant.
+ * Represents a decimal constant.
  */
 public final class EDecimal extends AExpression {
 
@@ -35,8 +38,11 @@ public final class EDecimal extends AExpression {
     public EDecimal(Location location, String value) {
         super(location);
 
-        this.value = value;
+        this.value = Objects.requireNonNull(value);
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
     void analyze(Locals locals) {

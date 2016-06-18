@@ -32,6 +32,8 @@ import org.objectweb.asm.Type;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 import java.lang.invoke.LambdaMetafactory;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a function reference.
@@ -46,9 +48,12 @@ public class EFunctionRef extends AExpression implements ILambda {
     public EFunctionRef(Location location, String type, String call) {
         super(location);
 
-        this.type = type;
-        this.call = call;
+        this.type = Objects.requireNonNull(type);
+        this.call = Objects.requireNonNull(call);
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
     void analyze(Locals locals) {

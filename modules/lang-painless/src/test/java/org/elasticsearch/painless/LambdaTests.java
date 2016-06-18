@@ -103,4 +103,34 @@ public class LambdaTests extends ScriptTestCase {
                                "}" +
                                "return sum;"));
     }
+    
+    public void testCapture() {
+        assertEquals(5, exec("int x = 5; return Optional.empty().orElseGet(() -> x);"));
+    }
+    
+    public void testTwoCaptures() {
+        assertEquals("1test", exec("int x = 1; String y = 'test'; return Optional.empty().orElseGet(() -> x + y);"));
+    }
+    
+    public void testCapturesAreReadOnly() {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("List l = new ArrayList(); l.add(1); l.add(1); "
+                    + "return l.stream().mapToInt(x -> { l = null; return x + 1 }).sum();");
+        });
+        assertTrue(expected.getMessage().contains("is read-only"));
+    }
+    
+    public void testOnlyCapturesAreReadOnly() {
+        assertEquals(4, exec("List l = new ArrayList(); l.add(1); l.add(1); "
+                           + "return l.stream().mapToInt(x -> { x += 1; return x }).sum();"));
+    }
+    
+    public void testCaptureDef() {
+        assertEquals(5, exec("int x = 5; def y = Optional.empty(); y.orElseGet(() -> x);"));
+    }
+    
+    public void testNestedCapture() {
+        assertEquals(1, exec("boolean x = false; int y = 1;" +
+                             "return Optional.empty().orElseGet(() -> x ? 5 : Optional.empty().orElseGet(() -> y));"));
+    }
 }

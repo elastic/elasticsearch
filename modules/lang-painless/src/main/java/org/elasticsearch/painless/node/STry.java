@@ -27,6 +27,7 @@ import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Represents the try block as part of a try-catch block.
@@ -41,6 +42,16 @@ public final class STry extends AStatement {
 
         this.block = block;
         this.catches = Collections.unmodifiableList(catches);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        if (block != null) {
+            block.extractVariables(variables);
+        }
+        for (SCatch expr : catches) {
+            expr.extractVariables(variables);
+        }
     }
 
     @Override

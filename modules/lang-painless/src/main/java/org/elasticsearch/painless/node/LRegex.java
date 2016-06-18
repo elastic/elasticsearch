@@ -24,6 +24,7 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -54,6 +55,9 @@ public final class LRegex extends ALink {
             throw createError(e);
         }
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
     ALink analyze(Locals locals) {

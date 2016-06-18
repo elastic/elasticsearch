@@ -41,6 +41,8 @@ import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
@@ -67,13 +69,23 @@ public class SFunction extends AStatement {
                      List<String> paramNames, List<AStatement> statements, boolean synthetic) {
         super(location);
 
-        this.reserved = reserved;
-        this.rtnTypeStr = rtnType;
-        this.name = name;
+        this.reserved = Objects.requireNonNull(reserved);
+        this.rtnTypeStr = Objects.requireNonNull(rtnType);
+        this.name = Objects.requireNonNull(name);
         this.paramTypeStrs = Collections.unmodifiableList(paramTypes);
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
         this.statements = Collections.unmodifiableList(statements);
         this.synthetic = synthetic;
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        for (String paramName : paramNameStrs) {
+            variables.add(paramName);
+        }
+        for (AStatement statement : statements) {
+            statement.extractVariables(variables);
+        }
     }
 
     void generate() {

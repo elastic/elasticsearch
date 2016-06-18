@@ -34,32 +34,39 @@ import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 import java.lang.invoke.LambdaMetafactory;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a capturing function reference.
  */
 public class ECapturingFunctionRef extends AExpression implements ILambda {
-    public final String type;
+    public final String variable;
     public final String call;
     
     private FunctionRef ref;
     Variable captured;
     String defPointer;
 
-    public ECapturingFunctionRef(Location location, String type, String call) {
+    public ECapturingFunctionRef(Location location, String variable, String call) {
         super(location);
 
-        this.type = type;
-        this.call = call;
+        this.variable = Objects.requireNonNull(variable);
+        this.call = Objects.requireNonNull(call);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        variables.add(variable);
     }
 
     @Override
     void analyze(Locals variables) {
-        captured = variables.getVariable(location, type);
+        captured = variables.getVariable(location, variable);
         if (expected == null) {
             if (captured.type.sort == Definition.Sort.DEF) {
                 // dynamic implementation
-                defPointer = "D" + type + "." + call + ",1";
+                defPointer = "D" + variable + "." + call + ",1";
             } else {
                 // typed implementation
                 defPointer = "S" + captured.type.name + "." + call + ",1";

@@ -28,6 +28,8 @@ import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents an array load/store or defers to possible shortcuts.
@@ -39,7 +41,12 @@ public final class LBrace extends ALink {
     public LBrace(Location location, AExpression index) {
         super(location, 2);
 
-        this.index = index;
+        this.index = Objects.requireNonNull(index);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        index.extractVariables(variables);
     }
 
     @Override

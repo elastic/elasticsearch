@@ -35,7 +35,7 @@ import java.util.Set;
 /**
  * Tracks user defined methods and variables across compilation phases.
  */
-public class Locals {
+public final class Locals {
     
     /** Reserved word: params map parameter */
     public static final String PARAMS = "params";
@@ -64,9 +64,23 @@ public class Locals {
         return new Locals(currentScope);
     }
     
-    /** Creates a new lambda scope inside the current scope */
-    public static Locals newLambdaScope(Locals currentScope, List<Parameter> parameters, List<Variable> captures) {
-        return new LambdaLocals(currentScope, parameters, captures);
+    /** 
+     * Creates a new lambda scope inside the current scope
+     * <p>
+     * This is just like {@link #newFunctionScope}, except the captured parameters are made read-only.
+     */
+    public static Locals newLambdaScope(Locals programScope, List<Parameter> parameters, int captureCount, int maxLoopCounter) {
+        Locals locals = new Locals(programScope, Definition.DEF_TYPE);
+        for (int i = 0; i < parameters.size(); i++) {
+            Parameter parameter = parameters.get(i);
+            boolean isCapture = i < captureCount;
+            locals.defineVariable(parameter.location, parameter.type, parameter.name, isCapture);
+        }
+        // Loop counter to catch infinite loops.  Internal use only.
+        if (maxLoopCounter > 0) {
+            locals.defineVariable(null, Definition.INT_TYPE, LOOP, true);
+        }
+        return locals;
     }
     
     /** Creates a new function scope inside the current scope */
@@ -129,7 +143,7 @@ public class Locals {
     }
     
     /** Checks if a variable exists or not, in this scope or any parents. */
-    public final boolean hasVariable(String name) {
+    public boolean hasVariable(String name) {
         Variable variable = lookupVariable(null, name);
         if (variable != null) {
             return true;
@@ -153,7 +167,7 @@ public class Locals {
     }
     
     /** Looks up a method. Returns null if the method does not exist. */
-    public final Method getMethod(MethodKey key) {
+    public Method getMethod(MethodKey key) {
         Method method = lookupMethod(key);
         if (method != null) {
             return method;
@@ -165,7 +179,7 @@ public class Locals {
     }
     
     /** Creates a new variable. Throws IAE if the variable has already been defined (even in a parent) or reserved. */
-    public final Variable addVariable(Location location, Type type, String name, boolean readonly) {
+    public Variable addVariable(Location location, Type type, String name, boolean readonly) {
         if (hasVariable(name)) {
             throw location.createError(new IllegalArgumentException("Variable [" + name + "] is already defined."));
         }
@@ -196,23 +210,23 @@ public class Locals {
     // return type of this scope
     private final Type returnType;
     // next slot number to assign
-    int nextSlotNumber;
+    private int nextSlotNumber;
     // variable name -> variable
-    Map<String,Variable> variables;
+    private Map<String,Variable> variables;
     // method name+arity -> methods
-    Map<MethodKey,Method> methods;
+    private Map<MethodKey,Method> methods;
 
     /**
      * Create a new Locals
      */
-    Locals(Locals parent) {
+    private Locals(Locals parent) {
         this(parent, parent.getReturnType());
     }
     
     /**
      * Create a new Locals with specified return type
      */
-    Locals(Locals parent, Type returnType) {
+    private Locals(Locals parent, Type returnType) {
         this.parent = parent;
         this.returnType = returnType;
         if (parent == null) {
@@ -223,12 +237,12 @@ public class Locals {
     }
 
     /** Returns the parent scope */
-    Locals getParent() {
+    private Locals getParent() {
         return parent;
     }
 
     /** Looks up a variable at this scope only. Returns null if the variable does not exist. */
-    Variable lookupVariable(Location location, String name) {
+    private Variable lookupVariable(Location location, String name) {
         if (variables == null) {
             return null;
         }
@@ -236,7 +250,7 @@ public class Locals {
     }
 
     /** Looks up a method at this scope only. Returns null if the method does not exist. */
-    Method lookupMethod(MethodKey key) {
+    private Method lookupMethod(MethodKey key) {
         if (methods == null) {
             return null;
         }
@@ -245,19 +259,17 @@ public class Locals {
 
     
     /** Defines a variable at this scope internally. */
-    Variable defineVariable(Location location, Type type, String name, boolean readonly) {
+    private Variable defineVariable(Location location, Type type, String name, boolean readonly) {
         if (variables == null) {
             variables = new HashMap<>();
         }
-        Variable variable = new Variable(location, name, type, readonly);
-        variable.slot = getNextSlot();
+        Variable variable = new Variable(location, name, type, getNextSlot(), readonly);
         variables.put(name, variable); // TODO: check result
         nextSlotNumber += type.type.getSize();
         return variable;
     }
     
-    // TODO: make private, thats bogus
-    public void addMethod(Method method) {
+    private void addMethod(Method method) {
         if (methods == null) {
             methods = new HashMap<>();
         }
@@ -266,7 +278,7 @@ public class Locals {
     }
 
 
-    int getNextSlot() {
+    private int getNextSlot() {
         return nextSlotNumber;
     }
 
@@ -274,13 +286,14 @@ public class Locals {
         public final Location location;
         public final String name;
         public final Type type;
-        int slot = -1;
         public final boolean readonly;
+        private final int slot;
         
-        public Variable(Location location, String name, Type type, boolean readonly) {
+        public Variable(Location location, String name, Type type, int slot, boolean readonly) {
             this.location = location;
             this.name = name;
             this.type = type;
+            this.slot = slot;
             this.readonly = readonly;
         }
         
@@ -289,7 +302,7 @@ public class Locals {
         }
     }
     
-    public static class Parameter {
+    public static final class Parameter {
         public final Location location;
         public final String name;
         public final Type type;

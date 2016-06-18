@@ -26,6 +26,7 @@ import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Represents a set of statements as a branch of control-flow.
@@ -38,6 +39,13 @@ public final class SBlock extends AStatement {
         super(location);
 
         this.statements = Collections.unmodifiableList(statements);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        for (AStatement statement : statements) {
+            statement.extractVariables(variables);
+        }
     }
 
     @Override

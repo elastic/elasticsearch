@@ -39,11 +39,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.script.NativeScriptFactory;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 
 import java.io.IOException;
@@ -55,7 +51,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -389,10 +384,17 @@ public class PluginsService extends AbstractComponent {
             // jar-hell check the bundle against the parent classloader
             // pluginmanager does it, but we do it again, in case lusers mess with jar files manually
             try {
-                final List<URL> jars = new ArrayList<>();
-                jars.addAll(Arrays.asList(JarHell.parseClassPath()));
-                jars.addAll(bundle.urls);
-                JarHell.checkJarHell(jars.toArray(new URL[0]));
+                Set<URL> classpath = JarHell.parseClassPath();
+                // check we don't have conflicting codebases
+                Set<URL> intersection = new HashSet<>(classpath);
+                intersection.retainAll(bundle.urls);
+                if (intersection.isEmpty() == false) {
+                    throw new IllegalStateException("jar hell! duplicate codebases between plugin and core: " + intersection);
+                }
+                // check we don't have conflicting classes
+                Set<URL> union = new HashSet<>(classpath);
+                union.addAll(bundle.urls);
+                JarHell.checkJarHell(union);
             } catch (Exception e) {
                 throw new IllegalStateException("failed to load bundle " + bundle.urls + " due to jar hell", e);
             }

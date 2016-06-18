@@ -122,11 +122,15 @@ public class PluginsService extends AbstractComponent {
             info.addPlugin(pluginInfo);
         }
 
-        Set<Bundle> bundles = new LinkedHashSet<>();
+        Set<Bundle> seen = new LinkedHashSet<>();
         // load modules
         if (modulesDirectory != null) {
             try {
-                bundles.addAll(getModuleBundles(modulesDirectory));
+                Set<Bundle> modules = getModuleBundles(modulesDirectory);
+                for (Bundle bundle : modules) {
+                    info.addModule(bundle.plugin);
+                }
+                seen.addAll(modules);
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize modules", ex);
             }
@@ -136,20 +140,20 @@ public class PluginsService extends AbstractComponent {
         if (pluginsDirectory != null) {
             try {
                 Set<Bundle> plugins = getPluginBundles(pluginsDirectory);
-                if (plugins.removeAll(bundles)) {
+                for (Bundle bundle : plugins) {
+                    info.addPlugin(bundle.plugin);
+                }
+                if (plugins.removeAll(seen)) {
                     throw new IllegalStateException("Some plugins conflict with modules!");
                 }
-                bundles.addAll(plugins);
+                seen.addAll(plugins);
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize plugins", ex);
             }
         }
         
-        List<Tuple<PluginInfo, Plugin>> loaded = loadBundles(bundles);
+        List<Tuple<PluginInfo, Plugin>> loaded = loadBundles(seen);
         pluginsLoaded.addAll(loaded);
-        for (Tuple<PluginInfo, Plugin> plugin : loaded) {
-            info.addPlugin(plugin.v1());
-        }
 
         plugins = Collections.unmodifiableList(pluginsLoaded);
 

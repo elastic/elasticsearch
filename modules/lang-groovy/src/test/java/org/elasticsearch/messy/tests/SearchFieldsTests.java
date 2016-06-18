@@ -22,6 +22,7 @@ package org.elasticsearch.messy.tests;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -373,7 +374,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
     public void testScriptFieldsForNullReturn() throws Exception {
         client().prepareIndex("test", "type1", "1")
             .setSource("foo", "bar")
-            .setRefresh(true).get();
+            .setRefreshPolicy("true").get();
 
         SearchResponse response = client().prepareSearch().setQuery(matchAllQuery())
             .addScriptField("test_script_1", new Script("return null"))

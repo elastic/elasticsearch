@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
@@ -177,7 +178,7 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         if (operation == Operation.NOT) {
@@ -186,7 +187,7 @@ public final class EUnary extends AExpression {
                 Label end = new Label();
 
                 child.fals = localfals;
-                child.write(writer);
+                child.write(writer, globals);
 
                 writer.push(false);
                 writer.goTo(end);
@@ -196,11 +197,11 @@ public final class EUnary extends AExpression {
             } else {
                 child.tru = fals;
                 child.fals = tru;
-                child.write(writer);
+                child.write(writer, globals);
             }
         } else {
             Sort sort = promote.sort;
-            child.write(writer);
+            child.write(writer, globals);
 
             if (operation == Operation.BWNOT) {
                 if (sort == Sort.DEF) {

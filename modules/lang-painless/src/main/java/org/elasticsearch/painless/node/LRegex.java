@@ -19,9 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Constant;
 
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -64,25 +65,26 @@ public final class LRegex extends ALink {
             throw createError(new IllegalArgumentException("Regex constant may only be read [" + pattern + "]."));
         }
 
-        constant = locals.addConstant(location, Definition.PATTERN_TYPE, "regexAt$" + location.getOffset(), this::initializeConstant);
+        constant = new Constant(location, Definition.PATTERN_TYPE.type, "regexAt$" + location.getOffset(), this::initializeConstant);
         after = Definition.PATTERN_TYPE;
 
         return this;
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter writer) {
+    void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
         writer.getStatic(WriterConstants.CLASS_TYPE, constant.name, Definition.PATTERN_TYPE.type);
+        globals.addConstantInitializer(constant);
     }
 
     @Override
-    void store(MethodWriter writer) {
+    void store(MethodWriter writer, Globals globals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 

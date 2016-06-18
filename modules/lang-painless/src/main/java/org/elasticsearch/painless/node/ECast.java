@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -50,8 +51,8 @@ final class ECast extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer) {
-        child.write(writer);
+    void write(MethodWriter writer, Globals globals) {
+        child.write(writer, globals);
         writer.writeDebugInfo(location);
         writer.writeCast(cast);
         writer.writeBranch(tru, fals);

@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.AnalyzerCaster;
@@ -78,7 +79,7 @@ public final class EConditional extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         Label localfals = new Label();
@@ -88,11 +89,11 @@ public final class EConditional extends AExpression {
         left.tru = right.tru = tru;
         left.fals = right.fals = fals;
 
-        condition.write(writer);
-        left.write(writer);
+        condition.write(writer, globals);
+        left.write(writer, globals);
         writer.goTo(end);
         writer.mark(localfals);
-        right.write(writer);
+        right.write(writer, globals);
         writer.mark(end);
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Locals;
@@ -67,7 +68,7 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         if (tru != null || fals != null) {
             if (operation == Operation.AND) {
                 Label localfals = fals == null ? new Label() : fals;
@@ -76,8 +77,8 @@ public final class EBool extends AExpression {
                 right.tru = tru;
                 right.fals = fals;
 
-                left.write(writer);
-                right.write(writer);
+                left.write(writer, globals);
+                right.write(writer, globals);
 
                 if (fals == null) {
                     writer.mark(localfals);
@@ -89,8 +90,8 @@ public final class EBool extends AExpression {
                 right.tru = tru;
                 right.fals = fals;
 
-                left.write(writer);
-                right.write(writer);
+                left.write(writer, globals);
+                right.write(writer, globals);
 
                 if (tru == null) {
                     writer.mark(localtru);
@@ -106,8 +107,8 @@ public final class EBool extends AExpression {
                 left.fals = localfals;
                 right.fals = localfals;
 
-                left.write(writer);
-                right.write(writer);
+                left.write(writer, globals);
+                right.write(writer, globals);
 
                 writer.push(true);
                 writer.goTo(end);
@@ -122,8 +123,8 @@ public final class EBool extends AExpression {
                 left.tru = localtru;
                 right.fals = localfals;
 
-                left.write(writer);
-                right.write(writer);
+                left.write(writer, globals);
+                right.write(writer, globals);
 
                 writer.mark(localtru);
                 writer.push(true);

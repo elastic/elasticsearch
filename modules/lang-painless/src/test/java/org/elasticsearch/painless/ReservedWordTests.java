@@ -30,7 +30,7 @@ public class ReservedWordTests extends ScriptTestCase {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("int _score = 5; return _score;");
         });
-        assertTrue(expected.getMessage().contains("Variable [_score] is reserved"));
+        assertTrue(expected.getMessage().contains("Variable [_score] is already defined"));
     }
 
     /** check that we can't write to _score, its read-only! */
@@ -46,7 +46,7 @@ public class ReservedWordTests extends ScriptTestCase {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("int doc = 5; return doc;");
         });
-        assertTrue(expected.getMessage().contains("Variable [doc] is reserved"));
+        assertTrue(expected.getMessage().contains("Variable [doc] is already defined"));
     }
 
     /** check that we can't write to doc, its read-only! */
@@ -62,7 +62,7 @@ public class ReservedWordTests extends ScriptTestCase {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("int ctx = 5; return ctx;");
         });
-        assertTrue(expected.getMessage().contains("Variable [ctx] is reserved"));
+        assertTrue(expected.getMessage().contains("Variable [ctx] is already defined"));
     }
 
     /** check that we can't write to ctx, its read-only! */
@@ -83,7 +83,7 @@ public class ReservedWordTests extends ScriptTestCase {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("int _value = 5; return _value;");
         });
-        assertTrue(expected.getMessage().contains("Variable [_value] is reserved"));
+        assertTrue(expected.getMessage().contains("Variable [_value] is already defined"));
     }
 
     /** check that we can't write to _value, its read-only! */

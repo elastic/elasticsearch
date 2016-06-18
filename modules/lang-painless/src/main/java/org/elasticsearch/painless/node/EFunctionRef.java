@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.FunctionRef;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Definition.Method;
@@ -35,7 +36,7 @@ import java.lang.invoke.LambdaMetafactory;
 /**
  * Represents a function reference.
  */
-public class EFunctionRef extends AExpression {
+public class EFunctionRef extends AExpression implements ILambda {
     public final String type;
     public final String call;
 
@@ -83,7 +84,7 @@ public class EFunctionRef extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         if (ref != null) {
             writer.writeDebugInfo(location);
             // convert MethodTypes to asm Type for the constant pool.
@@ -113,5 +114,15 @@ public class EFunctionRef extends AExpression {
             // TODO: don't do this: its just to cutover :)
             writer.push((String)null);
         }
+    }
+
+    @Override
+    public String getPointer() {
+        return defPointer;
+    }
+
+    @Override
+    public Type[] getCaptures() {
+        return new Type[0]; // no captures
     }
 }

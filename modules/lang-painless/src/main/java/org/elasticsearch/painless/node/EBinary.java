@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Location;
@@ -604,7 +605,7 @@ public final class EBinary extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         if (promote.sort == Sort.STRING && operation == Operation.ADD) {
@@ -612,13 +613,13 @@ public final class EBinary extends AExpression {
                 writer.writeNewStrings();
             }
 
-            left.write(writer);
+            left.write(writer, globals);
 
             if (!(left instanceof EBinary) || ((EBinary)left).operation != Operation.ADD || left.actual.sort != Sort.STRING) {
                 writer.writeAppendStrings(left.actual);
             }
 
-            right.write(writer);
+            right.write(writer, globals);
 
             if (!(right instanceof EBinary) || ((EBinary)right).operation != Operation.ADD || right.actual.sort != Sort.STRING) {
                 writer.writeAppendStrings(right.actual);
@@ -628,14 +629,14 @@ public final class EBinary extends AExpression {
                 writer.writeToStrings();
             }
         } else if (operation == Operation.FIND) {
-            writeBuildMatcher(writer);
+            writeBuildMatcher(writer, globals);
             writer.invokeVirtual(Definition.MATCHER_TYPE.type, WriterConstants.MATCHER_FIND);
         } else if (operation == Operation.MATCH) {
-            writeBuildMatcher(writer);
+            writeBuildMatcher(writer, globals);
             writer.invokeVirtual(Definition.MATCHER_TYPE.type, WriterConstants.MATCHER_MATCHES);
         } else {
-            left.write(writer);
-            right.write(writer);
+            left.write(writer, globals);
+            right.write(writer, globals);
 
             if (promote.sort == Sort.DEF || (shiftDistance != null && shiftDistance.sort == Sort.DEF)) {
                 writer.writeDynamicBinaryInstruction(location, actual, left.actual, right.actual, operation, false);
@@ -647,9 +648,9 @@ public final class EBinary extends AExpression {
         writer.writeBranch(tru, fals);
     }
 
-    private void writeBuildMatcher(MethodWriter writer) {
-        right.write(writer);
-        left.write(writer);
+    private void writeBuildMatcher(MethodWriter writer, Globals globals) {
+        right.write(writer, globals);
+        left.write(writer, globals);
         writer.invokeVirtual(Definition.PATTERN_TYPE.type, WriterConstants.PATTERN_MATCHER);
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Locals;
@@ -65,7 +66,7 @@ public final class SCatch extends AStatement {
             throw createError(new ClassCastException("Not an exception type [" + this.type + "]."));
         }
 
-        variable = locals.addVariable(location, type, name, true, false);
+        variable = locals.addVariable(location, type, name, true);
 
         if (block != null) {
             block.lastSource = lastSource;
@@ -84,18 +85,18 @@ public final class SCatch extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeStatementOffset(location);
 
         Label jump = new Label();
 
         writer.mark(jump);
-        writer.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.slot);
+        writer.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.getSlot());
 
         if (block != null) {
             block.continu = continu;
             block.brake = brake;
-            block.write(writer);
+            block.write(writer, globals);
         }
 
         writer.visitTryCatchBlock(begin, end, jump, variable.type.type.getInternalName());

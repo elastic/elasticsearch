@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
@@ -42,7 +43,7 @@ public final class SWhile extends AStatement {
 
     @Override
     void analyze(Locals locals) {
-        locals.incrementScope();
+        locals = Locals.newLocalScope(locals);
 
         condition.expected = Definition.BOOLEAN_TYPE;
         condition.analyze(locals);
@@ -82,15 +83,13 @@ public final class SWhile extends AStatement {
 
         statementCount = 1;
 
-        if (locals.getMaxLoopCounter() > 0) {
-            loopCounterSlot = locals.getVariable(location, "#loop").slot;
+        if (locals.hasVariable(Locals.LOOP)) {
+            loopCounter = locals.getVariable(location, Locals.LOOP);
         }
-
-        locals.decrementScope();
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeStatementOffset(location);
 
         Label begin = new Label();
@@ -99,16 +98,16 @@ public final class SWhile extends AStatement {
         writer.mark(begin);
 
         condition.fals = end;
-        condition.write(writer);
+        condition.write(writer, globals);
 
         if (block != null) {
-            writer.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount), location);
+            writer.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
 
             block.continu = begin;
             block.brake = end;
-            block.write(writer);
+            block.write(writer, globals);
         } else {
-            writer.writeLoopCounter(loopCounterSlot, 1, location);
+            writer.writeLoopCounter(loopCounter.getSlot(), 1, location);
         }
 
         if (block == null || !block.allEscape) {

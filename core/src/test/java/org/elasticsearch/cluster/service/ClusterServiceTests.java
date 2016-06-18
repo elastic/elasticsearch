@@ -23,7 +23,6 @@ import org.apache.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
@@ -33,7 +32,6 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
@@ -382,7 +380,7 @@ public class ClusterServiceTests extends ESTestCase {
         final int numOfTasks = randomInt(10);
         final CountDownLatch latch = new CountDownLatch(numOfTasks);
         for (int i = 0; i < numOfTasks; i++) {
-            tasks.put(randomInt(1024), new ClusterStateTaskListener() {
+            while (null != tasks.put(randomInt(1024), new ClusterStateTaskListener() {
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     latch.countDown();
@@ -392,7 +390,7 @@ public class ClusterServiceTests extends ESTestCase {
                 public void onFailure(String source, Throwable t) {
                     fail(ExceptionsHelper.detailedMessage(t));
                 }
-            });
+            })) ;
         }
 
         clusterService.submitStateUpdateTasks("test", tasks, ClusterStateTaskConfig.build(Priority.LANGUID),

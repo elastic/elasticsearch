@@ -104,7 +104,7 @@ import java.util.stream.StreamSupport;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ESIndexLevelReplicationTestCase extends ESTestCase {
+public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
 
     private ThreadPool threadPool;
     final private Index index = new Index("test", "uuid");

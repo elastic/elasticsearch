@@ -132,7 +132,8 @@ public class ESIndexLevelReplicationTestCase extends ESTestCase {
             IndexShard replica = shards.addReplica();
             final CountDownLatch recoveryBlocked = new CountDownLatch(1);
             final CountDownLatch releaseRecovery = new CountDownLatch(1);
-            final Future<Void> recoveryFuture = shards.asyncRecoverReplica(replica, new BiFunction<IndexShard, DiscoveryNode, RecoveryTarget>() {
+            final Future<Void> recoveryFuture = shards.asyncRecoverReplica(replica,
+                new BiFunction<IndexShard, DiscoveryNode, RecoveryTarget>() {
                 @Override
                 public RecoveryTarget apply(IndexShard indexShard, DiscoveryNode node) {
                     return new RecoveryTarget(indexShard, node, recoveryListener) {
@@ -441,7 +442,8 @@ public class ESIndexLevelReplicationTestCase extends ESTestCase {
         }
 
         @Override
-        public void failShard(ShardRouting replica, ShardRouting primary, String message, Throwable throwable, Runnable onSuccess, Consumer<Throwable> onPrimaryDemoted, Consumer<Throwable> onIgnoredFailure) {
+        public void failShard(ShardRouting replica, ShardRouting primary, String message, Throwable throwable, Runnable onSuccess,
+                              Consumer<Throwable> onPrimaryDemoted, Consumer<Throwable> onIgnoredFailure) {
             throw new UnsupportedOperationException();
         }
     }

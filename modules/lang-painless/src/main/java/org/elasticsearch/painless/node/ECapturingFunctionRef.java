@@ -30,7 +30,6 @@ import org.elasticsearch.painless.Locals.Variable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 import java.lang.invoke.LambdaMetafactory;
@@ -90,8 +89,8 @@ public class ECapturingFunctionRef extends AExpression implements ILambda {
         } else if (ref == null) {
             // typed interface, dynamic implementation
             writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.getSlot());
-            String descriptor = Type.getMethodType(expected.type, captured.type.type).getDescriptor();
-            writer.invokeDynamic(call, descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.REFERENCE, expected.name);
+            Type methodType = Type.getMethodType(expected.type, captured.type.type);
+            writer.invokeDefCall(call, methodType, DefBootstrap.REFERENCE, expected.name);
         } else {
             // typed interface, typed implementation
             writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.getSlot());

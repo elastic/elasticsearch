@@ -33,6 +33,11 @@ public final class CompilerSettings {
      * Constant to be used for enabling additional internal compilation checks (slower).
      */
     public static final String PICKY = "picky";
+    
+    /**
+     * For testing: do not use.
+     */
+    public static final String INITIAL_CALL_SITE_DEPTH = "initialCallSiteDepth";
 
     /**
      * The maximum number of statements allowed to be run in a loop.
@@ -44,6 +49,11 @@ public final class CompilerSettings {
      * makes things slower too, it is only for debugging.
      */
     private boolean picky = false;
+    
+    /**
+     * For testing. Do not use.
+     */
+    private int initialCallSiteDepth = 0;
 
     /**
      * Returns the value for the cumulative total number of statements that can be made in all loops
@@ -77,5 +87,21 @@ public final class CompilerSettings {
      */
     public void setPicky(boolean picky) {
       this.picky = picky;
+    }
+    
+    /**
+     * Returns initial call site depth. This means we pretend we've already seen N different types,
+     * to better exercise fallback code in tests.
+     */
+    public int getInitialCallSiteDepth() {
+        return initialCallSiteDepth;
+    }
+    
+    /**
+     * For testing megamorphic fallbacks. Do not use.
+     * @see #getInitialCallSiteDepth()
+     */
+    public void setInitialCallSiteDepth(int depth) {
+        this.initialCallSiteDepth = depth;
     }
 }

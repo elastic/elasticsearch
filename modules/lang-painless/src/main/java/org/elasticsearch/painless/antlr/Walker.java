@@ -241,7 +241,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SSource(sourceName, sourceText, debugStream, (MainMethodReserved)reserved.pop(), 
+        return new SSource(settings, sourceName, sourceText, debugStream, (MainMethodReserved)reserved.pop(), 
                            location(ctx), functions, globals, statements);
     }
 

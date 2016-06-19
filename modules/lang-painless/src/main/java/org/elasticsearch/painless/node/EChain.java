@@ -26,6 +26,7 @@ import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
@@ -214,7 +215,10 @@ public final class EChain extends AExpression {
 
             expression.expected = expression.actual;
         } else if (shift) {
-            if (shiftDistance.sort == Sort.LONG) {
+            if (promote.sort == Sort.DEF) {
+                // shifts are promoted independently, but for the def type, we need object.
+                expression.expected = promote;
+            } else if (shiftDistance.sort == Sort.LONG) {
                 expression.expected = Definition.INT_TYPE;
                 expression.explicit = true;   
             } else {
@@ -353,7 +357,7 @@ public final class EChain extends AExpression {
                     // write the operation instruction for compound assignment
                     if (promote.sort == Sort.DEF) {
                         writer.writeDynamicBinaryInstruction(location, promote, 
-                            Definition.DEF_TYPE, Definition.DEF_TYPE, operation, true);
+                            Definition.DEF_TYPE, Definition.DEF_TYPE, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
                     } else {
                         writer.writeBinaryInstruction(location, promote, operation);
                     }

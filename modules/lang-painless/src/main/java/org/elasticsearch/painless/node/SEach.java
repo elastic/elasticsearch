@@ -35,7 +35,6 @@ import org.elasticsearch.painless.Locals.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_HASNEXT;
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_NEXT;
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_TYPE;
@@ -193,8 +192,8 @@ public class SEach extends AStatement {
 
         if (method == null) {
             Type itr = Definition.getType("Iterator");
-            String desc = org.objectweb.asm.Type.getMethodDescriptor(itr.type, Definition.DEF_TYPE.type);
-            writer.invokeDynamic("iterator", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ITERATOR);
+            org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(itr.type, Definition.DEF_TYPE.type);
+            writer.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
         } else if (java.lang.reflect.Modifier.isInterface(method.owner.clazz.getModifiers())) {
             writer.invokeInterface(method.owner.type, method.method);
         } else {

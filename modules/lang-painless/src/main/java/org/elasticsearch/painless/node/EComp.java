@@ -33,7 +33,6 @@ import org.elasticsearch.painless.MethodWriter;
 
 import static org.elasticsearch.painless.WriterConstants.OBJECTS_TYPE;
 import static org.elasticsearch.painless.WriterConstants.EQUALS;
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 
 /**
  * Represents a comparison expression.
@@ -498,8 +497,7 @@ public final class EComp extends AExpression {
                     if (right.isNull) {
                         writer.ifNull(jump);
                     } else if (!left.isNull && (operation == Operation.EQ || operation == Operation.NE)) {
-                        writer.invokeDynamic("eq", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR,
-                                                                                                     DefBootstrap.OPERATOR_ALLOWS_NULL);
+                        writer.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                         writejump = false;
                     } else {
                         writer.ifCmp(promotedType.type, MethodWriter.EQ, jump);
@@ -508,23 +506,22 @@ public final class EComp extends AExpression {
                     if (right.isNull) {
                         writer.ifNonNull(jump);
                     } else if (!left.isNull && (operation == Operation.EQ || operation == Operation.NE)) {
-                        writer.invokeDynamic("eq", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR,
-                                                                                                     DefBootstrap.OPERATOR_ALLOWS_NULL);
+                        writer.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                         writer.ifZCmp(MethodWriter.EQ, jump);
                     } else {
                         writer.ifCmp(promotedType.type, MethodWriter.NE, jump);
                     }
                 } else if (lt) {
-                    writer.invokeDynamic("lt", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, 0);
+                    writer.invokeDefCall("lt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
                     writejump = false;
                 } else if (lte) {
-                    writer.invokeDynamic("lte", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, 0);
+                    writer.invokeDefCall("lte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
                     writejump = false;
                 } else if (gt) {
-                    writer.invokeDynamic("gt", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, 0);
+                    writer.invokeDefCall("gt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
                     writejump = false;
                 } else if (gte) {
-                    writer.invokeDynamic("gte", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, 0);
+                    writer.invokeDefCall("gte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
                     writejump = false;
                 } else {
                     throw createError(new IllegalStateException("Illegal tree structure."));

@@ -85,9 +85,10 @@ public final class WriterConstants {
     public final static Method MATCHER_FIND = getAsmMethod(boolean.class, "find");
 
     /** dynamic callsite bootstrap signature */
-    public final static MethodType DEF_BOOTSTRAP_TYPE =
-        MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, int.class, Object[].class);
-    public final static Handle DEF_BOOTSTRAP_HANDLE =
+    final static MethodType DEF_BOOTSTRAP_TYPE =
+        MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, 
+                              int.class, int.class, Object[].class);
+    final static Handle DEF_BOOTSTRAP_HANDLE =
         new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(DefBootstrap.class),
             "bootstrap", DEF_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
 

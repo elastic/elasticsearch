@@ -27,8 +27,6 @@ import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Type;
 import org.elasticsearch.painless.MethodWriter;
 
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
-
 /**
  * Represents a field load/store or shortcut on a def type.  (Internal only.)
  */
@@ -59,15 +57,15 @@ final class LDefField extends ALink implements IDefLink {
     void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        String desc = Type.getMethodDescriptor(after.type, Definition.DEF_TYPE.type);
-        writer.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.LOAD);
+        Type methodType = Type.getMethodType(after.type, Definition.DEF_TYPE.type);
+        writer.invokeDefCall(value, methodType, DefBootstrap.LOAD);
     }
 
     @Override
     void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        String desc = Type.getMethodDescriptor(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, after.type);
-        writer.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.STORE);
+        Type methodType = Type.getMethodType(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, after.type);
+        writer.invokeDefCall(value, methodType, DefBootstrap.STORE);
     }
 }

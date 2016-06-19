@@ -243,18 +243,22 @@ public class DefOptimizationTests extends ScriptTestCase {
     public void testAddOptNullGuards() {
         // needs null guard
         assertBytecodeHasPattern("def x = 1; def y = 2; return x + y", 
-                "(?s).*INVOKEDYNAMIC add.*arguments:\\s+" + DefBootstrap.BINARY_OPERATOR 
+                "(?s).*INVOKEDYNAMIC add.*arguments:\\s+" + "\\d+"
+                                                + ",\\s+" + DefBootstrap.BINARY_OPERATOR 
                                                 + ",\\s+" + DefBootstrap.OPERATOR_ALLOWS_NULL + ".*");
         // still needs null guard, NPE is the wrong thing!
         assertBytecodeHasPattern("def x = 1; def y = 2; double z = x + y", 
-                "(?s).*INVOKEDYNAMIC add.*arguments:\\s+" + DefBootstrap.BINARY_OPERATOR 
+                "(?s).*INVOKEDYNAMIC add.*arguments:\\s+" + "\\d+"
+                                                + ",\\s+" + DefBootstrap.BINARY_OPERATOR
                                                 + ",\\s+" + DefBootstrap.OPERATOR_ALLOWS_NULL + ".*");
         // a primitive argument is present: no null guard needed
         assertBytecodeHasPattern("def x = 1; int y = 2; return x + y", 
-                "(?s).*INVOKEDYNAMIC add.*arguments:\\s+" + DefBootstrap.BINARY_OPERATOR 
+                "(?s).*INVOKEDYNAMIC add.*arguments:\\s+" + "\\d+"
+                                                + ",\\s+" + DefBootstrap.BINARY_OPERATOR
                                                 + ",\\s+" + 0 + ".*");
         assertBytecodeHasPattern("int x = 1; def y = 2; return x + y", 
-                "(?s).*INVOKEDYNAMIC add.*arguments:\\s+" + DefBootstrap.BINARY_OPERATOR 
+                "(?s).*INVOKEDYNAMIC add.*arguments:\\s+" + "\\d+"
+                                                + ",\\s+" + DefBootstrap.BINARY_OPERATOR
                                                 + ",\\s+" + 0 + ".*");
     }
     

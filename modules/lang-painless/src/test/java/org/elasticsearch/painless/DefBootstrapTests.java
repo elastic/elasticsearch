@@ -139,7 +139,7 @@ public class DefBootstrapTests extends ESTestCase {
                                                                DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
         MethodHandle handle = site.dynamicInvoker();
         assertEquals(2, (Object)handle.invokeExact((Object)1, (Object)1));
-        assertEquals("nulltest", (Object)handle.invoke((Object)null, (Object)"test"));
+        assertEquals("nulltest", (Object)handle.invokeExact((Object)null, (Object)"test"));
     }
     
     public void testNullGuardEq() throws Throwable {

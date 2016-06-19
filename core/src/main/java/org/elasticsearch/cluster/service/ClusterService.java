@@ -237,7 +237,11 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
      * The local node.
      */
     public DiscoveryNode localNode() {
-        return clusterState.getNodes().getLocalNode();
+        DiscoveryNode localNode = clusterState.getNodes().getLocalNode();
+        if (localNode == null) {
+            throw new IllegalStateException("No local node found. Is the node started?");
+        }
+        return localNode;
     }
 
     public OperationRouting operationRouting() {

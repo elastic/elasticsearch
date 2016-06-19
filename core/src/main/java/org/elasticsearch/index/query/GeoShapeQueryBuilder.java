@@ -378,6 +378,9 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         if (!response.isExists()) {
             throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() + "] not found");
         }
+        if (response.isSourceEmpty()) {
+            throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() + "] source disabled");
+        }
 
         String[] pathElements = path.split("\\.");
         int currentPathSlot = 0;

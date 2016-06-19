@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.geo;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.settings.Settings;
 import org.locationtech.spatial4j.shape.Rectangle;
 import com.vividsolutions.jts.geom.Coordinate;
 
@@ -54,6 +56,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GeoShapeQueryTests extends ESSingleNodeTestCase {
@@ -195,6 +198,30 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+    }
+
+    public void testIndexedShapeReferenceSourceDisabled() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("location")
+                        .field("type", "geo_shape")
+                        .field("tree", "quadtree")
+                    .endObject()
+                .endObject()
+            .endObject();
+        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).get();
+        createIndex("shapes", Settings.EMPTY, "shape_type", "_source", "enabled=false");
+        ensureGreen();
+
+        ShapeBuilder shape = ShapeBuilders.newEnvelope(new Coordinate(-45, 45), new Coordinate(45, -45));
+
+        client().prepareIndex("shapes", "shape_type", "Big_Rectangle").setSource(jsonBuilder().startObject()
+            .field("shape", shape).endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client().prepareSearch("test").setTypes("type1")
+            .setQuery(geoIntersectionQuery("location", "Big_Rectangle", "shape_type")).get());
+        assertThat(e.getRootCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getRootCause().getMessage(), containsString("source disabled"));
     }
 
     public void testReusableBuilder() throws IOException {

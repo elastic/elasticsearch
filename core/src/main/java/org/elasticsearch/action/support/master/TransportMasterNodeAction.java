@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -121,11 +120,8 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         AsyncSingleAction(Task task, Request request, ActionListener<Response> listener) {
             this.task = task;
             this.request = request;
-            DiscoveryNode discoveryNode = clusterService.localNode();
-            if (task != null && discoveryNode != null) {
-                request.setParentTask(discoveryNode.getId(), task.getId());
-            } else {
-                throw new IllegalStateException("No local node to execute task on. Did you forget to start the node?");
+            if (task != null) {
+                request.setParentTask(clusterService.localNode().getId(), task.getId());
             }
             this.listener = listener;
         }

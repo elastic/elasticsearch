@@ -208,7 +208,11 @@ public class NodeInfo extends BaseNodeResponse {
         super.readFrom(in);
         version = Version.readVersion(in);
         build = Build.readBuild(in);
-        totalIndexingBuffer = new ByteSizeValue(in.readLong());
+        if (in.readBoolean()) {
+            totalIndexingBuffer = new ByteSizeValue(in.readLong());
+        } else {
+            totalIndexingBuffer = null;
+        }
         if (in.readBoolean()) {
             Map<String, String> builder = new HashMap<>();
             int size = in.readVInt();
@@ -253,8 +257,9 @@ public class NodeInfo extends BaseNodeResponse {
         out.writeVInt(version.id);
         Build.writeBuild(build, out);
         if (totalIndexingBuffer == null) {
-            out.writeLong(0);
+            out.writeBoolean(false);
         } else {
+            out.writeBoolean(true);
             out.writeLong(totalIndexingBuffer.bytes());
         }
         if (getServiceAttributes() == null) {

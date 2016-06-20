@@ -141,7 +141,7 @@ public class NodeService extends AbstractComponent implements Closeable {
     }
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
-                         boolean transport, boolean http, boolean plugin, boolean ingest) {
+                         boolean transport, boolean http, boolean plugin, boolean ingest, boolean indices) {
         return new NodeInfo(version, Build.CURRENT, discovery.localNode(), serviceAttributes,
                 settings ? settingsFilter.filter(this.settings) : null,
                 os ? monitorService.osService().info() : null,
@@ -152,7 +152,7 @@ public class NodeService extends AbstractComponent implements Closeable {
                 http ? (httpServer == null ? null : httpServer.info()) : null,
                 plugin ? (pluginService == null ? null : pluginService.info()) : null,
                 ingest ? (ingestService == null ? null : ingestService.info()) : null,
-                indicesService == null ? null : indicesService.getTotalIndexingBufferBytes()
+                indices ? indicesService.getTotalIndexingBufferBytes() : null
         );
     }
 

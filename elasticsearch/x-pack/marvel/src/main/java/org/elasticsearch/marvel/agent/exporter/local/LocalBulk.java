@@ -16,7 +16,7 @@ import org.elasticsearch.marvel.agent.exporter.ExportException;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.agent.resolver.ResolversRegistry;
-import org.elasticsearch.marvel.support.init.proxy.MonitoringClientProxy;
+import org.elasticsearch.xpack.common.init.proxy.ClientProxy;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -28,13 +28,13 @@ import java.util.Collection;
 public class LocalBulk extends ExportBulk {
 
     private final ESLogger logger;
-    private final MonitoringClientProxy client;
+    private final ClientProxy client;
     private final ResolversRegistry resolvers;
 
     private BulkRequestBuilder requestBuilder;
 
 
-    public LocalBulk(String name, ESLogger logger, MonitoringClientProxy client, ResolversRegistry resolvers) {
+    public LocalBulk(String name, ESLogger logger, ClientProxy client, ResolversRegistry resolvers) {
         super(name);
         this.logger = logger;
         this.client = client;

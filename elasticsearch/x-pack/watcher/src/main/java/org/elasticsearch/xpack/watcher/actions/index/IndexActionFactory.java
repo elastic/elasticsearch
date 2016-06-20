@@ -10,8 +10,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.actions.ActionFactory;
-import org.elasticsearch.xpack.watcher.actions.email.ExecutableEmailAction;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 
 import java.io.IOException;
@@ -25,8 +25,12 @@ public class IndexActionFactory extends ActionFactory<IndexAction, ExecutableInd
     private final TimeValue defaultTimeout;
 
     @Inject
-    public IndexActionFactory(Settings settings, WatcherClientProxy client) {
-        super(Loggers.getLogger(ExecutableEmailAction.class, settings));
+    public IndexActionFactory(Settings settings, InternalClient client) {
+        this(settings, new WatcherClientProxy(settings, client));
+    }
+
+    public IndexActionFactory(Settings settings, WatcherClientProxy client ) {
+        super(Loggers.getLogger(IndexActionFactory.class, settings));
         this.client = client;
         this.defaultTimeout = settings.getAsTime("xpack.watcher.actions.index.default_timeout", null);
     }

@@ -7,9 +7,14 @@ package org.elasticsearch.xpack.watcher.transform;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.watcher.transform.chain.ChainTransform;
+import org.elasticsearch.xpack.watcher.transform.chain.ChainTransformFactory;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -20,8 +25,10 @@ public class TransformRegistry {
     private final Map<String, TransformFactory> factories;
 
     @Inject
-    public TransformRegistry(Map<String, TransformFactory> factories) {
-        this.factories = factories;
+    public TransformRegistry(Settings settings, Map<String, TransformFactory> factories) {
+        Map<String, TransformFactory> map = new HashMap<>(factories);
+        map.put(ChainTransform.TYPE, new ChainTransformFactory(settings, this));
+        this.factories = Collections.unmodifiableMap(map);
     }
 
     public TransformFactory factory(String type) {

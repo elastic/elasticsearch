@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.transform.chain;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -111,9 +112,9 @@ public class ChainTransformTests extends ESTestCase {
     }
 
     public void testParser() throws Exception {
-        TransformRegistry registry = new TransformRegistry(singletonMap("named", new NamedExecutableTransform.Factory(logger)));
+        TransformRegistry registry = new TransformRegistry(Settings.EMPTY, singletonMap("named", new NamedExecutableTransform.Factory(logger)));
 
-        ChainTransformFactory transformParser = new ChainTransformFactory(registry);
+        ChainTransformFactory transformParser = new ChainTransformFactory(Settings.EMPTY, registry);
 
         XContentBuilder builder = jsonBuilder().startArray()
                 .startObject().startObject("named").field("name", "name1").endObject().endObject()

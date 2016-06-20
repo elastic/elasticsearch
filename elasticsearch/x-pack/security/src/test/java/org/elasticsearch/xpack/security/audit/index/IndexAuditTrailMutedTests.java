@@ -10,6 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.util.Providers;
@@ -62,14 +64,18 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         threadPool = new TestThreadPool("index audit trail tests");
         transportClient = TransportClient.builder().settings(Settings.EMPTY).build();
         clientCalled = new AtomicBoolean(false);
-        client = new InternalClient(transportClient) {
+        class IClient extends FilterClient implements InternalClient {
+           IClient(Client transportClient){
+                super(transportClient);
+           }
             @Override
             protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends
                     ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
                     Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
                 clientCalled.set(true);
             }
-        };
+        }
+        client = new IClient(transportClient);
         messageEnqueued = new AtomicBoolean(false);
     }
 

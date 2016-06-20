@@ -16,6 +16,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.common.init.proxy.ClientProxy;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.Action.Result.Status;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
@@ -199,7 +200,7 @@ public class IndexActionTests extends ESIntegTestCase {
         }
         builder.endObject();
 
-        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, WatcherClientProxy.of(client()));
+        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, ClientProxy.fromClient(client()));
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
@@ -227,7 +228,7 @@ public class IndexActionTests extends ESIntegTestCase {
             }
         }
         builder.endObject();
-        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, WatcherClientProxy.of(client()));
+        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY,ClientProxy.fromClient(client()));
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
         try {

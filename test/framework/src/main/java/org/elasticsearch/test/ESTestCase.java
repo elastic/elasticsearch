@@ -73,6 +73,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
+import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 
 import java.io.IOException;
@@ -140,13 +141,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         @Override
         protected void afterAlways(List<Throwable> errors) throws Throwable {
             if (errors != null && errors.isEmpty() == false) {
-                ESTestCase.this.afterIfFailed(errors);
+                boolean allAssumption = true;
+                for (Throwable error : errors) {
+                    if (false == error instanceof AssumptionViolatedException) {
+                        allAssumption = false;
+                        break;
+                    }
+                }
+                if (false == allAssumption) {
+                    ESTestCase.this.afterIfFailed(errors);
+                }
             }
             super.afterAlways(errors);
         }
     });
 
-    /** called when a test fails, supplying the errors it generated */
+    /**
+     * Called when a test fails, supplying the errors it generated. Not called when the test fails because assumptions are violated.
+     */
     protected void afterIfFailed(List<Throwable> errors) {
     }
 

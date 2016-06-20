@@ -148,7 +148,7 @@ public class PercolateQueryTests extends ESTestCase {
                 new BytesArray("{}"),
                 percolateSearcher
         );
-        builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME, false);
+        builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
         // no scoring, wrapping it in a constant score query:
         Query query = new ConstantScoreQuery(builder.build());
         TopDocs topDocs = shardSearcher.search(query, 10);
@@ -222,7 +222,7 @@ public class PercolateQueryTests extends ESTestCase {
                 new BytesArray("{}"),
                 percolateSearcher
         );
-        builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME, false);
+        builder.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
         Query query = builder.build();
         TopDocs topDocs = shardSearcher.search(query, 10);
         assertThat(topDocs.totalHits, equalTo(3));
@@ -341,7 +341,7 @@ public class PercolateQueryTests extends ESTestCase {
                 percolateSearcher
         );
         // enables the optimization that prevents queries from being evaluated that don't match
-        builder1.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME, randomBoolean());
+        builder1.extractQueryTermsQuery(EXTRACTED_TERMS_FIELD_NAME, UNKNOWN_QUERY_FIELD_NAME);
         Query query1 = requireScore ? builder1.build() : new ConstantScoreQuery(builder1.build());
         TopDocs topDocs1 = shardSearcher.search(query1, 10);
 

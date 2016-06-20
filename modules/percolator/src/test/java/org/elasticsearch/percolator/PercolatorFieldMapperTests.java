@@ -50,7 +50,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsLookupQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 import static org.elasticsearch.percolator.ExtractQueryTermsService.EXTRACTION_COMPLETE;
-import static org.elasticsearch.percolator.ExtractQueryTermsService.EXTRACTION_FAILED;
+import static org.elasticsearch.percolator.ExtractQueryTermsService.EXTRACTION_NO_TERMS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -114,7 +114,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .field(fieldName, queryBuilder)
                 .endObject().bytes());
         assertThat(doc.rootDoc().getFields(fieldType.getExtractionResultFieldName()).length, equalTo(1));
-        assertThat(doc.rootDoc().getFields(fieldType.getExtractionResultFieldName())[0].stringValue(), equalTo(EXTRACTION_FAILED));
+        assertThat(doc.rootDoc().getFields(fieldType.getExtractionResultFieldName())[0].stringValue(), equalTo(EXTRACTION_NO_TERMS));
         assertThat(doc.rootDoc().getFields(fieldType.getExtractedTermsField()).length, equalTo(0));
         assertThat(doc.rootDoc().getFields(fieldType.getQueryBuilderFieldName()).length, equalTo(1));
         qbSource = doc.rootDoc().getFields(fieldType.getQueryBuilderFieldName())[0].binaryValue();

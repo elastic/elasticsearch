@@ -55,9 +55,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Utility to extract query terms from queries and create queries from documents.
@@ -65,10 +67,9 @@ import java.util.Set;
 public final class ExtractQueryTermsService {
 
     private static final byte FIELD_VALUE_SEPARATOR = 0;  // nul code point
-    public static final String EXTRACTION_ALWAYS_MATCH = "always_match";
     public static final String EXTRACTION_COMPLETE = "complete";
     public static final String EXTRACTION_PARTIAL = "partial";
-    public static final String EXTRACTION_FAILED = "failed";
+    public static final String EXTRACTION_NO_TERMS = "no_terms";
 
     private ExtractQueryTermsService() {
     }
@@ -89,7 +90,7 @@ public final class ExtractQueryTermsService {
         try {
             result = extractQueryTerms(query);
         } catch (UnsupportedQueryException e) {
-            document.add(new Field(extractionResultField, EXTRACTION_FAILED, fieldType));
+            document.add(new Field(extractionResultField, EXTRACTION_NO_TERMS, fieldType));
             return;
         }
         for (Term term : result.terms) {
@@ -99,13 +100,14 @@ public final class ExtractQueryTermsService {
             builder.append(term.bytes());
             document.add(new Field(queryTermsFieldField, builder.toBytesRef(), fieldType));
         }
+        if (result.noTerms) {
+            assert result.terms.isEmpty() : "Expected zero terms, but got [" + result.terms + "]";
+            document.add(new Field(extractionResultField, EXTRACTION_NO_TERMS, fieldType));
+        }
         if (result.verified) {
             document.add(new Field(extractionResultField, EXTRACTION_COMPLETE, fieldType));
         } else {
             document.add(new Field(extractionResultField, EXTRACTION_PARTIAL, fieldType));
-        }
-        if (result.alwaysMatch) {
-            document.add(new Field(extractionResultField, EXTRACTION_ALWAYS_MATCH, fieldType));
         }
     }
 
@@ -124,10 +126,10 @@ public final class ExtractQueryTermsService {
         if (query instanceof MatchAllDocsQuery) {
             return new Result(true, true);
         } else  if (query instanceof MatchNoDocsQuery) {
-            return new Result(true);
+            return new Result(true, false);
         } else if (query instanceof TermQuery) {
             TermQuery termQuery = (TermQuery) query;
-            return new Result(true, termQuery.getTerm());
+            return new Result(true, Collections.singleton(termQuery.getTerm()));
         } else if (query instanceof TermsQuery) {
             Set<Term> terms = new HashSet<>();
             TermsQuery termsQuery = (TermsQuery) query;
@@ -139,7 +141,7 @@ public final class ExtractQueryTermsService {
         } else if (query instanceof PhraseQuery) {
             Term[] terms = ((PhraseQuery) query).getTerms();
             if (terms.length == 0) {
-                return new Result(true);
+                return new Result(true, false);
             }
 
             // the longest term is likely to be the rarest,
@@ -150,11 +152,11 @@ public final class ExtractQueryTermsService {
                     longestTerm = term;
                 }
             }
-            return new Result(false, longestTerm);
+            return new Result(false, Collections.singleton(longestTerm));
         } else if (query instanceof BooleanQuery) {
             BooleanQuery bq = (BooleanQuery) query;
             List<BooleanClause> clauses = bq.clauses();
-            int mnsm = bq.getMinimumNumberShouldMatch();
+            int minimumShouldMatch = bq.getMinimumNumberShouldMatch();
             int numRequiredClauses = 0;
             int numOptionalClauses = 0;
             int numProhibitedClauses = 0;
@@ -170,7 +172,8 @@ public final class ExtractQueryTermsService {
                 }
             }
             if (numRequiredClauses > 0) {
-                boolean alwaysMatch = true;
+                // Keep track if we mark this query as verfied if it only contains match_all in must clauses:
+                boolean verifiedIfMatchAll = numProhibitedClauses == 0;
                 Set<Term> bestClause = null;
                 UnsupportedQueryException uqe = null;
                 for (BooleanClause clause : clauses) {
@@ -184,10 +187,10 @@ public final class ExtractQueryTermsService {
                     Result temp;
                     try {
                         temp = extractQueryTerms(clause.getQuery());
-                        if (temp.alwaysMatch) {
+                        if (temp.noTerms) {
                             continue;
                         } else {
-                            alwaysMatch = false;
+                            verifiedIfMatchAll = false;
                         }
                     } catch (UnsupportedQueryException e) {
                         uqe = e;
@@ -197,39 +200,26 @@ public final class ExtractQueryTermsService {
                 }
                 if (bestClause != null) {
                     // 1 required clause, no prohibited clause, maybe some optional clauses, so it is verified:
-                    boolean verified = mnsm == 0 && numProhibitedClauses == 0 && numRequiredClauses == 1;
+                    boolean verified = minimumShouldMatch == 0 && numProhibitedClauses == 0 && numRequiredClauses == 1;
                     return new Result(verified, bestClause);
                 } else {
                     if (uqe != null) {
+                        // we're unable to select the best clause and an exception occurred, so we bail
                         throw uqe;
+                    } else {
+                        // We didn't find a clause and no exception occurred, so this bq only contained MatchAllDocsQueries
+                        // and / or MatchNoDocsQueries, so we mark this result as no terms, because no terms were extracted:
+                        return new Result(verifiedIfMatchAll, true);
                     }
-                    return new Result(true, alwaysMatch);
                 }
             } else {
-                boolean alwaysMatch = numOptionalClauses > 0;
-                boolean verified = true;
-                Set<Term> terms = new HashSet<>();
+                List<Query> disjunctions = new ArrayList<>(numOptionalClauses);
                 for (BooleanClause clause : clauses) {
-                    if (clause.isProhibited()) {
-                        // we don't need to remember the things that do *not* match...
-                        continue;
+                    if (clause.isScoring()) {
+                        disjunctions.add(clause.getQuery());
                     }
-                    Result subResult = extractQueryTerms(clause.getQuery());
-                    if (subResult.verified == false){
-                        verified = false;
-                    }
-                    if (subResult.alwaysMatch == false) {
-                        alwaysMatch = false;
-                    }
-                    terms.addAll(subResult.terms);
                 }
-
-                if (alwaysMatch) {
-                    return new Result(true, true);
-                }
-
-                boolean justOptionalClauses = mnsm <= 1 && numProhibitedClauses == 0;
-                return new Result(verified && justOptionalClauses, terms);
+                return handleDisjunction(disjunctions, minimumShouldMatch, numProhibitedClauses > 0);
             }
         } else if (query instanceof ConstantScoreQuery) {
             Query wrappedQuery = ((ConstantScoreQuery) query).getQuery();
@@ -245,19 +235,10 @@ public final class ExtractQueryTermsService {
             return new Result(true, new HashSet<>(terms));
         } else if (query instanceof DisjunctionMaxQuery) {
             List<Query> disjuncts = ((DisjunctionMaxQuery) query).getDisjuncts();
-            boolean verified = true;
-            Set<Term> terms = new HashSet<>();
-            for (Query disjunct : disjuncts) {
-                Result subResult = extractQueryTerms(disjunct);
-                if (subResult.verified == false){
-                    verified = false;
-                }
-                terms.addAll(subResult.terms);
-            }
-            return new Result(verified, terms);
+            return handleDisjunction(disjuncts, 1, false);
         } else if (query instanceof SpanTermQuery) {
             Term term = ((SpanTermQuery) query).getTerm();
-            return new Result(false, term);
+            return new Result(false, Collections.singleton(term));
         } else if (query instanceof SpanNearQuery) {
             Set<Term> bestClauses = null;
             SpanNearQuery spanNearQuery = (SpanNearQuery) query;
@@ -279,6 +260,27 @@ public final class ExtractQueryTermsService {
             return extractQueryTerms(((SpanNotQuery) query).getInclude());
         } else {
             throw new UnsupportedQueryException(query);
+        }
+    }
+
+    static Result handleDisjunction(Iterable<Query> disjunctions, int minimumShouldMatch, boolean otherClauses) {
+        boolean noTerms = true;
+        boolean verified = minimumShouldMatch <= 1 && otherClauses == false;
+        Set<Term> terms = new HashSet<>();
+        for (Query disjunct : disjunctions) {
+            Result subResult = extractQueryTerms(disjunct);
+            if (subResult.verified == false){
+                verified = false;
+            }
+            if (subResult.noTerms == false) {
+                noTerms = false;
+            }
+            terms.addAll(subResult.terms);
+        }
+        if (noTerms) {
+            return new Result(verified, true);
+        } else {
+            return new Result(verified, terms);
         }
     }
 
@@ -341,30 +343,18 @@ public final class ExtractQueryTermsService {
 
         final Set<Term> terms;
         final boolean verified;
-        final boolean alwaysMatch;
+        final boolean noTerms;
 
-        Result(boolean verified) {
+        Result(boolean verified, boolean noTerms) {
+            this.verified = verified;
+            this.noTerms = noTerms;
             this.terms = Collections.emptySet();
-            this.verified = verified;
-            this.alwaysMatch = false;
-        }
-
-        Result(boolean verified, boolean alwaysMatch) {
-            this.verified = verified;
-            this.alwaysMatch = alwaysMatch;
-            this.terms = Collections.emptySet();
-        }
-
-        Result(boolean verified, Term term) {
-            this.terms = Collections.singleton(term);
-            this.verified = verified;
-            this.alwaysMatch = false;
         }
 
         Result(boolean verified, Set<Term> terms) {
             this.terms = terms;
             this.verified = verified;
-            this.alwaysMatch = false;
+            this.noTerms = false;
         }
 
     }

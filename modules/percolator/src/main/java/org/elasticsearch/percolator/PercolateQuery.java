@@ -56,7 +56,7 @@ public final class PercolateQuery extends Query implements Accountable {
         private final IndexSearcher percolatorIndexSearcher;
 
         private Query queriesMetaDataQuery;
-        private Query verifiedQueriesQuery;
+        private Query verifiedQueriesQuery = new MatchNoDocsQuery("");
         private Query percolateTypeQuery;
 
         /**
@@ -79,22 +79,20 @@ public final class PercolateQuery extends Query implements Accountable {
          * @param extractionResultField     The field to indicate for a document whether query term extraction was complete,
          *                                  partial or failed. If query extraction was complete, the MemoryIndex doesn't
          */
-        public void extractQueryTermsQuery(String extractedTermsFieldName, String extractionResultField,
-                                           boolean nestedMemoryIndex) throws IOException {
-            if (nestedMemoryIndex) {
-                this.verifiedQueriesQuery = new MatchNoDocsQuery("");
-            } else {
+        public void extractQueryTermsQuery(String extractedTermsFieldName, String extractionResultField) throws IOException {
+            // We can only skip the MemoryIndex verification when percolating a single document.
+            // When the document being percolated contains a nested object field then the MemoryIndex contains multiple
+            // documents. In this case the term query that indicates whether memory index verification can be skipped
+            // can incorrectly indicate that non nested queries would match, while their nested variants would not.
+            if (percolatorIndexSearcher.getIndexReader().maxDoc() == 1) {
                 this.verifiedQueriesQuery = new TermQuery(new Term(extractionResultField, ExtractQueryTermsService.EXTRACTION_COMPLETE));
             }
             this.queriesMetaDataQuery = ExtractQueryTermsService.createQueryTermsQuery(
                     percolatorIndexSearcher.getIndexReader(), extractedTermsFieldName,
-                    // include extractionResultField:FAILED, because docs with this term have no extractedTermsField
+                    // include extractionResultField:NO_TERMS, because docs with this term have no extractedTermsField
                     // and otherwise we would fail to return these docs. Docs that failed query term extraction
                     // always need to be verified by MemoryIndex:
-                    new Term(extractionResultField, ExtractQueryTermsService.EXTRACTION_FAILED),
-                    // include extractionResultField:ALWYAYS_MATCH otherwise we can't include percolator queries
-                    // that only have a match_all query. Since these queries have no terms that can be extracted.
-                    new Term(extractionResultField, ExtractQueryTermsService.EXTRACTION_ALWAYS_MATCH)
+                    new Term(extractionResultField, ExtractQueryTermsService.EXTRACTION_NO_TERMS)
             );
         }
 
@@ -102,7 +100,6 @@ public final class PercolateQuery extends Query implements Accountable {
          * @param percolateTypeQuery    A query that identifies all document containing percolator queries
          */
         public void setPercolateTypeQuery(Query percolateTypeQuery) {
-            this.verifiedQueriesQuery = new MatchNoDocsQuery("");
             this.percolateTypeQuery = Objects.requireNonNull(percolateTypeQuery);
         }
 

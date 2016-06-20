@@ -58,7 +58,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.percolator.ExtractQueryTermsService.EXTRACTION_COMPLETE;
-import static org.elasticsearch.percolator.ExtractQueryTermsService.EXTRACTION_FAILED;
+import static org.elasticsearch.percolator.ExtractQueryTermsService.EXTRACTION_NO_TERMS;
 import static org.elasticsearch.percolator.ExtractQueryTermsService.EXTRACTION_PARTIAL;
 import static org.elasticsearch.percolator.ExtractQueryTermsService.UnsupportedQueryException;
 import static org.elasticsearch.percolator.ExtractQueryTermsService.extractQueryTerms;
@@ -104,7 +104,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         ParseContext.Document document = new ParseContext.Document();
         extractQueryTerms(query, document, QUERY_TERMS_FIELD, EXTRACTION_RESULT_FIELD, QUERY_TERMS_FIELD_TYPE);
         assertThat(document.getFields().size(), equalTo(1));
-        assertThat(document.getField(EXTRACTION_RESULT_FIELD).stringValue(), equalTo(EXTRACTION_FAILED));
+        assertThat(document.getField(EXTRACTION_RESULT_FIELD).stringValue(), equalTo(EXTRACTION_NO_TERMS));
     }
 
     public void testExtractQueryMetadata_notVerified() {
@@ -428,14 +428,14 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
     public void testExtractQueryMetadata_matchAllDocsQuery() {
         Result result = extractQueryTerms(new MatchAllDocsQuery());
         assertThat(result.verified, is(true));
-        assertThat(result.alwaysMatch, is(true));
+        assertThat(result.noTerms, is(true));
 
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
         bq.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.MUST);
         bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
         result = extractQueryTerms(bq.build());
         assertThat(result.verified, is(false));
-        assertThat(result.alwaysMatch, is(false));
+        assertThat(result.noTerms, is(false));
         assertTermsEqual(result.terms, new Term("field", "value"));
 
         bq = new BooleanQuery.Builder();
@@ -444,7 +444,16 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
         result = extractQueryTerms(bq.build());
         assertThat(result.verified, is(true));
-        assertThat(result.alwaysMatch, is(true));
+        assertThat(result.noTerms, is(true));
+        assertThat(result.terms.size(), is(0));
+
+        bq = new BooleanQuery.Builder();
+        bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST_NOT);
+        bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        result = extractQueryTerms(bq.build());
+        assertThat(result.verified, is(false));
+        assertThat(result.noTerms, is(true));
         assertThat(result.terms.size(), is(0));
 
         bq = new BooleanQuery.Builder();
@@ -453,7 +462,16 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
         result = extractQueryTerms(bq.build());
         assertThat(result.verified, is(true));
-        assertThat(result.alwaysMatch, is(true));
+        assertThat(result.noTerms, is(true));
+        assertThat(result.terms.size(), is(0));
+
+        bq = new BooleanQuery.Builder();
+        bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST_NOT);
+        bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+        bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+        result = extractQueryTerms(bq.build());
+        assertThat(result.verified, is(false));
+        assertThat(result.noTerms, is(true));
         assertThat(result.terms.size(), is(0));
 
         bq = new BooleanQuery.Builder();
@@ -461,7 +479,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
         result = extractQueryTerms(bq.build());
         assertThat(result.verified, is(true));
-        assertThat(result.alwaysMatch, is(false));
+        assertThat(result.noTerms, is(false));
         assertTermsEqual(result.terms, new Term("field", "value"));
     }
 
@@ -562,7 +580,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
 
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
         TermsQuery query = (TermsQuery)
-                createQueryTermsQuery(indexReader, QUERY_TERMS_FIELD, new Term(EXTRACTION_RESULT_FIELD, EXTRACTION_FAILED));
+                createQueryTermsQuery(indexReader, QUERY_TERMS_FIELD, new Term(EXTRACTION_RESULT_FIELD, EXTRACTION_NO_TERMS));
 
         PrefixCodedTerms terms = query.getTermData();
         assertThat(terms.size(), equalTo(15L));
@@ -581,7 +599,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         assertTermIterator(termIterator, "field2\u0000some", QUERY_TERMS_FIELD);
         assertTermIterator(termIterator, "field2\u0000text", QUERY_TERMS_FIELD);
         assertTermIterator(termIterator, "field4\u0000123", QUERY_TERMS_FIELD);
-        assertTermIterator(termIterator, EXTRACTION_FAILED, EXTRACTION_RESULT_FIELD);
+        assertTermIterator(termIterator, EXTRACTION_NO_TERMS, EXTRACTION_RESULT_FIELD);
     }
 
     public void testSelectTermsListWithHighestSumOfTermLength() {

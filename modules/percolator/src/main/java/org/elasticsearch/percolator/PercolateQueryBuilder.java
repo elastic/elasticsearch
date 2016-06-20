@@ -392,14 +392,11 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 }
             }
         };
-        final boolean nestedDoc;
         final IndexSearcher docSearcher;
         if (doc.docs().size() > 1) {
             assert docMapper.hasNestedObjects();
-            nestedDoc = true;
             docSearcher = createMultiDocumentSearcher(analyzer, doc);
         } else {
-            nestedDoc = false;
             MemoryIndex memoryIndex = MemoryIndex.fromDocument(doc.rootDoc(), analyzer, true, false);
             docSearcher = memoryIndex.createSearcher();
             docSearcher.setQueryCache(null);
@@ -407,11 +404,11 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
         IndexSettings indexSettings = context.getIndexSettings();
         boolean mapUnmappedFieldsAsString = indexSettings.getValue(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
-        return buildQuery(indexSettings.getIndexVersionCreated(), context, docSearcher, mapUnmappedFieldsAsString, nestedDoc);
+        return buildQuery(indexSettings.getIndexVersionCreated(), context, docSearcher, mapUnmappedFieldsAsString);
     }
 
     Query buildQuery(Version indexVersionCreated, QueryShardContext context, IndexSearcher docSearcher,
-                     boolean mapUnmappedFieldsAsString, boolean nestedMemoryIndex) throws IOException {
+                     boolean mapUnmappedFieldsAsString) throws IOException {
         if (indexVersionCreated.onOrAfter(Version.V_5_0_0_alpha1)) {
             MappedFieldType fieldType = context.fieldMapper(field);
             if (fieldType == null) {
@@ -427,7 +424,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             PercolateQuery.Builder builder = new PercolateQuery.Builder(
                     documentType, queryStore, document, docSearcher
             );
-            builder.extractQueryTermsQuery(pft.getExtractedTermsField(), pft.getExtractionResultFieldName(), nestedMemoryIndex);
+            builder.extractQueryTermsQuery(pft.getExtractedTermsField(), pft.getExtractionResultFieldName());
             return builder.build();
         } else {
             Query percolateTypeQuery = new TermQuery(new Term(TypeFieldMapper.NAME, MapperService.PERCOLATOR_LEGACY_TYPE_NAME));

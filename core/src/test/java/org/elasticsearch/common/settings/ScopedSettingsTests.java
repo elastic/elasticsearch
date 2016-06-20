@@ -202,8 +202,8 @@ public class ScopedSettingsTests extends ESTestCase {
         IndexScopedSettings settings = new IndexScopedSettings(
             Settings.EMPTY,
             IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
-        String unknownMsgSuffix = " please check the migration guide for removed settings and ensure that the plugin you are configuring" +
-            " is installed";
+        String unknownMsgSuffix = " please check that any required plugins are installed, or check the breaking changes documentation for" +
+            " removed settings";
         settings.validate(Settings.builder().put("index.store.type", "boom"));
         settings.validate(Settings.builder().put("index.store.type", "boom").build());
         try {

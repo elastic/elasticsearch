@@ -264,7 +264,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             if (keys.isEmpty() == false) {
                 msg += " did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]": "any of " + keys.toString()) + "?";
             } else {
-                msg += " please check the migration guide for removed settings and ensure that the plugin you are configuring is installed";
+                msg += " please check that any required plugins are installed, or check the breaking changes documentation for removed " +
+                    "settings";
             }
             throw new IllegalArgumentException(msg);
         }

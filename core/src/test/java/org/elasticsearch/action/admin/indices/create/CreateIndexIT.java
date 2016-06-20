@@ -70,8 +70,8 @@ public class CreateIndexIT extends ESIntegTestCase {
             prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4L)).get();
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals("unknown setting [index.creation_date] please check the migration guide for removed settings and ensure that the" +
-                " plugin you are configuring is installed", ex.getMessage());
+            assertEquals("unknown setting [index.creation_date] please check that any required plugins are installed, or check the " +
+                "breaking changes documentation for removed settings", ex.getMessage());
         }
     }
 
@@ -166,8 +166,8 @@ public class CreateIndexIT extends ESIntegTestCase {
                 .get();
             fail("should have thrown an exception about the shard count");
         } catch (IllegalArgumentException e) {
-            assertEquals("unknown setting [index.unknown.value] please check the migration guide for removed settings and ensure that the" +
-                " plugin you are configuring is installed", e.getMessage());
+            assertEquals("unknown setting [index.unknown.value] please check that any required plugins are installed, or check the" +
+                " breaking changes documentation for removed settings", e.getMessage());
         }
     }
 
@@ -213,13 +213,16 @@ public class CreateIndexIT extends ESIntegTestCase {
                      @Override
                     public void run() {
                          try {
-                             client().prepareIndex("test", "test").setSource("index_version", indexVersion.get()).get(); // recreate that index
+                             // recreate that index
+                             client().prepareIndex("test", "test").setSource("index_version", indexVersion.get()).get();
                              synchronized (indexVersionLock) {
-                                 // we sync here since we have to ensure that all indexing operations below for a given ID are done before we increment the
-                                 // index version otherwise a doc that is in-flight could make it into an index that it was supposed to be deleted for and our assertion fail...
+                                 // we sync here since we have to ensure that all indexing operations below for a given ID are done before
+                                 // we increment the index version otherwise a doc that is in-flight could make it into an index that it
+                                 // was supposed to be deleted for and our assertion fail...
                                  indexVersion.incrementAndGet();
                              }
-                             assertAcked(client().admin().indices().prepareDelete("test").get()); // from here on all docs with index_version == 0|1 must be gone!!!! only 2 are ok;
+                             // from here on all docs with index_version == 0|1 must be gone!!!! only 2 are ok;
+                             assertAcked(client().admin().indices().prepareDelete("test").get());
                          } finally {
                              latch.countDown();
                          }
@@ -251,8 +254,10 @@ public class CreateIndexIT extends ESIntegTestCase {
         latch.await();
         refresh();
 
-        // we only really assert that we never reuse segments of old indices or anything like this here and that nothing fails with crazy exceptions
-        SearchResponse expected = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true)).get();
+        // we only really assert that we never reuse segments of old indices or anything like this here and that nothing fails with
+        // crazy exceptions
+        SearchResponse expected = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true)).get();
         SearchResponse all = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
         assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits(), all.getHits().getTotalHits());
         logger.info("total: {}", expected.getHits().getTotalHits());
@@ -285,7 +290,8 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none")).get();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable",
+            "none")).get();
         client().admin().indices().prepareCreate("test").setSettings(indexSettings()).get();
         internalCluster().fullRestart();
         ensureGreen("test");

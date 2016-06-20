@@ -74,7 +74,7 @@ public final class Locals {
         for (int i = 0; i < parameters.size(); i++) {
             Parameter parameter = parameters.get(i);
             boolean isCapture = i < captureCount;
-            locals.defineVariable(parameter.location, parameter.type, parameter.name, isCapture);
+            locals.addVariable(parameter.location, parameter.type, parameter.name, isCapture);
         }
         // Loop counter to catch infinite loops.  Internal use only.
         if (maxLoopCounter > 0) {
@@ -87,7 +87,7 @@ public final class Locals {
     public static Locals newFunctionScope(Locals programScope, Type returnType, List<Parameter> parameters, int maxLoopCounter) {
         Locals locals = new Locals(programScope, returnType);
         for (Parameter parameter : parameters) {
-            locals.defineVariable(parameter.location, parameter.type, parameter.name, false);
+            locals.addVariable(parameter.location, parameter.type, parameter.name, false);
         }
         // Loop counter to catch infinite loops.  Internal use only.
         if (maxLoopCounter > 0) {

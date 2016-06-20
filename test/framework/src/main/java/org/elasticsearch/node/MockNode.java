@@ -51,11 +51,11 @@ public class MockNode extends Node {
     }
 
     @Override
-    protected BigArrays createNewBigArrays(Settings settings, CircuitBreakerService circuitBreakerService) {
+    protected BigArrays createBigArrays(Settings settings, CircuitBreakerService circuitBreakerService) {
         if (mockBigArrays) {
             return new MockBigArrays(settings, circuitBreakerService);
         } else {
-            return super.createNewBigArrays(settings, circuitBreakerService);
+            return super.createBigArrays(settings, circuitBreakerService);
         }
     }
 }

@@ -266,11 +266,10 @@ public class Node implements Closeable {
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
-            BigArrays bigArrays = createNewBigArrays(settings, circuitBreakerService);
+            BigArrays bigArrays = createBigArrays(settings, circuitBreakerService);
             resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
             modules.add(b -> {
-                    b.bind(BigArrays.class).toInstance(bigArrays);
                     b.bind(PluginsService.class).toInstance(pluginsService);
                     b.bind(Client.class).to(NodeClient.class).asEagerSingleton();
                     b.bind(Environment.class).toInstance(environment);
@@ -279,6 +278,7 @@ public class Node implements Closeable {
                     b.bind(TribeService.class).toInstance(tribeService);
                     b.bind(ResourceWatcherService.class).toInstance(resourceWatcherService);
                     b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
+                    b.bind(BigArrays.class).toInstance(bigArrays);
                 }
             );
             injector = modules.createInjector();
@@ -634,7 +634,7 @@ public class Node implements Closeable {
      * Creates a new {@link BigArrays} instance used for this node.
      * This method can be overwritten by subclasses to change their {@link BigArrays} implementation for instance for testing
      */
-    BigArrays createNewBigArrays(Settings settings, CircuitBreakerService circuitBreakerService) {
+    BigArrays createBigArrays(Settings settings, CircuitBreakerService circuitBreakerService) {
         return new BigArrays(settings, circuitBreakerService);
     }
 }

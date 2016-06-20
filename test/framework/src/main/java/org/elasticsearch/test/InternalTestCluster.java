@@ -902,9 +902,12 @@ public final class InternalTestCluster extends TestCluster {
 
         @Override
         public void close() throws IOException {
-            resetClient();
-            closed.set(true);
-            closeNode();
+            try {
+                resetClient();
+            } finally {
+                closed.set(true);
+                closeNode();
+            }
         }
     }
 

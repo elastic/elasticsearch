@@ -48,6 +48,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -66,7 +67,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 /**
  *
  */
-public class TransportClientNodesService extends AbstractComponent {
+public class TransportClientNodesService extends AbstractComponent implements Closeable {
 
     private final TimeValue nodesSamplerInterval;
 

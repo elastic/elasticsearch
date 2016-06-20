@@ -19,54 +19,29 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
-import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-
-import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
-import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelineAggregationBuilder<AF>> extends ESTestCase {
@@ -76,9 +51,6 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
     protected static final String DOUBLE_FIELD_NAME = "mapped_double";
     protected static final String BOOLEAN_FIELD_NAME = "mapped_boolean";
     protected static final String DATE_FIELD_NAME = "mapped_date";
-    protected static final String OBJECT_FIELD_NAME = "mapped_object";
-    protected static final String[] mappedFieldNames = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME,
-            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, OBJECT_FIELD_NAME};
 
     private static Injector injector;
     private static Index index;
@@ -102,55 +74,9 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
      */
     @BeforeClass
     public static void init() throws IOException {
-        // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        Version version = randomBoolean() ? Version.CURRENT
-                : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
-        Settings settings = Settings.builder()
-                .put("node.name", AbstractQueryTestCase.class.toString())
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
-                .build();
-
-        namedWriteableRegistry = new NamedWriteableRegistry();
         index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        final ThreadPool threadPool = new ThreadPool(settings);
-        final ClusterService clusterService = createClusterService(threadPool);
-        setState(clusterService, new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder()
-                .put(new IndexMetaData.Builder(index.getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
-        ScriptModule scriptModule = newTestScriptModule();
-        List<Setting<?>> scriptSettings = scriptModule.getSettings();
-        scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
-        SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, Collections.emptyList());
-        injector = new ModulesBuilder().add(
-                (b) -> {
-                    b.bind(Environment.class).toInstance(new Environment(settings));
-                    b.bind(ThreadPool.class).toInstance(threadPool);
-                },
-                settingsModule,
-                scriptModule,
-                new IndicesModule(namedWriteableRegistry) {
-
-                    @Override
-                    protected void configure() {
-                        bindMapperExtension();
-                    }
-                }, new SearchModule(settings, namedWriteableRegistry) {
-                    @Override
-                    protected void configureSearch() {
-                        // Skip me
-                    }
-                },
-                new IndexSettingsModule(index, settings),
-                new AbstractModule() {
-                    @Override
-                    protected void configure() {
-                        bind(ClusterService.class).toProvider(Providers.of(clusterService));
-                        bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
-                        bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
-                    }
-                }
-        ).createInjector();
+        injector = BaseAggregationTestCase.buildInjector(index);
+        namedWriteableRegistry = injector.getInstance(NamedWriteableRegistry.class);
         aggParsers = injector.getInstance(AggregatorParsers.class);
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];

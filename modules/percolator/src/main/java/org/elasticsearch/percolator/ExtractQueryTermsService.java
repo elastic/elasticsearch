@@ -55,11 +55,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Stream;
 
 /**
  * Utility to extract query terms from queries and create queries from documents.
@@ -263,9 +261,9 @@ public final class ExtractQueryTermsService {
         }
     }
 
-    static Result handleDisjunction(Iterable<Query> disjunctions, int minimumShouldMatch, boolean otherClauses) {
+    static Result handleDisjunction(List<Query> disjunctions, int minimumShouldMatch, boolean otherClauses) {
         boolean noTerms = true;
-        boolean verified = minimumShouldMatch <= 1 && otherClauses == false;
+        boolean verified = disjunctions.size() > 0 && minimumShouldMatch <= 1 && otherClauses == false;
         Set<Term> terms = new HashSet<>();
         for (Query disjunct : disjunctions) {
             Result subResult = extractQueryTerms(disjunct);

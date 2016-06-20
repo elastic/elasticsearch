@@ -70,8 +70,7 @@ public class AuditTrailModuleTests extends ESTestCase {
                         b.bind(CircuitBreakerService.class).toInstance(Node.createCircuitBreakerService(settingsModule.getSettings(),
                                 settingsModule.getClusterSettings()));
                         b.bind(ThreadPool.class).toInstance(pool);
-                    },
-                    new Version.Module(Version.CURRENT)
+                    }
             );
             AuditTrail auditTrail = injector.getInstance(AuditTrail.class);
             assertThat(auditTrail, instanceOf(AuditTrailService.class));

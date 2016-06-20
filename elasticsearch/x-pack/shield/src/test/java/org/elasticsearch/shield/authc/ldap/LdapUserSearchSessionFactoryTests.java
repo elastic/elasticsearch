@@ -14,7 +14,6 @@ import com.unboundid.ldap.sdk.LDAPConnectionPoolHealthCheck;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 import com.unboundid.ldap.sdk.SingleServerSet;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -539,7 +538,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         // having a quick start/stop cycle like below
         builder.put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false);
 
-        try (Node node = new MockNode(builder.build(), Version.CURRENT, Collections.singletonList(XPackPlugin.class))) {
+        try (Node node = new MockNode(builder.build(), Collections.singletonList(XPackPlugin.class))) {
             node.start();
         }
     }

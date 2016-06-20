@@ -84,10 +84,10 @@ public class ShieldNettyTransport extends NettyTransport {
 
     @Inject
     public ShieldNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                                Version version, @Nullable IPFilter authenticator, @Nullable ServerSSLService serverSSLService,
+                                @Nullable IPFilter authenticator, @Nullable ServerSSLService serverSSLService,
                                 ClientSSLService clientSSLService, NamedWriteableRegistry namedWriteableRegistry,
                                 CircuitBreakerService circuitBreakerService) {
-        super(settings, threadPool, networkService, bigArrays, version, namedWriteableRegistry, circuitBreakerService);
+        super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
         this.authenticator = authenticator;
         this.ssl = SSL_SETTING.get(settings);
         this.serverSslService = serverSSLService;

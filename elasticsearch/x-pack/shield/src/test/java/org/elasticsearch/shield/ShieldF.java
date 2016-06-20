@@ -7,7 +7,6 @@ package org.elasticsearch.shield;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
@@ -63,7 +62,7 @@ public class ShieldF {
                 writeFile(folder, "roles.yml", ShieldSettingsSource.CONFIG_ROLE_ALLOW_ALL));
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final Node node = new MockNode(settings.build(), Version.CURRENT, Arrays.asList(XPackPlugin.class));
+        final Node node = new MockNode(settings.build(), Arrays.asList(XPackPlugin.class));
         Runtime.getRuntime().addShutdownHook(new Thread() {
 
             @Override

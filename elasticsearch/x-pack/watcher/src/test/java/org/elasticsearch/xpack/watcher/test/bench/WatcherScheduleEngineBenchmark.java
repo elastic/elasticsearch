@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.test.bench;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -138,7 +137,7 @@ public class WatcherScheduleEngineBenchmark {
                     .put("xpack.watcher.trigger.schedule.engine", engine)
                     .put("node.data", false)
                     .build();
-            try (Node node = new MockNode(settings, Version.CURRENT, Arrays.asList(XPackPlugin.class, XPackPlugin.class))) {
+            try (Node node = new MockNode(settings, Arrays.asList(XPackPlugin.class, XPackPlugin.class))) {
                 try (final Client client = node.client()) {
                     client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
                     client.admin().indices().prepareDelete(HistoryStore.INDEX_PREFIX + "*").get();

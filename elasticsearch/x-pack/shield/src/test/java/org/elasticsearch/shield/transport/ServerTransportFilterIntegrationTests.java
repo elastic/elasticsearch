@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.transport;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -105,7 +104,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(InternalCryptoService.FILE_SETTING.getKey(), systemKeyFile)
                 .build();
-        try (Node node = new MockNode(nodeSettings, Version.CURRENT, Collections.singletonList(XPackPlugin.class))) {
+        try (Node node = new MockNode(nodeSettings, Collections.singletonList(XPackPlugin.class))) {
             node.start();
             assertGreenClusterState(node.client());
         }
@@ -138,7 +137,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 .put("path.home", createTempDir())
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .build();
-        try (Node node = new MockNode(nodeSettings, Version.CURRENT, Collections.singletonList(XPackPlugin.class))) {
+        try (Node node = new MockNode(nodeSettings, Collections.singletonList(XPackPlugin.class))) {
             node.start();
 
             // assert that node is not connected by waiting for the timeout

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
@@ -58,7 +57,7 @@ public class WatcherF {
                 "fc082467005d4072a914e0bb041882d0");
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final Node node = new MockNode(settings.build(), Version.CURRENT, Arrays.asList(XPackPlugin.class, XPackPlugin.class));
+        final Node node = new MockNode(settings.build(), Arrays.asList(XPackPlugin.class, XPackPlugin.class));
         Runtime.getRuntime().addShutdownHook(new Thread() {
 
             @Override

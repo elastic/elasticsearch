@@ -27,7 +27,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClientModule;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -87,7 +87,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
@@ -252,7 +251,6 @@ public class Node implements Closeable {
                 modules.add(pluginModule);
             }
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
-            modules.add(new PluginsModule(pluginsService));
             modules.add(new NodeModule(this, monitorService));
             modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
             modules.add(scriptModule);
@@ -262,7 +260,6 @@ public class Node implements Closeable {
             modules.add(new SearchModule(settings, namedWriteableRegistry));
             modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false));
             modules.add(new GatewayModule());
-            modules.add(new NodeClientModule());
             modules.add(new RepositoriesModule());
             modules.add(new AnalysisModule(environment));
             pluginsService.processModules(modules);
@@ -271,6 +268,8 @@ public class Node implements Closeable {
             resourcesToClose.add(circuitBreakerService);
             modules.add(settingsModule);
             modules.add(b -> {
+                    b.bind(PluginsService.class).toInstance(pluginsService);
+                    b.bind(Client.class).to(NodeClient.class).asEagerSingleton();
                     b.bind(Environment.class).toInstance(environment);
                     b.bind(ThreadPool.class).toInstance(threadPool);
                     b.bind(NodeEnvironment.class).toInstance(nodeEnvironment);

@@ -93,7 +93,6 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptModule;
@@ -889,9 +888,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             for (Module pluginModule : pluginsService.nodeModules()) {
                 modulesBuilder.add(pluginModule);
             }
-            modulesBuilder.add(new PluginsModule(pluginsService));
             modulesBuilder.add(
                     (b) -> {
+                        b.bind(PluginsService.class).toInstance(pluginsService);
                         b.bind(Environment.class).toInstance(new Environment(settings));
                         b.bind(ThreadPool.class).toInstance(threadPool);
                     },

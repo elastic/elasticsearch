@@ -33,9 +33,6 @@ import java.util.LinkedList;
  */
 public class LocalCheckpointService extends AbstractIndexShardComponent {
 
-    public static String MAX_SEQ_NO = "max_seq_no";
-    public static String LOCAL_CHECKPOINT_KEY = "local_checkpoint";
-
     /**
      * we keep a bit for each seq No that is still pending. to optimize allocation, we do so in multiple arrays
      * allocating them on demand and cleaning up while completed. This setting controls the size of the arrays

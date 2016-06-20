@@ -58,7 +58,6 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.SeqNoFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
-import org.elasticsearch.index.seqno.LocalCheckpointService;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
@@ -115,6 +114,7 @@ public class InternalEngine extends Engine {
     private final IndexThrottle throttle;
 
     private final SequenceNumbersService seqNoService;
+    final static String LOCAL_CHECKPOINT_KEY = "local_checkpoint";
     final static String GLOBAL_CHECKPOINT_KEY = "global_checkpoint";
 
     // How many callers are currently requesting index throttling.  Currently there are only two situations where we do this: when merges
@@ -305,8 +305,8 @@ public class InternalEngine extends Engine {
 
     private long loadLocalCheckpointFromCommit(IndexWriter writer) {
         final Map<String, String> commitUserData = writer.getCommitData();
-        if (commitUserData.containsKey(LocalCheckpointService.LOCAL_CHECKPOINT_KEY)) {
-            return Long.parseLong(commitUserData.get(LocalCheckpointService.LOCAL_CHECKPOINT_KEY));
+        if (commitUserData.containsKey(LOCAL_CHECKPOINT_KEY)) {
+            return Long.parseLong(commitUserData.get(LOCAL_CHECKPOINT_KEY));
         } else {
             return SequenceNumbersService.NO_OPS_PERFORMED;
         }
@@ -1182,7 +1182,7 @@ public class InternalEngine extends Engine {
             commitData.put(Translog.TRANSLOG_GENERATION_KEY, Long.toString(translogGeneration.translogFileGeneration));
             commitData.put(Translog.TRANSLOG_UUID_KEY, translogGeneration.translogUUID);
 
-            commitData.put(LocalCheckpointService.LOCAL_CHECKPOINT_KEY, Long.toString(seqNoService.getLocalCheckpoint()));
+            commitData.put(LOCAL_CHECKPOINT_KEY, Long.toString(seqNoService.getLocalCheckpoint()));
             commitData.put(GLOBAL_CHECKPOINT_KEY, Long.toString(seqNoService.getGlobalCheckpoint()));
 
             if (syncId != null) {

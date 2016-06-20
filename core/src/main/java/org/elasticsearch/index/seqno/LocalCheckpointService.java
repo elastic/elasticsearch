@@ -54,13 +54,37 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
     /** the next available seqNo - used for seqNo generation */
     private volatile long nextSeqNo;
 
-    LocalCheckpointService(final ShardId shardId, final IndexSettings indexSettings, final long maxSeqNo, final long checkpoint) {
+    /**
+     * Initialize the local checkpoint service. The {@code maxSeqNo} should be
+     * set to the last sequence number assigned by this shard, or
+     * {@link SequenceNumbersService#NO_OPS_PERFORMED} and
+     * {@code localCheckpoint} should be set to the last known local checkpoint
+     * for this shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED}.
+     *
+     * @param shardId         the shard this service is providing tracking
+     *                        local checkpoints for
+     * @param indexSettings   the index settings
+     * @param maxSeqNo        the last sequence number assigned by this shard, or
+     *                        {@link SequenceNumbersService#NO_OPS_PERFORMED}
+     * @param localCheckpoint the last known local checkpoint for this shard, or
+     *                        {@link SequenceNumbersService#NO_OPS_PERFORMED}
+     */
+    LocalCheckpointService(final ShardId shardId, final IndexSettings indexSettings, final long maxSeqNo, final long localCheckpoint) {
         super(shardId, indexSettings);
+        if (localCheckpoint < 0 && localCheckpoint != SequenceNumbersService.NO_OPS_PERFORMED) {
+            throw new IllegalArgumentException(
+                "local checkpoint must be non-negative or [" + SequenceNumbersService.NO_OPS_PERFORMED + "] "
+                    + "but was [" +  localCheckpoint + "]");
+        }
+        if (maxSeqNo < 0 && maxSeqNo != SequenceNumbersService.NO_OPS_PERFORMED) {
+            throw new IllegalArgumentException(
+                "max seq. no. must be non-negative or [" + SequenceNumbersService.NO_OPS_PERFORMED + "] but was [" + maxSeqNo + "]");
+        }
         bitArraysSize = SETTINGS_BIT_ARRAYS_SIZE.get(indexSettings.getSettings());
         processedSeqNo = new LinkedList<>();
-        firstProcessedSeqNo = checkpoint + 1;
-        this.nextSeqNo = maxSeqNo + 1;
-        this.checkpoint = checkpoint;
+        firstProcessedSeqNo = localCheckpoint == SequenceNumbersService.NO_OPS_PERFORMED ? 0 : localCheckpoint + 1;
+        this.nextSeqNo = maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED ? 0 : maxSeqNo + 1;
+        this.checkpoint = localCheckpoint;
     }
 
     /**

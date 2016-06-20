@@ -30,10 +30,37 @@ import java.util.Set;
 public class SequenceNumbersService extends AbstractIndexShardComponent {
 
     public final static long UNASSIGNED_SEQ_NO = -2L;
+
+    /**
+     * Represents no operations have been performed on the shard.
+     */
     public final static long NO_OPS_PERFORMED = -1L;
+
     final LocalCheckpointService localCheckpointService;
     final GlobalCheckpointService globalCheckpointService;
 
+    /**
+     * Initialize the sequence number service. The {@code maxSeqNo}
+     * should be set to the last sequence number assigned by this
+     * shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED},
+     * {@code localCheckpoint} should be set to the last known local
+     * checkpoint for this shard, or
+     * {@link SequenceNumbersService#NO_OPS_PERFORMED}, and
+     * {@code globalCheckpoint} should be set to the last known global
+     * checkpoint for this shard, or
+     * {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}.
+     *
+     * @param shardId          the shard this service is providing tracking
+     *                         local checkpoints for
+     * @param indexSettings    the index settings
+     * @param maxSeqNo         the last sequence number assigned by this
+     *                         shard, or
+     *                         {@link SequenceNumbersService#NO_OPS_PERFORMED}
+     * @param localCheckpoint  the last known local checkpoint for this shard,
+     *                         or {@link SequenceNumbersService#NO_OPS_PERFORMED}
+     * @param globalCheckpoint the last known global checkpoint for this shard,
+     *                         or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}
+     */
     public SequenceNumbersService(
         final ShardId shardId,
         final IndexSettings indexSettings,

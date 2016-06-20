@@ -69,6 +69,18 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
 
     private long globalCheckpoint;
 
+    /**
+     * Initialize the global checkpoint service. The {@code globalCheckpoint}
+     * should be set to the last known global checkpoint for this shard, or
+     * {@link SequenceNumbersService#NO_OPS_PERFORMED}.
+     *
+     * @param shardId          the shard this service is providing tracking
+     *                         local checkpoints for
+     * @param indexSettings    the index settings
+     * @param globalCheckpoint the last known global checkpoint for this shard,
+     *                         or
+     *                         {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}
+     */
     GlobalCheckpointService(final ShardId shardId, final IndexSettings indexSettings, final long globalCheckpoint) {
         super(shardId, indexSettings);
         activeLocalCheckpoints = new ObjectLongHashMap<>(1 + indexSettings.getNumberOfReplicas());

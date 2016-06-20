@@ -161,6 +161,11 @@ public class LambdaTests extends ScriptTestCase {
                              "return Optional.empty().orElseGet(() -> x ? 5 : Optional.empty().orElseGet(() -> y));"));
     }
     
+    public void testNestedCaptureParams() {
+        assertEquals(2, exec("int foo(Function f) { return f.apply(1) }" +
+                             "return foo(x -> foo(y -> x + 1))"));
+    }
+    
     public void testWrongArity() {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("Optional.empty().orElseGet(x -> x);");
@@ -173,5 +178,13 @@ public class LambdaTests extends ScriptTestCase {
             exec("def y = Optional.empty(); return y.orElseGet(x -> x);");
         });
         assertTrue(expected.getMessage(), expected.getMessage().contains("Incorrect number of parameters"));
+    }
+    
+    public void testLambdaInFunction() {
+        assertEquals(5, exec("def foo() { Optional.empty().orElseGet(() -> 5) } return foo();"));
+    }
+    
+    public void testLambdaCaptureFunctionParam() {
+        assertEquals(5, exec("def foo(int x) { Optional.empty().orElseGet(() -> x) } return foo(5);"));
     }
 }

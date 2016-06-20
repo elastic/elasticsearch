@@ -70,14 +70,12 @@ public class NodeService extends AbstractComponent implements Closeable {
 
     private volatile Map<String, String> serviceAttributes = emptyMap();
 
-    private final Version version;
-
     private final Discovery discovery;
 
     @Inject
     public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService,
                        Discovery discovery, TransportService transportService, IndicesService indicesService,
-                       PluginsService pluginService, CircuitBreakerService circuitBreakerService, Version version,
+                       PluginsService pluginService, CircuitBreakerService circuitBreakerService,
                        ProcessorsRegistry.Builder processorsRegistryBuilder, ClusterService clusterService, SettingsFilter settingsFilter) {
         super(settings);
         this.threadPool = threadPool;
@@ -85,7 +83,6 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.discovery = discovery;
-        this.version = version;
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
         this.clusterService = clusterService;
@@ -126,7 +123,7 @@ public class NodeService extends AbstractComponent implements Closeable {
     }
 
     public NodeInfo info() {
-        return new NodeInfo(version, Build.CURRENT, discovery.localNode(), serviceAttributes,
+        return new NodeInfo(Version.CURRENT, Build.CURRENT, discovery.localNode(), serviceAttributes,
                 settings,
                 monitorService.osService().info(),
                 monitorService.processService().info(),
@@ -141,7 +138,7 @@ public class NodeService extends AbstractComponent implements Closeable {
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
                          boolean transport, boolean http, boolean plugin, boolean ingest) {
-        return new NodeInfo(version, Build.CURRENT, discovery.localNode(), serviceAttributes,
+        return new NodeInfo(Version.CURRENT, Build.CURRENT, discovery.localNode(), serviceAttributes,
                 settings ? settingsFilter.filter(this.settings) : null,
                 os ? monitorService.osService().info() : null,
                 process ? monitorService.processService().info() : null,

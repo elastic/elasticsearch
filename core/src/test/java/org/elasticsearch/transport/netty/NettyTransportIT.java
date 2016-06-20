@@ -93,9 +93,9 @@ public class NettyTransportIT extends ESIntegTestCase {
 
         @Inject
         public ExceptionThrowingNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                                               Version version, NamedWriteableRegistry namedWriteableRegistry,
+                                               NamedWriteableRegistry namedWriteableRegistry,
                                                CircuitBreakerService circuitBreakerService) {
-            super(settings, threadPool, networkService, bigArrays, version, namedWriteableRegistry, circuitBreakerService);
+            super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
         }
 
         @Override

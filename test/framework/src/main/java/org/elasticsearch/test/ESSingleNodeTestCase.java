@@ -19,7 +19,6 @@
 package org.elasticsearch.test;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -147,10 +146,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return false;
     }
 
-    /** The version of elasticsearch the node should act like. */
-    protected Version getVersion() {
-        return Version.CURRENT;
-    }
 
     /** The plugin classes that should be added to the node. */
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -187,7 +182,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(Node.NODE_DATA_SETTING.getKey(), true)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
-        Node build = new MockNode(settings, getVersion(), getPlugins());
+        Node build = new MockNode(settings, getPlugins());
         build.start();
         assertThat(DiscoveryNode.isLocalNode(build.settings()), is(true));
         return build;

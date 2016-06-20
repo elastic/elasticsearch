@@ -74,7 +74,7 @@ public class HttpServerTests extends ESTestCase {
 
         ClusterService clusterService = new ClusterService(Settings.EMPTY,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null);
-        NodeService nodeService = new NodeService(Settings.EMPTY, null, null, null, null, null, null, null, null, null,
+        NodeService nodeService = new NodeService(Settings.EMPTY, null, null, null, null, null, null, null, null,
             clusterService, null);
         httpServer = new HttpServer(settings, httpServerTransport, restController, nodeService, circuitBreakerService);
         httpServer.start();

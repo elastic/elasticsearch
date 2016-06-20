@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transport;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
@@ -46,7 +45,6 @@ import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -120,21 +118,16 @@ public class TransportClient extends AbstractClient {
         public TransportClient build() {
             final PluginsService pluginsService = newPluginService(providedSettings);
             final Settings settings = pluginsService.updatedSettings();
-
-            Version version = Version.CURRENT;
-
             final ThreadPool threadPool = new ThreadPool(settings);
             final NetworkService networkService = new NetworkService(settings);
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             boolean success = false;
             try {
                 ModulesBuilder modules = new ModulesBuilder();
-                modules.add(new Version.Module(version));
                 // plugin modules must be added here, before others or we can get crazy injection errors...
                 for (Module pluginModule : pluginsService.nodeModules()) {
                     modules.add(pluginModule);
                 }
-                modules.add(new PluginsModule(pluginsService));
                 modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
                 modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
                 modules.add(new SearchModule(settings, namedWriteableRegistry) {
@@ -157,7 +150,10 @@ public class TransportClient extends AbstractClient {
                 CircuitBreakerService circuitBreakerService = Node.createCircuitBreakerService(settingsModule.getSettings(),
                     settingsModule.getClusterSettings());
                 modules.add(settingsModule);
-                modules.add((b -> b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService)));
+                modules.add((b -> {
+                    b.bind(PluginsService.class).toInstance(pluginsService);
+                    b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
+                }));
 
                 Injector injector = modules.createInjector();
                 final TransportService transportService = injector.getInstance(TransportService.class);

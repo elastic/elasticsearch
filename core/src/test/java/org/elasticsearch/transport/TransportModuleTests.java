@@ -36,9 +36,9 @@ public class TransportModuleTests extends ModuleTestCase {
 
     static class FakeTransport extends AssertingLocalTransport {
         @Inject
-        public FakeTransport(Settings settings, CircuitBreakerService circuitBreakerService, ThreadPool threadPool, Version version,
+        public FakeTransport(Settings settings, CircuitBreakerService circuitBreakerService, ThreadPool threadPool,
                              NamedWriteableRegistry namedWriteableRegistry) {
-            super(settings, circuitBreakerService, threadPool, version, namedWriteableRegistry);
+            super(settings, circuitBreakerService, threadPool, namedWriteableRegistry);
         }
     }
 

@@ -77,7 +77,6 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     public static final String LOCAL_TRANSPORT_THREAD_NAME_PREFIX = "local_transport";
     final ThreadPool threadPool;
     private final ThreadPoolExecutor workers;
-    private final Version version;
     private volatile TransportServiceAdapter transportServiceAdapter;
     private volatile BoundTransportAddress boundAddress;
     private volatile LocalTransportAddress localAddress;
@@ -92,11 +91,10 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     public static final String TRANSPORT_LOCAL_QUEUE = "transport.local.queue";
 
     @Inject
-    public LocalTransport(Settings settings, ThreadPool threadPool, Version version,
+    public LocalTransport(Settings settings, ThreadPool threadPool,
                           NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super(settings);
         this.threadPool = threadPool;
-        this.version = version;
         int workerCount = this.settings.getAsInt(TRANSPORT_LOCAL_WORKERS, EsExecutors.boundedNumberOfProcessors(settings));
         int queueSize = this.settings.getAsInt(TRANSPORT_LOCAL_QUEUE, -1);
         logger.debug("creating [{}] workers, queue_size [{}]", workerCount, queueSize);
@@ -207,7 +205,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     @Override
     public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request,
             TransportRequestOptions options) throws IOException, TransportException {
-        final Version version = Version.smallest(node.getVersion(), this.version);
+        final Version version = Version.smallest(node.getVersion(), getVersion());
 
         try (BytesStreamOutput stream = new BytesStreamOutput()) {
             stream.setVersion(version);
@@ -403,5 +401,9 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     @Override
     public List<String> getLocalAddresses() {
         return Collections.singletonList("0.0.0.0");
+    }
+
+    protected Version getVersion() { // for tests
+        return Version.CURRENT;
     }
 }

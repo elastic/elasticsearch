@@ -64,7 +64,6 @@ public class NettyTransportServiceHandshakeTests extends ESTestCase {
                         threadPool,
                         new NetworkService(settings),
                         BigArrays.NON_RECYCLING_INSTANCE,
-                        Version.CURRENT,
                         new NamedWriteableRegistry(),
                         new NoneCircuitBreakerService());
         TransportService transportService = new MockTransportService(settings, transport, threadPool);

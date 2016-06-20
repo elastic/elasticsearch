@@ -27,7 +27,6 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -75,8 +74,8 @@ public class AssertingLocalTransport extends LocalTransport {
 
     @Inject
     public AssertingLocalTransport(Settings settings, CircuitBreakerService circuitBreakerService, ThreadPool threadPool,
-                                   Version version, NamedWriteableRegistry namedWriteableRegistry) {
-        super(settings, threadPool, version, namedWriteableRegistry, circuitBreakerService);
+                                   NamedWriteableRegistry namedWriteableRegistry) {
+        super(settings, threadPool, namedWriteableRegistry, circuitBreakerService);
         final long seed = ESIntegTestCase.INDEX_TEST_SEED_SETTING.get(settings);
         random = new Random(seed);
         minVersion = ASSERTING_TRANSPORT_MIN_VERSION_KEY.get(settings);

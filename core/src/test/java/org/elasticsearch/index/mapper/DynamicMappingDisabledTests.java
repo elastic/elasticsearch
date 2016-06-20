@@ -76,7 +76,7 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
                 .build();
         clusterService = createClusterService(THREAD_POOL);
         transport =
-                new LocalTransport(settings, THREAD_POOL, Version.CURRENT, new NamedWriteableRegistry(), new NoneCircuitBreakerService());
+                new LocalTransport(settings, THREAD_POOL, new NamedWriteableRegistry(), new NoneCircuitBreakerService());
         transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL);
         indicesService = getInstanceFromNode(IndicesService.class);
         shardStateAction = new ShardStateAction(settings, clusterService, transportService, null, null, THREAD_POOL);

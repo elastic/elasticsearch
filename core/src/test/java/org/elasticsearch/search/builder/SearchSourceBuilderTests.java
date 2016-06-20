@@ -46,7 +46,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -132,7 +131,10 @@ public class SearchSourceBuilderTests extends ESTestCase {
         scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
         SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, Collections.emptyList());
         injector = new ModulesBuilder().add(
-                new EnvironmentModule(new Environment(settings), threadPool), settingsModule,
+                (b) -> {
+                    b.bind(Environment.class).toInstance(new Environment(settings));
+                    b.bind(ThreadPool.class).toInstance(threadPool);
+                }, settingsModule,
                 scriptModule, new IndicesModule(namedWriteableRegistry) {
                     @Override
                     protected void configure() {

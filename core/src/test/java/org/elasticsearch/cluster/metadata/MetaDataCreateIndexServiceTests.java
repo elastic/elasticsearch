@@ -212,7 +212,6 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             null,
             null,
             null,
-            Version.CURRENT,
             null,
             new HashSet<>(),
             null,

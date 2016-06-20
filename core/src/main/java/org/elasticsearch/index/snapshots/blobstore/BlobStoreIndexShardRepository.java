@@ -105,8 +105,6 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
     private RateLimiter restoreRateLimiter;
 
-    private RateLimiterListener rateLimiterListener;
-
     private RateLimitingInputStream.Listener snapshotThrottleListener;
 
     private RateLimitingInputStream.Listener restoreThrottleListener;
@@ -163,7 +161,6 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         this.chunkSize = chunkSize;
         this.snapshotRateLimiter = snapshotRateLimiter;
         this.restoreRateLimiter = restoreRateLimiter;
-        this.rateLimiterListener = rateLimiterListener;
         this.snapshotThrottleListener = nanos -> rateLimiterListener.onSnapshotPause(nanos);
         this.restoreThrottleListener = nanos -> rateLimiterListener.onRestorePause(nanos);
         this.compress = compress;

@@ -102,7 +102,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             transportService.start();
             transportService.acceptIncomingRequests();
             transportClientNodesService =
-                    new TransportClientNodesService(settings, transportService, threadPool, Version.CURRENT);
+                    new TransportClientNodesService(settings, transportService, threadPool);
             this.nodesCount = randomIntBetween(1, 10);
             for (int i = 0; i < nodesCount; i++) {
                 transportClientNodesService.addTransportAddresses(new LocalTransportAddress("node" + i));

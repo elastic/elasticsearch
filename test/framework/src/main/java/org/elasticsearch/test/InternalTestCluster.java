@@ -614,7 +614,7 @@ public final class InternalTestCluster extends TestCluster {
             .put("node.name", name)
             .put(DiscoveryNodeService.NODE_ID_SEED_SETTING.getKey(), seed)
             .build();
-        MockNode node = new MockNode(finalSettings, version, plugins);
+        MockNode node = new MockNode(finalSettings, plugins);
         return new NodeAndClient(name, node);
     }
 
@@ -888,8 +888,7 @@ public final class InternalTestCluster extends TestCluster {
             final long newIdSeed = DiscoveryNodeService.NODE_ID_SEED_SETTING.get(node.settings()) + 1; // use a new seed to make sure we have new node id
             Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).put(DiscoveryNodeService.NODE_ID_SEED_SETTING.getKey(), newIdSeed).build();
             Collection<Class<? extends Plugin>> plugins = node.getPlugins();
-            Version version = node.getVersion();
-            node = new MockNode(finalSettings, version, plugins);
+            node = new MockNode(finalSettings, plugins);
             node.start();
         }
 

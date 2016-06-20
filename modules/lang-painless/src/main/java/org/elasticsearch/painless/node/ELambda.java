@@ -100,6 +100,44 @@ public class ELambda extends AExpression implements ILambda {
 
     @Override
     void analyze(Locals locals) {
+        final Definition.Type returnType;
+        final List<String> actualParamTypeStrs;
+        Method interfaceMethod;
+        // inspect the target first, set interface method if we know it.
+        if (expected == null) {
+            interfaceMethod = null;
+            // we don't know anything: treat as def
+            returnType = Definition.DEF_TYPE;
+            // don't infer any types
+            actualParamTypeStrs = paramTypeStrs;
+        } else {
+            // we know the method statically, infer return type and any unknown/def types
+            interfaceMethod = expected.struct.getFunctionalMethod();
+            if (interfaceMethod == null) {
+                throw createError(new IllegalArgumentException("Cannot pass lambda to [" + expected.name + 
+                                                               "], not a functional interface"));
+            }
+            // check arity before we manipulate parameters
+            if (interfaceMethod.arguments.size() != paramTypeStrs.size())
+                throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name + 
+                                                   "] in [" + expected.clazz + "]");
+            // for method invocation, its allowed to ignore the return value
+            if (interfaceMethod.rtn == Definition.VOID_TYPE) {
+                returnType = Definition.DEF_TYPE;
+            } else {
+                returnType = interfaceMethod.rtn;
+            }
+            // replace any def types with the actual type (which could still be def)
+            actualParamTypeStrs = new ArrayList<String>();
+            for (int i = 0; i < paramTypeStrs.size(); i++) {
+                String paramType = paramTypeStrs.get(i);
+                if (paramType.equals(Definition.DEF_TYPE.name)) {
+                    actualParamTypeStrs.add(interfaceMethod.arguments.get(i).name);
+                } else {
+                    actualParamTypeStrs.add(paramType);
+                }
+            }
+        }
         // gather any variables used by the lambda body first.
         Set<String> variables = new HashSet<>();
         for (AStatement statement : statements) {
@@ -119,14 +157,14 @@ public class ELambda extends AExpression implements ILambda {
             paramTypes.add(var.type.name);
             paramNames.add(var.name);
         }
-        paramTypes.addAll(paramTypeStrs);
+        paramTypes.addAll(actualParamTypeStrs);
         paramNames.addAll(paramNameStrs);
         
         // desugar lambda body into a synthetic method
-        desugared = new SFunction(reserved, location, "def", name, 
+        desugared = new SFunction(reserved, location, returnType.name, name, 
                                             paramTypes, paramNames, statements, true);
         desugared.generate();
-        desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), desugared.parameters, 
+        desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), returnType, desugared.parameters, 
                                                 captures.size(), reserved.getMaxLoopCounter()));
         
         // setup method reference to synthetic method
@@ -137,11 +175,6 @@ public class ELambda extends AExpression implements ILambda {
         } else {
             defPointer = null;
             try {
-                Method interfaceMethod = expected.struct.getFunctionalMethod();
-                if (interfaceMethod == null) {
-                    throw new IllegalArgumentException("Cannot pass lambda to [" + expected.name + 
-                            "], not a functional interface");
-                }
                 Class<?> captureClasses[] = new Class<?>[captures.size()];
                 for (int i = 0; i < captures.size(); i++) {
                     captureClasses[i] = captures.get(i).type.clazz;

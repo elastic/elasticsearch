@@ -54,10 +54,6 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
     /** the next available seqNo - used for seqNo generation */
     volatile long nextSeqNo;
 
-    public LocalCheckpointService(final ShardId shardId, final IndexSettings indexSettings) {
-        this(shardId, indexSettings, SequenceNumbersService.NO_OPS_PERFORMED, SequenceNumbersService.NO_OPS_PERFORMED);
-    }
-
     public LocalCheckpointService(final ShardId shardId, final IndexSettings indexSettings, final long maxSeqNo, final long checkpoint) {
         super(shardId, indexSettings);
         bitArraysSize = SETTINGS_BIT_ARRAYS_SIZE.get(indexSettings.getSettings());

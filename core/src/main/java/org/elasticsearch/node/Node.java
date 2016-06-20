@@ -266,8 +266,11 @@ public class Node implements Closeable {
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
+            BigArrays bigArrays = createNewBigArrays(settings, circuitBreakerService);
+            resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
             modules.add(b -> {
+                    b.bind(BigArrays.class).toInstance(bigArrays);
                     b.bind(PluginsService.class).toInstance(pluginsService);
                     b.bind(Client.class).to(NodeClient.class).asEagerSingleton();
                     b.bind(Environment.class).toInstance(environment);
@@ -625,5 +628,13 @@ public class Node implements Closeable {
         } else {
             throw new IllegalArgumentException("Unknown circuit breaker type [" + type + "]");
         }
+    }
+
+    /**
+     * Creates a new {@link BigArrays} instance used for this node.
+     * This method can be overwritten by subclasses to change their {@link BigArrays} implementation for instance for testing
+     */
+    BigArrays createNewBigArrays(Settings settings, CircuitBreakerService circuitBreakerService) {
+        return new BigArrays(settings, circuitBreakerService);
     }
 }

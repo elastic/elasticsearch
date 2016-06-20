@@ -50,7 +50,13 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
@@ -59,7 +65,14 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateIT extends ESIntegTestCase {
 
@@ -154,11 +167,6 @@ public class UpdateIT extends ESIntegTestCase {
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
             throw new UnsupportedOperationException();
         }
-
-        @Override
-        public void scriptRemoved(CompiledScript script) {
-        }
-
     }
 
     public static class FieldIncrementScriptPlugin extends Plugin {
@@ -245,11 +253,6 @@ public class UpdateIT extends ESIntegTestCase {
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
             throw new UnsupportedOperationException();
         }
-
-        @Override
-        public void scriptRemoved(CompiledScript script) {
-        }
-
     }
 
     public static class ScriptedUpsertScriptPlugin extends Plugin {
@@ -336,11 +339,6 @@ public class UpdateIT extends ESIntegTestCase {
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
             throw new UnsupportedOperationException();
         }
-
-        @Override
-        public void scriptRemoved(CompiledScript script) {
-        }
-
     }
 
     public static class ExtractContextInSourceScriptPlugin extends Plugin {
@@ -428,11 +426,6 @@ public class UpdateIT extends ESIntegTestCase {
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
             throw new UnsupportedOperationException();
         }
-
-        @Override
-        public void scriptRemoved(CompiledScript script) {
-        }
-
     }
 
     @Override

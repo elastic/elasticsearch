@@ -78,83 +78,44 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
      */
     public static final String GROOVY_INDY_SETTING_NAME = "indy";
 
-    private final GroovyClassLoader loader;
+    /**
+     * Classloader used as a parent classloader for all Groovy scripts
+     */
+    private final ClassLoader loader;
 
     @Inject
     public GroovyScriptEngineService(Settings settings) {
         super(settings);
-
-        ImportCustomizer imports = new ImportCustomizer();
-        imports.addStarImports("org.joda.time");
-        imports.addStaticStars("java.lang.Math");
-
-        final CompilerConfiguration config = new CompilerConfiguration();
-
-        config.addCompilationCustomizers(imports);
-        // Add BigDecimal -> Double transformer
-        config.addCompilationCustomizers(new GroovyBigDecimalTransformer(CompilePhase.CONVERSION));
-
-        // always enable invokeDynamic, not the crazy softreference-based stuff
-        config.getOptimizationOptions().put(GROOVY_INDY_SETTING_NAME, true);
-
-        // Groovy class loader to isolate Groovy-land code
-        // classloader created here
+        // Creates the classloader here in order to isolate Groovy-land code
         final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
         }
-        final ClassLoader parent = getClass().getClassLoader();
-        this.loader = AccessController.doPrivileged(new PrivilegedAction<GroovyClassLoader>() {
+        this.loader = AccessController.doPrivileged(new PrivilegedAction<ClassLoader>() {
             @Override
-            public GroovyClassLoader run() {
+            public ClassLoader run() {
                 // snapshot our context (which has permissions for classes), since the script has none
-                final AccessControlContext engineContext = AccessController.getContext();
-                return new GroovyClassLoader(new ClassLoader(getClass().getClassLoader()) {
+                final AccessControlContext context = AccessController.getContext();
+                return new ClassLoader(getClass().getClassLoader()) {
                     @Override
                     protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
                         if (sm != null) {
                             try {
-                                engineContext.checkPermission(new ClassPermission(name));
+                                context.checkPermission(new ClassPermission(name));
                             } catch (SecurityException e) {
                                 throw new ClassNotFoundException(name, e);
                             }
                         }
                         return super.loadClass(name, resolve);
                     }
-                }, config);
+                };
             }
         });
     }
 
     @Override
-    public void close() {
-        loader.clearCache();
-        // close classloader here (why do we do this?)
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            public Void run() {
-                try {
-                    loader.close();
-                } catch (IOException e) {
-                    logger.warn("Unable to close Groovy loader", e);
-                }
-                return null;
-            }
-        });
-    }
-
-    @Override
-    public void scriptRemoved(@Nullable CompiledScript script) {
-        // script could be null, meaning the script has already been garbage collected
-        if (script == null || NAME.equals(script.lang())) {
-            // Clear the cache, this removes old script versions from the
-            // cache to prevent running out of PermGen space
-            loader.clearCache();
-        }
+    public void close() throws IOException {
+        // Nothing to do here
     }
 
     @Override
@@ -173,30 +134,37 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public Object compile(final String script, Map<String, String> params) {
-        try {
-            // we reuse classloader, so do a security check just in case.
-            SecurityManager sm = System.getSecurityManager();
-            if (sm != null) {
-                sm.checkPermission(new SpecialPermission());
-            }
-            final String fake = MessageDigests.toHexString(MessageDigests.sha1().digest(script.getBytes(StandardCharsets.UTF_8)));
-            // same logic as GroovyClassLoader.parseClass() but with a different codesource string:
-            return AccessController.doPrivileged(new PrivilegedAction<Object>() {
-                public Class<?> run() {
-                    GroovyCodeSource gcs = new GroovyCodeSource(script, fake, BootstrapInfo.UNTRUSTED_CODEBASE);
-                    gcs.setCachable(false);
-                    // TODO: we could be more complicated and paranoid, and move this to separate block, to
-                    // sandbox the compilation process itself better.
-                    return loader.parseClass(gcs);
-                }
-            });
-        } catch (Throwable e) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("exception compiling Groovy script:", e);
-            }
-            throw new ScriptException("failed to compile groovy script", e);
+    public Object compile(final String scriptSource, Map<String, String> params) {
+        // Create the script class name
+        final String className = MessageDigests.toHexString(MessageDigests.sha1().digest(scriptSource.getBytes(StandardCharsets.UTF_8)));
+
+        final SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
         }
+        return AccessController.doPrivileged(new PrivilegedAction<Object>() {
+            public Class<?> run() {
+                try {
+                    GroovyCodeSource codeSource = new GroovyCodeSource(scriptSource, className, BootstrapInfo.UNTRUSTED_CODEBASE);
+                    codeSource.setCachable(false);
+
+                    CompilerConfiguration configuration = new CompilerConfiguration()
+                        .addCompilationCustomizers(new ImportCustomizer().addStarImports("org.joda.time").addStaticStars("java.lang.Math"))
+                        .addCompilationCustomizers(new GroovyBigDecimalTransformer(CompilePhase.CONVERSION));
+
+                    // always enable invokeDynamic, not the crazy softreference-based stuff
+                    configuration.getOptimizationOptions().put(GROOVY_INDY_SETTING_NAME, true);
+
+                    GroovyClassLoader groovyClassLoader = new GroovyClassLoader(loader, configuration);
+                    return groovyClassLoader.parseClass(codeSource);
+                } catch (Throwable e) {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("Exception compiling Groovy script:", e);
+                    }
+                    throw new ScriptException("Error compiling script " + className, e);
+                }
+            }
+        });
     }
 
     /**

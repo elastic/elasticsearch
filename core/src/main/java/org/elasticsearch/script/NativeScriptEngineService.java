@@ -96,9 +96,4 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
     @Override
     public void close() {
     }
-
-    @Override
-    public void scriptRemoved(CompiledScript script) {
-        // Nothing to do here
-    }
 }

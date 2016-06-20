@@ -20,7 +20,6 @@ package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
-
 import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.Nullable;
@@ -502,11 +501,6 @@ public class ScriptServiceTests extends ESTestCase {
         @Override
         public void close() {
 
-        }
-
-        @Override
-        public void scriptRemoved(CompiledScript script) {
-            // Nothing to do here
         }
     }
 

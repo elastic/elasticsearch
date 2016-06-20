@@ -257,8 +257,4 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     @Override
     public void close() {}
 
-    @Override
-    public void scriptRemoved(CompiledScript script) {
-        // Nothing to do
-    }
 }

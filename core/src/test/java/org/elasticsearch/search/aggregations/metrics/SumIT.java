@@ -478,10 +478,6 @@ public class SumIT extends AbstractNumericTestCase {
                 }
             };
         }
-
-        @Override
-        public void scriptRemoved(CompiledScript script) {
-        }
     }
 
     /**
@@ -613,10 +609,6 @@ public class SumIT extends AbstractNumericTestCase {
                     return false;
                 }
             };
-        }
-
-        @Override
-        public void scriptRemoved(CompiledScript script) {
         }
     }
 }

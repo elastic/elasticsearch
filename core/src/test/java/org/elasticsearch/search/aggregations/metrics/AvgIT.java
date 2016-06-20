@@ -488,10 +488,6 @@ public class AvgIT extends AbstractNumericTestCase {
                 }
             };
         }
-
-        @Override
-        public void scriptRemoved(CompiledScript script) {
-        }
     }
 
     /**
@@ -621,10 +617,6 @@ public class AvgIT extends AbstractNumericTestCase {
                     return false;
                 }
             };
-        }
-
-        @Override
-        public void scriptRemoved(CompiledScript script) {
         }
     }
 }

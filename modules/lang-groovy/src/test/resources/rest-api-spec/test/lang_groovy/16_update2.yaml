@@ -60,7 +60,7 @@
 
 
   - do:
-      catch: /Unable.to.parse.*/
+      catch: /script_exception,.+Error.compiling.script.*/
       put_script:
         id: "1"
         lang: "groovy"

@@ -41,11 +41,4 @@ public interface ScriptEngineService extends Closeable {
     ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars);
 
     SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars);
-
-    /**
-     * Handler method called when a script is removed from the Guava cache.
-     *
-     * The passed script may be null if it has already been garbage collected.
-     * */
-    void scriptRemoved(@Nullable CompiledScript script);
 }

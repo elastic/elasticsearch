@@ -19,7 +19,10 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.collect.*;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -30,7 +33,10 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -279,11 +285,6 @@ public class ScriptModesTests extends ESTestCase {
 
         @Override
         public void close() {
-
-        }
-
-        @Override
-        public void scriptRemoved(@Nullable CompiledScript script) {
 
         }
     }

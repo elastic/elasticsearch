@@ -27,14 +27,27 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.ClassPermission;
+import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.ScoreAccessor;
+import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.script.javascript.support.NativeList;
 import org.elasticsearch.script.javascript.support.NativeMap;
 import org.elasticsearch.script.javascript.support.ScriptValueConverter;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.mozilla.javascript.*;
+import org.mozilla.javascript.Context;
+import org.mozilla.javascript.ContextFactory;
+import org.mozilla.javascript.GeneratedClassLoader;
+import org.mozilla.javascript.PolicySecurityController;
 import org.mozilla.javascript.Script;
+import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.SecurityController;
+import org.mozilla.javascript.WrapFactory;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -134,11 +147,6 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     @Override
     public void close() {
 
-    }
-
-    @Override
-    public void scriptRemoved(@Nullable CompiledScript compiledScript) {
-        // Nothing to do here
     }
 
     @Override

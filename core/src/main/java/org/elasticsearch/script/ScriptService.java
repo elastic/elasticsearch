@@ -500,16 +500,10 @@ public class ScriptService extends AbstractComponent implements Closeable {
             if (logger.isDebugEnabled()) {
                 logger.debug("notifying script services of script removal due to: [{}]", notification.getCause());
             }
-            scriptMetrics.onCacheEviction();
-            for (ScriptEngineService service : scriptEngines) {
-                try {
-                    service.scriptRemoved(notification.getValue());
-                } catch (Exception e) {
-                    logger.warn("exception calling script removal listener for script service", e);
-                    // We don't rethrow because Guava would just catch the
-                    // exception and log it, which we have already done
-                }
+            if (logger.isDebugEnabled()) {
+                logger.debug("removed {} from cache", notification.getValue());
             }
+            scriptMetrics.onCacheEviction();
         }
     }
 

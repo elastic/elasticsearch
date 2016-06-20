@@ -33,6 +33,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
@@ -225,11 +226,9 @@ public final class PercolateQuery extends Query implements Accountable {
                         }
                     };
                 } else {
-                    Scorer scorer = verifiedQueriesQueryWeight.scorer(leafReaderContext);
+                    Scorer verifiedDocsScorer = verifiedQueriesQueryWeight.scorer(leafReaderContext);
+                    Bits verifiedDocsBits = Lucene.asSequentialAccessBits(leafReaderContext.reader().maxDoc(), verifiedDocsScorer);
                     return new BaseScorer(this, approximation, queries, percolatorIndexSearcher) {
-
-                        boolean notExhausted = scorer != null;
-                        DocIdSetIterator iterator = notExhausted ? scorer.iterator() : null;
 
                         @Override
                         public float score() throws IOException {
@@ -237,27 +236,14 @@ public final class PercolateQuery extends Query implements Accountable {
                         }
 
                         boolean matchDocId(int docId) throws IOException {
-                            // We use the iterator to skip the expensive MemoryIndex verification.
-                            // If docId also appears in the iterator then that means during indexing
+                            // We use the verifiedDocsBits to skip the expensive MemoryIndex verification.
+                            // If docId also appears in the verifiedDocsBits then that means during indexing
                             // we were able to extract all query terms and for this candidate match
-                            // it safe to skip the MemoryIndex verification.
-                            if (notExhausted) {
-                                if (iterator.docID() == docId) {
-                                    return true;
-                                }
-
-                                if (iterator.docID() < docId) {
-                                    int target = iterator.advance(docId);
-                                    if (target == DocIdSetIterator.NO_MORE_DOCS) {
-                                        notExhausted = false;
-                                    } else {
-                                        if (docId == target) {
-                                            return true;
-                                        }
-                                    }
-                                }
+                            // and we determined based on the nature of the query that it is safe to skip
+                            // the MemoryIndex verification.
+                            if (verifiedDocsBits.get(docId)) {
+                                return true;
                             }
-
                             Query query = percolatorQueries.getQuery(docId);
                             return query != null && Lucene.exists(percolatorIndexSearcher, query);
                         }

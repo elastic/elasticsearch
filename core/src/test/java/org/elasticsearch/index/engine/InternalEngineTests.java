@@ -82,7 +82,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
-import org.elasticsearch.index.seqno.GlobalCheckpointService;
 import org.elasticsearch.index.seqno.LocalCheckpointService;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.DocsStats;
@@ -557,9 +556,9 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(
                 Long.parseLong(stats1.getUserData().get(LocalCheckpointService.LOCAL_CHECKPOINT_KEY)),
                 equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
-        assertThat(stats1.getUserData(), hasKey(GlobalCheckpointService.GLOBAL_CHECKPOINT_KEY));
+        assertThat(stats1.getUserData(), hasKey(InternalEngine.GLOBAL_CHECKPOINT_KEY));
         assertThat(
-                Long.parseLong(stats1.getUserData().get(GlobalCheckpointService.GLOBAL_CHECKPOINT_KEY)),
+                Long.parseLong(stats1.getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
                 equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
 
         engine.flush(true, true);
@@ -572,9 +571,9 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(stats2.getUserData().get(Translog.TRANSLOG_GENERATION_KEY), not(equalTo(stats1.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
         assertThat(stats2.getUserData().get(Translog.TRANSLOG_UUID_KEY), equalTo(stats1.getUserData().get(Translog.TRANSLOG_UUID_KEY)));
         assertThat(Long.parseLong(stats2.getUserData().get(LocalCheckpointService.LOCAL_CHECKPOINT_KEY)), equalTo(0L));
-        assertThat(stats2.getUserData(), hasKey(GlobalCheckpointService.GLOBAL_CHECKPOINT_KEY));
+        assertThat(stats2.getUserData(), hasKey(InternalEngine.GLOBAL_CHECKPOINT_KEY));
         assertThat(
-                Long.parseLong(stats2.getUserData().get(GlobalCheckpointService.GLOBAL_CHECKPOINT_KEY)),
+                Long.parseLong(stats2.getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
                 equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
     }
 
@@ -1676,14 +1675,14 @@ public class InternalEngineTests extends ESTestCase {
                     Long.parseLong(initialEngine.commitStats().getUserData().get(LocalCheckpointService.LOCAL_CHECKPOINT_KEY)),
                     equalTo(primarySeqNo));
             assertThat(
-                    Long.parseLong(initialEngine.commitStats().getUserData().get(GlobalCheckpointService.GLOBAL_CHECKPOINT_KEY)),
+                    Long.parseLong(initialEngine.commitStats().getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
                     equalTo(replicaLocalCheckpoint));
             initialReplicaEngine.flush(true, true);
             assertThat(
                     Long.parseLong(initialReplicaEngine.commitStats().getUserData().get(LocalCheckpointService.LOCAL_CHECKPOINT_KEY)),
                     equalTo(replicaLocalCheckpoint));
             assertThat(
-                    Long.parseLong(initialReplicaEngine.commitStats().getUserData().get(GlobalCheckpointService.GLOBAL_CHECKPOINT_KEY)),
+                    Long.parseLong(initialReplicaEngine.commitStats().getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
                     equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
         } finally {
             IOUtils.close(initialEngine, initialReplicaEngine);
@@ -1714,7 +1713,7 @@ public class InternalEngineTests extends ESTestCase {
                     Long.parseLong(recoveringEngine.commitStats().getUserData().get(LocalCheckpointService.LOCAL_CHECKPOINT_KEY)),
                     equalTo(primarySeqNo));
             assertThat(
-                    Long.parseLong(recoveringEngine.commitStats().getUserData().get(GlobalCheckpointService.GLOBAL_CHECKPOINT_KEY)),
+                    Long.parseLong(recoveringEngine.commitStats().getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
                     equalTo(replicaLocalCheckpoint));
             assertThat(recoveringEngine.seqNoService().stats().getLocalCheckpoint(), equalTo(primarySeqNo));
             assertThat(recoveringEngine.seqNoService().stats().getGlobalCheckpoint(), equalTo(replicaLocalCheckpoint));
@@ -1724,7 +1723,7 @@ public class InternalEngineTests extends ESTestCase {
                     Long.parseLong(recoveringReplicaEngine.commitStats().getUserData().get(LocalCheckpointService.LOCAL_CHECKPOINT_KEY)),
                     equalTo(replicaLocalCheckpoint));
             assertThat(
-                    Long.parseLong(recoveringReplicaEngine.commitStats().getUserData().get(GlobalCheckpointService.GLOBAL_CHECKPOINT_KEY)),
+                    Long.parseLong(recoveringReplicaEngine.commitStats().getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
                     equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
             assertThat(recoveringReplicaEngine.seqNoService().stats().getLocalCheckpoint(), equalTo(replicaLocalCheckpoint));
             assertThat(

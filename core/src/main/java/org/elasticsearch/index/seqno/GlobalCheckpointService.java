@@ -41,8 +41,6 @@ import java.util.Set;
  */
 public class GlobalCheckpointService extends AbstractIndexShardComponent {
 
-    public static String GLOBAL_CHECKPOINT_KEY = "global_checkpoint";
-
     /**
      * This map holds the last known local checkpoint for every shard copy that's active.
      * All shard copies in this map participate in determining the global checkpoint

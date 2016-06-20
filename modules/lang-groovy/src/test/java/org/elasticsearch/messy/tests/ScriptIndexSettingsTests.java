@@ -26,6 +26,8 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
@@ -33,8 +35,12 @@ import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class ScriptIndexSettingsTests extends ESIntegTestCase {
@@ -42,6 +48,19 @@ public class ScriptIndexSettingsTests extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(GroovyPlugin.class);
+    }
+
+    @Override
+    public void randomIndexTemplate() throws IOException {
+        // don't set random index template, because we are testing here what happens if no custom settings have been
+        // specified
+    }
+
+    @Override
+    public Settings indexSettings() {
+        // don't set random index settings, because we are testing here what happens if no custom settings have been
+        // specified
+        return Settings.EMPTY;
     }
 
     @Test
@@ -75,6 +94,27 @@ public class ScriptIndexSettingsTests extends ESIntegTestCase {
 
         assertEquals("Number of shards should be 1", "1", numberOfShards);
         assertEquals("Auto expand replicas should be 0-all", "0-all", numberOfReplicas);
+    }
+
+    @Test
+    public void testScriptIndexDefaults() {
+        createIndex(ScriptService.SCRIPT_INDEX);
+        IndexMetaData indexMetaData = client().admin().cluster().prepareState().get()
+                .getState().getMetaData().index(ScriptService.SCRIPT_INDEX);
+        assertThat(indexMetaData.getNumberOfShards(), equalTo(1));
+        assertThat(indexMetaData.getNumberOfReplicas(), equalTo(0));
+        assertThat(indexMetaData.getSettings().get("index.auto_expand_replicas"), equalTo("0-all"));
+
+        client().admin().indices().prepareDelete(ScriptService.SCRIPT_INDEX).get();
+        client().admin().indices().prepareCreate(ScriptService.SCRIPT_INDEX)
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2))
+                .get();
+        indexMetaData = client().admin().cluster().prepareState().get()
+                .getState().getMetaData().index(ScriptService.SCRIPT_INDEX);
+        assertThat(indexMetaData.getNumberOfShards(), equalTo(3));
+        assertThat(indexMetaData.getNumberOfReplicas(), equalTo(2));
+        assertThat(indexMetaData.getSettings().get("index.auto_expand_replicas"), nullValue());
     }
 
     @Test

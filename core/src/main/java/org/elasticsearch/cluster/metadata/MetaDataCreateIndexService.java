@@ -267,20 +267,24 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
                     // now, put the request settings, so they override templates
                     indexSettingsBuilder.put(request.settings());
+                    int defaultNumberOfShards;
+                    int defaultNumberOfReplicas;
                     if (request.index().equals(ScriptService.SCRIPT_INDEX)) {
-                        indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
+                        defaultNumberOfShards = 1;
+                        defaultNumberOfReplicas = 0;
                     } else {
-                        if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
-                        }
+                        defaultNumberOfShards = 5;
+                        defaultNumberOfReplicas = 1;
                     }
-                    if (request.index().equals(ScriptService.SCRIPT_INDEX)) {
-                        indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 0));
+                    if (request.index().equals(ScriptService.SCRIPT_INDEX) && indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
+                        // For .script index it only make sense to set auto expand replicas if number of replicas hasn't been set:
                         indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, "0-all");
-                    } else {
-                        if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
-                            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
-                        }
+                    }
+                    if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
+                        indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, defaultNumberOfShards));
+                    }
+                    if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
+                        indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, defaultNumberOfReplicas));
                     }
 
                     if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {

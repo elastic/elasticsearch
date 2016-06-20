@@ -1286,6 +1286,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (store.tryIncRef()) {
             try {
                 cancellableThreads.executeIO(this::doCheckIndex);
+            } catch (ClosedByInterruptException ex) {
+                assert cancellableThreads.isCancelled();
+                // that's fine we might run into this when we cancel the thread since Java NIO will close the channel on interrupt
+                // and on the next access we fail it.
             } finally {
                 store.decRef();
             }

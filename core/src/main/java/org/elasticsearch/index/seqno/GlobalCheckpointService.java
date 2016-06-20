@@ -69,10 +69,6 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
 
     private long globalCheckpoint;
 
-    public GlobalCheckpointService(final ShardId shardId, final IndexSettings indexSettings) {
-        this(shardId, indexSettings, SequenceNumbersService.UNASSIGNED_SEQ_NO);
-    }
-
     public GlobalCheckpointService(final ShardId shardId, final IndexSettings indexSettings, final long globalCheckpoint) {
         super(shardId, indexSettings);
         activeLocalCheckpoints = new ObjectLongHashMap<>(1 + indexSettings.getNumberOfReplicas());

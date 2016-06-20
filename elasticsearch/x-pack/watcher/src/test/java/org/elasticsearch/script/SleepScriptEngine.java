@@ -65,10 +65,6 @@ public class SleepScriptEngine implements ScriptEngineService {
     }
 
     @Override
-    public void scriptRemoved(@Nullable CompiledScript script) {
-    }
-
-    @Override
     public void close() throws IOException {
     }
 

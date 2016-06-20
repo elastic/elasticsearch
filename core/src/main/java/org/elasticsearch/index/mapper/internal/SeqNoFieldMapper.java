@@ -130,10 +130,10 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
                 final LeafReader leaf = leaves.get(i).reader();
                 final NumericDocValues values = leaf.getNumericDocValues(name());
                 if (values == null) continue;
-                found = true;
                 final Bits bits = leaf.getLiveDocs();
                 for (int docID = 0; docID < leaf.maxDoc(); docID++) {
                     if (bits == null || bits.get(docID)) {
+                        found = true;
                         final long value = values.get(docID);
                         currentMin = Math.min(currentMin, value);
                         currentMax = Math.max(currentMax, value);

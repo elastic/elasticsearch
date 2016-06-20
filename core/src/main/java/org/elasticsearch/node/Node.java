@@ -67,9 +67,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeEnvironmentModule;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
@@ -104,9 +102,7 @@ import org.elasticsearch.tasks.TaskPersistenceService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.tribe.TribeModule;
 import org.elasticsearch.tribe.TribeService;
-import org.elasticsearch.watcher.ResourceWatcherModule;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.BufferedWriter;
@@ -242,9 +238,13 @@ public class Node implements Closeable {
             } catch (IOException ex) {
                 throw new IllegalStateException("Failed to created node environment", ex);
             }
+            final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
+            resourcesToClose.add(resourceWatcherService);
             final NetworkService networkService = new NetworkService(settings);
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             resourcesToClose.add(clusterService);
+            final TribeService tribeService = new TribeService(settings, clusterService);
+            resourcesToClose.add(tribeService);
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             ModulesBuilder modules = new ModulesBuilder();
             // plugin modules must be added here, before others or we can get crazy injection errors...
@@ -253,28 +253,32 @@ public class Node implements Closeable {
             }
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             modules.add(new PluginsModule(pluginsService));
-            modules.add(new EnvironmentModule(environment, threadPool));
             modules.add(new NodeModule(this, monitorService));
             modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
             modules.add(scriptModule);
-            modules.add(new NodeEnvironmentModule(nodeEnvironment));
             modules.add(new DiscoveryModule(this.settings));
             modules.add(new ClusterModule(this.settings, clusterService));
             modules.add(new IndicesModule(namedWriteableRegistry));
             modules.add(new SearchModule(settings, namedWriteableRegistry));
             modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false));
-            modules.add(new GatewayModule(settings));
+            modules.add(new GatewayModule());
             modules.add(new NodeClientModule());
-            modules.add(new ResourceWatcherModule());
             modules.add(new RepositoriesModule());
-            modules.add(new TribeModule());
             modules.add(new AnalysisModule(environment));
             pluginsService.processModules(modules);
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
             modules.add(settingsModule);
-            modules.add(b -> b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService));
+            modules.add(b -> {
+                    b.bind(Environment.class).toInstance(new Environment(settings));
+                    b.bind(ThreadPool.class).toInstance(threadPool);
+                    b.bind(NodeEnvironment.class).toInstance(nodeEnvironment);
+                    b.bind(TribeService.class).toInstance(tribeService);
+                    b.bind(ResourceWatcherService.class).toInstance(resourceWatcherService);
+                    b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
+                }
+            );
             injector = modules.createInjector();
             client = injector.getInstance(Client.class);
             success = true;

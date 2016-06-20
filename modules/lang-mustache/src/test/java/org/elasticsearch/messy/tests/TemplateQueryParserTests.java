@@ -38,7 +38,6 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -59,7 +58,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
@@ -110,7 +108,10 @@ public class TemplateQueryParserTests extends ESTestCase {
         SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, Collections.emptyList());
         final ThreadPool threadPool = new ThreadPool(settings);
         injector = new ModulesBuilder().add(
-                new EnvironmentModule(new Environment(settings), threadPool),
+                (b) -> {
+                    b.bind(Environment.class).toInstance(new Environment(settings));
+                    b.bind(ThreadPool.class).toInstance(threadPool);
+                },
                 settingsModule,
                 new SearchModule(settings, new NamedWriteableRegistry()) {
                     @Override

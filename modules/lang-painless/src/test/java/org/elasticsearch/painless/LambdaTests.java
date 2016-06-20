@@ -85,6 +85,24 @@ public class LambdaTests extends ScriptTestCase {
     public void testUnneededCurlyStatements() {
         assertEquals(2, exec("int applyOne(IntFunction arg) { arg.apply(1) } applyOne(x -> { x + 1 })"));
     }
+    
+    /** interface ignores return value */
+    public void testVoidReturn() {
+        assertEquals(2, exec("List list = new ArrayList(); "
+                           + "list.add(2); "
+                           + "List list2 = new ArrayList(); "
+                           + "list.forEach(x -> list2.add(x));"
+                           + "return list[0]"));
+    }
+    
+    /** interface ignores return value */
+    public void testVoidReturnDef() {
+        assertEquals(2, exec("def list = new ArrayList(); "
+                           + "list.add(2); "
+                           + "List list2 = new ArrayList(); "
+                           + "list.forEach(x -> list2.add(x));"
+                           + "return list[0]"));
+    }
 
     public void testTwoLambdas() {
         assertEquals("testingcdefg", exec(

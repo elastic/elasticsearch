@@ -41,6 +41,29 @@ import java.util.Set;
 
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
+/**
+ * Lambda expression node.
+ * <p>
+ * This can currently only be the direct argument of a call (method/constructor).
+ * When the argument is of a known type, it uses
+ * <a href="http://cr.openjdk.java.net/~briangoetz/lambda/lambda-translation.html">
+ * Java's lambda translation</a>. However, if its a def call, then we don't have 
+ * enough information, and have to defer this until link time. In that case a placeholder
+ * and all captures are pushed onto the stack and folded into the signature of the parent call.
+ * <p>
+ * For example:
+ * <br>
+ * {@code def list = new ArrayList(); int capture = 0; list.sort((x,y) -> x - y + capture)}
+ * <br>
+ * is converted into a call (pseudocode) such as:
+ * <br>
+ * {@code sort(list, lambda$0, capture)}
+ * <br>
+ * At link time, when we know the interface type, this is decomposed with MethodHandle
+ * combinators back into (pseudocode):
+ * <br>
+ * {@code sort(list, lambda$0(capture))}
+ */
 public class ELambda extends AExpression implements ILambda {
     final String name;
     final FunctionReserved reserved;

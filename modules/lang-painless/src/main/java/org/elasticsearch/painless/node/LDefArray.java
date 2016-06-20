@@ -31,8 +31,6 @@ import java.util.Set;
 
 import org.elasticsearch.painless.MethodWriter;
 
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
-
 /**
  * Represents an array load/store or shortcut on a def type.  (Internal only.)
  */
@@ -71,15 +69,15 @@ final class LDefArray extends ALink implements IDefLink {
     void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        String desc = Type.getMethodDescriptor(after.type, Definition.DEF_TYPE.type, index.actual.type);
-        writer.invokeDynamic("arrayLoad", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_LOAD);
+        Type methodType = Type.getMethodType(after.type, Definition.DEF_TYPE.type, index.actual.type);
+        writer.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
     }
 
     @Override
     void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        String desc = Type.getMethodDescriptor(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, index.actual.type, after.type);
-        writer.invokeDynamic("arrayStore", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_STORE);
+        Type methodType = Type.getMethodType(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, index.actual.type, after.type);
+        writer.invokeDefCall("arrayStore", methodType, DefBootstrap.ARRAY_STORE);
     }
 }

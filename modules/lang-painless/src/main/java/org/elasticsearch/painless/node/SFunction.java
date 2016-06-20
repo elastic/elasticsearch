@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.Definition;
@@ -151,12 +152,12 @@ public class SFunction extends AStatement {
     }
     
     /** Writes the function to given ClassVisitor. */
-    void write (ClassVisitor writer, Globals globals) {
+    void write (ClassVisitor writer, CompilerSettings settings, Globals globals) {
         int access = Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC;
         if (synthetic) {
             access |= Opcodes.ACC_SYNTHETIC;
         }
-        final MethodWriter function = new MethodWriter(access, method.method, writer, globals.getStatements());
+        final MethodWriter function = new MethodWriter(access, method.method, writer, globals.getStatements(), settings);
         write(function, globals);
         function.endMethod();
     }

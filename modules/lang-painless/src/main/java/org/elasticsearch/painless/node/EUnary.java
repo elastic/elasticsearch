@@ -35,8 +35,6 @@ import java.util.Set;
 
 import org.elasticsearch.painless.MethodWriter;
 
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
-
 /**
  * Represents a unary math expression.
  */
@@ -45,6 +43,7 @@ public final class EUnary extends AExpression {
     final Operation operation;
     AExpression child;
     Type promote;
+    boolean originallyExplicit = false; // record whether there was originally an explicit cast
 
     public EUnary(Location location, Operation operation, AExpression child) {
         super(location);
@@ -60,6 +59,7 @@ public final class EUnary extends AExpression {
 
     @Override
     void analyze(Locals locals) {
+        originallyExplicit = explicit;
         if (operation == Operation.NOT) {
             analyzeNot(locals);
         } else if (operation == Operation.BWNOT) {
@@ -212,10 +212,16 @@ public final class EUnary extends AExpression {
             Sort sort = promote.sort;
             child.write(writer, globals);
 
+            // def calls adopt the wanted return value. if there was a narrowing cast,
+            // we need to flag that so that its done at runtime.
+            int defFlags = 0;
+            if (originallyExplicit) {
+                defFlags |= DefBootstrap.OPERATOR_EXPLICIT_CAST;
+            }
             if (operation == Operation.BWNOT) {
                 if (sort == Sort.DEF) {
                     org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actual.type, child.actual.type);
-                    writer.invokeDynamic("not", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.UNARY_OPERATOR, 0);
+                    writer.invokeDefCall("not", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 } else {
                     if (sort == Sort.INT) {
                         writer.push(-1);
@@ -230,14 +236,14 @@ public final class EUnary extends AExpression {
             } else if (operation == Operation.SUB) {
                 if (sort == Sort.DEF) {
                     org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actual.type, child.actual.type);
-                    writer.invokeDynamic("neg", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.UNARY_OPERATOR, 0);
+                    writer.invokeDefCall("neg", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 } else {
                     writer.math(MethodWriter.NEG, actual.type);
                 }
             } else if (operation == Operation.ADD) {
                 if (sort == Sort.DEF) {
                     org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actual.type, child.actual.type);
-                    writer.invokeDynamic("plus", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.UNARY_OPERATOR, 0);
+                    writer.invokeDefCall("plus", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 } 
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));

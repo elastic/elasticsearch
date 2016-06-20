@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
@@ -61,6 +62,7 @@ public final class SSource extends AStatement {
     final String name;
     final String source;
     final Printer debugStream;
+    final CompilerSettings settings;
     final MainMethodReserved reserved;
     final List<SFunction> functions;
     final Globals globals;
@@ -69,10 +71,11 @@ public final class SSource extends AStatement {
     private Locals mainMethod;
     private byte[] bytes;
 
-    public SSource(String name, String source, Printer debugStream, MainMethodReserved reserved, Location location, 
+    public SSource(CompilerSettings settings, String name, String source, Printer debugStream, 
+                   MainMethodReserved reserved, Location location, 
                    List<SFunction> functions, Globals globals, List<AStatement> statements) {
         super(location);
-
+        this.settings = Objects.requireNonNull(settings);
         this.name = Objects.requireNonNull(name);
         this.source = Objects.requireNonNull(source);
         this.debugStream = debugStream;
@@ -159,7 +162,7 @@ public final class SSource extends AStatement {
         visitor.visitSource(Location.computeSourceName(name, source), null);
 
         // Write the constructor:
-        MethodWriter constructor = new MethodWriter(Opcodes.ACC_PUBLIC, CONSTRUCTOR, visitor, globals.getStatements());
+        MethodWriter constructor = new MethodWriter(Opcodes.ACC_PUBLIC, CONSTRUCTOR, visitor, globals.getStatements(), settings);
         constructor.visitCode();
         constructor.loadThis();
         constructor.loadArgs();
@@ -168,14 +171,14 @@ public final class SSource extends AStatement {
         constructor.endMethod();
 
         // Write the execute method:
-        MethodWriter execute = new MethodWriter(Opcodes.ACC_PUBLIC, EXECUTE, visitor, globals.getStatements());
+        MethodWriter execute = new MethodWriter(Opcodes.ACC_PUBLIC, EXECUTE, visitor, globals.getStatements(), settings);
         execute.visitCode();
         write(execute, globals);
         execute.endMethod();
         
         // Write all functions:
         for (SFunction function : functions) {
-            function.write(visitor, globals);
+            function.write(visitor, settings, globals);
         }
         
         // Write all synthetic functions. Note that this process may add more :)
@@ -183,7 +186,7 @@ public final class SSource extends AStatement {
             List<SFunction> current = new ArrayList<>(globals.getSyntheticMethods().values());
             globals.getSyntheticMethods().clear();
             for (SFunction function : current) {
-                function.write(visitor, globals);
+                function.write(visitor, settings, globals);
             }
         }
 
@@ -203,7 +206,7 @@ public final class SSource extends AStatement {
 
             // Initialize the constants in a static initializer
             final MethodWriter clinit = new MethodWriter(Opcodes.ACC_STATIC, 
-                    WriterConstants.CLINIT, visitor, globals.getStatements());
+                    WriterConstants.CLINIT, visitor, globals.getStatements(), settings);
             for (Constant constant : inits) {
                 constant.initializer.accept(clinit);
                 clinit.putStatic(CLASS_TYPE, constant.name, constant.type);

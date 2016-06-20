@@ -286,7 +286,8 @@ public final class Def {
                      MethodType nestedType = MethodType.methodType(interfaceType.clazz, captures);
                      CallSite nested = DefBootstrap.bootstrap(lookup, 
                                                               call,
-                                                              nestedType, 
+                                                              nestedType,
+                                                              0,
                                                               DefBootstrap.REFERENCE,
                                                               interfaceType.name);
                      filter = nested.dynamicInvoker();

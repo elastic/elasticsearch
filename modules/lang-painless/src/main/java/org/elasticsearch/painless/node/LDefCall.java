@@ -32,8 +32,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
-
 /**
  * Represents a method call made on a def type. (Internal only.)
  */
@@ -96,32 +94,30 @@ final class LDefCall extends ALink implements IDefLink {
     void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        StringBuilder signature = new StringBuilder();
+        List<Type> parameterTypes = new ArrayList<>();
 
-        signature.append('(');
         // first parameter is the receiver, we never know its type: always Object
-        signature.append(Definition.DEF_TYPE.type.getDescriptor());
+        parameterTypes.add(Definition.DEF_TYPE.type);
 
+        // append each argument
         for (AExpression argument : arguments) {
-            signature.append(argument.actual.type.getDescriptor());
+            parameterTypes.add(argument.actual.type);
             if (argument instanceof ILambda) {
                 ILambda lambda = (ILambda) argument;
                 for (Type capture : lambda.getCaptures()) {
-                    signature.append(capture.getDescriptor());
+                    parameterTypes.add(capture);
                 }
             }
             argument.write(writer, globals);
         }
 
-        signature.append(')');
-        // return value
-        signature.append(after.type.getDescriptor());
+        // create method type from return value and arguments
+        Type methodType = Type.getMethodType(after.type, parameterTypes.toArray(new Type[0]));
 
         List<Object> args = new ArrayList<>();
-        args.add(DefBootstrap.METHOD_CALL);
         args.add(recipe.toString());
         args.addAll(pointers);
-        writer.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, args.toArray());
+        writer.invokeDefCall(name, methodType, DefBootstrap.METHOD_CALL, args.toArray());
     }
 
     @Override

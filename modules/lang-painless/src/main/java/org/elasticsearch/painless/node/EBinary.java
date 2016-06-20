@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Definition.Sort;
@@ -46,6 +47,7 @@ public final class EBinary extends AExpression {
     Type shiftDistance; // for shifts, the RHS is promoted independently
 
     boolean cat = false;
+    boolean originallyExplicit = false; // record whether there was originally an explicit cast
 
     public EBinary(Location location, Operation operation, AExpression left, AExpression right) {
         super(location);
@@ -63,6 +65,7 @@ public final class EBinary extends AExpression {
 
     @Override
     void analyze(Locals locals) {
+        originallyExplicit = explicit;
         if (operation == Operation.MUL) {
             analyzeMul(locals);
         } else if (operation == Operation.DIV) {
@@ -649,7 +652,13 @@ public final class EBinary extends AExpression {
             right.write(writer, globals);
 
             if (promote.sort == Sort.DEF || (shiftDistance != null && shiftDistance.sort == Sort.DEF)) {
-                writer.writeDynamicBinaryInstruction(location, actual, left.actual, right.actual, operation, false);
+                // def calls adopt the wanted return value. if there was a narrowing cast,
+                // we need to flag that so that its done at runtime.
+                int flags = 0;
+                if (originallyExplicit) {
+                    flags |= DefBootstrap.OPERATOR_EXPLICIT_CAST;
+                }
+                writer.writeDynamicBinaryInstruction(location, actual, left.actual, right.actual, operation, flags);
             } else {
                 writer.writeBinaryInstruction(location, actual, operation);
             }

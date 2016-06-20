@@ -127,6 +127,12 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
             if (value != null) {
                 compilerSettings.setPicky(Boolean.parseBoolean(value));
             }
+            
+            value = copy.remove(CompilerSettings.INITIAL_CALL_SITE_DEPTH);
+            
+            if (value != null) {
+                compilerSettings.setInitialCallSiteDepth(Integer.parseInt(value));
+            }
 
             if (!copy.isEmpty()) {
                 throw new IllegalArgumentException("Unrecognized compile-time parameter(s): " + copy);

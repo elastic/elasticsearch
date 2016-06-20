@@ -454,10 +454,6 @@ public class SumIT extends AbstractNumericTestCase {
         }
 
         @Override
-        public void scriptRemoved(CompiledScript script) {
-        }
-
-        @Override
         public boolean isInlineScriptEnabled() {
             return true;
         }
@@ -571,10 +567,6 @@ public class SumIT extends AbstractNumericTestCase {
                     return false;
                 }
             };
-        }
-
-        @Override
-        public void scriptRemoved(CompiledScript script) {
         }
 
         @Override

@@ -101,7 +101,6 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
     private final AzureComputeService azureComputeService;
     private TransportService transportService;
     private NetworkService networkService;
-    private final Version version;
 
     private final TimeValue refreshInterval;
     private long lastRefresh;
@@ -114,13 +113,11 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
     @Inject
     public AzureUnicastHostsProvider(Settings settings, AzureComputeService azureComputeService,
                                    TransportService transportService,
-                                   NetworkService networkService,
-                                   Version version) {
+                                   NetworkService networkService) {
         super(settings);
         this.azureComputeService = azureComputeService;
         this.transportService = transportService;
         this.networkService = networkService;
-        this.version = version;
 
         this.refreshInterval = Discovery.REFRESH_SETTING.get(settings);
 
@@ -253,7 +250,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                     for (TransportAddress address : addresses) {
                         logger.trace("adding {}, transport_address {}", networkAddress, address);
                         cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceName(), address, emptyMap(),
-                                emptySet(), version.minimumCompatibilityVersion()));
+                                emptySet(), Version.CURRENT.minimumCompatibilityVersion()));
                     }
                 } catch (Exception e) {
                     logger.warn("can not convert [{}] to transport address. skipping. [{}]", networkAddress, e.getMessage());

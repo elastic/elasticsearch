@@ -29,6 +29,10 @@ import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -44,8 +48,13 @@ public final class EUnary extends AExpression {
     public EUnary(Location location, Operation operation, AExpression child) {
         super(location);
 
-        this.operation = operation;
-        this.child = child;
+        this.operation = Objects.requireNonNull(operation);
+        this.child = Objects.requireNonNull(child);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        child.extractVariables(variables);
     }
 
     @Override

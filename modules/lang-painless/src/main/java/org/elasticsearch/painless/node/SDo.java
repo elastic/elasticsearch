@@ -24,6 +24,10 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -37,8 +41,16 @@ public final class SDo extends AStatement {
     public SDo(Location location, SBlock block, AExpression condition) {
         super(location);
 
-        this.condition = condition;
+        this.condition = Objects.requireNonNull(condition);
         this.block = block;
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        condition.extractVariables(variables);
+        if (block != null) {
+            block.extractVariables(variables);
+        }
     }
 
     @Override

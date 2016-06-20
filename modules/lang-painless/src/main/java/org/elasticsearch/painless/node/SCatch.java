@@ -27,6 +27,10 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -47,9 +51,17 @@ public final class SCatch extends AStatement {
     public SCatch(Location location, String type, String name, SBlock block) {
         super(location);
 
-        this.type = type;
-        this.name = name;
+        this.type = Objects.requireNonNull(type);
+        this.name = Objects.requireNonNull(name);
         this.block = block;
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        variables.add(name);
+        if (block != null) {
+            block.extractVariables(variables);
+        }
     }
 
     @Override

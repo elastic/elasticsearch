@@ -209,15 +209,6 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
     }
 
     /**
-     * Action taken when a script is removed from the cache.
-     * @param script The removed script.
-     */
-    @Override
-    public void scriptRemoved(final CompiledScript script) {
-        // Nothing to do.
-    }
-
-    /**
      * Action taken when the engine is closed.
      */
     @Override

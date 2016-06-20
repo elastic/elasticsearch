@@ -35,6 +35,9 @@ import org.elasticsearch.painless.Locals.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
+import java.util.Objects;
+import java.util.Set;
+
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_HASNEXT;
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_NEXT;
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_TYPE;
@@ -65,10 +68,19 @@ public class SEach extends AStatement {
     public SEach(Location location, String type, String name, AExpression expression, SBlock block) {
         super(location);
 
-        this.type = type;
-        this.name = name;
-        this.expression = expression;
+        this.type = Objects.requireNonNull(type);
+        this.name = Objects.requireNonNull(name);
+        this.expression = Objects.requireNonNull(expression);
         this.block = block;
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        variables.add(name);
+        expression.extractVariables(variables);
+        if (block != null) {
+            block.extractVariables(variables);
+        }
     }
 
     @Override

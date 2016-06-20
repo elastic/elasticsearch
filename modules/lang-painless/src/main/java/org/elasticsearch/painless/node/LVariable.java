@@ -26,6 +26,9 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.objectweb.asm.Opcodes;
 
+import java.util.Objects;
+import java.util.Set;
+
 /**
  * Represents a variable load/store.
  */
@@ -38,7 +41,12 @@ public final class LVariable extends ALink {
     public LVariable(Location location, String name) {
         super(location, 0);
 
-        this.name = name;
+        this.name = Objects.requireNonNull(name);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        variables.add(name);
     }
 
     @Override

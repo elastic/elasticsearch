@@ -53,9 +53,9 @@ public class ElectMasterService extends AbstractComponent {
     private volatile int minimumMasterNodes;
 
     @Inject
-    public ElectMasterService(Settings settings, Version version) {
+    public ElectMasterService(Settings settings) {
         super(settings);
-        this.minMasterVersion = version.minimumCompatibilityVersion();
+        this.minMasterVersion = Version.CURRENT.minimumCompatibilityVersion();
         this.minimumMasterNodes = DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
         logger.debug("using minimum_master_nodes [{}]", minimumMasterNodes);
     }

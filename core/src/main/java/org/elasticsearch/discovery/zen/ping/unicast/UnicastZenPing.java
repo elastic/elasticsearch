@@ -132,8 +132,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     @Inject
     public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
-                          Version version, ElectMasterService electMasterService,
-                          @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
+                          ElectMasterService electMasterService, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
@@ -166,7 +165,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 TransportAddress[] addresses = transportService.addressesFromString(host, limitPortCounts);
                 for (TransportAddress address : addresses) {
                     configuredTargetNodes.add(new DiscoveryNode(UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#",
-                            address, emptyMap(), emptySet(), version.minimumCompatibilityVersion()));
+                            address, emptyMap(), emptySet(), getVersion().minimumCompatibilityVersion()));
                 }
             } catch (Exception e) {
                 throw new IllegalArgumentException("Failed to resolve address for [" + host + "]", e);
@@ -585,5 +584,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 pingResponse.writeTo(out);
             }
         }
+    }
+
+    protected Version getVersion() {
+        return Version.CURRENT; // for tests
     }
 }

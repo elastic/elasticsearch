@@ -30,6 +30,8 @@ import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a field load/store or defers to a possible shortcuts.
@@ -43,8 +45,11 @@ public final class LField extends ALink {
     public LField(Location location, String value) {
         super(location, 1);
 
-        this.value = value;
+        this.value = Objects.requireNonNull(value);
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
     ALink analyze(Locals locals) {

@@ -22,6 +22,9 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Definition.Sort;
+
+import java.util.Set;
+
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
@@ -37,6 +40,9 @@ final class EConstant extends AExpression {
 
         this.constant = constant;
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
     void analyze(Locals locals) {

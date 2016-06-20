@@ -25,6 +25,10 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Type;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -37,9 +41,11 @@ final class LDefField extends ALink implements IDefLink {
     LDefField(Location location, String value) {
         super(location, 1);
 
-        this.value = value;
+        this.value = Objects.requireNonNull(value);
     }
 
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
     ALink analyze(Locals locals) {

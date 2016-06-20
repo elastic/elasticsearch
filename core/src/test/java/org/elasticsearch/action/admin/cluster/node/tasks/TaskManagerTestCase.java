@@ -167,7 +167,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
             clusterService = createClusterService(threadPool);
             transportService = new TransportService(settings,
-                    new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry(),
+                    new LocalTransport(settings, threadPool, new NamedWriteableRegistry(),
                         new NoneCircuitBreakerService()), threadPool) {
                 @Override
                 protected TaskManager createTaskManager() {

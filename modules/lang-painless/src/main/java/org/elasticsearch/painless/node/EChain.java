@@ -33,6 +33,8 @@ import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents the entirety of a variable/method chain for read/write operations.
@@ -60,11 +62,21 @@ public final class EChain extends AExpression {
                   boolean pre, boolean post, Operation operation, AExpression expression) {
         super(location);
 
-        this.links = links;
+        this.links = Objects.requireNonNull(links);
         this.pre = pre;
         this.post = post;
         this.operation = operation;
         this.expression = expression;
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        for (ALink link : links) {
+            link.extractVariables(variables);
+        }
+        if (expression != null) {
+            expression.extractVariables(variables);
+        }
     }
 
     @Override

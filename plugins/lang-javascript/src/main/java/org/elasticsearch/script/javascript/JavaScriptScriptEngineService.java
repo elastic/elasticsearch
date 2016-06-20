@@ -148,11 +148,6 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
 
     @Override
     public void close() {
-
-    }
-
-    @Override
-    public void scriptRemoved(@Nullable CompiledScript compiledScript) {
         // Nothing to do here
     }
 

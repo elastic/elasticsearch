@@ -145,10 +145,6 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public void scriptRemoved(CompiledScript script) {
-        }
-
-        @Override
         public boolean isInlineScriptEnabled() {
             return true;
         }
@@ -215,14 +211,9 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public void scriptRemoved(CompiledScript script) {
-        }
-
-        @Override
         public boolean isInlineScriptEnabled() {
             return true;
         }
-
     }
 
     public static class ScriptedUpsertScriptPlugin extends Plugin implements ScriptPlugin {
@@ -283,10 +274,6 @@ public class UpdateIT extends ESIntegTestCase {
         @Override
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void scriptRemoved(CompiledScript script) {
         }
 
         @Override
@@ -355,10 +342,6 @@ public class UpdateIT extends ESIntegTestCase {
         @Override
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void scriptRemoved(CompiledScript script) {
         }
 
         @Override

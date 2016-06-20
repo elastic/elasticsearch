@@ -158,7 +158,7 @@ public class ClusterStateChanges {
         MetaDataUpdateSettingsService metaDataUpdateSettingsService = new MetaDataUpdateSettingsService(settings, clusterService,
             allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, new IndexNameExpressionResolver(settings));
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(settings, clusterService, indicesService,
-            allocationService, Version.CURRENT, new AliasValidator(settings), Collections.emptySet(), environment,
+            allocationService, new AliasValidator(settings), Collections.emptySet(), environment,
             nodeServicesProvider, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
 
         transportCloseIndexAction = new TransportCloseIndexAction(settings, transportService, clusterService, threadPool,

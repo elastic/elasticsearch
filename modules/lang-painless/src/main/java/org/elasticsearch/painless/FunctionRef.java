@@ -176,7 +176,12 @@ public class FunctionRef {
      * If the interface expects a primitive type to be returned, we can't return Object,
      * But we can set SAM to the wrapper version, and a cast will take place 
      */
-    private static MethodType adapt(MethodType expected, MethodType actual) {
+    private MethodType adapt(MethodType expected, MethodType actual) {
+        // add some checks, now that we've set everything up, to deliver exceptions as early as possible.
+        if (expected.parameterCount() != actual.parameterCount()) {
+            throw new IllegalArgumentException("Incorrect number of parameters for [" + invokedName + 
+                                               "] in [" + invokedType.returnType() + "]");
+        }
         if (expected.returnType().isPrimitive() && actual.returnType() == Object.class) {
             actual = actual.changeReturnType(MethodType.methodType(expected.returnType()).wrap().returnType());
         }

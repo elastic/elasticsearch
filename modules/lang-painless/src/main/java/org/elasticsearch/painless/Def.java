@@ -28,6 +28,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -222,19 +223,25 @@ public final class Def {
      */
      static MethodHandle lookupMethod(Lookup lookup, MethodType callSiteType, 
              Class<?> receiverClass, String name, Object args[]) throws Throwable {
-         long recipe = (Long) args[0];
+         String recipeString = (String) args[0];
          int numArguments = callSiteType.parameterCount();
          // simple case: no lambdas
-         if (recipe == 0) {
+         if (recipeString.isEmpty()) {
              return lookupMethodInternal(receiverClass, name, numArguments - 1).handle;
          }
          
+         // convert recipe string to a bitset for convenience (the code below should be refactored...)
+         BitSet lambdaArgs = new BitSet();
+         for (int i = 0; i < recipeString.length(); i++) {
+             lambdaArgs.set(recipeString.charAt(i));
+         }
+
          // otherwise: first we have to compute the "real" arity. This is because we have extra arguments:
          // e.g. f(a, g(x), b, h(y), i()) looks like f(a, g, x, b, h, y, i). 
          int arity = callSiteType.parameterCount() - 1;
          int upTo = 1;
-         for (int i = 0; i < numArguments; i++) {
-             if ((recipe & (1L << (i - 1))) != 0) {
+         for (int i = 1; i < numArguments; i++) {
+             if (lambdaArgs.get(i - 1)) {
                  String signature = (String) args[upTo++];
                  int numCaptures = Integer.parseInt(signature.substring(signature.indexOf(',')+1));
                  arity -= numCaptures;
@@ -250,7 +257,7 @@ public final class Def {
          upTo = 1;
          for (int i = 1; i < numArguments; i++) {
              // its a functional reference, replace the argument with an impl
-             if ((recipe & (1L << (i - 1))) != 0) {
+             if (lambdaArgs.get(i - 1)) {
                  // decode signature of form 'type.call,2' 
                  String signature = (String) args[upTo++];
                  int separator = signature.indexOf('.');
@@ -335,6 +342,12 @@ public final class Def {
                                                                  MethodHandle.class);
                  handle = (MethodHandle) accessor.invokeExact();
              } catch (NoSuchFieldException | IllegalAccessException e) {
+                 // is it a synthetic method? If we generated the method ourselves, be more helpful. It can only fail
+                 // because the arity does not match the expected interface type.
+                 if (call.contains("$")) {
+                     throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name + 
+                                                        "] in [" + clazz.clazz + "]");
+                 }
                  throw new IllegalArgumentException("Unknown call [" + call + "] with [" + arity + "] arguments.");
              }
              ref = new FunctionRef(clazz, interfaceMethod, handle, captures);

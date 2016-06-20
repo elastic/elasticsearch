@@ -133,7 +133,7 @@ GET hockey/_search
       "order": "asc",
       "script": {
         "lang": "painless",
-        "inline": "doc['first'].value + ' ' + doc['last'].value"
+        "inline": "doc['first.keyword'].value + ' ' + doc['last.keyword'].value"
       }
     }
   }

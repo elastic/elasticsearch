@@ -19,6 +19,9 @@
 
 package org.elasticsearch.painless;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodType;
+
 /** Tests for or operator across all types */
 public class ArrayTests extends ScriptTestCase {
 
@@ -36,7 +39,10 @@ public class ArrayTests extends ScriptTestCase {
     }
 
     private void assertArrayLength(int length, Object array) throws Throwable {
-        assertEquals(length, (int) Def.arrayLengthGetter(array.getClass()).invoke(array));
+        final MethodHandle mh = Def.arrayLengthGetter(array.getClass());
+        assertSame(array.getClass(), mh.type().parameterType(0));
+        assertEquals(length, (int) mh.asType(MethodType.methodType(int.class, Object.class))
+                .invokeExact(array));
     }
 
     public void testArrayLoadStoreInt() {

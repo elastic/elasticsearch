@@ -20,6 +20,10 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition.Cast;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -40,9 +44,13 @@ final class ECast extends AExpression {
         super(location);
 
         this.type = null;
-        this.child = child;
-
-        this.cast = cast;
+        this.child = Objects.requireNonNull(child);
+        this.cast = Objects.requireNonNull(cast);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        child.extractVariables(variables);
     }
 
     @Override

@@ -26,6 +26,7 @@ import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Represents a series of declarations.
@@ -38,6 +39,13 @@ public final class SDeclBlock extends AStatement {
         super(location);
 
         this.declarations = Collections.unmodifiableList(declarations);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        for (SDeclaration declaration : declarations) {
+            declaration.extractVariables(variables);
+        }
     }
 
     @Override

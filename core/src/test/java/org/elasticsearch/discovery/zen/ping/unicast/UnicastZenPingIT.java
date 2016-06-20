@@ -68,7 +68,7 @@ public class UnicastZenPingIT extends ESTestCase {
 
         ThreadPool threadPool = new TestThreadPool(getClass().getName());
         NetworkService networkService = new NetworkService(settings);
-        ElectMasterService electMasterService = new ElectMasterService(settings, Version.CURRENT);
+        ElectMasterService electMasterService = new ElectMasterService(settings);
 
         NetworkHandle handleA = startServices(settings, threadPool, networkService, "UZP_A", Version.CURRENT);
         NetworkHandle handleB = startServices(settings, threadPool, networkService, "UZP_B", Version.CURRENT);
@@ -88,7 +88,7 @@ public class UnicastZenPingIT extends ESTestCase {
                 .build();
 
         Settings hostsSettingsMismatch = Settings.builder().put(hostsSettings).put(settingsMismatch).build();
-        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, handleA.transportService, Version.CURRENT, electMasterService, null);
+        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, handleA.transportService, electMasterService, null);
         zenPingA.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -102,7 +102,7 @@ public class UnicastZenPingIT extends ESTestCase {
         });
         zenPingA.start();
 
-        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, handleB.transportService, Version.CURRENT, electMasterService, null);
+        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, handleB.transportService, electMasterService, null);
         zenPingB.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -116,7 +116,13 @@ public class UnicastZenPingIT extends ESTestCase {
         });
         zenPingB.start();
 
-        UnicastZenPing zenPingC = new UnicastZenPing(hostsSettingsMismatch, threadPool, handleC.transportService, versionD, electMasterService, null);
+        UnicastZenPing zenPingC = new UnicastZenPing(hostsSettingsMismatch, threadPool, handleC.transportService, electMasterService,
+            null) {
+            @Override
+            protected Version getVersion() {
+                return versionD;
+            }
+        };
         zenPingC.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -130,7 +136,7 @@ public class UnicastZenPingIT extends ESTestCase {
         });
         zenPingC.start();
 
-        UnicastZenPing zenPingD = new UnicastZenPing(hostsSettingsMismatch, threadPool, handleD.transportService, Version.CURRENT, electMasterService, null);
+        UnicastZenPing zenPingD = new UnicastZenPing(hostsSettingsMismatch, threadPool, handleD.transportService, electMasterService, null);
         zenPingD.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -191,8 +197,15 @@ public class UnicastZenPingIT extends ESTestCase {
         }
     }
 
-    private NetworkHandle startServices(Settings settings, ThreadPool threadPool, NetworkService networkService, String nodeId, Version version) {
-        NettyTransport transport = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, version, new NamedWriteableRegistry(), new NoneCircuitBreakerService());
+    private NetworkHandle startServices(Settings settings, ThreadPool threadPool, NetworkService networkService, String nodeId,
+                                        Version version) {
+        NettyTransport transport = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE,
+            new NamedWriteableRegistry(), new NoneCircuitBreakerService()) {
+            @Override
+            protected Version getCurrentVersion() {
+                return version;
+            }
+        };
         final TransportService transportService = new TransportService(settings, transport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -208,7 +221,8 @@ public class UnicastZenPingIT extends ESTestCase {
             public void onNodeDisconnected(DiscoveryNode node) {
             }
         });
-        final DiscoveryNode node = new DiscoveryNode(nodeId, transportService.boundAddress().publishAddress(), emptyMap(), emptySet(), version);
+        final DiscoveryNode node = new DiscoveryNode(nodeId, transportService.boundAddress().publishAddress(), emptyMap(), emptySet(),
+            version);
         transportService.setLocalNode(node);
         return new NetworkHandle((InetSocketTransportAddress)transport.boundAddress().publishAddress(), transportService, node, counters);
     }
@@ -219,7 +233,8 @@ public class UnicastZenPingIT extends ESTestCase {
         public final DiscoveryNode node;
         public final ConcurrentMap<TransportAddress, AtomicInteger> counters;
 
-        public NetworkHandle(InetSocketTransportAddress address, TransportService transportService, DiscoveryNode discoveryNode, ConcurrentMap<TransportAddress, AtomicInteger> counters) {
+        public NetworkHandle(InetSocketTransportAddress address, TransportService transportService, DiscoveryNode discoveryNode,
+                             ConcurrentMap<TransportAddress, AtomicInteger> counters) {
             this.address = address;
             this.transportService = transportService;
             this.node = discoveryNode;

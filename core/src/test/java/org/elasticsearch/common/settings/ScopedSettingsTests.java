@@ -202,20 +202,22 @@ public class ScopedSettingsTests extends ESTestCase {
         IndexScopedSettings settings = new IndexScopedSettings(
             Settings.EMPTY,
             IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        String unknownMsgSuffix = " please check that any required plugins are installed, or check the breaking changes documentation for" +
+            " removed settings";
         settings.validate(Settings.builder().put("index.store.type", "boom"));
         settings.validate(Settings.builder().put("index.store.type", "boom").build());
         try {
             settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true));
             fail();
         } catch (IllegalArgumentException e) {
-            assertEquals("unknown setting [i.am.not.a.setting]", e.getMessage());
+            assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
         }
 
         try {
             settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true).build());
             fail();
         } catch (IllegalArgumentException e) {
-            assertEquals("unknown setting [i.am.not.a.setting]", e.getMessage());
+            assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
         }
 
         try {

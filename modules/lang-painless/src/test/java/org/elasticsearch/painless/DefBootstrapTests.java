@@ -37,7 +37,7 @@ public class DefBootstrapTests extends ESTestCase {
                                                   "toString", 
                                                   MethodType.methodType(String.class, Object.class), 
                                                   0,
-                                                  DefBootstrap.METHOD_CALL, 0L);
+                                                  DefBootstrap.METHOD_CALL, "");
         MethodHandle handle = site.dynamicInvoker();
         assertDepthEquals(site, 0);
 
@@ -55,7 +55,7 @@ public class DefBootstrapTests extends ESTestCase {
                                                   "toString", 
                                                   MethodType.methodType(String.class, Object.class), 
                                                   0,
-                                                  DefBootstrap.METHOD_CALL, 0L);
+                                                  DefBootstrap.METHOD_CALL, "");
         MethodHandle handle = site.dynamicInvoker();
         assertDepthEquals(site, 0);
 
@@ -78,7 +78,7 @@ public class DefBootstrapTests extends ESTestCase {
                                                   "toString", 
                                                   MethodType.methodType(String.class, Object.class), 
                                                   0,
-                                                  DefBootstrap.METHOD_CALL, 0L);
+                                                  DefBootstrap.METHOD_CALL, "");
         MethodHandle handle = site.dynamicInvoker();
         assertDepthEquals(site, 0);
 
@@ -102,7 +102,7 @@ public class DefBootstrapTests extends ESTestCase {
                                                                           "size", 
                                                                           MethodType.methodType(int.class, Object.class), 
                                                                           0,
-                                                                          DefBootstrap.METHOD_CALL, 0L);
+                                                                          DefBootstrap.METHOD_CALL, "");
         site.depth = DefBootstrap.PIC.MAX_DEPTH; // mark megamorphic
         MethodHandle handle = site.dynamicInvoker();
         assertEquals(2, (int)handle.invokeExact((Object) Arrays.asList("1", "2")));
@@ -145,7 +145,7 @@ public class DefBootstrapTests extends ESTestCase {
                                                                DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
         MethodHandle handle = site.dynamicInvoker();
         assertEquals(2, (Object)handle.invokeExact((Object)1, (Object)1));
-        assertEquals("nulltest", (Object)handle.invoke((Object)null, (Object)"test"));
+        assertEquals("nulltest", (Object)handle.invokeExact((Object)null, (Object)"test"));
     }
     
     public void testNullGuardEq() throws Throwable {

@@ -23,6 +23,9 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Cast;
+
+import java.util.Set;
+
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
@@ -41,6 +44,9 @@ public final class LCast extends ALink {
 
         this.type = type;
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
     ALink analyze(Locals locals) {

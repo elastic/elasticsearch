@@ -22,7 +22,6 @@ package org.elasticsearch;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -328,19 +327,5 @@ public class Version {
 
     public boolean isRC() {
         return build > 50 && build < 99;
-    }
-
-    public static class Module extends AbstractModule {
-
-        private final Version version;
-
-        public Module(Version version) {
-            this.version = version;
-        }
-
-        @Override
-        protected void configure() {
-            bind(Version.class).toInstance(version);
-        }
     }
 }

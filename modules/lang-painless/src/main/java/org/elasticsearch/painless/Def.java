@@ -341,6 +341,12 @@ public final class Def {
                                                                  MethodHandle.class);
                  handle = (MethodHandle) accessor.invokeExact();
              } catch (NoSuchFieldException | IllegalAccessException e) {
+                 // is it a synthetic method? If we generated the method ourselves, be more helpful. It can only fail
+                 // because the arity does not match the expected interface type.
+                 if (call.contains("$")) {
+                     throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name + 
+                                                        "] in [" + clazz.clazz + "]");
+                 }
                  throw new IllegalArgumentException("Unknown call [" + call + "] with [" + arity + "] arguments.");
              }
              ref = new FunctionRef(clazz, interfaceMethod, handle, captures);

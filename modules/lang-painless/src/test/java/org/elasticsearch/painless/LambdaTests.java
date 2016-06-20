@@ -142,4 +142,18 @@ public class LambdaTests extends ScriptTestCase {
         assertEquals(1, exec("boolean x = false; int y = 1;" +
                              "return Optional.empty().orElseGet(() -> x ? 5 : Optional.empty().orElseGet(() -> y));"));
     }
+    
+    public void testWrongArity() {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("Optional.empty().orElseGet(x -> x);");
+        });
+        assertTrue(expected.getMessage().contains("Incorrect number of parameters"));
+    }
+    
+    public void testWrongArityDef() {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("def y = Optional.empty(); return y.orElseGet(x -> x);");
+        });
+        assertTrue(expected.getMessage(), expected.getMessage().contains("Incorrect number of parameters"));
+    }
 }

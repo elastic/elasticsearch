@@ -271,7 +271,7 @@ public class Node implements Closeable {
             resourcesToClose.add(circuitBreakerService);
             modules.add(settingsModule);
             modules.add(b -> {
-                    b.bind(Environment.class).toInstance(new Environment(settings));
+                    b.bind(Environment.class).toInstance(environment);
                     b.bind(ThreadPool.class).toInstance(threadPool);
                     b.bind(NodeEnvironment.class).toInstance(nodeEnvironment);
                     b.bind(TribeService.class).toInstance(tribeService);

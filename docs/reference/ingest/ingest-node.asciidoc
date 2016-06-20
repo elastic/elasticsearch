@@ -882,7 +882,7 @@ Assume the following document:
 [source,js]
 --------------------------------------------------
 {
-  "value" : ["foo", "bar", "baz"]
+  "values" : ["foo", "bar", "baz"]
 }
 --------------------------------------------------
 
@@ -909,7 +909,7 @@ Then the document will look like this after preprocessing:
 [source,js]
 --------------------------------------------------
 {
-  "value" : ["FOO", "BAR", "BAZ"]
+  "values" : ["FOO", "BAR", "BAZ"]
 }
 --------------------------------------------------
 

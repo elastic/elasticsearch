@@ -85,6 +85,24 @@ public class LambdaTests extends ScriptTestCase {
     public void testUnneededCurlyStatements() {
         assertEquals(2, exec("int applyOne(IntFunction arg) { arg.apply(1) } applyOne(x -> { x + 1 })"));
     }
+    
+    /** interface ignores return value */
+    public void testVoidReturn() {
+        assertEquals(2, exec("List list = new ArrayList(); "
+                           + "list.add(2); "
+                           + "List list2 = new ArrayList(); "
+                           + "list.forEach(x -> list2.add(x));"
+                           + "return list[0]"));
+    }
+    
+    /** interface ignores return value */
+    public void testVoidReturnDef() {
+        assertEquals(2, exec("def list = new ArrayList(); "
+                           + "list.add(2); "
+                           + "List list2 = new ArrayList(); "
+                           + "list.forEach(x -> list2.add(x));"
+                           + "return list[0]"));
+    }
 
     public void testTwoLambdas() {
         assertEquals("testingcdefg", exec(
@@ -102,5 +120,71 @@ public class LambdaTests extends ScriptTestCase {
                                "  sum += Optional.empty().orElseGet(() -> 1);" +
                                "}" +
                                "return sum;"));
+    }
+    
+    public void testCapture() {
+        assertEquals(5, exec("int x = 5; return Optional.empty().orElseGet(() -> x);"));
+    }
+    
+    public void testTwoCaptures() {
+        assertEquals("1test", exec("int x = 1; String y = 'test'; return Optional.empty().orElseGet(() -> x + y);"));
+    }
+    
+    public void testCapturesAreReadOnly() {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("List l = new ArrayList(); l.add(1); l.add(1); "
+                    + "return l.stream().mapToInt(x -> { l = null; return x + 1 }).sum();");
+        });
+        assertTrue(expected.getMessage().contains("is read-only"));
+    }
+    
+    public void testOnlyCapturesAreReadOnly() {
+        assertEquals(4, exec("List l = new ArrayList(); l.add(1); l.add(1); "
+                           + "return l.stream().mapToInt(x -> { x += 1; return x }).sum();"));
+    }
+    
+    /** Lambda parameters shouldn't be able to mask a variable already in scope */
+    public void testNoParamMasking() {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("int x = 0; List l = new ArrayList(); l.add(1); l.add(1); "
+                    + "return l.stream().mapToInt(x -> { x += 1; return x }).sum();");
+        });
+        assertTrue(expected.getMessage().contains("already defined"));
+    }
+
+    public void testCaptureDef() {
+        assertEquals(5, exec("int x = 5; def y = Optional.empty(); y.orElseGet(() -> x);"));
+    }
+    
+    public void testNestedCapture() {
+        assertEquals(1, exec("boolean x = false; int y = 1;" +
+                             "return Optional.empty().orElseGet(() -> x ? 5 : Optional.empty().orElseGet(() -> y));"));
+    }
+    
+    public void testNestedCaptureParams() {
+        assertEquals(2, exec("int foo(Function f) { return f.apply(1) }" +
+                             "return foo(x -> foo(y -> x + 1))"));
+    }
+    
+    public void testWrongArity() {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("Optional.empty().orElseGet(x -> x);");
+        });
+        assertTrue(expected.getMessage().contains("Incorrect number of parameters"));
+    }
+    
+    public void testWrongArityDef() {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("def y = Optional.empty(); return y.orElseGet(x -> x);");
+        });
+        assertTrue(expected.getMessage(), expected.getMessage().contains("Incorrect number of parameters"));
+    }
+    
+    public void testLambdaInFunction() {
+        assertEquals(5, exec("def foo() { Optional.empty().orElseGet(() -> 5) } return foo();"));
+    }
+    
+    public void testLambdaCaptureFunctionParam() {
+        assertEquals(5, exec("def foo(int x) { Optional.empty().orElseGet(() -> x) } return foo(5);"));
     }
 }

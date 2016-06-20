@@ -27,6 +27,8 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
@@ -43,8 +45,15 @@ public class LCallLocal extends ALink {
     public LCallLocal(Location location, String name, List<AExpression> arguments) {
         super(location, -1);
 
-        this.name = name;
-        this.arguments = arguments;
+        this.name = Objects.requireNonNull(name);
+        this.arguments = Objects.requireNonNull(arguments);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        for (AExpression argument : arguments) {
+            argument.extractVariables(variables);
+        }
     }
 
     @Override

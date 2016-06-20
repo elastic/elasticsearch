@@ -25,6 +25,9 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.util.Objects;
+import java.util.Set;
+
 /**
  * Represents an explicit cast.
  */
@@ -36,8 +39,13 @@ public final class EExplicit extends AExpression {
     public EExplicit(Location location, String type, AExpression child) {
         super(location);
 
-        this.type = type;
-        this.child = child;
+        this.type = Objects.requireNonNull(type);
+        this.child = Objects.requireNonNull(child);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        child.extractVariables(variables);
     }
 
     @Override

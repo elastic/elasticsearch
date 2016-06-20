@@ -23,6 +23,10 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.Locals;
 
 /**
@@ -35,8 +39,11 @@ public final class LStatic extends ALink {
     public LStatic(Location location, String type) {
         super(location, 0);
 
-        this.type = type;
+        this.type = Objects.requireNonNull(type);
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
     ALink analyze(Locals locals) {

@@ -24,6 +24,9 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
+
+import java.util.Set;
+
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -43,6 +46,22 @@ public final class SFor extends AStatement {
         this.condition = condition;
         this.afterthought = afterthought;
         this.block = block;
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        if (initializer != null) {
+            initializer.extractVariables(variables);
+        }
+        if (condition != null) {
+            condition.extractVariables(variables);
+        }
+        if (afterthought != null) {
+            afterthought.extractVariables(variables);
+        }
+        if (block != null) {
+            block.extractVariables(variables);
+        }
     }
 
     @Override

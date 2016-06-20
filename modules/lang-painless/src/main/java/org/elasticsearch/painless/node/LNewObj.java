@@ -29,6 +29,8 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents and object instantiation.
@@ -43,8 +45,15 @@ public final class LNewObj extends ALink {
     public LNewObj(Location location, String type, List<AExpression> arguments) {
         super(location, -1);
 
-        this.type = type;
-        this.arguments = arguments;
+        this.type = Objects.requireNonNull(type);
+        this.arguments = Objects.requireNonNull(arguments);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        for (AExpression argument : arguments) {
+            argument.extractVariables(variables);
+        }
     }
 
     @Override

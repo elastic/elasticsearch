@@ -25,6 +25,9 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.util.Objects;
+import java.util.Set;
+
 /**
  * Represents an array length field load.
  */
@@ -35,8 +38,11 @@ public final class LArrayLength extends ALink {
     LArrayLength(Location location, String value) {
         super(location, -1);
 
-        this.value = value;
+        this.value = Objects.requireNonNull(value);
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
     ALink analyze(Locals locals) {

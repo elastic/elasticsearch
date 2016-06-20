@@ -397,11 +397,11 @@ public final class DefBootstrap {
                 if (args.length == 0) {
                     throw new BootstrapMethodError("Invalid number of parameters for method call");
                 }
-                if (args[0] instanceof Long == false) {
+                if (args[0] instanceof String == false) {
                     throw new BootstrapMethodError("Illegal parameter for method call: " + args[0]);
                 }
-                long recipe = (Long) args[0];
-                int numLambdas = Long.bitCount(recipe);
+                String recipe = (String) args[0];
+                int numLambdas = recipe.length();
                 if (numLambdas > type.parameterCount()) {
                     throw new BootstrapMethodError("Illegal recipe for method call: too many bits");
                 }

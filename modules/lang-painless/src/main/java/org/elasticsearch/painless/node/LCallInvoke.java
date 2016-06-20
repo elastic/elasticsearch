@@ -29,9 +29,11 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 /**
- * Represents a method call or deferes to a def call.
+ * Represents a method call or defers to a def call.
  */
 public final class LCallInvoke extends ALink {
 
@@ -43,8 +45,15 @@ public final class LCallInvoke extends ALink {
     public LCallInvoke(Location location, String name, List<AExpression> arguments) {
         super(location, -1);
 
-        this.name = name;
-        this.arguments = arguments;
+        this.name = Objects.requireNonNull(name);
+        this.arguments = Objects.requireNonNull(arguments);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        for (AExpression argument : arguments) {
+            argument.extractVariables(variables);
+        }
     }
 
     @Override

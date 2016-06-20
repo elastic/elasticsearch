@@ -21,6 +21,9 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 
+import java.util.Objects;
+import java.util.Set;
+
 /**
  * The superclass for all other nodes.
  */
@@ -31,8 +34,16 @@ public abstract class ANode {
     final Location location;
 
     ANode(Location location) {
-        this.location = location;
+        this.location = Objects.requireNonNull(location);
     }
+    
+    /**
+     * Adds all variable names referenced to the variable set.
+     * <p>
+     * This can be called at any time, e.g. to support lambda capture.
+     * @param variables set of variables referenced (any scope)
+     */
+    abstract void extractVariables(Set<String> variables);
     
     public RuntimeException createError(RuntimeException exception) {
         return location.createError(exception);

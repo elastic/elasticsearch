@@ -41,7 +41,7 @@ final class LDefCall extends ALink implements IDefLink {
 
     final String name;
     final List<AExpression> arguments;
-    long recipe;
+    StringBuilder recipe;
     List<String> pointers = new ArrayList<>();
 
     LDefCall(Location location, String name, List<AExpression> arguments) {
@@ -60,14 +60,7 @@ final class LDefCall extends ALink implements IDefLink {
 
     @Override
     ALink analyze(Locals locals) {
-        if (arguments.size() > 63) {
-            // technically, the limitation is just methods with > 63 params, containing method references.
-            // this is because we are lazy and use a long as a bitset. we can always change to a "string" if need be.
-            // but NEED NOT BE. nothing with this many parameters is in the whitelist and we do not support varargs.
-            throw new UnsupportedOperationException("methods with > 63 arguments are currently not supported");
-        }
-
-        recipe = 0;
+        recipe = new StringBuilder();
         int totalCaptures = 0;
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
@@ -78,7 +71,9 @@ final class LDefCall extends ALink implements IDefLink {
             if (expression instanceof ILambda) {
                 ILambda lambda = (ILambda) expression;
                 pointers.add(lambda.getPointer());
-                recipe |= (1L << (argument + totalCaptures)); // mark argument as deferred reference
+                // encode this parameter as a deferred reference
+                char ch = (char) (argument + totalCaptures);
+                recipe.append(ch);
                 totalCaptures += lambda.getCaptureCount();
             }
 
@@ -124,7 +119,7 @@ final class LDefCall extends ALink implements IDefLink {
 
         List<Object> args = new ArrayList<>();
         args.add(DefBootstrap.METHOD_CALL);
-        args.add(recipe);
+        args.add(recipe.toString());
         args.addAll(pointers);
         writer.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, args.toArray());
     }

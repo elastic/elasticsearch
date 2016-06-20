@@ -58,6 +58,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.SeqNoFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
@@ -79,6 +80,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+
+import static org.elasticsearch.index.seqno.SequenceNumbersService.NO_OPS_PERFORMED;
 
 /**
  *
@@ -142,17 +145,21 @@ public class InternalEngine extends Engine {
             this.searcherFactory = new SearchFactory(logger, isClosed, engineConfig);
             try {
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG);
-                final long localCheckpoint = loadLocalCheckpointFromCommit(writer);
-                final long globalCheckpoint = loadGlobalCheckpointFromCommit(writer);
-                final long maxSeqNo = loadMaxSeqNoFromCommit(writer);
+                final SeqNoStats seqNoStats = loadSeqNoStatsFromCommit(writer);
                 if (logger.isTraceEnabled()) {
                     logger.trace(
-                            "recovering local checkpoint: [{}], global checkpoint [{}], max sequence number [{}]",
-                            localCheckpoint,
-                            globalCheckpoint,
-                            maxSeqNo);
+                            "recovering max sequence number: [{}], local checkpoint: [{}], global checkpoint: [{}]",
+                            seqNoStats.getMaxSeqNo(),
+                            seqNoStats.getLocalCheckpoint(),
+                            seqNoStats.getGlobalCheckpoint());
                 }
-                seqNoService = new SequenceNumbersService(shardId, engineConfig.getIndexSettings(), maxSeqNo, localCheckpoint, globalCheckpoint);
+                seqNoService =
+                        new SequenceNumbersService(
+                                shardId,
+                                engineConfig.getIndexSettings(),
+                                seqNoStats.getMaxSeqNo(),
+                                seqNoStats.getLocalCheckpoint(),
+                                seqNoStats.getGlobalCheckpoint());
                 indexWriter = writer;
                 translog = openTranslog(engineConfig, writer);
                 assert translog.getGeneration() != null;
@@ -303,33 +310,34 @@ public class InternalEngine extends Engine {
         return null;
     }
 
-    private long loadLocalCheckpointFromCommit(IndexWriter writer) {
-        final Map<String, String> commitUserData = writer.getCommitData();
-        if (commitUserData.containsKey(LOCAL_CHECKPOINT_KEY)) {
-            return Long.parseLong(commitUserData.get(LOCAL_CHECKPOINT_KEY));
-        } else {
-            return SequenceNumbersService.NO_OPS_PERFORMED;
-        }
-    }
-
-    private long loadGlobalCheckpointFromCommit(IndexWriter writer) {
-        final Map<String, String> commitUserData = writer.getCommitData();
-        if (commitUserData.containsKey(GLOBAL_CHECKPOINT_KEY)) {
-            return Long.parseLong(commitUserData.get(GLOBAL_CHECKPOINT_KEY));
-        } else {
-            return SequenceNumbersService.UNASSIGNED_SEQ_NO;
-        }
-    }
-
-    private long loadMaxSeqNoFromCommit(IndexWriter writer) throws IOException {
+    private SeqNoStats loadSeqNoStatsFromCommit(IndexWriter writer) throws IOException {
+        final long maxSeqNo;
         try (IndexReader reader = DirectoryReader.open(writer)) {
             final FieldStats stats = SeqNoFieldMapper.Defaults.FIELD_TYPE.stats(reader);
             if (stats != null) {
-                return (long) stats.getMaxValue();
+                maxSeqNo = (long) stats.getMaxValue();
             } else {
-                return SequenceNumbersService.NO_OPS_PERFORMED;
+                maxSeqNo = NO_OPS_PERFORMED;
             }
         }
+
+        final Map<String, String> commitUserData = writer.getCommitData();
+
+        final long localCheckpoint;
+        if (commitUserData.containsKey(LOCAL_CHECKPOINT_KEY)) {
+            localCheckpoint = Long.parseLong(commitUserData.get(LOCAL_CHECKPOINT_KEY));
+        } else {
+            localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
+        }
+
+        final long globalCheckpoint;
+        if (commitUserData.containsKey(GLOBAL_CHECKPOINT_KEY)) {
+            globalCheckpoint = Long.parseLong(commitUserData.get(GLOBAL_CHECKPOINT_KEY));
+        } else {
+            globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        }
+
+        return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
     }
 
     private SearcherManager createSearcherManager() throws EngineException {

@@ -21,13 +21,16 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.lang.invoke.MethodType;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -41,6 +44,8 @@ public final class LCallInvoke extends ALink {
     final List<AExpression> arguments;
 
     Method method = null;
+    
+    boolean box = false; // true for primitive types
 
     public LCallInvoke(Location location, String name, List<AExpression> arguments) {
         super(location, -1);
@@ -68,6 +73,12 @@ public final class LCallInvoke extends ALink {
 
         MethodKey methodKey = new MethodKey(name, arguments.size());
         Struct struct = before.struct;
+        if (before.clazz.isPrimitive()) {
+            Class<?> wrapper = MethodType.methodType(before.clazz).wrap().returnType();
+            Type boxed = Definition.getType(wrapper.getSimpleName());
+            struct = boxed.struct;
+            box = true;
+        }
         method = statik ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
 
         if (method != null) {
@@ -103,6 +114,10 @@ public final class LCallInvoke extends ALink {
     @Override
     void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
+        
+        if (box) {
+            writer.box(before.type);
+        }
 
         for (AExpression argument : arguments) {
             argument.write(writer, globals);

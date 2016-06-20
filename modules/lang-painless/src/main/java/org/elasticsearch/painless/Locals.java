@@ -69,8 +69,9 @@ public final class Locals {
      * <p>
      * This is just like {@link #newFunctionScope}, except the captured parameters are made read-only.
      */
-    public static Locals newLambdaScope(Locals programScope, List<Parameter> parameters, int captureCount, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, Definition.DEF_TYPE);
+    public static Locals newLambdaScope(Locals programScope, Type returnType, List<Parameter> parameters, 
+                                        int captureCount, int maxLoopCounter) {
+        Locals locals = new Locals(programScope, returnType);
         for (int i = 0; i < parameters.size(); i++) {
             Parameter parameter = parameters.get(i);
             boolean isCapture = i < captureCount;

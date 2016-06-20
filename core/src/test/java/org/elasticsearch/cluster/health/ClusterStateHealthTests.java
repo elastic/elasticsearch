@@ -165,8 +165,13 @@ public class ClusterStateHealthTests extends ESTestCase {
             metaData.put(indexMetaData, true);
             routingTable.add(indexRoutingTable);
         }
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable.build()).build();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.strictExpand(), (String[]) null);
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                                                .metaData(metaData)
+                                                .routingTable(routingTable.build())
+                                                .build();
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(
+            clusterState, IndicesOptions.strictExpand(), (String[]) null
+        );
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
         logger.info("cluster status: {}, expected {}", clusterStateHealth.getStatus(), counter.status());
         clusterStateHealth = maybeSerialize(clusterStateHealth);

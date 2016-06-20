@@ -80,12 +80,8 @@ public class SFunction extends AStatement {
     
     @Override
     void extractVariables(Set<String> variables) {
-        for (String paramName : paramNameStrs) {
-            variables.add(paramName);
-        }
-        for (AStatement statement : statements) {
-            statement.extractVariables(variables);
-        }
+        // we should never be extracting from a function, as functions are top-level!
+        throw new IllegalStateException("Illegal tree structure");
     }
 
     void generate() {

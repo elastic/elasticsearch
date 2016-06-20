@@ -87,12 +87,8 @@ public final class SSource extends AStatement {
     
     @Override
     void extractVariables(Set<String> variables) {
-        for (AStatement statement : statements) {
-            statement.extractVariables(variables);
-        }
-        for (SFunction function : functions) {
-            function.extractVariables(variables);
-        }
+        // we should never be extracting from a function, as functions are top-level!
+        throw new IllegalStateException("Illegal tree structure");
     }
 
     public void analyze() {

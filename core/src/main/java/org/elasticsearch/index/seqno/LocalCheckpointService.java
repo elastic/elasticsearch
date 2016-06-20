@@ -45,16 +45,16 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
      * which marks the seqNo the fist bit in the first array corresponds to.
      */
     final LinkedList<FixedBitSet> processedSeqNo;
-    final int bitArraysSize;
+    private final int bitArraysSize;
     long firstProcessedSeqNo;
 
     /** the current local checkpoint, i.e., all seqNo lower (&lt;=) than this number have been completed */
     volatile long checkpoint;
 
     /** the next available seqNo - used for seqNo generation */
-    volatile long nextSeqNo;
+    private volatile long nextSeqNo;
 
-    public LocalCheckpointService(final ShardId shardId, final IndexSettings indexSettings, final long maxSeqNo, final long checkpoint) {
+    LocalCheckpointService(final ShardId shardId, final IndexSettings indexSettings, final long maxSeqNo, final long checkpoint) {
         super(shardId, indexSettings);
         bitArraysSize = SETTINGS_BIT_ARRAYS_SIZE.get(indexSettings.getSettings());
         processedSeqNo = new LinkedList<>();
@@ -66,14 +66,14 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
     /**
      * issue the next sequence number
      **/
-    public synchronized long generateSeqNo() {
+    synchronized long generateSeqNo() {
         return nextSeqNo++;
     }
 
     /**
      * marks the processing of the given seqNo have been completed
      **/
-    public synchronized void markSeqNoAsCompleted(long seqNo) {
+    synchronized void markSeqNoAsCompleted(long seqNo) {
         // make sure we track highest seen seqNo
         if (seqNo >= nextSeqNo) {
             nextSeqNo = seqNo + 1;
@@ -96,7 +96,7 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
     }
 
     /** gets the maximum seqno seen so far */
-    public long getMaxSeqNo() {
+    long getMaxSeqNo() {
         return nextSeqNo - 1;
     }
 

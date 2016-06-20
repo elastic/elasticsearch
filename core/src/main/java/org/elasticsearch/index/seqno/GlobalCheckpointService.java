@@ -69,7 +69,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
 
     private long globalCheckpoint;
 
-    public GlobalCheckpointService(final ShardId shardId, final IndexSettings indexSettings, final long globalCheckpoint) {
+    GlobalCheckpointService(final ShardId shardId, final IndexSettings indexSettings, final long globalCheckpoint) {
         super(shardId, indexSettings);
         activeLocalCheckpoints = new ObjectLongHashMap<>(1 + indexSettings.getNumberOfReplicas());
         inSyncLocalCheckpoints = new ObjectLongHashMap<>(indexSettings.getNumberOfReplicas());
@@ -124,7 +124,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
      * @return true if the checkpoint has been updated or if it can not be updated since one of the local checkpoints
      * of one of the active allocations is not known.
      */
-    synchronized public boolean updateCheckpointOnPrimary() {
+    synchronized boolean updateCheckpointOnPrimary() {
         long minCheckpoint = Long.MAX_VALUE;
         if (activeLocalCheckpoints.isEmpty() && inSyncLocalCheckpoints.isEmpty()) {
             return false;
@@ -164,7 +164,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
     /**
      * updates the global checkpoint on a replica shard (after it has been updated by the primary).
      */
-    synchronized public void updateCheckpointOnReplica(long globalCheckpoint) {
+    synchronized void updateCheckpointOnReplica(long globalCheckpoint) {
         if (this.globalCheckpoint <= globalCheckpoint) {
             this.globalCheckpoint = globalCheckpoint;
             logger.trace("global checkpoint updated from primary to [{}]", globalCheckpoint);

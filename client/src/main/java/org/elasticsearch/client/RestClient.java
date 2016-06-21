@@ -171,7 +171,7 @@ public final class RestClient implements Closeable {
             int statusCode = response.getStatusLine().getStatusCode();
             if (statusCode < 300 || (request.getMethod().equals(HttpHead.METHOD_NAME) && statusCode == 404) ) {
                 RequestLogger.logResponse(logger, request, host, httpResponse);
-                onSuccess(host);
+                onResponse(host);
                 return response;
             }
             RequestLogger.logResponse(logger, request, host, httpResponse);
@@ -195,7 +195,7 @@ public final class RestClient implements Closeable {
                     break;
                 default:
                     //mark host alive and don't retry, as the error should be a request problem
-                    onSuccess(host);
+                    onResponse(host);
                     throw lastSeenException;
             }
         }
@@ -254,7 +254,7 @@ public final class RestClient implements Closeable {
      * Called after each successful request call.
      * Receives as an argument the host that was used for the successful request.
      */
-    private void onSuccess(HttpHost host) {
+    private void onResponse(HttpHost host) {
         DeadHostState removedHost = this.blacklist.remove(host);
         if (logger.isDebugEnabled() && removedHost != null) {
             logger.debug("removed host [" + host + "] from blacklist");

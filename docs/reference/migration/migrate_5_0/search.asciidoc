@@ -196,3 +196,7 @@ The <<search-request-preference,search preference>> `_prefer_node` has
 been superseded by `_prefer_nodes`. By specifying a single node,
 `_prefer_nodes` provides the same functionality as `_prefer_node` but
 also supports specifying multiple nodes.
+
+==== Default similarity
+
+The default similarity has been changed to `BM25`.

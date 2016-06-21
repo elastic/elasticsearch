@@ -134,13 +134,16 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 (b) -> {
                     b.bind(Environment.class).toInstance(new Environment(settings));
                     b.bind(ThreadPool.class).toInstance(threadPool);
-                }, settingsModule,
-                scriptModule, new IndicesModule(namedWriteableRegistry) {
+                    b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
+                },
+                settingsModule,
+                new IndicesModule(namedWriteableRegistry) {
                     @Override
                     protected void configure() {
                         bindMapperExtension();
                     }
-                }, new SearchModule(settings, namedWriteableRegistry) {
+                },
+                new SearchModule(settings, namedWriteableRegistry) {
                     @Override
                     protected void configureSearch() {
                         // Skip me

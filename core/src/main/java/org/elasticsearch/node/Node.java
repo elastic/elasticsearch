@@ -225,7 +225,9 @@ public class Node implements Closeable {
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
-            final ScriptModule scriptModule = ScriptModule.create(settings, pluginsService.filterPlugins(ScriptPlugin.class));
+            final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
+            final ScriptModule scriptModule = ScriptModule.create(settings, environment, resourceWatcherService,
+                    pluginsService.filterPlugins(ScriptPlugin.class));
             additionalSettings.addAll(scriptModule.getSettings());
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
@@ -237,7 +239,6 @@ public class Node implements Closeable {
             } catch (IOException ex) {
                 throw new IllegalStateException("Failed to created node environment", ex);
             }
-            final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             resourcesToClose.add(resourceWatcherService);
             final NetworkService networkService = new NetworkService(settings);
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
@@ -253,7 +254,6 @@ public class Node implements Closeable {
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             modules.add(new NodeModule(this, monitorService));
             modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
-            modules.add(scriptModule);
             modules.add(new DiscoveryModule(this.settings));
             modules.add(new ClusterModule(this.settings, clusterService));
             modules.add(new IndicesModule(namedWriteableRegistry));
@@ -279,6 +279,7 @@ public class Node implements Closeable {
                     b.bind(ResourceWatcherService.class).toInstance(resourceWatcherService);
                     b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
                     b.bind(BigArrays.class).toInstance(bigArrays);
+                    b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
                 }
             );
             injector = modules.createInjector();

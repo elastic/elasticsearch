@@ -220,7 +220,7 @@ public final class Definition {
             final Class<?> params[];
             final Class<?> returnValue;
             if (augmentation) {
-                // virtual/interface method disguised as static
+                // static method disguised as virtual/interface method
                 params = new Class<?>[1 + arguments.size()];
                 params[0] = Augmentation.class;
                 for (int i = 0; i < arguments.size(); i++) {

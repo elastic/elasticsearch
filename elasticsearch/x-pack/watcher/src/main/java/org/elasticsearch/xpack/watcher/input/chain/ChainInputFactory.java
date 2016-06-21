@@ -15,20 +15,19 @@ import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
 import org.elasticsearch.xpack.watcher.input.InputRegistry;
-import org.elasticsearch.xpack.common.init.LazyInitializable;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ChainInputFactory extends InputFactory<ChainInput, ChainInput.Result, ExecutableChainInput>
-        implements LazyInitializable {
+public class ChainInputFactory extends InputFactory<ChainInput, ChainInput.Result, ExecutableChainInput> {
 
-    private InputRegistry inputRegistry;
+    private final InputRegistry inputRegistry;
 
     @Inject
-    public ChainInputFactory(Settings settings) {
+    public ChainInputFactory(Settings settings, InputRegistry inputRegistry) {
         super(Loggers.getLogger(ExecutableChainInput.class, settings));
+        this.inputRegistry = inputRegistry;
     }
 
     @Override
@@ -50,14 +49,5 @@ public class ChainInputFactory extends InputFactory<ChainInput, ChainInput.Resul
         }
 
         return new ExecutableChainInput(input, executableInputs, inputLogger);
-    }
-
-    @Override
-    public void init(Injector injector) {
-        init(injector.getInstance(InputRegistry.class));
-    }
-
-    void init(InputRegistry inputRegistry) {
-        this.inputRegistry = inputRegistry;
     }
 }

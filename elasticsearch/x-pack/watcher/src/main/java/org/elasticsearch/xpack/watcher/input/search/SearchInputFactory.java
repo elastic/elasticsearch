@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
@@ -34,6 +35,11 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
     private final ParseFieldMatcher parseFieldMatcher;
 
     @Inject
+    public SearchInputFactory(Settings settings, InternalClient client, IndicesQueriesRegistry queryRegistry,
+                              AggregatorParsers aggParsers, Suggesters suggesters) {
+        this(settings, new WatcherClientProxy(settings, client), queryRegistry, aggParsers, suggesters);
+    }
+
     public SearchInputFactory(Settings settings, WatcherClientProxy client, IndicesQueriesRegistry queryRegistry,
                               AggregatorParsers aggParsers, Suggesters suggesters) {
         super(Loggers.getLogger(ExecutableSimpleInput.class, settings));

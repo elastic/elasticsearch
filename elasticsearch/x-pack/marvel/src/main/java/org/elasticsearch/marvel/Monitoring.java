@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.marvel.action.MonitoringBulkAction;
@@ -20,9 +19,7 @@ import org.elasticsearch.marvel.agent.exporter.ExporterModule;
 import org.elasticsearch.marvel.cleaner.CleanerService;
 import org.elasticsearch.marvel.client.MonitoringClientModule;
 import org.elasticsearch.marvel.rest.action.RestMonitoringBulkAction;
-import org.elasticsearch.marvel.support.init.proxy.MonitoringClientProxy;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.common.init.LazyInitializationModule;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -80,9 +77,6 @@ public class Monitoring {
                 CleanerService.class);
     }
 
-    public void onModule(SettingsModule module) {
-    }
-
     public void onModule(ActionModule module) {
         if (enabled && tribeNode == false) {
             module.registerAction(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class);
@@ -92,12 +86,6 @@ public class Monitoring {
     public void onModule(NetworkModule module) {
         if (enabled && transportClientMode == false && tribeNode == false) {
             module.registerRestHandler(RestMonitoringBulkAction.class);
-        }
-    }
-
-    public void onModule(LazyInitializationModule module) {
-        if (enabled && tribeNode == false) {
-            module.registerLazyInitializable(MonitoringClientProxy.class);
         }
     }
 

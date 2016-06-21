@@ -76,10 +76,10 @@ public class EFunctionRef extends AExpression implements ILambda {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                            "to [" + expected.name + "], function not found");
                     }
-                    ref = new FunctionRef(expected, interfaceMethod, implMethod);
+                    ref = new FunctionRef(expected, interfaceMethod, implMethod, 0);
                 } else {
                     // whitelist lookup
-                    ref = new FunctionRef(expected, type, call);
+                    ref = new FunctionRef(expected, type, call, 0);
                 }
             } catch (IllegalArgumentException e) {
                 throw createError(e);

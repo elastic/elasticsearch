@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
@@ -42,6 +41,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -148,19 +148,15 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
     protected abstract boolean accumulateExceptions();
 
-    protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
-        return nodesIds;
-    }
-
-    protected String[] resolveNodes(NodesRequest request, ClusterState clusterState) {
-        return clusterState.nodes().resolveNodesIds(request.nodesIds());
+    protected DiscoveryNode[] resolveNodes(NodesRequest request, ClusterState clusterState) {
+        String[] nodesIds = clusterState.nodes().resolveNodesIds(request.nodesIds());
+        return Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new);
     }
 
 
     class AsyncAction {
 
         private final NodesRequest request;
-        private final String[] nodesIds;
         private final DiscoveryNode[] nodes;
         private final ActionListener<NodesResponse> listener;
         private final AtomicReferenceArray<Object> responses;
@@ -172,16 +168,12 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
             this.request = request;
             this.listener = listener;
             ClusterState clusterState = clusterService.state();
-            nodesIds = filterNodeIds(clusterState.nodes(), resolveNodes(request, clusterState));
-            this.nodes = new DiscoveryNode[nodesIds.length];
-            for (int i = 0; i < nodesIds.length; i++) {
-                this.nodes[i] = clusterState.nodes().get(nodesIds[i]);
-            }
-            this.responses = new AtomicReferenceArray<>(this.nodesIds.length);
+            this.nodes = resolveNodes(request, clusterState);
+            this.responses = new AtomicReferenceArray<>(this.nodes.length);
         }
 
         void start() {
-            if (nodesIds.length == 0) {
+            if (nodes.length == 0) {
                 // nothing to notify
                 threadPool.generic().execute(new Runnable() {
                     @Override
@@ -196,10 +188,10 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                 builder.withTimeout(request.timeout());
             }
             builder.withCompress(transportCompress());
-            for (int i = 0; i < nodesIds.length; i++) {
-                final String nodeId = nodesIds[i];
+            for (int i = 0; i < nodes.length; i++) {
                 final int idx = i;
                 final DiscoveryNode node = nodes[i];
+                final String nodeId = node.getId();
                 try {
                     if (node == null) {
                         onFailure(idx, nodeId, new NoSuchNodeException(nodeId));

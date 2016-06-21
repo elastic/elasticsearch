@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,6 +49,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -81,16 +83,16 @@ public class TransportNodesListGatewayStartedShards extends
     }
 
     @Override
-    public void list(ShardId shardId, String[] nodesIds,
+    public void list(ShardId shardId, DiscoveryNode[] nodes,
                      ActionListener<NodesGatewayStartedShards> listener) {
-        execute(new Request(shardId, nodesIds), listener);
+        execute(new Request(shardId, nodes), listener);
     }
 
     @Override
-    protected String[] resolveNodes(Request request, ClusterState clusterState) {
+    protected DiscoveryNode[] resolveNodes(Request request, ClusterState clusterState) {
         // default implementation may filter out non existent nodes. it's important to keep exactly the ids
         // we were given for accounting on the caller
-        return request.nodesIds();
+        return request.nodes;
     }
 
     @Override
@@ -173,13 +175,15 @@ public class TransportNodesListGatewayStartedShards extends
     public static class Request extends BaseNodesRequest<Request> {
 
         private ShardId shardId;
+        private DiscoveryNode[] nodes;
 
         public Request() {
         }
 
-        public Request(ShardId shardId, String[] nodesIds) {
-            super(nodesIds);
+        public Request(ShardId shardId, DiscoveryNode[] nodes) {
+            super(Strings.EMPTY_ARRAY);
             this.shardId = shardId;
+            this.nodes = nodes;
         }
 
 
@@ -191,12 +195,15 @@ public class TransportNodesListGatewayStartedShards extends
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             shardId = ShardId.readShardId(in);
+            List<DiscoveryNode> discoveryNodes = in.readList(DiscoveryNode::new);
+            nodes = discoveryNodes.toArray(new DiscoveryNode[discoveryNodes.size()]);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
+            out.writeList(Arrays.asList(nodes));
         }
     }
 

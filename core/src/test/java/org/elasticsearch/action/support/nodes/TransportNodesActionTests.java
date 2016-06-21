@@ -286,8 +286,8 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         @Override
-        protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
-            return nodes.getDataNodes().keys().toArray(String.class);
+        protected DiscoveryNode[] resolveNodes(TestNodesRequest request, ClusterState clusterState) {
+            return clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode.class);
         }
     }
 

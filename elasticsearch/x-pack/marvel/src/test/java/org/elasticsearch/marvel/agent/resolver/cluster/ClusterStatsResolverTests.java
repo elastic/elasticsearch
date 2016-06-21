@@ -31,7 +31,7 @@ import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.NodeIndicesStats;
-import org.elasticsearch.ingest.core.IngestInfo;
+import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsMonitoringDoc;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolverTestCase;

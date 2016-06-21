@@ -48,9 +48,6 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class PercolatorAggregationsIT extends ESIntegTestCase {
 
     private final static String INDEX_NAME = "queries";

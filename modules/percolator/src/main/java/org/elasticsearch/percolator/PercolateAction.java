@@ -22,8 +22,6 @@ package org.elasticsearch.percolator;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class PercolateAction extends Action<PercolateRequest, PercolateResponse, PercolateRequestBuilder> {
 
     public static final PercolateAction INSTANCE = new PercolateAction();

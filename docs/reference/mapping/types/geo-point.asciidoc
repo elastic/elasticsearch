@@ -140,12 +140,6 @@ The following parameters are accepted by `geo_point` fields:
     Should the geo-point also be indexed as `.lat` and `.lon` sub-fields?
     Accepts `true` and `false` (default).
 
-<<precision-step,`precision_step`>>::
-
-    Controls the number of extra terms that are indexed for each lat/lon point.
-    Defaults to `16`.  Ignored if `lat_lon` is `false`.
-
-
 ==== Using geo-points in scripts
 
 When accessing the value of a geo-point in a script, the value is returned as

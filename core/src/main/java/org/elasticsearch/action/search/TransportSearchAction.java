@@ -42,9 +42,6 @@ import java.util.Set;
 import static org.elasticsearch.action.search.SearchType.QUERY_AND_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 
-/**
- *
- */
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
 
     /** The maximum number of shards for a single search request. */
@@ -96,6 +93,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             logger.debug("failed to optimize search type, continue as normal", e);
         }
 
+        searchAsyncAction(searchRequest, listener).start();
+    }
+
+    private AbstractSearchAsyncAction searchAsyncAction(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         AbstractSearchAsyncAction searchAsyncAction;
         switch(searchRequest.searchType()) {
             case DFS_QUERY_THEN_FETCH:
@@ -117,6 +118,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             default:
                 throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
         }
-        searchAsyncAction.start();
+        return searchAsyncAction;
     }
+
 }

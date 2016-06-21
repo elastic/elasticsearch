@@ -58,7 +58,6 @@ public class Scopes {
                             if (instance == null) {
 
                                 instance = creator.get();
-                                System.out.println("------------ " + instance.getClass());
                             }
                         }
                     }

@@ -283,8 +283,8 @@ public class SearchQueryIT extends ESIntegTestCase {
             searchResponse = client().prepareSearch("test").setQuery(
                     boolQuery().must(matchAllQuery()).must(constantScoreQuery(matchAllQuery()))).get();
             assertHitCount(searchResponse, 2L);
-            assertThat((double)searchResponse.getHits().getAt(0).score(), closeTo(Math.sqrt(2), 0.1));
-            assertThat((double)searchResponse.getHits().getAt(1).score(),closeTo(Math.sqrt(2), 0.1));
+            assertThat((double)searchResponse.getHits().getAt(0).score(), closeTo(2.0, 0.1));
+            assertThat((double)searchResponse.getHits().getAt(1).score(),closeTo(2.0, 0.1));
         }
     }
 
@@ -336,8 +336,8 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("3")).get();
         assertHitCount(searchResponse, 2L);
-        assertFirstHit(searchResponse, hasId("1"));
-        assertSecondHit(searchResponse, hasId("2"));
+        assertFirstHit(searchResponse, hasId("2"));
+        assertSecondHit(searchResponse, hasId("1"));
 
         searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("4")).get();
         assertHitCount(searchResponse, 1L);
@@ -377,9 +377,9 @@ public class SearchQueryIT extends ESIntegTestCase {
         // try the same with multi match query
         searchResponse = client().prepareSearch().setQuery(multiMatchQuery("the quick brown", "field1", "field2").cutoffFrequency(3).operator(Operator.AND)).get();
         assertHitCount(searchResponse, 3L);
-        assertFirstHit(searchResponse, hasId("1"));
-        assertSecondHit(searchResponse, hasId("2"));
-        assertThirdHit(searchResponse, hasId("3"));
+        assertFirstHit(searchResponse, hasId("3"));
+        assertSecondHit(searchResponse, hasId("1"));
+        assertThirdHit(searchResponse, hasId("2"));
     }
 
     public void testCommonTermsQueryStackedTokens() throws Exception {
@@ -423,8 +423,8 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("5")).get();
         assertHitCount(searchResponse, 2L);
-        assertFirstHit(searchResponse, hasId("1"));
-        assertSecondHit(searchResponse, hasId("2"));
+        assertFirstHit(searchResponse, hasId("2"));
+        assertSecondHit(searchResponse, hasId("1"));
 
         searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("6")).get();
         assertHitCount(searchResponse, 1L);
@@ -469,9 +469,9 @@ public class SearchQueryIT extends ESIntegTestCase {
         // try the same with multi match query
         searchResponse = client().prepareSearch().setQuery(multiMatchQuery("the fast brown", "field1", "field2").cutoffFrequency(3).operator(Operator.AND)).get();
         assertHitCount(searchResponse, 3L);
-        assertFirstHit(searchResponse, hasId("1"));
-        assertSecondHit(searchResponse, hasId("2"));
-        assertThirdHit(searchResponse, hasId("3"));
+        assertFirstHit(searchResponse, hasId("3"));
+        assertSecondHit(searchResponse, hasId("1"));
+        assertThirdHit(searchResponse, hasId("2"));
     }
 
     public void testQueryStringAnalyzedWildcard() throws Exception {

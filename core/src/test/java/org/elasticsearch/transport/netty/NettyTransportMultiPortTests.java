@@ -185,7 +185,9 @@ public class NettyTransportMultiPortTests extends ESTestCase {
                         // Set SO_REUSEADDR as we may bind here and not be able
                         // to reuse the address immediately without it.
                         serverSocket.setReuseAddress(NetworkUtils.defaultReuseAddress());
-                        serverSocket.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), nextPort));
+                        // try to bind on any local interfaces to determine a free port. It is not sufficient to try only loopback.
+                        // If another service binds on 0.0.0.0 and we use loopback, we may get a false positive.
+                        serverSocket.bind(new InetSocketAddress((InetAddress) null, nextPort));
 
                         // bind was a success
                         logger.debug("port [{}] available.", nextPort);

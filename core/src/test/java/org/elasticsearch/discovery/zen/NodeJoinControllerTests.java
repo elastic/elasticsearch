@@ -40,6 +40,7 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,6 +50,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -67,6 +70,7 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.shuffle;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -517,6 +521,38 @@ public class NodeJoinControllerTests extends ESTestCase {
         assertNodesInCurrentState(nodes);
     }
 
+    public void testRejectingJoinWithSameAddressButDifferentId() throws InterruptedException, ExecutionException {
+        ClusterState state = clusterService.state();
+        final DiscoveryNode other_node = new DiscoveryNode("other_node", state.nodes().getLocalNode().getAddress(),
+            emptyMap(), emptySet(), Version.CURRENT);
+
+        ExecutionException e = expectThrows(ExecutionException.class, () -> joinNode(other_node));
+        assertThat(e.getMessage(), containsString("found existing node"));
+    }
+
+    public void testRejectingJoinWithSameIdButDifferentAddress() throws InterruptedException, ExecutionException {
+        ClusterState state = clusterService.state();
+        final DiscoveryNode other_node = new DiscoveryNode(state.nodes().getLocalNode().getId(), LocalTransportAddress.buildUnique(),
+            emptyMap(), emptySet(), Version.CURRENT);
+
+        ExecutionException e = expectThrows(ExecutionException.class, () -> joinNode(other_node));
+        assertThat(e.getMessage(), containsString("found existing node"));
+    }
+
+    public void testJoinWithSameIdSameAddressButDifferentMeta() throws InterruptedException, ExecutionException {
+        ClusterState state = clusterService.state();
+        final DiscoveryNode localNode = state.nodes().getLocalNode();
+        final DiscoveryNode other_node = new DiscoveryNode(
+            randomBoolean() ? localNode.getName() : "other_name",
+            localNode.getId(), localNode.getAddress(),
+            randomBoolean() ? localNode.getAttributes() : Collections.singletonMap("attr", "other"),
+            randomBoolean() ? localNode.getRoles() : new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
+            randomBoolean() ? localNode.getVersion() : VersionUtils.randomVersion(random()));
+
+        joinNode(other_node);
+
+        assertThat(clusterService.localNode(), equalTo(other_node));
+    }
 
     static class NoopAllocationService extends AllocationService {
 

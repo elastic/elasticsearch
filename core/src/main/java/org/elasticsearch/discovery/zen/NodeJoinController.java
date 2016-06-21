@@ -418,7 +418,16 @@ public class NodeJoinController extends AbstractComponent {
             for (final DiscoveryNode node : joiningNodes) {
                 if (node.equals(BECOME_MASTER_TASK) || node.equals(FINISH_ELECTION_NOT_MASTER_TASK)) {
                     // noop
-                } else if (currentNodes.nodeExists(node.getId())) {
+                    results.success(node);
+                    continue;
+                }
+                final String preflight = nodesBuilder.preflightPut(node);
+                if (preflight != null) {
+                    Throwable failure = new IllegalStateException(preflight);
+                    results.failure(node, failure);
+                    continue;
+                }
+                if (currentNodes.nodeExists(node.getId())) {
                     logger.debug("received a join request for an existing node [{}]", node);
                 } else {
                     nodesChanged = true;

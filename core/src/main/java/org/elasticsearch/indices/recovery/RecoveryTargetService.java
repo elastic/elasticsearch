@@ -263,12 +263,6 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
                 return;
             }
 
-            if (cause instanceof IndexShardClosedException) {
-                onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(request, "source shard is " +
-                        "closed", cause), false);
-                return;
-            }
-
             if (cause instanceof AlreadyClosedException) {
                 onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(request, "source shard is " +
                         "closed", cause), false);

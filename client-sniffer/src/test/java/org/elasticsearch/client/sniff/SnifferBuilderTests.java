@@ -24,10 +24,6 @@ import org.apache.http.HttpHost;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.RestClient;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-
 public class SnifferBuilderTests extends LuceneTestCase {
 
     public void testBuild() throws Exception {
@@ -80,23 +76,9 @@ public class SnifferBuilderTests extends LuceneTestCase {
             if (random().nextBoolean()) {
                 builder.setSniffAfterFailureDelayMillis(RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
             }
-            if (random().nextBoolean()) {
-                builder.setSniffOnFailure(random().nextBoolean());
-            }
             try (Sniffer sniffer = builder.build()) {
                 assertNotNull(sniffer);
             }
-        }
-    }
-
-    private static class MockHostsSniffer extends HostsSniffer {
-        MockHostsSniffer() {
-            super(null, -1, null);
-        }
-
-        @Override
-        public List<HttpHost> sniffHosts() throws IOException {
-            return Collections.singletonList(new HttpHost("localhost", 9200));
         }
     }
 }

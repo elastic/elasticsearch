@@ -89,12 +89,14 @@ public final class RestClient implements Closeable {
     private final AtomicInteger lastHostIndex = new AtomicInteger(0);
     private volatile Set<HttpHost> hosts;
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
-    private volatile FailureListener failureListener = new FailureListener();
+    private final FailureListener failureListener;
 
-    private RestClient(CloseableHttpClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders, HttpHost[] hosts) {
+    private RestClient(CloseableHttpClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders,
+                       HttpHost[] hosts, FailureListener failureListener) {
         this.client = client;
         this.maxRetryTimeoutMillis = maxRetryTimeoutMillis;
         this.defaultHeaders = defaultHeaders;
+        this.failureListener = failureListener;
         setHosts(hosts);
     }
 
@@ -278,13 +280,6 @@ public final class RestClient implements Closeable {
         failureListener.onFailure(host);
     }
 
-    /**
-     * Sets a {@link FailureListener} to be notified each and every time a host fails
-     */
-    public synchronized void setFailureListener(FailureListener failureListener) {
-        this.failureListener = failureListener;
-    }
-
     @Override
     public void close() throws IOException {
         client.close();
@@ -368,6 +363,7 @@ public final class RestClient implements Closeable {
         private CloseableHttpClient httpClient;
         private int maxRetryTimeout = DEFAULT_MAX_RETRY_TIMEOUT_MILLIS;
         private Header[] defaultHeaders = EMPTY_HEADERS;
+        private FailureListener failureListener;
 
         /**
          * Creates a new builder instance and sets the hosts that the client will send requests to.
@@ -419,13 +415,25 @@ public final class RestClient implements Closeable {
         }
 
         /**
+         * Sets the {@link FailureListener} to be notified for each request failure
+         */
+        public Builder setFailureListener(FailureListener failureListener) {
+            Objects.requireNonNull(failureListener, "failure listener must not be null");
+            this.failureListener = failureListener;
+            return this;
+        }
+
+        /**
          * Creates a new {@link RestClient} based on the provided configuration.
          */
         public RestClient build() {
             if (httpClient == null) {
                 httpClient = createDefaultHttpClient(null);
             }
-            return new RestClient(httpClient, maxRetryTimeout, defaultHeaders, hosts);
+            if (failureListener == null) {
+                failureListener = new FailureListener();
+            }
+            return new RestClient(httpClient, maxRetryTimeout, defaultHeaders, hosts, failureListener);
         }
 
         /**

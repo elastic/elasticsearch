@@ -87,14 +87,10 @@ public class RestClientMultipleHostsTests extends LuceneTestCase {
         for (int i = 0; i < numHosts; i++) {
             httpHosts[i] = new HttpHost("localhost", 9200 + i);
         }
-        restClient = RestClient.builder(httpHosts).setHttpClient(httpClient).build();
         failureListener = new TrackingFailureListener();
-        restClient.setFailureListener(failureListener);
+        restClient = RestClient.builder(httpHosts).setHttpClient(httpClient).setFailureListener(failureListener).build();
     }
 
-    /**
-     * Test that
-     */
     public void testRoundRobinOkStatusCodes() throws Exception {
         int numIters = RandomInts.randomIntBetween(random(), 1, 5);
         for (int i = 0; i < numIters; i++) {

@@ -37,30 +37,26 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Class responsible for sniffing nodes from an elasticsearch cluster and setting them to a provided instance of {@link RestClient}.
  * Must be created via {@link Builder}, which allows to set all of the different options or rely on defaults.
- * A background task fetches the nodes from elasticsearch and updates them periodically.
- * Supports sniffing on failure, meaning that the client will notify the sniffer at each host failure, so that nodes can be updated
- * straightaway.
+ * A background task fetches the nodes through the {@link HostsSniffer} and sets them to the {@link RestClient} instance.
+ * It is possible to perform sniffing on failure by creating a {@link SniffOnFailureListener} and providing it as an argument to
+ * {@link org.elasticsearch.client.RestClient.Builder#setFailureListener(RestClient.FailureListener)}. The Sniffer implementation
+ * needs to be lazily set to the previously created SniffOnFailureListener through {@link SniffOnFailureListener#setSniffer(Sniffer)}.
  */
-public final class Sniffer extends RestClient.FailureListener implements Closeable {
+public final class Sniffer implements Closeable {
 
     private static final Log logger = LogFactory.getLog(Sniffer.class);
 
-    private final boolean sniffOnFailure;
     private final Task task;
 
-    private Sniffer(RestClient restClient, HostsSniffer hostsSniffer, long sniffInterval,
-                    boolean sniffOnFailure, long sniffAfterFailureDelay) {
+    private Sniffer(RestClient restClient, HostsSniffer hostsSniffer, long sniffInterval, long sniffAfterFailureDelay) {
         this.task = new Task(hostsSniffer, restClient, sniffInterval, sniffAfterFailureDelay);
-        this.sniffOnFailure = sniffOnFailure;
-        restClient.setFailureListener(this);
     }
 
-    @Override
-    public void onFailure(HttpHost host) throws IOException {
-        if (sniffOnFailure) {
-            //re-sniff immediately but take out the node that failed
-            task.sniffOnFailure(host);
-        }
+    /**
+     * Triggers a new sniffing round and explicitly takes out the failed host provided as argument
+     */
+    public void sniffOnFailure(HttpHost failedHost) {
+        this.task.sniffOnFailure(failedHost);
     }
 
     @Override
@@ -114,12 +110,16 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
         void sniff(HttpHost excludeHost, long nextSniffDelayMillis) {
             if (running.compareAndSet(false, true)) {
                 try {
-                    List<HttpHost> sniffedNodes = hostsSniffer.sniffHosts();
+                    List<HttpHost> sniffedHosts = hostsSniffer.sniffHosts();
+                    logger.debug("sniffed hosts: " + sniffedHosts);
                     if (excludeHost != null) {
-                        sniffedNodes.remove(excludeHost);
+                        sniffedHosts.remove(excludeHost);
                     }
-                    logger.debug("sniffed nodes: " + sniffedNodes);
-                    this.restClient.setHosts(sniffedNodes.toArray(new HttpHost[sniffedNodes.size()]));
+                    if (sniffedHosts.isEmpty()) {
+                        logger.warn("no hosts to set, hosts will be updated at the next sniffing round");
+                    } else {
+                        this.restClient.setHosts(sniffedHosts.toArray(new HttpHost[sniffedHosts.size()]));
+                    }
                 } catch (Exception e) {
                     logger.error("error while sniffing nodes", e);
                 } finally {
@@ -159,7 +159,6 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
         private final RestClient restClient;
         private final HostsSniffer hostsSniffer;
         private long sniffIntervalMillis = DEFAULT_SNIFF_INTERVAL;
-        private boolean sniffOnFailure = true;
         private long sniffAfterFailureDelayMillis = DEFAULT_SNIFF_AFTER_FAILURE_DELAY;
 
         /**
@@ -187,15 +186,6 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
         }
 
         /**
-         * Enables/disables sniffing on failure. If enabled, at each failure nodes will be reloaded, and a new sniff execution will
-         * be scheduled after a shorter time than usual (sniffAfterFailureDelayMillis).
-         */
-        public Builder setSniffOnFailure(boolean sniffOnFailure) {
-            this.sniffOnFailure = sniffOnFailure;
-            return this;
-        }
-
-        /**
          * Sets the delay of a sniff execution scheduled after a failure (in milliseconds)
          */
         public Builder setSniffAfterFailureDelayMillis(int sniffAfterFailureDelayMillis) {
@@ -210,7 +200,7 @@ public final class Sniffer extends RestClient.FailureListener implements Closeab
          * Creates the {@link Sniffer} based on the provided configuration.
          */
         public Sniffer build() {
-            return new Sniffer(restClient, hostsSniffer, sniffIntervalMillis, sniffOnFailure, sniffAfterFailureDelayMillis);
+            return new Sniffer(restClient, hostsSniffer, sniffIntervalMillis, sniffAfterFailureDelayMillis);
         }
     }
 }

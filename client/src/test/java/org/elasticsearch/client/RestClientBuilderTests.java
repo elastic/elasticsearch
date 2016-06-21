@@ -74,6 +74,13 @@ public class RestClientBuilderTests extends LuceneTestCase {
             assertEquals("default header must not be null", e.getMessage());
         }
 
+        try {
+            RestClient.builder(new HttpHost("localhost", 9200)).setFailureListener(null);
+            fail("should have failed");
+        } catch(NullPointerException e) {
+            assertEquals("failure listener must not be null", e.getMessage());
+        }
+
         int numNodes = RandomInts.randomIntBetween(random(), 1, 5);
         HttpHost[] hosts = new HttpHost[numNodes];
         for (int i = 0; i < numNodes; i++) {

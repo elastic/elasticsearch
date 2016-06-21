@@ -300,7 +300,7 @@ public class NodesFaultDetection extends FaultDetection {
         }
 
         public DiscoveryNode node() {
-            return node();
+            return node;
         }
 
         public ClusterName clusterName() {

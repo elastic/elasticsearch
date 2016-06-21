@@ -67,11 +67,11 @@
 ---
 "source fields may not be modified":
   - do:
-      catch: /fields is not supported in this context/
+      catch: /stored_fields is not supported in this context/
       update_by_query:
         index: test
         body:
-          fields: [_id]
+          stored_fields: [_id]
 
 ---
 "requests_per_second cannot be an empty string":

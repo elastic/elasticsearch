@@ -712,8 +712,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 throw new SearchContextException(context, "failed to create RescoreSearchContext", e);
             }
         }
-        if (source.fields() != null) {
-            context.fieldNames().addAll(source.fields());
+        if (source.storedFields() != null) {
+            context.fieldNames().addAll(source.storedFields());
         }
         if (source.explain() != null) {
             context.explain(source.explain());
@@ -721,9 +721,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.fetchSource() != null) {
             context.fetchSourceContext(source.fetchSource());
         }
-        if (source.fieldDataFields() != null) {
+        if (source.docValueFields() != null) {
             FieldDataFieldsContext fieldDataFieldsContext = context.getFetchSubPhaseContext(FieldDataFieldsFetchSubPhase.CONTEXT_FACTORY);
-            for (String field : source.fieldDataFields()) {
+            for (String field : source.docValueFields()) {
                 fieldDataFieldsContext.add(new FieldDataField(field));
             }
             fieldDataFieldsContext.setHitExecutionNeeded(true);

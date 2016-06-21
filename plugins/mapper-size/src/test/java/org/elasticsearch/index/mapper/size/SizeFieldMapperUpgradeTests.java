@@ -83,8 +83,8 @@ public class SizeFieldMapperUpgradeTests extends ESIntegTestCase {
         ElasticsearchAssertions.assertHitCount(countResponse, 3L);
 
         final SearchResponse sizeResponse = client().prepareSearch(indexName)
-                .addField("_source")
-                .addField("_size")
+                .addStoredField("_source")
+                .addStoredField("_size")
                 .get();
         ElasticsearchAssertions.assertHitCount(sizeResponse, 3L);
         for (SearchHit hit : sizeResponse.getHits().getHits()) {

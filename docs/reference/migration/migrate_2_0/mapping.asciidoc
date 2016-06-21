@@ -376,6 +376,17 @@ They are always mapped as follows:
 }
 ---------------------
 
+==== Attachment Fields
+
+Fields of type `attachment` used to index their content in the "main"
+multi-field -- a sub-field with the same name as the main field, e.g.
+`my_attachment.my_attachment`.  This sub-field will be renamed to
+`my_attachment.content`.   Any mapping settings (e.g. `analyzer`) on the old
+`my_attachment.my_attachment` field will be lost. In this case, the index
+needs to be reindexed in 2.x.
+
+The `attachment` sub-fields do not support `copy_to`.
+
 ==== Mappings in config files not supported
 
 The ability to specify mappings in configuration files has been removed. To
@@ -433,7 +444,7 @@ a single value of a field.
 ==== copy_to and multi fields
 
 A <<copy-to,copy_to>> within a <<multi-fields,multi field>> is ignored from version 2.0 on. With any version after
-2.1 or 2.0.1 creating a mapping that has a copy_to within a multi field will result 
+2.1 or 2.0.1 creating a mapping that has a copy_to within a multi field will result
 in an exception.
 
 

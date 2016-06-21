@@ -1,0 +1,176 @@
+<?xml version="1.0"?>
+<!--
+  ~ ELASTICSEARCH CONFIDENTIAL
+  ~ __________________
+  ~
+  ~  [2014] Elasticsearch Incorporated. All Rights Reserved.
+  ~
+  ~ NOTICE:  All information contained herein is, and remains
+  ~ the property of Elasticsearch Incorporated and its suppliers,
+  ~ if any.  The intellectual and technical concepts contained
+  ~ herein are proprietary to Elasticsearch Incorporated
+  ~ and its suppliers and may be covered by U.S. and Foreign Patents,
+  ~ patents in process, and are protected by trade secret or copyright law.
+  ~ Dissemination of this information or reproduction of this material
+  ~ is strictly forbidden unless prior written permission is obtained
+  ~ from Elasticsearch Incorporated.
+  -->
+
+<project name="smoke-test-tribe-node-with-security"
+         xmlns:ac="antlib:net.sf.antcontrib">
+
+    <taskdef name="xhttp" classname="org.elasticsearch.ant.HttpTask" classpath="${test_classpath}" />
+    <typedef name="xhttp" classname="org.elasticsearch.ant.HttpCondition" classpath="${test_classpath}"/>
+
+    <import file="${elasticsearch.integ.antfile.default}"/>
+    <import file="${elasticsearch.tools.directory}/ant/security-overrides.xml"/>
+
+    <property name="tribe_node.pidfile" location="${integ.scratch}/tribe-node.pid"/>
+    <available property="tribe_node.pidfile.exists" file="${tribe_node.pidfile}"/>
+
+    <property name="cluster1.pidfile" location="${integ.scratch}/cluster1.pid"/>
+    <available property="cluster1.pidfile.exists" file="${cluster1.pidfile}"/>
+
+    <property name="cluster2.pidfile" location="${integ.scratch}/cluster2.pid"/>
+    <available property="cluster2.pidfile.exists" file="${cluster2.pidfile}"/>
+
+    <macrodef name="create-index">
+        <attribute name="name" />
+        <attribute name="port" />
+        <sequential>
+            <xhttp uri="http://127.0.0.1:@{port}/@{name}" method="PUT" username="test_admin" password="changeme" />
+            <waitfor maxwait="30" maxwaitunit="second"
+                     checkevery="500" checkeveryunit="millisecond"
+                     timeoutproperty="@{timeoutproperty}">
+                <xhttp uri="http://127.0.0.1:@{port}/_cluster/health/@{name}?wait_for_status=yellow" username="test_admin" password="changeme" />
+            </waitfor>
+        </sequential>
+    </macrodef>
+
+    <target name="start-tribe-node-and-2-clusters-with-security" depends="setup-workspace">
+        <ac:for list="${xplugins.list}" param="xplugin.name">
+            <sequential>
+                <fail message="Expected @{xplugin.name}-${version}.zip as a dependency, but could not be found in ${integ.deps}/plugins}">
+                    <condition>
+                        <not>
+                            <available file="${integ.deps}/plugins/@{xplugin.name}-${elasticsearch.version}.zip"/>
+                        </not>
+                    </condition>
+                </fail>
+            </sequential>
+        </ac:for>
+
+        <ac:for param="file">
+            <path>
+                <fileset dir="${integ.deps}/plugins"/>
+            </path>
+            <sequential>
+                <local name="plugin.name"/>
+                <convert-plugin-name file="@{file}" outputproperty="plugin.name"/>
+                <install-plugin name="${plugin.name}" file="@{file}"/>
+            </sequential>
+        </ac:for>
+
+        <local name="home"/>
+        <property name="home" location="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
+
+        <echo>Adding roles.yml</echo>
+        <copy file="roles.yml" tofile="${home}/config/x-pack/roles.yml" overwrite="true"/>
+
+        <echo>Adding security users...</echo>
+        <run-script script="${home}/bin/x-pack/esusers">
+            <nested>
+                <arg value="useradd"/>
+                <arg value="test_admin"/>
+                <arg value="-p"/>
+                <arg value="changeme"/>
+                <arg value="-r"/>
+                <arg value="admin"/>
+            </nested>
+        </run-script>
+
+        <echo>Starting two nodes, each node in a different cluster</echo>
+        <ac:trycatch property="failure.message">
+            <ac:try>
+                <startup-elasticsearch es.transport.tcp.port="9600"
+                                       es.http.port="9700"
+                                       es.pidfile="${cluster1.pidfile}"
+                                       es.unicast.hosts="127.0.0.1:9600"
+                                       es.cluster.name="cluster1"/>
+            </ac:try>
+            <ac:catch>
+                <echo>Failed to start cluster1 with message: ${failure.message}</echo>
+                <stop-node es.pidfile="${cluster1.pidfile}"/>
+            </ac:catch>
+        </ac:trycatch>
+
+        <ac:trycatch property="failure.message">
+            <ac:try>
+                <startup-elasticsearch es.transport.tcp.port="9800"
+                                       es.http.port="9900"
+                                       es.pidfile="${cluster2.pidfile}"
+                                       es.unicast.hosts="127.0.0.1:9800"
+                                       es.cluster.name="cluster2"/>
+            </ac:try>
+            <ac:catch>
+                <echo>Failed to start cluster2 with message: ${failure.message}</echo>
+                <stop-node es.pidfile="${cluster1.pidfile}"/>
+                <stop-node es.pidfile="${cluster2.pidfile}"/>
+            </ac:catch>
+        </ac:trycatch>
+
+
+        <ac:trycatch property="failure.message">
+            <ac:try>
+                <echo>Starting a tribe node, configured to connect to cluster1 and cluster2</echo>
+                <startup-elasticsearch es.pidfile="${tribe_node.pidfile}">
+                    <additional-args>
+                        <arg value="-Des.tribe.cluster1.cluster.name=cluster1"/>
+                        <arg value="-Des.tribe.cluster1.discovery.zen.ping.unicast.hosts=127.0.0.1:9600"/>
+
+                        <arg value="-Des.tribe.cluster2.cluster.name=cluster2"/>
+                        <arg value="-Des.tribe.cluster2.discovery.zen.ping.unicast.hosts=127.0.0.1:9800"/>
+                    </additional-args>
+                </startup-elasticsearch>
+                <xhttp uri="http://127.0.0.1:${integ.http.port}/_cluster/health?wait_for_nodes=5" username="test_admin" password="changeme" />
+
+                <!--
+                    From the rest tests we only connect to the tribe node, so we need create the indices externally:
+
+                    By creating the index after the tribe node has started we can be sure that the tribe node knows
+                    about it. See: https://github.com/elastic/elasticsearch/issues/13292
+                 -->
+                <echo>Creating index1 in cluster1</echo>
+                <create-index name="index1" port="9700"/>
+                <!-- TODO: remove this after we know why on CI the shards of index1 don't get into a started state -->
+                <loadfile property="cluster1-logs" srcFile="${integ.scratch}/elasticsearch-${elasticsearch.version}/logs/cluster1.log" />
+                <echo>post index1 creation es logs: ${cluster1-logs}</echo>
+
+                <echo>Creating index2 in cluster2</echo>
+                <create-index name="index2" port="9900"/>
+                <!-- TODO: remove this after we know why on CI the shards of index2 don't get into a started state -->
+                <loadfile property="cluster2-logs" srcFile="${integ.scratch}/elasticsearch-${elasticsearch.version}/logs/cluster2.log" />
+                <echo>post index2 creation es logs: ${cluster2-logs}</echo>
+            </ac:try>
+            <ac:catch>
+                <echo>Failed to start tribe node with message: ${failure.message}</echo>
+                <stop-node es.pidfile="${tribe_node.pidfile}"/>
+                <stop-node es.pidfile="${cluster1.pidfile}"/>
+                <stop-node es.pidfile="${cluster2.pidfile}"/>
+            </ac:catch>
+        </ac:trycatch>
+    </target>
+
+    <target name="stop-tribe-node" if="tribe_node.pidfile.exists">
+        <stop-node es.pidfile="${tribe_node.pidfile}"/>
+    </target>
+    <target name="stop-cluster1" if="cluster1.pidfile.exists">
+        <stop-node es.pidfile="${cluster1.pidfile}"/>
+    </target>
+    <target name="stop-cluster2" if="cluster2.pidfile.exists">
+        <stop-node es.pidfile="${cluster2.pidfile}"/>
+    </target>
+
+    <target name="stop-tribe-node-and-all-clusters" depends="stop-tribe-node,stop-cluster1,stop-cluster2"/>
+
+</project>

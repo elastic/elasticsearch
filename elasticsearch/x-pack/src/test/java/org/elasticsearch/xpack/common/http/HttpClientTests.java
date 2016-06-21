@@ -159,7 +159,7 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testHttps() throws Exception {
-        Path resource = getDataPath("/org/elasticsearch/shield/keystore/truststore-testnode-only.jks");
+        Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/truststore-testnode-only.jks");
 
         Settings settings;
         if (randomBoolean()) {
@@ -169,15 +169,15 @@ public class HttpClientTests extends ESTestCase {
                     .build();
         } else {
             settings = Settings.builder()
-                    .put(HttpClient.SETTINGS_SSL_SHIELD_TRUSTSTORE, resource.toString())
-                    .put(HttpClient.SETTINGS_SSL_SHIELD_TRUSTSTORE_PASSWORD, "truststore-testnode-only")
+                    .put(HttpClient.SETTINGS_SSL_SECURITY_TRUSTSTORE, resource.toString())
+                    .put(HttpClient.SETTINGS_SSL_SECURITY_TRUSTSTORE_PASSWORD, "truststore-testnode-only")
                     .build();
         }
         HttpClient httpClient = new HttpClient(settings, authRegistry, environment).start();
 
         // We can't use the client created above for the server since it is only a truststore
         webServer.useHttps(new HttpClient(Settings.builder()
-                .put(HttpClient.SETTINGS_SSL_KEYSTORE, getDataPath("/org/elasticsearch/shield/keystore/testnode.jks"))
+                .put(HttpClient.SETTINGS_SSL_KEYSTORE, getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks"))
                 .put(HttpClient.SETTINGS_SSL_KEYSTORE_PASSWORD, "testnode")
                 .build(), authRegistry, environment)
                 .start()
@@ -197,7 +197,7 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testHttpsClientAuth() throws Exception {
-        Path resource = getDataPath("/org/elasticsearch/shield/keystore/testnode.jks");
+        Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks");
         Settings settings;
         if (randomBoolean()) {
             settings = Settings.builder()
@@ -206,8 +206,8 @@ public class HttpClientTests extends ESTestCase {
                     .build();
         } else {
             settings = Settings.builder()
-                    .put(HttpClient.SETTINGS_SSL_SHIELD_KEYSTORE, resource.toString())
-                    .put(HttpClient.SETTINGS_SSL_SHIELD_KEYSTORE_PASSWORD, "testnode")
+                    .put(HttpClient.SETTINGS_SSL_SECURITY_KEYSTORE, resource.toString())
+                    .put(HttpClient.SETTINGS_SSL_SECURITY_KEYSTORE_PASSWORD, "testnode")
                     .build();
         }
 
@@ -229,7 +229,7 @@ public class HttpClientTests extends ESTestCase {
 
     public void testHttpClientReadKeyWithDifferentPassword() throws Exception {
         // This truststore doesn't have a cert with a valid SAN so hostname verification will fail if used
-        Path resource = getDataPath("/org/elasticsearch/shield/keystore/testnode-different-passwords.jks");
+        Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode-different-passwords.jks");
 
         Settings settings;
         final boolean watcherSettings = randomBoolean();
@@ -241,9 +241,9 @@ public class HttpClientTests extends ESTestCase {
                     .build();
         } else {
             settings = Settings.builder()
-                    .put(HttpClient.SETTINGS_SSL_SHIELD_KEYSTORE, resource.toString())
-                    .put(HttpClient.SETTINGS_SSL_SHIELD_KEYSTORE_PASSWORD, "testnode")
-                    .put(HttpClient.SETTINGS_SSL_SHIELD_KEYSTORE_KEY_PASSWORD, "testnode1")
+                    .put(HttpClient.SETTINGS_SSL_SECURITY_KEYSTORE, resource.toString())
+                    .put(HttpClient.SETTINGS_SSL_SECURITY_KEYSTORE_PASSWORD, "testnode")
+                    .put(HttpClient.SETTINGS_SSL_SECURITY_KEYSTORE_KEY_PASSWORD, "testnode1")
                     .build();
         }
 
@@ -254,7 +254,7 @@ public class HttpClientTests extends ESTestCase {
         if (watcherSettings) {
             badSettings.remove(HttpClient.SETTINGS_SSL_KEYSTORE_KEY_PASSWORD);
         } else {
-            badSettings.remove(HttpClient.SETTINGS_SSL_SHIELD_KEYSTORE_KEY_PASSWORD);
+            badSettings.remove(HttpClient.SETTINGS_SSL_SECURITY_KEYSTORE_KEY_PASSWORD);
         }
 
         try {
@@ -307,7 +307,7 @@ public class HttpClientTests extends ESTestCase {
     @Network
     public void testHttpsWithoutTruststoreAndSSLIntegrationActive() throws Exception {
         // Add some settings with  SSL prefix to force socket factory creation
-        String setting = (randomBoolean() ? HttpClient.SETTINGS_SSL_PREFIX : HttpClient.SETTINGS_SSL_SHIELD_PREFIX) +
+        String setting = (randomBoolean() ? HttpClient.SETTINGS_SSL_PREFIX : HttpClient.SETTINGS_SSL_SECURITY_PREFIX) +
                 "foo.bar";
         Settings settings = Settings.builder()
                 .put(setting, randomBoolean())

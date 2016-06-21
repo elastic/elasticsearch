@@ -40,8 +40,8 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
     }
 
     @Override
-    protected boolean enableShield() {
-        return false; // remove shield noise from this test
+    protected boolean enableSecurity() {
+        return false; // remove security noise from this test
     }
 
     public void testTransformFields() throws Exception {

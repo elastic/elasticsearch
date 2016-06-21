@@ -1,0 +1,15 @@
+logger:
+  security.audit.logfile: INFO, access_log
+
+additivity:
+  security.audit.logfile: false
+
+appender:
+
+  access_log:
+    type: dailyRollingFile
+    file: ${path.logs}/${cluster.name}-access.log
+    datePattern: "'.'yyyy-MM-dd"
+    layout:
+      type: pattern
+      conversionPattern: "[%d{ISO8601}] %m%n"

@@ -50,24 +50,24 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
 
     static final String SETTINGS_SSL_PREFIX = "xpack.http.ssl.";
     static final String SETTINGS_PROXY_PREFIX = "xpack.http.proxy.";
-    static final String SETTINGS_SSL_SHIELD_PREFIX = "xpack.security.ssl.";
+    static final String SETTINGS_SSL_SECURITY_PREFIX = "xpack.security.ssl.";
 
     public static final String SETTINGS_SSL_PROTOCOL = SETTINGS_SSL_PREFIX + "protocol";
-    static final String SETTINGS_SSL_SHIELD_PROTOCOL = SETTINGS_SSL_SHIELD_PREFIX + "protocol";
+    static final String SETTINGS_SSL_SECURITY_PROTOCOL = SETTINGS_SSL_SECURITY_PREFIX + "protocol";
     public static final String SETTINGS_SSL_KEYSTORE = SETTINGS_SSL_PREFIX + "keystore.path";
-    static final String SETTINGS_SSL_SHIELD_KEYSTORE = SETTINGS_SSL_SHIELD_PREFIX + "keystore.path";
+    static final String SETTINGS_SSL_SECURITY_KEYSTORE = SETTINGS_SSL_SECURITY_PREFIX + "keystore.path";
     public static final String SETTINGS_SSL_KEYSTORE_PASSWORD = SETTINGS_SSL_PREFIX + "keystore.password";
-    static final String SETTINGS_SSL_SHIELD_KEYSTORE_PASSWORD = SETTINGS_SSL_SHIELD_PREFIX + "keystore.password";
+    static final String SETTINGS_SSL_SECURITY_KEYSTORE_PASSWORD = SETTINGS_SSL_SECURITY_PREFIX + "keystore.password";
     public static final String SETTINGS_SSL_KEYSTORE_KEY_PASSWORD = SETTINGS_SSL_PREFIX + "keystore.key_password";
-    static final String SETTINGS_SSL_SHIELD_KEYSTORE_KEY_PASSWORD = SETTINGS_SSL_SHIELD_PREFIX + "keystore.key_password";
+    static final String SETTINGS_SSL_SECURITY_KEYSTORE_KEY_PASSWORD = SETTINGS_SSL_SECURITY_PREFIX + "keystore.key_password";
     public static final String SETTINGS_SSL_KEYSTORE_ALGORITHM = SETTINGS_SSL_PREFIX + "keystore.algorithm";
-    static final String SETTINGS_SSL_SHIELD_KEYSTORE_ALGORITHM = SETTINGS_SSL_SHIELD_PREFIX + "keystore.algorithm";
+    static final String SETTINGS_SSL_SECURITY_KEYSTORE_ALGORITHM = SETTINGS_SSL_SECURITY_PREFIX + "keystore.algorithm";
     public static final String SETTINGS_SSL_TRUSTSTORE = SETTINGS_SSL_PREFIX + "truststore.path";
-    static final String SETTINGS_SSL_SHIELD_TRUSTSTORE = SETTINGS_SSL_SHIELD_PREFIX + "truststore.path";
+    static final String SETTINGS_SSL_SECURITY_TRUSTSTORE = SETTINGS_SSL_SECURITY_PREFIX + "truststore.path";
     public static final String SETTINGS_SSL_TRUSTSTORE_PASSWORD = SETTINGS_SSL_PREFIX + "truststore.password";
-    static final String SETTINGS_SSL_SHIELD_TRUSTSTORE_PASSWORD = SETTINGS_SSL_SHIELD_PREFIX + "truststore.password";
+    static final String SETTINGS_SSL_SECURITY_TRUSTSTORE_PASSWORD = SETTINGS_SSL_SECURITY_PREFIX + "truststore.password";
     public static final String SETTINGS_SSL_TRUSTSTORE_ALGORITHM = SETTINGS_SSL_PREFIX + "truststore.algorithm";
-    static final String SETTINGS_SSL_SHIELD_TRUSTSTORE_ALGORITHM = SETTINGS_SSL_SHIELD_PREFIX + "truststore.algorithm";
+    static final String SETTINGS_SSL_SECURITY_TRUSTSTORE_ALGORITHM = SETTINGS_SSL_SECURITY_PREFIX + "truststore.algorithm";
     public static final String SETTINGS_PROXY_HOST = SETTINGS_PROXY_PREFIX + "host";
     public static final String SETTINGS_PROXY_PORT = SETTINGS_PROXY_PREFIX + "post";
 
@@ -102,7 +102,7 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
         }
 
         if (!settings.getByPrefix(SETTINGS_SSL_PREFIX).getAsMap().isEmpty() ||
-                !settings.getByPrefix(SETTINGS_SSL_SHIELD_PREFIX).getAsMap().isEmpty()) {
+                !settings.getByPrefix(SETTINGS_SSL_SECURITY_PREFIX).getAsMap().isEmpty()) {
             sslSocketFactory = createSSLSocketFactory(settings);
         } else {
             logger.trace("no ssl context configured");
@@ -228,21 +228,21 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
     /** SSL Initialization **/
     private SSLSocketFactory createSSLSocketFactory(Settings settings) {
         try {
-            String sslContextProtocol = settings.get(SETTINGS_SSL_PROTOCOL, settings.get(SETTINGS_SSL_SHIELD_PROTOCOL, "TLS"));
-            String keyStore = settings.get(SETTINGS_SSL_KEYSTORE, settings.get(SETTINGS_SSL_SHIELD_KEYSTORE,
+            String sslContextProtocol = settings.get(SETTINGS_SSL_PROTOCOL, settings.get(SETTINGS_SSL_SECURITY_PROTOCOL, "TLS"));
+            String keyStore = settings.get(SETTINGS_SSL_KEYSTORE, settings.get(SETTINGS_SSL_SECURITY_KEYSTORE,
                     System.getProperty("javax.net.ssl.keyStore")));
-            String keyStorePassword = settings.get(SETTINGS_SSL_KEYSTORE_PASSWORD, settings.get(SETTINGS_SSL_SHIELD_KEYSTORE_PASSWORD,
+            String keyStorePassword = settings.get(SETTINGS_SSL_KEYSTORE_PASSWORD, settings.get(SETTINGS_SSL_SECURITY_KEYSTORE_PASSWORD,
                     System.getProperty("javax.net.ssl.keyStorePassword")));
-            String keyPassword = settings.get(SETTINGS_SSL_KEYSTORE_KEY_PASSWORD, settings.get(SETTINGS_SSL_SHIELD_KEYSTORE_KEY_PASSWORD,
+            String keyPassword = settings.get(SETTINGS_SSL_KEYSTORE_KEY_PASSWORD, settings.get(SETTINGS_SSL_SECURITY_KEYSTORE_KEY_PASSWORD,
                     keyStorePassword));
-            String keyStoreAlgorithm = settings.get(SETTINGS_SSL_KEYSTORE_ALGORITHM, settings.get(SETTINGS_SSL_SHIELD_KEYSTORE_ALGORITHM,
+            String keyStoreAlgorithm = settings.get(SETTINGS_SSL_KEYSTORE_ALGORITHM, settings.get(SETTINGS_SSL_SECURITY_KEYSTORE_ALGORITHM,
                     System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm())));
-            String trustStore = settings.get(SETTINGS_SSL_TRUSTSTORE, settings.get(SETTINGS_SSL_SHIELD_TRUSTSTORE,
+            String trustStore = settings.get(SETTINGS_SSL_TRUSTSTORE, settings.get(SETTINGS_SSL_SECURITY_TRUSTSTORE,
                     System.getProperty("javax.net.ssl.trustStore")));
-            String trustStorePassword = settings.get(SETTINGS_SSL_TRUSTSTORE_PASSWORD, settings.get(SETTINGS_SSL_SHIELD_TRUSTSTORE_PASSWORD,
-                    System.getProperty("javax.net.ssl.trustStorePassword")));
+            String trustStorePassword = settings.get(SETTINGS_SSL_TRUSTSTORE_PASSWORD,
+                    settings.get(SETTINGS_SSL_SECURITY_TRUSTSTORE_PASSWORD, System.getProperty("javax.net.ssl.trustStorePassword")));
             String trustStoreAlgorithm = settings.get(SETTINGS_SSL_TRUSTSTORE_ALGORITHM,
-                    settings.get(SETTINGS_SSL_SHIELD_TRUSTSTORE_ALGORITHM,
+                    settings.get(SETTINGS_SSL_SECURITY_TRUSTSTORE_ALGORITHM,
                             System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm())));
 
             if (keyStore != null) {

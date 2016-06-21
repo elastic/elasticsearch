@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.common.secret;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.crypto.CryptoService;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
 
 /**
  *

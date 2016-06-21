@@ -18,13 +18,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.plugin.TestUtils;
-import org.elasticsearch.shield.authc.esnative.ReservedRealm;
-import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.authz.store.ReservedRolesStore;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.client.RestTestResponse;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
+import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.junit.After;
 import org.junit.Before;
 
@@ -36,8 +36,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 public abstract class XPackRestTestCase extends ESRestTestCase {
 
@@ -84,7 +83,7 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
     }
 
     @After
-    public void clearShieldUsersAndRoles() throws Exception {
+    public void clearUsersAndRoles() throws Exception {
         // we cannot delete the .security index from a rest test since we aren't the internal user, lets wipe the data
         // TODO remove this once the built-in SUPERUSER role is added that can delete the index and we use the built in admin user here
         RestTestResponse response = getAdminExecutionContext().callApi("xpack.security.get_user", emptyMap(), emptyList(), emptyMap());

@@ -136,6 +136,9 @@
                         },
                         "used_in_bytes": {
                           "type": "float"
+                        },
+                        "size_limit": {
+                          "type": "float"
                         }
                       }
                     },

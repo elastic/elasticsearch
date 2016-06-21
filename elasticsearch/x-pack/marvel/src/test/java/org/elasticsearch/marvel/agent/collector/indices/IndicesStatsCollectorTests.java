@@ -45,7 +45,7 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
         waitForNoBlocksOnNode(node);
 
         try {
-            assertThat(newIndicesStatsCollector(node).doCollect(), hasSize(shieldEnabled ? 0 : 1));
+            assertThat(newIndicesStatsCollector(node).doCollect(), hasSize(securityEnabled ? 0 : 1));
         } catch (IndexNotFoundException e) {
             fail("IndexNotFoundException has been thrown but it should have been swallowed by the collector");
         }
@@ -56,7 +56,7 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
         waitForNoBlocksOnNode(node);
 
         try {
-            assertThat(newIndicesStatsCollector(node).doCollect(), hasSize(shieldEnabled ? 0 : 1));
+            assertThat(newIndicesStatsCollector(node).doCollect(), hasSize(securityEnabled ? 0 : 1));
         } catch (IndexNotFoundException e) {
             fail("IndexNotFoundException has been thrown but it should have been swallowed by the collector");
         }

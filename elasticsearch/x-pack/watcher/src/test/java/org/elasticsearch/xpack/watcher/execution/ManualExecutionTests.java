@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
     @Override
-    protected boolean enableShield() {
+    protected boolean enableSecurity() {
         return false;
     }
 

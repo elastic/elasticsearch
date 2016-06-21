@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.authc.AuthenticationModule;
+import org.elasticsearch.xpack.security.authc.AuthenticationModule;
 
 import java.io.IOException;
 import java.net.URL;

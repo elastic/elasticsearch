@@ -9,6 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -45,8 +46,8 @@ public class ClusterInfoResolverTests extends MonitoringIndexNameResolverTestCas
             doc.setVersion(randomFrom(Version.V_2_0_0, Version.CURRENT).toString());
             doc.setLicense(licenseBuilder.build());
             doc.setClusterName(randomAsciiOfLength(5));
-            doc.setClusterStats(new ClusterStatsResponse(Math.abs(randomLong()), ClusterName.DEFAULT,
-                    randomAsciiOfLength(5), Collections.emptyList(), Collections.emptyList()));
+            doc.setClusterStats(new ClusterStatsResponse(Math.abs(randomLong()), ClusterName.CLUSTER_NAME_SETTING
+                    .getDefault(Settings.EMPTY), randomAsciiOfLength(5), Collections.emptyList(), Collections.emptyList()));
             return doc;
         } catch (Exception e) {
             throw new IllegalStateException("Failed to generated random ClusterInfoMarvelDoc", e);

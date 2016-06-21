@@ -25,12 +25,12 @@ import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.agent.resolver.ResolversRegistry;
 import org.elasticsearch.marvel.client.MonitoringClient;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.Security;
-import org.elasticsearch.shield.authc.file.FileRealm;
-import org.elasticsearch.shield.authc.support.Hasher;
-import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.authz.store.FileRolesStore;
-import org.elasticsearch.shield.crypto.InternalCryptoService;
+import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.authc.file.FileRealm;
+import org.elasticsearch.xpack.security.authc.support.Hasher;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
+import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
+import org.elasticsearch.xpack.security.crypto.InternalCryptoService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.store.MockFSIndexStore;
@@ -60,7 +60,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.greaterThan;
@@ -77,10 +77,10 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     /**
      * Enables individual tests to control the behavior.
      * <p>
-     * Control this by overriding {@link #enableShield()}, which defaults to enabling it randomly.
+     * Control this by overriding {@link #enableSecurity()}, which defaults to enabling it randomly.
      */
     // SCARY: This needs to be static or lots of tests randomly fail, but it's not used statically!
-    protected static Boolean shieldEnabled;
+    protected static Boolean securityEnabled;
     /**
      * Enables individual tests to control the behavior.
      * <p>
@@ -90,14 +90,14 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
-        if (shieldEnabled == null) {
-            shieldEnabled = enableShield();
+        if (securityEnabled == null) {
+            securityEnabled = enableSecurity();
         }
         if (watcherEnabled == null) {
             watcherEnabled = enableWatcher();
         }
 
-        logger.debug("--> shield {}", shieldEnabled ? "enabled" : "disabled");
+        logger.debug("--> security {}", securityEnabled ? "enabled" : "disabled");
         logger.debug("--> watcher {}", watcherEnabled ? "enabled" : "disabled");
 
         return super.buildTestCluster(scope, seed);
@@ -111,14 +111,14 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                 // we do this by default in core, but for monitoring this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false);
 
-        ShieldSettings.apply(shieldEnabled, builder);
+        SecuritySettings.apply(securityEnabled, builder);
 
         return builder.build();
     }
 
     @Override
     protected Settings transportClientSettings() {
-        if (shieldEnabled) {
+        if (securityEnabled) {
             return Settings.builder()
                     .put(super.transportClientSettings())
                     .put("client.transport.sniff", false)
@@ -133,8 +133,8 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
         Set<Class<? extends Plugin>> plugins = new HashSet<>(super.getMockPlugins());
-        plugins.remove(MockTransportService.TestPlugin.class); // shield has its own transport service
-        plugins.remove(AssertingLocalTransport.TestPlugin.class); // shield has its own transport
+        plugins.remove(MockTransportService.TestPlugin.class); // security has its own transport service
+        plugins.remove(AssertingLocalTransport.TestPlugin.class); // security has its own transport
         plugins.add(MockFSIndexStore.TestPlugin.class);
         return plugins;
     }
@@ -151,16 +151,16 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Function<Client,Client> getClientWrapper() {
-        if (shieldEnabled == false) {
+        if (securityEnabled == false) {
             return Function.identity();
         }
         Map<String, String> headers = Collections.singletonMap("Authorization",
-                basicAuthHeaderValue(ShieldSettings.TEST_USERNAME, new SecuredString(ShieldSettings.TEST_PASSWORD.toCharArray())));
+                basicAuthHeaderValue(SecuritySettings.TEST_USERNAME, new SecuredString(SecuritySettings.TEST_PASSWORD.toCharArray())));
         return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
     }
 
     protected MonitoringClient monitoringClient() {
-        Client client = shieldEnabled ? internalCluster().transportClient() : client();
+        Client client = securityEnabled ? internalCluster().transportClient() : client();
         return randomBoolean() ? new XPackClient(client).monitoring() : new MonitoringClient(client);
     }
 
@@ -184,7 +184,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     /**
      * Override and return {@code false} to force running without Security.
      */
-    protected boolean enableShield() {
+    protected boolean enableSecurity() {
         return randomBoolean();
     }
 
@@ -231,11 +231,11 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     }
 
     protected void deleteMarvelIndices() {
-        if (shieldEnabled) {
+        if (securityEnabled) {
             try {
                 assertAcked(client().admin().indices().prepareDelete(MONITORING_INDICES_PREFIX + "*"));
             } catch (IndexNotFoundException e) {
-                // if shield couldn't resolve any marvel index, it'll throw index not found exception.
+                // if security couldn't resolve any marvel index, it'll throw index not found exception.
             }
         } else {
             assertAcked(client().admin().indices().prepareDelete(MONITORING_INDICES_PREFIX + "*"));
@@ -247,11 +247,11 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     }
 
     protected void ensureMarvelIndicesYellow() {
-        if (shieldEnabled) {
+        if (securityEnabled) {
             try {
                 ensureYellow(".monitoring-es-*");
             } catch (IndexNotFoundException e) {
-                // might happen with shield...
+                // might happen with security...
             }
         } else {
             ensureYellow(".monitoring-es-*");
@@ -266,7 +266,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
             logger.trace("--> searched for [{}] documents, found [{}]", Strings.arrayToCommaDelimitedString(types), count);
             assertThat(count, matcher);
         } catch (IndexNotFoundException e) {
-            if (shieldEnabled) {
+            if (securityEnabled) {
                 assertThat(0L, matcher);
             } else {
                 throw e;
@@ -312,8 +312,8 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                 try {
                     assertIndicesExists(index);
                 } catch (IndexNotFoundException e) {
-                    if (shieldEnabled) {
-                        // with shield we might get that if wildcards were resolved to no indices
+                    if (securityEnabled) {
+                        // with security we might get that if wildcards were resolved to no indices
                         fail("IndexNotFoundException when checking for existence of index [" + index + "]");
                     } else {
                         throw e;
@@ -336,11 +336,11 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     }
 
     protected void securedRefresh() {
-        if (shieldEnabled) {
+        if (securityEnabled) {
             try {
                 refresh();
             } catch (IndexNotFoundException e) {
-                // with shield we might get that if wildcards were resolved to no indices
+                // with security we might get that if wildcards were resolved to no indices
             }
         } else {
             refresh();
@@ -348,11 +348,11 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     }
 
     protected void securedFlush(String... indices) {
-        if (shieldEnabled) {
+        if (securityEnabled) {
             try {
                 flush(indices);
             } catch (IndexNotFoundException e) {
-                // with shield we might get that if wildcards were resolved to no indices
+                // with security we might get that if wildcards were resolved to no indices
             }
         } else {
             flush(indices);
@@ -360,11 +360,11 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     }
 
     protected void securedFlushAndRefresh(String... indices) {
-        if (shieldEnabled) {
+        if (securityEnabled) {
             try {
                 flushAndRefresh(indices);
             } catch (IndexNotFoundException e) {
-                // with shield we might get that if wildcards were resolved to no indices
+                // with security we might get that if wildcards were resolved to no indices
             }
         } else {
             flushAndRefresh(indices);
@@ -372,11 +372,11 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     }
 
     protected void securedEnsureGreen(String... indices) {
-        if (shieldEnabled) {
+        if (securityEnabled) {
             try {
                 ensureGreen(indices);
             } catch (IndexNotFoundException e) {
-                // with shield we might get that if wildcards were resolved to no indices
+                // with security we might get that if wildcards were resolved to no indices
             }
         } else {
             ensureGreen(indices);
@@ -477,9 +477,9 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    /** Shield related settings */
+    /** security related settings */
 
-    public static class ShieldSettings {
+    public static class SecuritySettings {
 
         public static final String TEST_USERNAME = "test";
         public static final String TEST_PASSWORD = "changeme";
@@ -528,7 +528,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                 return;
             }
             try {
-                Path folder = createTempDir().resolve("marvel_shield");
+                Path folder = createTempDir().resolve("marvel_security");
                 Files.createDirectories(folder);
 
                 builder.put("xpack.security.enabled", true)
@@ -541,7 +541,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                         .put("xpack.security.authc.sign_user_header", false)
                         .put("xpack.security.audit.enabled", auditLogsEnabled);
             } catch (IOException ex) {
-                throw new RuntimeException("failed to build settings for shield", ex);
+                throw new RuntimeException("failed to build settings for security", ex);
             }
         }
 

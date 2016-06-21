@@ -59,7 +59,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                         .input(httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())
                                 .path("/index/_search")
                                 .body(jsonBuilder().startObject().field("size", 1).endObject())
-                                .auth(shieldEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null)))
+                                .auth(securityEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null)))
                         .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
                         .addAction("_id", loggingAction("watch [{{ctx.watch_id}}] matched")))
                 .get();
@@ -78,7 +78,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                         .trigger(schedule(interval("1s")))
                         .input(httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())
                                 .path("/_cluster/stats")
-                                .auth(shieldEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null)))
+                                .auth(securityEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null)))
                         .condition(compareCondition("ctx.payload.nodes.count.total", CompareCondition.Op.GTE, 1L))
                         .addAction("_id", loggingAction("watch [{{ctx.watch_id}}] matched")))
                 .get();
@@ -106,7 +106,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
         HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder(address.getHostString(), address.getPort())
                 .path(TextTemplate.inline("/idx/_search"))
                 .body(body);
-        if (shieldEnabled()) {
+        if (securityEnabled()) {
             requestBuilder.auth(new BasicAuth("test", "changeme".toCharArray()));
         }
 

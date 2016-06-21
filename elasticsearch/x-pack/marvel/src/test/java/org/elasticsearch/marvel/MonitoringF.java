@@ -7,7 +7,6 @@ package org.elasticsearch.marvel;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.node.MockNode;
@@ -39,7 +38,7 @@ public class MonitoringF {
         }
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final Node node = new MockNode(settings.build(), Version.CURRENT,
+        final Node node = new MockNode(settings.build(),
                 Arrays.asList(XPackPlugin.class, XPackPlugin.class, XPackPlugin.class));
         Runtime.getRuntime().addShutdownHook(new Thread() {
 

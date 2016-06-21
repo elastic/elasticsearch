@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
-import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.junit.After;
 
@@ -23,14 +23,11 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
-import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCase {
     private CloseableHttpClient httpClient = HttpClients.createDefault();
 
@@ -53,11 +50,11 @@ public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCa
 
     public void testGetSettingsSmtpPassword() throws Exception {
         Header[] headers;
-        if (shieldEnabled()) {
+        if (securityEnabled()) {
             headers = new Header[] {
                     new BasicHeader(BASIC_AUTH_HEADER,
-                            basicAuthHeaderValue(MarvelIntegTestCase.ShieldSettings.TEST_USERNAME,
-                                    new SecuredString(MarvelIntegTestCase.ShieldSettings.TEST_PASSWORD.toCharArray())))};
+                            basicAuthHeaderValue(MarvelIntegTestCase.SecuritySettings.TEST_USERNAME,
+                                    new SecuredString(MarvelIntegTestCase.SecuritySettings.TEST_PASSWORD.toCharArray())))};
         } else {
             headers = new Header[0];
         }

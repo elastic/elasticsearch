@@ -9,8 +9,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.license.plugin.LicensingClient;
 import org.elasticsearch.marvel.client.MonitoringClient;
-import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.client.SecurityClient;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
+import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.action.XPackInfoAction;
 import org.elasticsearch.xpack.action.XPackInfoRequest;
@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.action.XPackInfoResponse;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
-import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 /**
  *

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.test.bench;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Module;
@@ -59,7 +58,7 @@ public class WatcherExecutorServiceBenchmark {
     private static ScheduleTriggerEngineMock scheduler;
 
     protected static void start() throws Exception {
-        Node node = new MockNode(Settings.builder().put(SETTINGS).put("node.data", false).build(), Version.CURRENT,
+        Node node = new MockNode(Settings.builder().put(SETTINGS).put("node.data", false).build(),
                 Arrays.asList(XPackBenchmarkPlugin.class));
         client = node.client();
         client.admin().cluster().prepareHealth("*").setWaitForGreenStatus().get();

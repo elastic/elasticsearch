@@ -11,8 +11,8 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.shield.SecurityContext;
-import org.elasticsearch.shield.user.XPackUser;
+import org.elasticsearch.xpack.security.SecurityContext;
+import org.elasticsearch.xpack.security.user.XPackUser;
 import org.elasticsearch.xpack.watcher.support.Script;
 
 import java.util.Map;

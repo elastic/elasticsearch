@@ -35,7 +35,8 @@ public class TribeServiceTests extends ESTestCase {
         assertEquals("false", clientSettings.get("node.master"));
         assertEquals("false", clientSettings.get("node.data"));
         assertEquals("false", clientSettings.get("node.ingest"));
-        assertEquals(7, clientSettings.getAsMap().size());
+        assertEquals("false", clientSettings.get("node.local_storage"));
+        assertEquals(8, clientSettings.getAsMap().size());
     }
 
     public void testEnvironmentSettings() {

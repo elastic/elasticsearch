@@ -53,10 +53,10 @@ public class FunctionRef {
      * @param expected interface type to implement.
      * @param type the left hand side of a method reference expression
      * @param call the right hand side of a method reference expression
-     * @param captures captured arguments
+     * @param numCaptures number of captured arguments
      */    
-    public FunctionRef(Definition.Type expected, String type, String call, Class<?>... captures) {
-        this(expected, expected.struct.getFunctionalMethod(), lookup(expected, type, call, captures.length > 0), captures);
+    public FunctionRef(Definition.Type expected, String type, String call, int numCaptures) {
+        this(expected, expected.struct.getFunctionalMethod(), lookup(expected, type, call, numCaptures > 0), numCaptures);
     }
 
     /**
@@ -64,13 +64,16 @@ public class FunctionRef {
      * @param expected interface type to implement
      * @param method functional interface method
      * @param impl implementation method
-     * @param captures captured arguments
+     * @param numCaptures number of captured arguments
      */   
-    public FunctionRef(Definition.Type expected, Definition.Method method, Definition.Method impl, Class<?>... captures) {
+    public FunctionRef(Definition.Type expected, Definition.Method method, Definition.Method impl, int numCaptures) {
         // e.g. compareTo
         invokedName = method.name;
         // e.g. (Object)Comparator
-        invokedType = MethodType.methodType(expected.clazz, captures);
+        MethodType implType = impl.getMethodType();
+        // only include captured parameters as arguments
+        invokedType = MethodType.methodType(expected.clazz, 
+                implType.dropParameterTypes(numCaptures, implType.parameterCount()));
         // e.g. (Object,Object)int
         interfaceMethodType = method.getMethodType().dropParameterTypes(0, 1);
 
@@ -90,6 +93,9 @@ public class FunctionRef {
             // owner == null: script class itself
             ownerIsInterface = false;
             owner = WriterConstants.CLASS_TYPE.getInternalName();
+        } else if (impl.augmentation) {
+            ownerIsInterface = false;
+            owner = WriterConstants.AUGMENTATION_TYPE.getInternalName();
         } else {
             ownerIsInterface = impl.owner.clazz.isInterface();
             owner = impl.owner.type.getInternalName();
@@ -98,7 +104,7 @@ public class FunctionRef {
         implMethod = impl.handle;
         
         // remove any prepended captured arguments for the 'natural' signature.
-        samMethodType = adapt(interfaceMethodType, impl.getMethodType().dropParameterTypes(0, captures.length));
+        samMethodType = adapt(interfaceMethodType, impl.getMethodType().dropParameterTypes(0, numCaptures));
     }
 
     /**
@@ -106,11 +112,14 @@ public class FunctionRef {
      * <p>
      * This will <b>not</b> set implMethodASM. It is for runtime use only.
      */
-    public FunctionRef(Definition.Type expected, Definition.Method method, MethodHandle impl, Class<?>... captures) {
+    public FunctionRef(Definition.Type expected, Definition.Method method, MethodHandle impl, int numCaptures) {
         // e.g. compareTo
         invokedName = method.name;
         // e.g. (Object)Comparator
-        invokedType = MethodType.methodType(expected.clazz, captures);
+        MethodType implType = impl.type();
+        // only include captured parameters as arguments
+        invokedType = MethodType.methodType(expected.clazz, 
+                implType.dropParameterTypes(numCaptures, implType.parameterCount()));
         // e.g. (Object,Object)int
         interfaceMethodType = method.getMethodType().dropParameterTypes(0, 1);
 
@@ -119,7 +128,7 @@ public class FunctionRef {
         implMethodASM = null;
         
         // remove any prepended captured arguments for the 'natural' signature.
-        samMethodType = adapt(interfaceMethodType, impl.type().dropParameterTypes(0, captures.length));
+        samMethodType = adapt(interfaceMethodType, impl.type().dropParameterTypes(0, numCaptures));
     }
 
     /** 

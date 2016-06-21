@@ -257,7 +257,7 @@ public final class Definition {
             final org.objectweb.asm.Type type;
             if (augmentation) {
                 assert java.lang.reflect.Modifier.isStatic(modifiers);
-                type = org.objectweb.asm.Type.getType(Augmentation.class);
+                type = WriterConstants.AUGMENTATION_TYPE;
             } else {
                 type = owner.type;
             }
@@ -825,7 +825,7 @@ public final class Definition {
             reflect = implClass.getMethod(name, params);
         } catch (NoSuchMethodException exception) {
             throw new IllegalArgumentException("Method [" + name +
-                "] not found for class [" + owner.clazz.getName() + "]" +
+                "] not found for class [" + implClass.getName() + "]" +
                 " with arguments " + Arrays.toString(params) + ".");
         }
 

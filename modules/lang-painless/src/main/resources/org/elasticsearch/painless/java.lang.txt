@@ -50,6 +50,8 @@ class Iterable -> java.lang.Iterable {
   void forEach(Consumer)
   Iterator iterator()
   Spliterator spliterator()
+  # some adaptations of groovy methods
+  boolean any*(Predicate)
 }
 
 # Readable: i/o

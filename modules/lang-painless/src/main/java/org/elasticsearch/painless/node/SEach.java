@@ -206,10 +206,8 @@ public class SEach extends AStatement {
             Type itr = Definition.getType("Iterator");
             org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(itr.type, Definition.DEF_TYPE.type);
             writer.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
-        } else if (java.lang.reflect.Modifier.isInterface(method.owner.clazz.getModifiers())) {
-            writer.invokeInterface(method.owner.type, method.method);
         } else {
-            writer.invokeVirtual(method.owner.type, method.method);
+            method.write(writer);
         }
 
         writer.visitVarInsn(iterator.type.type.getOpcode(Opcodes.ISTORE), iterator.getSlot());

@@ -114,8 +114,7 @@ class List -> java.util.List extends Collection,Iterable {
   def remove(int)
   void replaceAll(UnaryOperator)
   def set(int,def)
-  # TODO: wtf?
-  int getLength/size()
+  int getLength*()
   void sort(Comparator)
   List subList(int,int)
 }

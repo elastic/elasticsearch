@@ -1190,8 +1190,8 @@ public class InternalEngine extends Engine {
             commitData.put(Translog.TRANSLOG_GENERATION_KEY, Long.toString(translogGeneration.translogFileGeneration));
             commitData.put(Translog.TRANSLOG_UUID_KEY, translogGeneration.translogUUID);
 
-            commitData.put(LOCAL_CHECKPOINT_KEY, Long.toString(seqNoService.getLocalCheckpoint()));
-            commitData.put(GLOBAL_CHECKPOINT_KEY, Long.toString(seqNoService.getGlobalCheckpoint()));
+            commitData.put(LOCAL_CHECKPOINT_KEY, Long.toString(seqNoService().getLocalCheckpoint()));
+            commitData.put(GLOBAL_CHECKPOINT_KEY, Long.toString(seqNoService().getGlobalCheckpoint()));
 
             if (syncId != null) {
                 commitData.put(Engine.SYNC_COMMIT_ID, syncId);

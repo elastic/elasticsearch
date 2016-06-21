@@ -124,6 +124,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
@@ -542,39 +543,66 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
-    public void testCommitStats() {
-        Document document = testDocumentWithTextField();
-        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
-        engine.index(new Engine.Index(newUid("1"), doc));
+    public void testCommitStats() throws IOException {
+        InternalEngine engine = null;
+        try {
+            this.engine.close();
 
-        CommitStats stats1 = engine.commitStats();
-        assertThat(stats1.getGeneration(), greaterThan(0L));
-        assertThat(stats1.getId(), notNullValue());
-        assertThat(stats1.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
-        assertThat(stats1.getUserData(), hasKey(InternalEngine.LOCAL_CHECKPOINT_KEY));
-        assertThat(
+            final AtomicLong maxSeqNo = new AtomicLong(SequenceNumbersService.NO_OPS_PERFORMED);
+            final AtomicLong localCheckpoint = new AtomicLong(SequenceNumbersService.NO_OPS_PERFORMED);
+            final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbersService.UNASSIGNED_SEQ_NO);
+
+            engine = new InternalEngine(copy(this.engine.config(), this.engine.config().getOpenMode())) {
+                @Override
+                public SequenceNumbersService seqNoService() {
+                    return new SequenceNumbersService(
+                        this.config().getShardId(),
+                        this.config().getIndexSettings(),
+                        maxSeqNo.get(),
+                        localCheckpoint.get(),
+                        globalCheckpoint.get());
+                }
+            };
+            CommitStats stats1 = engine.commitStats();
+            assertThat(stats1.getGeneration(), greaterThan(0L));
+            assertThat(stats1.getId(), notNullValue());
+            assertThat(stats1.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
+            assertThat(stats1.getUserData(), hasKey(InternalEngine.LOCAL_CHECKPOINT_KEY));
+            assertThat(
                 Long.parseLong(stats1.getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
                 equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
-        assertThat(stats1.getUserData(), hasKey(InternalEngine.GLOBAL_CHECKPOINT_KEY));
-        assertThat(
+            assertThat(stats1.getUserData(), hasKey(InternalEngine.GLOBAL_CHECKPOINT_KEY));
+            assertThat(
                 Long.parseLong(stats1.getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
                 equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
 
-        engine.flush(true, true);
-        CommitStats stats2 = engine.commitStats();
-        assertThat(stats2.getGeneration(), greaterThan(stats1.getGeneration()));
-        assertThat(stats2.getId(), notNullValue());
-        assertThat(stats2.getId(), not(equalTo(stats1.getId())));
-        assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
-        assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_UUID_KEY));
-        assertThat(stats2.getUserData().get(Translog.TRANSLOG_GENERATION_KEY), not(equalTo(stats1.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
-        assertThat(stats2.getUserData().get(Translog.TRANSLOG_UUID_KEY), equalTo(stats1.getUserData().get(Translog.TRANSLOG_UUID_KEY)));
-        assertThat(Long.parseLong(stats2.getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)), equalTo(0L));
-        assertThat(stats2.getUserData(), hasKey(InternalEngine.GLOBAL_CHECKPOINT_KEY));
-        assertThat(
+            maxSeqNo.set(rarely() ? SequenceNumbersService.NO_OPS_PERFORMED : randomIntBetween(0, 1024));
+            localCheckpoint.set(
+                rarely() || maxSeqNo.get() == SequenceNumbersService.NO_OPS_PERFORMED ?
+                    SequenceNumbersService.NO_OPS_PERFORMED : randomIntBetween(0, 1024));
+            globalCheckpoint.set(rarely() || localCheckpoint.get() == SequenceNumbersService.NO_OPS_PERFORMED ?
+                SequenceNumbersService.UNASSIGNED_SEQ_NO : randomIntBetween(0, (int) localCheckpoint.get()));
+
+            engine.flush(true, true);
+
+            CommitStats stats2 = engine.commitStats();
+            assertThat(stats2.getGeneration(), greaterThan(stats1.getGeneration()));
+            assertThat(stats2.getId(), notNullValue());
+            assertThat(stats2.getId(), not(equalTo(stats1.getId())));
+            assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
+            assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_UUID_KEY));
+            assertThat(
+                stats2.getUserData().get(Translog.TRANSLOG_GENERATION_KEY),
+                not(equalTo(stats1.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
+            assertThat(stats2.getUserData().get(Translog.TRANSLOG_UUID_KEY), equalTo(stats1.getUserData().get(Translog.TRANSLOG_UUID_KEY)));
+            assertThat(Long.parseLong(stats2.getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)), equalTo(localCheckpoint.get()));
+            assertThat(stats2.getUserData(), hasKey(InternalEngine.GLOBAL_CHECKPOINT_KEY));
+            assertThat(
                 Long.parseLong(stats2.getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
-                equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+                equalTo(globalCheckpoint.get()));
+        } finally {
+            IOUtils.close(engine);
+        }
     }
 
     public void testIndexSearcherWrapper() throws Exception {

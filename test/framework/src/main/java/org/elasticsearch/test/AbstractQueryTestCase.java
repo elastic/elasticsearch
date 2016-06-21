@@ -53,7 +53,6 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -70,7 +69,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -95,17 +93,10 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script.ScriptParseException;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
-import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -120,14 +111,11 @@ import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.containsString;
@@ -900,11 +888,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             for (Module pluginModule : pluginsService.nodeModules()) {
                 modulesBuilder.add(pluginModule);
             }
-            modulesBuilder.add(new PluginsModule(pluginsService));
             modulesBuilder.add(
-                    new EnvironmentModule(new Environment(settings), threadPool),
-                    settingsModule,
-                    new IndicesModule() {
+                    (b) -> {
+                        b.bind(PluginsService.class).toInstance(pluginsService);
+                        b.bind(Environment.class).toInstance(new Environment(settings));
+                        b.bind(ThreadPool.class).toInstance(threadPool);
+                    },
+                    settingsModule, new IndicesModule(namedWriteableRegistry) {
                         @Override
                         public void configure() {
                             // skip services

@@ -78,7 +78,7 @@ public class GceDiscoveryTests extends ESTestCase {
 
     @AfterClass
     public static void stopThreadPool() {
-        if (threadPool !=null) {
+        if (threadPool != null) {
             threadPool.shutdownNow();
             threadPool = null;
         }
@@ -95,7 +95,7 @@ public class GceDiscoveryTests extends ESTestCase {
 
     @Before
     public void createTransportService() {
-        transportService = MockTransportService.local(Settings.EMPTY, Version.CURRENT, threadPool, ClusterName.DEFAULT);
+        transportService = MockTransportService.local(Settings.EMPTY, Version.CURRENT, threadPool);
     }
 
     @Before
@@ -111,8 +111,8 @@ public class GceDiscoveryTests extends ESTestCase {
     }
 
     protected List<DiscoveryNode> buildDynamicNodes(GceComputeService gceComputeService, Settings nodeSettings) {
-        GceUnicastHostsProvider provider = new GceUnicastHostsProvider(nodeSettings, gceComputeService,
-                transportService, new NetworkService(Settings.EMPTY), Version.CURRENT);
+        GceUnicastHostsProvider provider = new GceUnicastHostsProvider(nodeSettings, gceComputeService, transportService,
+            new NetworkService(Settings.EMPTY));
 
         List<DiscoveryNode> discoveryNodes = provider.buildDynamicNodes();
         logger.info("--> nodes found: {}", discoveryNodes);

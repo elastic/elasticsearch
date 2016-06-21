@@ -36,7 +36,6 @@ import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,6 +46,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -73,6 +73,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
+import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 
 import java.io.IOException;
@@ -140,13 +141,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         @Override
         protected void afterAlways(List<Throwable> errors) throws Throwable {
             if (errors != null && errors.isEmpty() == false) {
-                ESTestCase.this.afterIfFailed(errors);
+                boolean allAssumption = true;
+                for (Throwable error : errors) {
+                    if (false == error instanceof AssumptionViolatedException) {
+                        allAssumption = false;
+                        break;
+                    }
+                }
+                if (false == allAssumption) {
+                    ESTestCase.this.afterIfFailed(errors);
+                }
             }
             super.afterAlways(errors);
         }
     });
 
-    /** called when a test fails, supplying the errors it generated */
+    /**
+     * Called when a test fails, supplying the errors it generated. Not called when the test fails because assumptions are violated.
+     */
     protected void afterIfFailed(List<Throwable> errors) {
     }
 
@@ -332,6 +344,11 @@ public abstract class ESTestCase extends LuceneTestCase {
     /** Pick a random object from the given list. */
     public static <T> T randomFrom(List<T> list) {
         return RandomPicks.randomFrom(random(), list);
+    }
+
+    /** Pick a random object from the given collection. */
+    public static <T> T randomFrom(Collection<T> collection) {
+        return RandomPicks.randomFrom(random(), collection);
     }
 
     public static String randomAsciiOfLengthBetween(int minCodeUnits, int maxCodeUnits) {

@@ -212,6 +212,10 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequestBuilder;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
@@ -1726,6 +1730,21 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public void shrinkIndex(ShrinkRequest request, ActionListener<ShrinkResponse> listener) {
             execute(ShrinkAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public RolloverRequestBuilder prepareRolloverIndex(String alias) {
+            return new RolloverRequestBuilder(this, RolloverAction.INSTANCE).setAlias(alias);
+        }
+
+        @Override
+        public ActionFuture<RolloverResponse> rolloversIndex(RolloverRequest request) {
+            return execute(RolloverAction.INSTANCE, request);
+        }
+
+        @Override
+        public void rolloverIndex(RolloverRequest request, ActionListener<RolloverResponse> listener) {
+            execute(RolloverAction.INSTANCE, request, listener);
         }
 
         @Override

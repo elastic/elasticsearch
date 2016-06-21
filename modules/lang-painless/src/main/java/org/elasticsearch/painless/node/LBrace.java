@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Locals;
@@ -27,6 +28,8 @@ import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents an array load/store or defers to possible shortcuts.
@@ -38,7 +41,12 @@ public final class LBrace extends ALink {
     public LBrace(Location location, AExpression index) {
         super(location, 2);
 
-        this.index = index;
+        this.index = Objects.requireNonNull(index);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        index.extractVariables(variables);
     }
 
     @Override
@@ -69,18 +77,18 @@ public final class LBrace extends ALink {
     }
 
     @Override
-    void write(MethodWriter writer) {
-        index.write(writer);
+    void write(MethodWriter writer, Globals globals) {
+        index.write(writer, globals);
     }
 
     @Override
-    void load(MethodWriter writer) {
+    void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
         writer.arrayLoad(after.type);
     }
 
     @Override
-    void store(MethodWriter writer) {
+    void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
         writer.arrayStore(after.type);
     }

@@ -48,6 +48,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -66,7 +67,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 /**
  *
  */
-public class TransportClientNodesService extends AbstractComponent {
+public class TransportClientNodesService extends AbstractComponent implements Closeable {
 
     private final TimeValue nodesSamplerInterval;
 
@@ -111,13 +112,13 @@ public class TransportClientNodesService extends AbstractComponent {
         Setting.boolSetting("client.transport.sniff", false, Property.NodeScope);
 
     @Inject
-    public TransportClientNodesService(Settings settings, ClusterName clusterName, TransportService transportService,
-                                       ThreadPool threadPool, Version version) {
+    public TransportClientNodesService(Settings settings,TransportService transportService,
+                                       ThreadPool threadPool) {
         super(settings);
-        this.clusterName = clusterName;
+        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.transportService = transportService;
         this.threadPool = threadPool;
-        this.minCompatibilityVersion = version.minimumCompatibilityVersion();
+        this.minCompatibilityVersion = Version.CURRENT.minimumCompatibilityVersion();
 
         this.nodesSamplerInterval = CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL.get(this.settings);
         this.pingTimeout = CLIENT_TRANSPORT_PING_TIMEOUT.get(this.settings).millis();

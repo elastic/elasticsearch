@@ -180,15 +180,26 @@ with inner hits defined inside the query dsl.
 * Source filtering for inner hits inside nested queries requires full field names instead of relative field names.
 This is now consistent for source filtering on other places in the search API.
 
+* Nested inner hits will now no longer include `_index`, `_type` and `_id` keys. For nested inner hits these values
+are always the same as the `_index`, `_type` and `_id` keys of the root search hit.
+
 ==== Query Profiler
 
 In the response for profiling queries, the `query_type` has been renamed to `type` and `lucene` has been renamed to
 `description`. These changes have been made so the response format is more friendly to supporting other types of profiling
 in the future.
 
-==== Search prefernce
+==== Search preferences
+
+The <<search-request-preference,search preference>> `_only_node` has
+been removed. The same behavior can be achieved by using `_only_nodes`
+and specifying a single node ID.
 
 The <<search-request-preference,search preference>> `_prefer_node` has
 been superseded by `_prefer_nodes`. By specifying a single node,
 `_prefer_nodes` provides the same functionality as `_prefer_node` but
 also supports specifying multiple nodes.
+
+==== Default similarity
+
+The default similarity has been changed to `BM25`.

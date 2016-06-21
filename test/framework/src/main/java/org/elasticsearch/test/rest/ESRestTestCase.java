@@ -382,11 +382,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         if (!testCandidate.getSetupSection().isEmpty()) {
-            logger.info("start setup test [{}]", testCandidate.getTestPath());
+            logger.debug("start setup test [{}]", testCandidate.getTestPath());
             for (DoSection doSection : testCandidate.getSetupSection().getDoSections()) {
                 doSection.execute(restTestExecutionContext);
             }
-            logger.info("end setup test [{}]", testCandidate.getTestPath());
+            logger.debug("end setup test [{}]", testCandidate.getTestPath());
         }
 
         restTestExecutionContext.clear();

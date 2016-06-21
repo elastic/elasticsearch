@@ -254,10 +254,19 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testBoostModeSettingWorks() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
+        Settings settings = Settings.builder().put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).build();
+        assertAcked(prepareCreate("test").setSettings(settings)
+            .addMapping(
                 "type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
-                        .endObject().startObject("loc").field("type", "geo_point").endObject().endObject().endObject().endObject()));
+                jsonBuilder()
+                    .startObject()
+                        .startObject("type1")
+                            .startObject("properties")
+                                .startObject("test").field("type", "text").endObject()
+                                .startObject("loc").field("type", "geo_point").endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()));
         ensureYellow();
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();

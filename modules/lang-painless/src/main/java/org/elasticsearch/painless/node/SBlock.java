@@ -19,12 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Represents a set of statements as a branch of control-flow.
@@ -37,6 +39,13 @@ public final class SBlock extends AStatement {
         super(location);
 
         this.statements = Collections.unmodifiableList(statements);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        for (AStatement statement : statements) {
+            statement.extractVariables(variables);
+        }
     }
 
     @Override
@@ -70,11 +79,11 @@ public final class SBlock extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         for (AStatement statement : statements) {
             statement.continu = continu;
             statement.brake = brake;
-            statement.write(writer);
+            statement.write(writer, globals);
         }
     }
 }

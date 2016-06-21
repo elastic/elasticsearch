@@ -140,14 +140,14 @@ class PainlessLexer extends Lexer {
   private boolean DIV_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 0:
-      return  false == SlashStrategy.slashIsRegex(_factory) ;
+      return  false == SlashStrategy.slashIsRegex(this) ;
     }
     return true;
   }
   private boolean REGEX_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 1:
-      return  SlashStrategy.slashIsRegex(_factory) ;
+      return  SlashStrategy.slashIsRegex(this) ;
     }
     return true;
   }

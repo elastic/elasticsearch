@@ -133,11 +133,6 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
         // Nothing to do here
     }
 
-    @Override
-    public void scriptRemoved(CompiledScript script) {
-        // Nothing to do here
-    }
-
     // permission checked before doing crazy reflection
     static final SpecialPermission SPECIAL_PERMISSION = new SpecialPermission();
 

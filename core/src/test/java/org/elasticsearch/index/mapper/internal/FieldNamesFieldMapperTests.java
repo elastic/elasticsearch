@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
@@ -234,7 +235,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testSeesFieldsFromPlugins() throws IOException {
         IndexService indexService = createIndex("test");
-        IndicesModule indicesModule = new IndicesModule();
+        IndicesModule indicesModule = new IndicesModule(new NamedWriteableRegistry());
         indicesModule.registerMetadataMapper("_dummy", new DummyMetadataFieldMapper.TypeParser());
         final MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         MapperService mapperService = new MapperService(indexService.getIndexSettings(), indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::newQueryShardContext);

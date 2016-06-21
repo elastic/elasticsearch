@@ -35,15 +35,12 @@ import java.util.Set;
 public class ElectMasterServiceTests extends ESTestCase {
 
     ElectMasterService electMasterService() {
-        return new ElectMasterService(Settings.EMPTY, Version.CURRENT);
+        return new ElectMasterService(Settings.EMPTY);
     }
 
     List<DiscoveryNode> generateRandomNodes() {
         int count = scaledRandomIntBetween(1, 100);
         ArrayList<DiscoveryNode> nodes = new ArrayList<>(count);
-
-
-
         for (int i = 0; i < count; i++) {
             Set<DiscoveryNode.Role> roles = new HashSet<>();
             if (randomBoolean()) {

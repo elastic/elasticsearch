@@ -77,25 +77,13 @@ public class IndexStoreTests extends ESTestCase {
                     assertTrue(type + " " + directory.toString(), directory instanceof SimpleFSDirectory);
                     break;
                 case FS:
+                case DEFAULT:
                     if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
                         assertTrue(directory.toString(), directory instanceof MMapDirectory);
                     } else if (Constants.WINDOWS) {
                         assertTrue(directory.toString(), directory instanceof SimpleFSDirectory);
                     } else {
                         assertTrue(directory.toString(), directory instanceof NIOFSDirectory);
-                    }
-                    break;
-                case DEFAULT:
-                   if (Constants.WINDOWS) {
-                        if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
-                            assertTrue(type + " " + directory.toString(), directory instanceof MMapDirectory);
-                        } else {
-                            assertTrue(type + " " + directory.toString(), directory instanceof SimpleFSDirectory);
-                        }
-                    }  else if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
-                        assertTrue(type + " " + directory.toString(), directory instanceof FileSwitchDirectory);
-                    } else  {
-                        assertTrue(type + " " + directory.toString(), directory instanceof NIOFSDirectory);
                     }
                     break;
                 default:

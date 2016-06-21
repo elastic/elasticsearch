@@ -26,8 +26,6 @@ grant {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
   permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.reflect";
-  // needed by GroovyScriptEngineService to close its classloader (why?)
-  permission java.lang.RuntimePermission "closeClassLoader";
   // Allow executing groovy scripts with codesource of /untrusted
   permission groovy.security.GroovyCodeSourcePermission "/untrusted";
 

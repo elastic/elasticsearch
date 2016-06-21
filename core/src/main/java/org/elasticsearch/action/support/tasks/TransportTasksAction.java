@@ -26,7 +26,6 @@ import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -67,7 +66,6 @@ public abstract class TransportTasksAction<
         TaskResponse extends Writeable
     > extends HandledTransportAction<TasksRequest, TasksResponse> {
 
-    protected final ClusterName clusterName;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
     protected final Supplier<TasksRequest> requestSupplier;
@@ -75,13 +73,12 @@ public abstract class TransportTasksAction<
 
     protected final String transportNodeAction;
 
-    protected TransportTasksAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
+    protected TransportTasksAction(Settings settings, String actionName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver, Supplier<TasksRequest> requestSupplier,
                                    Supplier<TasksResponse> responseSupplier,
                                    String nodeExecutor) {
         super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, requestSupplier);
-        this.clusterName = clusterName;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.transportNodeAction = actionName + "[n]";

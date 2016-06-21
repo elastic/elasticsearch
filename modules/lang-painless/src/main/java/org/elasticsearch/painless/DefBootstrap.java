@@ -27,6 +27,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.MutableCallSite;
+import java.lang.invoke.WrongMethodTypeException;
 
 /**
  * Painless invokedynamic bootstrap for the call site.
@@ -80,9 +81,18 @@ public final class DefBootstrap {
     
     /**
      * static bootstrap parameter indicating the binary operator is part of compound assignment (e.g. +=).
-     * 
+     * <p>
+     * may require {@link MethodHandles#explicitCastArguments}, or a dynamic cast
+     * to cast back to the receiver's type, depending on types seen.
      */
     public static final int OPERATOR_COMPOUND_ASSIGNMENT = 1 << 1;
+    
+    /**
+     * static bootstrap parameter indicating an explicit cast to the return type.
+     * <p>
+     * may require {@link MethodHandles#explicitCastArguments}, depending on types seen.
+     */
+    public static final int OPERATOR_EXPLICIT_CAST = 1 << 2;
 
     /**
      * CallSite that implements the polymorphic inlining cache (PIC).
@@ -97,7 +107,7 @@ public final class DefBootstrap {
         private final Object[] args;
         int depth; // pkg-protected for testing
 
-        PIC(Lookup lookup, String name, MethodType type, int flavor, Object[] args) {
+        PIC(Lookup lookup, String name, MethodType type, int initialDepth, int flavor, Object[] args) {
             super(type);
             if (type.parameterType(0) != Object.class) {
                 throw new BootstrapMethodError("The receiver type (1st arg) of invokedynamic descriptor must be Object.");
@@ -106,6 +116,7 @@ public final class DefBootstrap {
             this.name = name;
             this.flavor = flavor;
             this.args = args;
+            this.depth = initialDepth;
 
             MethodHandle fallback = FALLBACK.bindTo(this)
               .asCollector(Object[].class, type.parameterCount())
@@ -226,11 +237,14 @@ public final class DefBootstrap {
         private final int flavor;
         private final int flags;
 
-        MIC(String name, MethodType type, int flavor, int flags) {
+        MIC(String name, MethodType type, int initialDepth, int flavor, int flags) {
             super(type);
             this.name = name;
             this.flavor = flavor;
             this.flags = flags;
+            if (initialDepth > 0) {
+                initialized = true;
+            }
             
             MethodHandle fallback = FALLBACK.bindTo(this)
               .asCollector(Object[].class, type.parameterCount())
@@ -248,7 +262,9 @@ public final class DefBootstrap {
                 case SHIFT_OPERATOR:
                     // shifts are treated as unary, as java allows long arguments without a cast (but bits are ignored)
                     MethodHandle unary = DefMath.lookupUnary(args[0].getClass(), name);
-                    if ((flags & OPERATOR_COMPOUND_ASSIGNMENT) != 0) {
+                    if ((flags & OPERATOR_EXPLICIT_CAST) != 0) {
+                        unary = DefMath.cast(type().returnType(), unary);
+                    } else if ((flags & OPERATOR_COMPOUND_ASSIGNMENT) != 0) {
                         unary = DefMath.cast(args[0].getClass(), unary);
                     }
                     return unary;
@@ -257,7 +273,9 @@ public final class DefBootstrap {
                         return lookupGeneric(); // can handle nulls, casts if supported
                     } else {
                         MethodHandle binary = DefMath.lookupBinary(args[0].getClass(), args[1].getClass(), name);
-                        if ((flags & OPERATOR_COMPOUND_ASSIGNMENT) != 0) {
+                        if ((flags & OPERATOR_EXPLICIT_CAST) != 0) {
+                            binary = DefMath.cast(type().returnType(), binary);
+                        } else if ((flags & OPERATOR_COMPOUND_ASSIGNMENT) != 0) {
                             binary = DefMath.cast(args[0].getClass(), binary);
                         }
                         return binary;
@@ -267,11 +285,15 @@ public final class DefBootstrap {
         }
         
         private MethodHandle lookupGeneric() {
-            if ((flags & OPERATOR_COMPOUND_ASSIGNMENT) != 0) {
-                return DefMath.lookupGenericWithCast(name);
-            } else {
-                return DefMath.lookupGeneric(name);
+            MethodHandle target = DefMath.lookupGeneric(name);
+            if ((flags & OPERATOR_EXPLICIT_CAST) != 0) {
+                // static cast to the return type
+                target = DefMath.dynamicCast(target, type().returnType());
+            } else if ((flags & OPERATOR_COMPOUND_ASSIGNMENT) != 0) {
+                // dynamic cast to the receiver's type
+                target = DefMath.dynamicCast(target);
             }
+            return target;
         }
         
         /**
@@ -288,7 +310,15 @@ public final class DefBootstrap {
             }
             
             final MethodType type = type();
-            final MethodHandle target = lookup(args).asType(type);
+            MethodHandle target = lookup(args);
+            // for math operators: WrongMethodType can be confusing. convert into a ClassCastException if they screw up.
+            try {
+                target = target.asType(type);
+            } catch (WrongMethodTypeException e) {
+                Exception exc = new ClassCastException("Cannot cast from: " + target.type().returnType() + " to " + type.returnType());
+                exc.initCause(e);
+                throw exc;
+            }
 
             final MethodHandle test;
             if (flavor == BINARY_OPERATOR || flavor == SHIFT_OPERATOR) {
@@ -384,12 +414,16 @@ public final class DefBootstrap {
     /**
      * invokeDynamic bootstrap method
      * <p>
-     * In addition to ordinary parameters, we also take a static parameter {@code flavor} which
-     * tells us what type of dynamic call it is (and which part of whitelist to look at).
+     * In addition to ordinary parameters, we also take some static parameters:
+     * <ul>
+     *   <li>{@code initialDepth}: initial call site depth. this is used to exercise megamorphic fallback.
+     *   <li>{@code flavor}: type of dynamic call it is (and which part of whitelist to look at).
+     *   <li>{@code args}: flavor-specific args.
+     * </ul>
      * <p>
      * see https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html#jvms-6.5.invokedynamic
      */
-    public static CallSite bootstrap(Lookup lookup, String name, MethodType type, int flavor, Object... args) {
+    public static CallSite bootstrap(Lookup lookup, String name, MethodType type, int initialDepth, int flavor, Object... args) {
         // validate arguments
         switch(flavor) {
             // "function-call" like things get a polymorphic cache
@@ -397,18 +431,18 @@ public final class DefBootstrap {
                 if (args.length == 0) {
                     throw new BootstrapMethodError("Invalid number of parameters for method call");
                 }
-                if (args[0] instanceof Long == false) {
+                if (args[0] instanceof String == false) {
                     throw new BootstrapMethodError("Illegal parameter for method call: " + args[0]);
                 }
-                long recipe = (Long) args[0];
-                int numLambdas = Long.bitCount(recipe);
+                String recipe = (String) args[0];
+                int numLambdas = recipe.length();
                 if (numLambdas > type.parameterCount()) {
                     throw new BootstrapMethodError("Illegal recipe for method call: too many bits");
                 }
                 if (args.length != numLambdas + 1) {
                     throw new BootstrapMethodError("Illegal number of parameters: expected " + numLambdas + " references");
                 }
-                return new PIC(lookup, name, type, flavor, args);
+                return new PIC(lookup, name, type, initialDepth, flavor, args);
             case LOAD:
             case STORE:
             case ARRAY_LOAD:
@@ -417,7 +451,7 @@ public final class DefBootstrap {
                 if (args.length > 0) {
                     throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
                 }
-                return new PIC(lookup, name, type, flavor, args);
+                return new PIC(lookup, name, type, initialDepth, flavor, args);
             case REFERENCE:
                 if (args.length != 1) {
                     throw new BootstrapMethodError("Invalid number of parameters for reference call");
@@ -425,7 +459,7 @@ public final class DefBootstrap {
                 if (args[0] instanceof String == false) {
                     throw new BootstrapMethodError("Illegal parameter for reference call: " + args[0]);
                 }
-                return new PIC(lookup, name, type, flavor, args);
+                return new PIC(lookup, name, type, initialDepth, flavor, args);
 
             // operators get monomorphic cache, with a generic impl for a fallback
             case UNARY_OPERATOR:
@@ -442,11 +476,11 @@ public final class DefBootstrap {
                     // we just don't need it anywhere else.
                     throw new BootstrapMethodError("This parameter is only supported for BINARY_OPERATORs");
                 }
-                if ((flags & OPERATOR_COMPOUND_ASSIGNMENT) != 0 && flavor != BINARY_OPERATOR) {
+                if ((flags & OPERATOR_COMPOUND_ASSIGNMENT) != 0 && flavor != BINARY_OPERATOR && flavor != SHIFT_OPERATOR) {
                     // we just don't need it anywhere else.
-                    throw new BootstrapMethodError("This parameter is only supported for BINARY_OPERATORs");
+                    throw new BootstrapMethodError("This parameter is only supported for BINARY/SHIFT_OPERATORs");
                 }
-                return new MIC(name, type, flavor, flags);
+                return new MIC(name, type, initialDepth, flavor, flags);
             default:
                 throw new BootstrapMethodError("Illegal static bootstrap parameter for flavor: " + flavor);
         }

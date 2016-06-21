@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -41,9 +40,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
-import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -60,7 +57,10 @@ public class NativeScriptTests extends ESTestCase {
         SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, Collections.emptyList());
         final ThreadPool threadPool = new ThreadPool(settings);
         Injector injector = new ModulesBuilder().add(
-                new EnvironmentModule(new Environment(settings), threadPool),
+                (b) -> {
+                    b.bind(Environment.class).toInstance(new Environment(settings));
+                    b.bind(ThreadPool.class).toInstance(threadPool);
+                },
                 new SettingsModule(settings),
                 scriptModule).createInjector();
 

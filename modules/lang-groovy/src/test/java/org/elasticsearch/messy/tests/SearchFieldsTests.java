@@ -22,6 +22,7 @@ package org.elasticsearch.messy.tests;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -69,6 +70,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -367,6 +369,24 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
         List<?> sObj2Arr3 = response.getHits().getAt(0).field("s_arr3").values();
         assertThat(((Map<?, ?>) sObj2Arr3.get(0)).get("arr3_field1").toString(), equalTo("arr3_value1"));
+    }
+
+    public void testScriptFieldsForNullReturn() throws Exception {
+        client().prepareIndex("test", "type1", "1")
+            .setSource("foo", "bar")
+            .setRefreshPolicy("true").get();
+
+        SearchResponse response = client().prepareSearch().setQuery(matchAllQuery())
+            .addScriptField("test_script_1", new Script("return null"))
+            .get();
+
+        assertNoFailures(response);
+
+        SearchHitField fieldObj = response.getHits().getAt(0).field("test_script_1");
+        assertThat(fieldObj, notNullValue());
+        List<?> fieldValues = fieldObj.values();
+        assertThat(fieldValues, hasSize(1));
+        assertThat(fieldValues.get(0), nullValue());
     }
 
     public void testPartialFields() throws Exception {

@@ -22,6 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.FunctionRef;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Locals;
@@ -29,36 +30,42 @@ import org.elasticsearch.painless.Locals.Variable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 import java.lang.invoke.LambdaMetafactory;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a capturing function reference.
  */
-public class ECapturingFunctionRef extends AExpression {
-    public final String type;
+public class ECapturingFunctionRef extends AExpression implements ILambda {
+    public final String variable;
     public final String call;
     
     private FunctionRef ref;
     Variable captured;
     String defPointer;
 
-    public ECapturingFunctionRef(Location location, String type, String call) {
+    public ECapturingFunctionRef(Location location, String variable, String call) {
         super(location);
 
-        this.type = type;
-        this.call = call;
+        this.variable = Objects.requireNonNull(variable);
+        this.call = Objects.requireNonNull(call);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        variables.add(variable);
     }
 
     @Override
     void analyze(Locals variables) {
-        captured = variables.getVariable(location, type);
+        captured = variables.getVariable(location, variable);
         if (expected == null) {
             if (captured.type.sort == Definition.Sort.DEF) {
                 // dynamic implementation
-                defPointer = "D" + type + "." + call + ",1";
+                defPointer = "D" + variable + "." + call + ",1";
             } else {
                 // typed implementation
                 defPointer = "S" + captured.type.name + "." + call + ",1";
@@ -79,21 +86,21 @@ public class ECapturingFunctionRef extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
         if (defPointer != null) {
             // dynamic interface: push captured parameter on stack
             // TODO: don't do this: its just to cutover :)
             writer.push((String)null);
-            writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.slot);
+            writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.getSlot());
         } else if (ref == null) {
             // typed interface, dynamic implementation
-            writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.slot);
-            String descriptor = Type.getMethodType(expected.type, captured.type.type).getDescriptor();
-            writer.invokeDynamic(call, descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.REFERENCE, expected.name);
+            writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.getSlot());
+            Type methodType = Type.getMethodType(expected.type, captured.type.type);
+            writer.invokeDefCall(call, methodType, DefBootstrap.REFERENCE, expected.name);
         } else {
             // typed interface, typed implementation
-            writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.slot);
+            writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.getSlot());
             // convert MethodTypes to asm Type for the constant pool.
             String invokedType = ref.invokedType.toMethodDescriptorString();
             Type samMethodType = Type.getMethodType(ref.samMethodType.toMethodDescriptorString());
@@ -118,5 +125,15 @@ public class ECapturingFunctionRef extends AExpression {
                                      0);
             }
         }
+    }
+    
+    @Override
+    public String getPointer() {
+        return defPointer;
+    }
+
+    @Override
+    public Type[] getCaptures() {
+        return new Type[] { captured.type.type };
     }
 }

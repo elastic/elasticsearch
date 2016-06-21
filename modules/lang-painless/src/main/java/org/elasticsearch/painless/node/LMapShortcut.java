@@ -20,9 +20,14 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -38,7 +43,12 @@ final class LMapShortcut extends ALink {
     LMapShortcut(Location location, AExpression index) {
         super(location, 2);
 
-        this.index = index;
+        this.index = Objects.requireNonNull(index);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        index.extractVariables(variables);
     }
 
     @Override
@@ -73,12 +83,12 @@ final class LMapShortcut extends ALink {
     }
 
     @Override
-    void write(MethodWriter writer) {
-        index.write(writer);
+    void write(MethodWriter writer, Globals globals) {
+        index.write(writer, globals);
     }
 
     @Override
-    void load(MethodWriter writer) {
+    void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
@@ -93,7 +103,7 @@ final class LMapShortcut extends ALink {
     }
 
     @Override
-    void store(MethodWriter writer) {
+    void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {

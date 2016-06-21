@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
@@ -28,9 +29,11 @@ import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
-import org.elasticsearch.painless.MethodWriter;
 
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
+import java.util.Objects;
+import java.util.Set;
+
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a unary math expression.
@@ -40,16 +43,23 @@ public final class EUnary extends AExpression {
     final Operation operation;
     AExpression child;
     Type promote;
+    boolean originallyExplicit = false; // record whether there was originally an explicit cast
 
     public EUnary(Location location, Operation operation, AExpression child) {
         super(location);
 
-        this.operation = operation;
-        this.child = child;
+        this.operation = Objects.requireNonNull(operation);
+        this.child = Objects.requireNonNull(child);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        child.extractVariables(variables);
     }
 
     @Override
     void analyze(Locals locals) {
+        originallyExplicit = explicit;
         if (operation == Operation.NOT) {
             analyzeNot(locals);
         } else if (operation == Operation.BWNOT) {
@@ -177,7 +187,7 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         if (operation == Operation.NOT) {
@@ -186,7 +196,7 @@ public final class EUnary extends AExpression {
                 Label end = new Label();
 
                 child.fals = localfals;
-                child.write(writer);
+                child.write(writer, globals);
 
                 writer.push(false);
                 writer.goTo(end);
@@ -196,16 +206,22 @@ public final class EUnary extends AExpression {
             } else {
                 child.tru = fals;
                 child.fals = tru;
-                child.write(writer);
+                child.write(writer, globals);
             }
         } else {
             Sort sort = promote.sort;
-            child.write(writer);
+            child.write(writer, globals);
 
+            // def calls adopt the wanted return value. if there was a narrowing cast,
+            // we need to flag that so that its done at runtime.
+            int defFlags = 0;
+            if (originallyExplicit) {
+                defFlags |= DefBootstrap.OPERATOR_EXPLICIT_CAST;
+            }
             if (operation == Operation.BWNOT) {
                 if (sort == Sort.DEF) {
                     org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actual.type, child.actual.type);
-                    writer.invokeDynamic("not", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.UNARY_OPERATOR, 0);
+                    writer.invokeDefCall("not", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 } else {
                     if (sort == Sort.INT) {
                         writer.push(-1);
@@ -220,14 +236,14 @@ public final class EUnary extends AExpression {
             } else if (operation == Operation.SUB) {
                 if (sort == Sort.DEF) {
                     org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actual.type, child.actual.type);
-                    writer.invokeDynamic("neg", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.UNARY_OPERATOR, 0);
+                    writer.invokeDefCall("neg", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 } else {
                     writer.math(MethodWriter.NEG, actual.type);
                 }
             } else if (operation == Operation.ADD) {
                 if (sort == Sort.DEF) {
                     org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actual.type, child.actual.type);
-                    writer.invokeDynamic("plus", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.UNARY_OPERATOR, 0);
+                    writer.invokeDefCall("plus", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 } 
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));

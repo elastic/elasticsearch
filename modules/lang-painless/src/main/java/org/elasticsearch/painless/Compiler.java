@@ -109,7 +109,7 @@ final class Compiler {
             java.lang.reflect.Constructor<? extends Executable> constructor =
                     clazz.getConstructor(String.class, String.class, BitSet.class);
 
-            return constructor.newInstance(name, source, root.getExpressions());
+            return constructor.newInstance(name, source, root.getStatements());
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException("An internal error occurred attempting to define the script [" + name + "].", exception);
         }

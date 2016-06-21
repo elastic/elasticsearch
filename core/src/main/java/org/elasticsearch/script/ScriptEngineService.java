@@ -23,7 +23,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.Closeable;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -48,13 +47,6 @@ public interface ScriptEngineService extends Closeable {
     ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars);
 
     SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars);
-
-    /**
-     * Handler method called when a script is removed from the Guava cache.
-     *
-     * The passed script may be null if it has already been garbage collected.
-     * */
-    void scriptRemoved(@Nullable CompiledScript script);
 
     /**
      * Returns <code>true</code> if this scripting engine can safely accept inline scripts by default. The default is <code>false</code>

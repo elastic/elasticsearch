@@ -27,9 +27,8 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClientModule;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
@@ -38,6 +37,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
@@ -67,9 +67,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeEnvironmentModule;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
@@ -89,7 +87,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
@@ -104,9 +101,7 @@ import org.elasticsearch.tasks.TaskPersistenceService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.tribe.TribeModule;
 import org.elasticsearch.tribe.TribeService;
-import org.elasticsearch.watcher.ResourceWatcherModule;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.BufferedWriter;
@@ -174,17 +169,17 @@ public class Node implements Closeable {
      * @param preparedSettings Base settings to configure the node with
      */
     public Node(Settings preparedSettings) {
-        this(InternalSettingsPreparer.prepareEnvironment(preparedSettings, null), Version.CURRENT, Collections.<Class<? extends Plugin>>emptyList());
+        this(InternalSettingsPreparer.prepareEnvironment(preparedSettings, null), Collections.<Class<? extends Plugin>>emptyList());
     }
 
-    protected Node(Environment tmpEnv, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
+    protected Node(Environment tmpEnv, Collection<Class<? extends Plugin>> classpathPlugins) {
         Settings tmpSettings = Settings.builder().put(tmpEnv.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
 
         tmpSettings = TribeService.processSettings(tmpSettings);
         ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(tmpSettings));
-        final String displayVersion = version + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
+        final String displayVersion = Version.CURRENT + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
         final JvmInfo jvmInfo = JvmInfo.jvmInfo();
         logger.info(
             "version[{}], pid[{}], build[{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
@@ -242,39 +237,50 @@ public class Node implements Closeable {
             } catch (IOException ex) {
                 throw new IllegalStateException("Failed to created node environment", ex);
             }
+            final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
+            resourcesToClose.add(resourceWatcherService);
             final NetworkService networkService = new NetworkService(settings);
+            final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
+            resourcesToClose.add(clusterService);
+            final TribeService tribeService = new TribeService(settings, clusterService);
+            resourcesToClose.add(tribeService);
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             ModulesBuilder modules = new ModulesBuilder();
-            modules.add(new Version.Module(version));
             // plugin modules must be added here, before others or we can get crazy injection errors...
             for (Module pluginModule : pluginsService.nodeModules()) {
                 modules.add(pluginModule);
             }
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
-            modules.add(new PluginsModule(pluginsService));
-            modules.add(new EnvironmentModule(environment, threadPool));
             modules.add(new NodeModule(this, monitorService));
             modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
             modules.add(scriptModule);
-            modules.add(new NodeEnvironmentModule(nodeEnvironment));
-            modules.add(new ClusterNameModule(this.settings));
             modules.add(new DiscoveryModule(this.settings));
-            modules.add(new ClusterModule(this.settings));
-            modules.add(new IndicesModule());
+            modules.add(new ClusterModule(this.settings, clusterService));
+            modules.add(new IndicesModule(namedWriteableRegistry));
             modules.add(new SearchModule(settings, namedWriteableRegistry));
             modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false));
-            modules.add(new GatewayModule(settings));
-            modules.add(new NodeClientModule());
-            modules.add(new ResourceWatcherModule());
+            modules.add(new GatewayModule());
             modules.add(new RepositoriesModule());
-            modules.add(new TribeModule());
             modules.add(new AnalysisModule(environment));
             pluginsService.processModules(modules);
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
+            BigArrays bigArrays = createBigArrays(settings, circuitBreakerService);
+            resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
-            modules.add(b -> b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService));
+            modules.add(b -> {
+                    b.bind(PluginsService.class).toInstance(pluginsService);
+                    b.bind(Client.class).to(NodeClient.class).asEagerSingleton();
+                    b.bind(Environment.class).toInstance(environment);
+                    b.bind(ThreadPool.class).toInstance(threadPool);
+                    b.bind(NodeEnvironment.class).toInstance(nodeEnvironment);
+                    b.bind(TribeService.class).toInstance(tribeService);
+                    b.bind(ResourceWatcherService.class).toInstance(resourceWatcherService);
+                    b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
+                    b.bind(BigArrays.class).toInstance(bigArrays);
+                }
+            );
             injector = modules.createInjector();
             client = injector.getInstance(Client.class);
             success = true;
@@ -321,7 +327,7 @@ public class Node implements Closeable {
         ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
         logger.info("starting ...");
         // hack around dependency injection problem (for now...)
-        injector.getInstance(Discovery.class).setRoutingService(injector.getInstance(RoutingService.class));
+        injector.getInstance(Discovery.class).setAllocationService(injector.getInstance(AllocationService.class));
         for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
             injector.getInstance(plugin).start();
         }
@@ -622,5 +628,13 @@ public class Node implements Closeable {
         } else {
             throw new IllegalArgumentException("Unknown circuit breaker type [" + type + "]");
         }
+    }
+
+    /**
+     * Creates a new {@link BigArrays} instance used for this node.
+     * This method can be overwritten by subclasses to change their {@link BigArrays} implementation for instance for testing
+     */
+    BigArrays createBigArrays(Settings settings, CircuitBreakerService circuitBreakerService) {
+        return new BigArrays(settings, circuitBreakerService);
     }
 }

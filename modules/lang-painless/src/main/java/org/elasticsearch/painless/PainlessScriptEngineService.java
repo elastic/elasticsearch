@@ -127,6 +127,12 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
             if (value != null) {
                 compilerSettings.setPicky(Boolean.parseBoolean(value));
             }
+            
+            value = copy.remove(CompilerSettings.INITIAL_CALL_SITE_DEPTH);
+            
+            if (value != null) {
+                compilerSettings.setInitialCallSiteDepth(Integer.parseInt(value));
+            }
 
             if (!copy.isEmpty()) {
                 throw new IllegalArgumentException("Unrecognized compile-time parameter(s): " + copy);
@@ -200,15 +206,6 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
                 return compiledScript.compiled() instanceof NeedsScore;
             }
         };
-    }
-
-    /**
-     * Action taken when a script is removed from the cache.
-     * @param script The removed script.
-     */
-    @Override
-    public void scriptRemoved(final CompiledScript script) {
-        // Nothing to do.
     }
 
     /**

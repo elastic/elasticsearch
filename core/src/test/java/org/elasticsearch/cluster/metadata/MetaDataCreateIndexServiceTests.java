@@ -61,7 +61,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         routingTableBuilder.addAsNew(metaData.index(name));
 
         RoutingTable routingTable = routingTableBuilder.build();
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+            .getDefault(Settings.EMPTY))
             .metaData(metaData).routingTable(routingTable).blocks(ClusterBlocks.builder().addBlocks(indexMetaData)).build();
         return clusterState;
     }
@@ -200,7 +201,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
     private void validateIndexName(String indexName, String errorMessage) {
         InvalidIndexNameException e = expectThrows(InvalidIndexNameException.class,
-            () -> getCreateIndexService().validateIndexName(indexName, ClusterState.builder(ClusterName.DEFAULT).build()));
+            () -> getCreateIndexService().validateIndexName(indexName, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
+                .getDefault(Settings.EMPTY)).build()));
         assertThat(e.getMessage(), endsWith(errorMessage));
     }
 
@@ -210,7 +212,6 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             null,
             null,
             null,
-            Version.CURRENT,
             null,
             new HashSet<>(),
             null,

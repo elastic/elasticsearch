@@ -78,11 +78,11 @@ public class ReplicationOperation<
 
     private final List<ReplicationResponse.ShardInfo.Failure> shardReplicaFailures = Collections.synchronizedList(new ArrayList<>());
 
-    ReplicationOperation(Request request, Primary<Request, ReplicaRequest, PrimaryResultT> primary,
-                         ActionListener<PrimaryResultT> listener,
-                         boolean executeOnReplicas, boolean checkWriteConsistency,
-                         Replicas<ReplicaRequest> replicas,
-                         Supplier<ClusterState> clusterStateSupplier, ESLogger logger, String opType) {
+    public ReplicationOperation(Request request, Primary<Request, ReplicaRequest, PrimaryResultT> primary,
+                                ActionListener<PrimaryResultT> listener,
+                                boolean executeOnReplicas, boolean checkWriteConsistency,
+                                Replicas<ReplicaRequest> replicas,
+                                Supplier<ClusterState> clusterStateSupplier, ESLogger logger, String opType) {
         this.checkWriteConsistency = checkWriteConsistency;
         this.executeOnReplicas = executeOnReplicas;
         this.replicasProxy = replicas;
@@ -94,7 +94,7 @@ public class ReplicationOperation<
         this.opType = opType;
     }
 
-    void execute() throws Exception {
+    public void execute() throws Exception {
         final String writeConsistencyFailure = checkWriteConsistency ? checkWriteConsistency() : null;
         final ShardRouting primaryRouting = primary.routingEntry();
         final ShardId primaryId = primaryRouting.shardId();
@@ -294,7 +294,7 @@ public class ReplicationOperation<
     }
 
 
-    interface Primary<
+    public interface Primary<
                 Request extends ReplicationRequest<Request>,
                 ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
                 PrimaryResultT extends PrimaryResult<ReplicaRequest>
@@ -322,7 +322,7 @@ public class ReplicationOperation<
 
     }
 
-    interface Replicas<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> {
+    public interface Replicas<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> {
 
         /**
          * performs the the given request on the specified replica
@@ -366,7 +366,7 @@ public class ReplicationOperation<
         }
     }
 
-    interface PrimaryResult<R extends ReplicationRequest<R>> {
+    public interface PrimaryResult<R extends ReplicationRequest<R>> {
 
         R replicaRequest();
 

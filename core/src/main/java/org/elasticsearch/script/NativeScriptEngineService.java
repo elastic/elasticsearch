@@ -91,11 +91,6 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public void scriptRemoved(CompiledScript script) {
-        // Nothing to do here
-    }
-
-    @Override
     public boolean isInlineScriptEnabled() {
         return true;
     }

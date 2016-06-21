@@ -32,7 +32,7 @@ org.apache.lucene.index.IndexReader#getCombinedCoreAndDeletesKey()
 @defaultMessage Soon to be removed
 org.apache.lucene.document.FieldType#numericType()
 
-@defaultMessage Don't use MethodHandles in slow ways, dont be lenient in tests.
-# unfortunately, invoke() cannot be banned, because forbidden apis does not support signature polymorphic methods
+@defaultMessage Don't use MethodHandles in slow ways, don't be lenient in tests.
+java.lang.invoke.MethodHandle#invoke(java.lang.Object[])
 java.lang.invoke.MethodHandle#invokeWithArguments(java.lang.Object[])
 java.lang.invoke.MethodHandle#invokeWithArguments(java.util.List)

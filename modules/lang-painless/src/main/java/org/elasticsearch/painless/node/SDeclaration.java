@@ -20,11 +20,16 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.objectweb.asm.Opcodes;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -41,9 +46,17 @@ public final class SDeclaration extends AStatement {
     public SDeclaration(Location location, String type, String name, AExpression expression) {
         super(location);
 
-        this.type = type;
-        this.name = name;
+        this.type = Objects.requireNonNull(type);
+        this.name = Objects.requireNonNull(name);
         this.expression = expression;
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        variables.add(name);
+        if (expression != null) {
+            expression.extractVariables(variables);
+        }
     }
 
     @Override
@@ -62,11 +75,11 @@ public final class SDeclaration extends AStatement {
             expression = expression.cast(locals);
         }
 
-        variable = locals.addVariable(location, type, name, false, false);
+        variable = locals.addVariable(location, type, name, false);
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeStatementOffset(location);
 
         if (expression == null) {
@@ -83,9 +96,9 @@ public final class SDeclaration extends AStatement {
                 default:     writer.visitInsn(Opcodes.ACONST_NULL);
             }
         } else {
-            expression.write(writer);
+            expression.write(writer, globals);
         }
 
-        writer.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.slot);
+        writer.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.getSlot());
     }
 }

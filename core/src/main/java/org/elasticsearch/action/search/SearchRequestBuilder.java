@@ -29,7 +29,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -387,7 +387,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Adds an aggregation to the search operation.
      */
-    public SearchRequestBuilder addAggregation(PipelineAggregatorBuilder aggregation) {
+    public SearchRequestBuilder addAggregation(PipelineAggregationBuilder aggregation) {
         sourceBuilder().aggregation(aggregation);
         return this;
     }

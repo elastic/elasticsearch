@@ -20,11 +20,16 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -39,9 +44,16 @@ public final class EConditional extends AExpression {
     public EConditional(Location location, AExpression condition, AExpression left, AExpression right) {
         super(location);
 
-        this.condition = condition;
-        this.left = left;
-        this.right = right;
+        this.condition = Objects.requireNonNull(condition);
+        this.left = Objects.requireNonNull(left);
+        this.right = Objects.requireNonNull(right);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        condition.extractVariables(variables);
+        left.extractVariables(variables);
+        right.extractVariables(variables);
     }
 
     @Override
@@ -78,7 +90,7 @@ public final class EConditional extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         Label localfals = new Label();
@@ -88,11 +100,11 @@ public final class EConditional extends AExpression {
         left.tru = right.tru = tru;
         left.fals = right.fals = fals;
 
-        condition.write(writer);
-        left.write(writer);
+        condition.write(writer, globals);
+        left.write(writer, globals);
         writer.goTo(end);
         writer.mark(localfals);
-        right.write(writer);
+        right.write(writer, globals);
         writer.mark(end);
     }
 }

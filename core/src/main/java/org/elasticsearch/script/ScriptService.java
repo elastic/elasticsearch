@@ -507,16 +507,10 @@ public class ScriptService extends AbstractComponent implements Closeable {
     private class ScriptCacheRemovalListener implements RemovalListener<CacheKey, CompiledScript> {
         @Override
         public void onRemoval(RemovalNotification<CacheKey, CompiledScript> notification) {
-            scriptMetrics.onCacheEviction();
-            for (ScriptEngineService service : scriptEngines) {
-                try {
-                    service.scriptRemoved(notification.getValue());
-                } catch (Exception e) {
-                    logger.warn("exception calling script removal listener for script service", e);
-                    // We don't rethrow because Guava would just catch the
-                    // exception and log it, which we have already done
-                }
+            if (logger.isDebugEnabled()) {
+                logger.debug("removed {} from cache, reason: {}", notification.getValue(), notification.getRemovalReason());
             }
+            scriptMetrics.onCacheEviction();
         }
     }
 

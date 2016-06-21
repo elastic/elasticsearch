@@ -38,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -109,8 +108,12 @@ public class AggregatorParsingTests extends ESTestCase {
         List<Setting<?>> scriptSettings = scriptModule.getSettings();
         scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
         SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, Collections.emptyList());
-        injector = new ModulesBuilder().add(new EnvironmentModule(new Environment(settings), threadPool), settingsModule
-            , scriptModule, new IndicesModule() {
+        injector = new ModulesBuilder().add(
+            (b) -> {
+                b.bind(Environment.class).toInstance(new Environment(settings));
+                b.bind(ThreadPool.class).toInstance(threadPool);
+            }, settingsModule
+            , scriptModule, new IndicesModule(namedWriteableRegistry) {
 
                     @Override
                     protected void configure() {

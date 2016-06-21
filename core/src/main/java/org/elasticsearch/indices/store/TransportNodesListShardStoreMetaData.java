@@ -76,11 +76,11 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     private final NodeEnvironment nodeEnv;
 
     @Inject
-    public TransportNodesListShardStoreMetaData(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+    public TransportNodesListShardStoreMetaData(Settings settings, ThreadPool threadPool,
                                                 ClusterService clusterService, TransportService transportService,
                                                 IndicesService indicesService, NodeEnvironment nodeEnv, ActionFilters actionFilters,
                                                 IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
               Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STORE, NodeStoreFilesMetaData.class);
         this.indicesService = indicesService;
         this.nodeEnv = nodeEnv;
@@ -111,7 +111,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     @Override
     protected NodesStoreFilesMetaData newResponse(Request request,
                                                   List<NodeStoreFilesMetaData> responses, List<FailedNodeException> failures) {
-        return new NodesStoreFilesMetaData(clusterName, responses, failures);
+        return new NodesStoreFilesMetaData(clusterService.getClusterName(), responses, failures);
     }
 
     @Override

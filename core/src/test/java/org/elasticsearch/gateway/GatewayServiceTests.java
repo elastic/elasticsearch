@@ -33,9 +33,9 @@ import java.io.IOException;
 public class GatewayServiceTests extends ESTestCase {
 
     private GatewayService createService(Settings.Builder settings) {
-        ClusterService clusterService = new ClusterService(Settings.EMPTY, null,
+        ClusterService clusterService = new ClusterService(Settings.builder().put("cluster.name", "GatewayServiceTests").build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                null, new ClusterName("ClusterServiceTests"));
+                null);
         return new GatewayService(Settings.builder()
                 .put("http.enabled", "false")
                 .put("discovery.type", "local")

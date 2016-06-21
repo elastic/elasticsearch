@@ -24,9 +24,9 @@ import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.ingest.core.AbstractProcessor;
-import org.elasticsearch.ingest.core.AbstractProcessorFactory;
-import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.AbstractProcessor;
+import org.elasticsearch.ingest.AbstractProcessorFactory;
+import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,10 +37,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.ingest.core.ConfigurationUtils.newConfigurationException;
-import static org.elasticsearch.ingest.core.ConfigurationUtils.readIntProperty;
-import static org.elasticsearch.ingest.core.ConfigurationUtils.readOptionalList;
-import static org.elasticsearch.ingest.core.ConfigurationUtils.readStringProperty;
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.elasticsearch.ingest.ConfigurationUtils.readIntProperty;
+import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
+import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public final class AttachmentProcessor extends AbstractProcessor {
 

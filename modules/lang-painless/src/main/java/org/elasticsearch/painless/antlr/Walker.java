@@ -29,11 +29,12 @@ import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Locals.ExecuteReserved;
-import org.elasticsearch.painless.Locals.FunctionReserved;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.node.SFunction.Reserved;
+import org.elasticsearch.painless.node.SSource.MainMethodReserved;
+import org.elasticsearch.painless.node.SFunction.FunctionReserved;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Locals.Reserved;
 import org.elasticsearch.painless.antlr.PainlessParser.AfterthoughtContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentsContext;
@@ -114,6 +115,7 @@ import org.elasticsearch.painless.node.EConditional;
 import org.elasticsearch.painless.node.EDecimal;
 import org.elasticsearch.painless.node.EExplicit;
 import org.elasticsearch.painless.node.EFunctionRef;
+import org.elasticsearch.painless.node.ELambda;
 import org.elasticsearch.painless.node.ENull;
 import org.elasticsearch.painless.node.ENumeric;
 import org.elasticsearch.painless.node.EUnary;
@@ -151,6 +153,7 @@ import org.objectweb.asm.util.Printer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Deque;
 import java.util.List;
 
@@ -170,7 +173,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
     private final String sourceText;
 
     private final Deque<Reserved> reserved = new ArrayDeque<>();
-    private final List<SFunction> synthetic = new ArrayList<>();
+    private final Globals globals;
     private int syntheticCounter = 0;
 
     private Walker(String sourceName, String sourceText, CompilerSettings settings, Printer debugStream) {
@@ -178,12 +181,13 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         this.settings = settings;
         this.sourceName = Location.computeSourceName(sourceName, sourceText);
         this.sourceText = sourceText;
+        this.globals = new Globals(new BitSet(sourceText.length()));
         this.source = (SSource)visit(buildAntlrTree(sourceText));
     }
 
     private SourceContext buildAntlrTree(String source) {
         ANTLRInputStream stream = new ANTLRInputStream(source);
-        PainlessLexer lexer = new ErrorHandlingLexer(stream, sourceName);
+        PainlessLexer lexer = new EnhancedPainlessLexer(stream, sourceName);
         PainlessParser parser = new PainlessParser(new CommonTokenStream(lexer));
         ParserErrorStrategy strategy = new ParserErrorStrategy(sourceName);
 
@@ -223,7 +227,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
     @Override
     public Object visitSource(SourceContext ctx) {
-        reserved.push(new ExecuteReserved());
+        reserved.push(new MainMethodReserved());
 
         List<SFunction> functions = new ArrayList<>();
 
@@ -236,11 +240,9 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         for (StatementContext statement : ctx.statement()) {
             statements.add((AStatement)visit(statement));
         }
-        
-        functions.addAll(synthetic);
 
-        return new SSource(sourceName, sourceText, debugStream, 
-                          (ExecuteReserved)reserved.pop(), location(ctx), functions, statements);
+        return new SSource(settings, sourceName, sourceText, debugStream, (MainMethodReserved)reserved.pop(), 
+                           location(ctx), functions, globals, statements);
     }
 
     @Override
@@ -265,7 +267,8 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SFunction((FunctionReserved)reserved.pop(), location(ctx), rtnType, name, paramTypes, paramNames, statements, false);
+        return new SFunction((FunctionReserved)reserved.pop(), location(ctx), rtnType, name, 
+                             paramTypes, paramNames, statements, false);
     }
 
     @Override
@@ -977,10 +980,8 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         }
         
         String name = nextLambda();
-        synthetic.add(new SFunction((FunctionReserved)reserved.pop(), location(ctx), "def", name, 
-                      paramTypes, paramNames, statements, true));
-        return new EFunctionRef(location(ctx), "this", name);
-        // TODO: use a real node for captures and shit
+        return new ELambda(name, (FunctionReserved)reserved.pop(), location(ctx), 
+                           paramTypes, paramNames, statements);
     }
 
     @Override
@@ -1021,8 +1022,8 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
                            new EChain(location, 
                            new LVariable(location, "size"))))));
             String name = nextLambda();
-            synthetic.add(new SFunction(new FunctionReserved(), location, arrayType, name, 
-                          Arrays.asList("int"), Arrays.asList("size"), Arrays.asList(code), true));
+            globals.addSyntheticMethod(new SFunction(new FunctionReserved(), location, arrayType, name, 
+                                       Arrays.asList("int"), Arrays.asList("size"), Arrays.asList(code), true));
             return new EFunctionRef(location(ctx), "this", name);
         }
         return new EFunctionRef(location(ctx), ctx.decltype().getText(), ctx.NEW().getText());

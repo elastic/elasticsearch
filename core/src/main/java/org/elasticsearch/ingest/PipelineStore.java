@@ -37,10 +37,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.ingest.core.IngestInfo;
-import org.elasticsearch.ingest.core.Pipeline;
-import org.elasticsearch.ingest.core.Processor;
-import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.Closeable;
@@ -66,7 +62,8 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
         super(settings);
     }
 
-    public void buildProcessorFactoryRegistry(ProcessorsRegistry.Builder processorsRegistryBuilder, ScriptService scriptService, ClusterService clusterService) {
+    public void buildProcessorFactoryRegistry(ProcessorsRegistry.Builder processorsRegistryBuilder, ScriptService scriptService,
+                                              ClusterService clusterService) {
         this.processorRegistry = processorsRegistryBuilder.build(scriptService, clusterService);
     }
 
@@ -105,7 +102,8 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
      * Deletes the pipeline specified by id in the request.
      */
     public void delete(ClusterService clusterService, DeletePipelineRequest request, ActionListener<WritePipelineResponse> listener) {
-        clusterService.submitStateUpdateTask("delete-pipeline-" + request.getId(), new AckedClusterStateUpdateTask<WritePipelineResponse>(request, listener) {
+        clusterService.submitStateUpdateTask("delete-pipeline-" + request.getId(),
+                new AckedClusterStateUpdateTask<WritePipelineResponse>(request, listener) {
 
             @Override
             protected WritePipelineResponse newResponse(boolean acknowledged) {
@@ -141,10 +139,12 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
     /**
      * Stores the specified pipeline definition in the request.
      */
-    public void put(ClusterService clusterService, Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request, ActionListener<WritePipelineResponse> listener) throws Exception {
+    public void put(ClusterService clusterService, Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request,
+                    ActionListener<WritePipelineResponse> listener) throws Exception {
         // validates the pipeline and processor configuration before submitting a cluster update task:
         validatePipeline(ingestInfos, request);
-        clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(), new AckedClusterStateUpdateTask<WritePipelineResponse>(request, listener) {
+        clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(),
+                new AckedClusterStateUpdateTask<WritePipelineResponse>(request, listener) {
 
             @Override
             protected WritePipelineResponse newResponse(boolean acknowledged) {

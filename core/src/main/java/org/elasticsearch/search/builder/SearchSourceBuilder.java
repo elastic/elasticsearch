@@ -45,7 +45,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -591,7 +591,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * Add an aggregation to perform as part of the search.
      */
-    public SearchSourceBuilder aggregation(PipelineAggregatorBuilder aggregation) {
+    public SearchSourceBuilder aggregation(PipelineAggregationBuilder aggregation) {
             if (aggregations == null) {
             aggregations = AggregatorFactories.builder();
             }

@@ -141,9 +141,13 @@ public class ZenFaultDetectionTests extends ESTestCase {
                              // trace zenfd actions but keep the default otherwise
                             .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), singleton(TransportLivenessAction.NAME))
                             .build(),
-                        new LocalTransport(settings, threadPool, version, namedWriteableRegistry, circuitBreakerService),
-                        threadPool,
-                        ClusterName.DEFAULT);
+                        new LocalTransport(settings, threadPool, namedWriteableRegistry, circuitBreakerService) {
+                            @Override
+                            protected Version getVersion() {
+                                return version;
+                            }
+                        },
+                        threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
         return transportService;
@@ -221,13 +225,15 @@ public class ZenFaultDetectionTests extends ESTestCase {
     public void testMasterFaultDetectionConnectOnDisconnect() throws InterruptedException {
         Settings.Builder settings = Settings.builder();
         boolean shouldRetry = randomBoolean();
+        ClusterName clusterName = new ClusterName(randomAsciiOfLengthBetween(3, 20));
+
         // make sure we don't ping
         settings.put(FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING.getKey(), shouldRetry)
-                .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "5m");
-        ClusterName clusterName = new ClusterName(randomAsciiOfLengthBetween(3, 20));
+                .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "5m").put("cluster.name", clusterName.value());
+
         final ClusterState state = ClusterState.builder(clusterName).nodes(buildNodesForA(false)).build();
         setState(clusterServiceA, state);
-        MasterFaultDetection masterFD = new MasterFaultDetection(settings.build(), threadPool, serviceA, clusterName,
+        MasterFaultDetection masterFD = new MasterFaultDetection(settings.build(), threadPool, serviceA,
             clusterServiceA);
         masterFD.start(nodeB, "test");
 
@@ -258,10 +264,11 @@ public class ZenFaultDetectionTests extends ESTestCase {
     public void testMasterFaultDetectionNotSizeLimited() throws InterruptedException {
         Settings.Builder settings = Settings.builder();
         boolean shouldRetry = randomBoolean();
+        ClusterName clusterName = new ClusterName(randomAsciiOfLengthBetween(3, 20));
         settings
             .put(FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING.getKey(), shouldRetry)
-            .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "1s");
-        ClusterName clusterName = new ClusterName(randomAsciiOfLengthBetween(3, 20));
+            .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "1s")
+        .put("cluster.name", clusterName.value());
         final ClusterState stateNodeA = ClusterState.builder(clusterName).nodes(buildNodesForA(false)).build();
         setState(clusterServiceA, stateNodeA);
 
@@ -273,14 +280,14 @@ public class ZenFaultDetectionTests extends ESTestCase {
         serviceA.addTracer(pingProbeA);
         serviceB.addTracer(pingProbeB);
 
-        MasterFaultDetection masterFDNodeA = new MasterFaultDetection(settings.build(), threadPool, serviceA, clusterName,
+        MasterFaultDetection masterFDNodeA = new MasterFaultDetection(settings.build(), threadPool, serviceA,
             clusterServiceA);
         masterFDNodeA.start(nodeB, "test");
 
         final ClusterState stateNodeB = ClusterState.builder(clusterName).nodes(buildNodesForB(true)).build();
         setState(clusterServiceB, stateNodeB);
 
-        MasterFaultDetection masterFDNodeB = new MasterFaultDetection(settings.build(), threadPool, serviceB, clusterName,
+        MasterFaultDetection masterFDNodeB = new MasterFaultDetection(settings.build(), threadPool, serviceB,
             clusterServiceB);
         masterFDNodeB.start(nodeB, "test");
 

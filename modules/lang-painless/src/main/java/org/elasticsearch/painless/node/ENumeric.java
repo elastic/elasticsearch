@@ -20,8 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Sort;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -36,9 +41,12 @@ public final class ENumeric extends AExpression {
     public ENumeric(Location location, String value, int radix) {
         super(location);
 
-        this.value = value;
+        this.value = Objects.requireNonNull(value);
         this.radix = radix;
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
     void analyze(Locals locals) {
@@ -96,7 +104,7 @@ public final class ENumeric extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

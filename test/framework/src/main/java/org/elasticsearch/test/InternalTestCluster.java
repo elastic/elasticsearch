@@ -614,7 +614,7 @@ public final class InternalTestCluster extends TestCluster {
             .put("node.name", name)
             .put(DiscoveryNodeService.NODE_ID_SEED_SETTING.getKey(), seed)
             .build();
-        MockNode node = new MockNode(finalSettings, version, plugins);
+        MockNode node = new MockNode(finalSettings, plugins);
         return new NodeAndClient(name, node);
     }
 
@@ -888,8 +888,7 @@ public final class InternalTestCluster extends TestCluster {
             final long newIdSeed = DiscoveryNodeService.NODE_ID_SEED_SETTING.get(node.settings()) + 1; // use a new seed to make sure we have new node id
             Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).put(DiscoveryNodeService.NODE_ID_SEED_SETTING.getKey(), newIdSeed).build();
             Collection<Class<? extends Plugin>> plugins = node.getPlugins();
-            Version version = node.getVersion();
-            node = new MockNode(finalSettings, version, plugins);
+            node = new MockNode(finalSettings, plugins);
             node.start();
         }
 
@@ -903,9 +902,12 @@ public final class InternalTestCluster extends TestCluster {
 
         @Override
         public void close() throws IOException {
-            resetClient();
-            closed.set(true);
-            closeNode();
+            try {
+                resetClient();
+            } finally {
+                closed.set(true);
+                closeNode();
+            }
         }
     }
 
@@ -1760,7 +1762,7 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    synchronized String routingKeyForShard(Index index, String type, int shard, Random random) {
+    synchronized String routingKeyForShard(Index index, int shard, Random random) {
         assertThat(shard, greaterThanOrEqualTo(0));
         assertThat(shard, greaterThanOrEqualTo(0));
         for (NodeAndClient n : nodes.values()) {
@@ -1770,7 +1772,7 @@ public final class InternalTestCluster extends TestCluster {
             IndexService indexService = indicesService.indexService(index);
             if (indexService != null) {
                 assertThat(indexService.getIndexSettings().getSettings().getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), greaterThan(shard));
-                OperationRouting operationRouting = getInstanceFromNode(OperationRouting.class, node);
+                OperationRouting operationRouting = clusterService.operationRouting();
                 while (true) {
                     String routing = RandomStrings.randomAsciiOfLength(random, 10);
                     final int targetShard = operationRouting.indexShards(clusterService.state(), index.getName(), null, routing).shardId().getId();

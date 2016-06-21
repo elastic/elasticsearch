@@ -20,12 +20,15 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents an array instantiation.
@@ -38,8 +41,15 @@ public final class LNewArray extends ALink {
     public LNewArray(Location location, String type, List<AExpression> arguments) {
         super(location, -1);
 
-        this.type = type;
-        this.arguments = arguments;
+        this.type = Objects.requireNonNull(type);
+        this.arguments = Objects.requireNonNull(arguments);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        for (AExpression argument : arguments) {
+            argument.extractVariables(variables);
+        }
     }
 
     @Override
@@ -74,16 +84,16 @@ public final class LNewArray extends ALink {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter writer) {
+    void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         for (AExpression argument : arguments) {
-            argument.write(writer);
+            argument.write(writer, globals);
         }
 
         if (arguments.size() > 1) {
@@ -94,7 +104,7 @@ public final class LNewArray extends ALink {
     }
 
     @Override
-    void store(MethodWriter writer) {
+    void store(MethodWriter writer, Globals globals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

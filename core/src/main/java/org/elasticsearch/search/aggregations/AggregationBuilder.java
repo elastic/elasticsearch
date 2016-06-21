@@ -72,7 +72,7 @@ public abstract class AggregationBuilder
     public abstract AggregationBuilder subAggregation(AggregationBuilder aggregation);
 
     /** Add a sub aggregation to this builder. */
-    public abstract AggregationBuilder subAggregation(PipelineAggregatorBuilder aggregation);
+    public abstract AggregationBuilder subAggregation(PipelineAggregationBuilder aggregation);
 
     /**
      * Internal: Registers sub-factories with this factory. The sub-factory will be

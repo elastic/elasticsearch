@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Location;
@@ -28,11 +29,14 @@ import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.MethodWriter;
 
 import static org.elasticsearch.painless.WriterConstants.OBJECTS_TYPE;
 import static org.elasticsearch.painless.WriterConstants.EQUALS;
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 
 /**
  * Represents a comparison expression.
@@ -47,9 +51,15 @@ public final class EComp extends AExpression {
     public EComp(Location location, Operation operation, AExpression left, AExpression right) {
         super(location);
 
-        this.operation = operation;
-        this.left = left;
-        this.right = right;
+        this.operation = Objects.requireNonNull(operation);
+        this.left = Objects.requireNonNull(left);
+        this.right = Objects.requireNonNull(right);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        left.extractVariables(variables);
+        right.extractVariables(variables);
     }
 
     @Override
@@ -436,15 +446,15 @@ public final class EComp extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         boolean branch = tru != null || fals != null;
 
-        left.write(writer);
+        left.write(writer, globals);
 
         if (!right.isNull) {
-            right.write(writer);
+            right.write(writer, globals);
         }
 
         Label jump = tru != null ? tru : fals != null ? fals : new Label();
@@ -497,8 +507,7 @@ public final class EComp extends AExpression {
                     if (right.isNull) {
                         writer.ifNull(jump);
                     } else if (!left.isNull && (operation == Operation.EQ || operation == Operation.NE)) {
-                        writer.invokeDynamic("eq", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR,
-                                                                                                     DefBootstrap.OPERATOR_ALLOWS_NULL);
+                        writer.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                         writejump = false;
                     } else {
                         writer.ifCmp(promotedType.type, MethodWriter.EQ, jump);
@@ -507,23 +516,22 @@ public final class EComp extends AExpression {
                     if (right.isNull) {
                         writer.ifNonNull(jump);
                     } else if (!left.isNull && (operation == Operation.EQ || operation == Operation.NE)) {
-                        writer.invokeDynamic("eq", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR,
-                                                                                                     DefBootstrap.OPERATOR_ALLOWS_NULL);
+                        writer.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                         writer.ifZCmp(MethodWriter.EQ, jump);
                     } else {
                         writer.ifCmp(promotedType.type, MethodWriter.NE, jump);
                     }
                 } else if (lt) {
-                    writer.invokeDynamic("lt", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, 0);
+                    writer.invokeDefCall("lt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
                     writejump = false;
                 } else if (lte) {
-                    writer.invokeDynamic("lte", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, 0);
+                    writer.invokeDefCall("lte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
                     writejump = false;
                 } else if (gt) {
-                    writer.invokeDynamic("gt", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, 0);
+                    writer.invokeDefCall("gt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
                     writejump = false;
                 } else if (gte) {
-                    writer.invokeDynamic("gte", descriptor.getDescriptor(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, 0);
+                    writer.invokeDefCall("gte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
                     writejump = false;
                 } else {
                     throw createError(new IllegalStateException("Illegal tree structure."));

@@ -35,6 +35,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -133,7 +134,7 @@ public class IndexModuleTests extends ESTestCase {
         environment = new Environment(settings);
         nodeServicesProvider = newNodeServiceProvider(settings, environment, null);
         nodeEnvironment = new NodeEnvironment(settings, environment);
-        mapperRegistry = new IndicesModule().getMapperRegistry();
+        mapperRegistry = new IndicesModule(new NamedWriteableRegistry()).getMapperRegistry();
     }
 
     @Override

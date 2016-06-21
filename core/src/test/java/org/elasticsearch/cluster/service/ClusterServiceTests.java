@@ -23,7 +23,6 @@ import org.apache.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
@@ -33,7 +32,6 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
@@ -108,9 +106,9 @@ public class ClusterServiceTests extends ESTestCase {
     }
 
     TimedClusterService createTimedClusterService(boolean makeMaster) throws InterruptedException {
-        TimedClusterService timedClusterService = new TimedClusterService(Settings.EMPTY, null,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool, new ClusterName("ClusterServiceTests"));
+        TimedClusterService timedClusterService = new TimedClusterService(Settings.builder().put("cluster.name",
+            "ClusterServiceTests").build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool);
         timedClusterService.setLocalNode(new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, emptyMap(),
             emptySet(), Version.CURRENT));
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
@@ -382,7 +380,7 @@ public class ClusterServiceTests extends ESTestCase {
         final int numOfTasks = randomInt(10);
         final CountDownLatch latch = new CountDownLatch(numOfTasks);
         for (int i = 0; i < numOfTasks; i++) {
-            tasks.put(randomInt(1024), new ClusterStateTaskListener() {
+            while (null != tasks.put(randomInt(1024), new ClusterStateTaskListener() {
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     latch.countDown();
@@ -392,7 +390,7 @@ public class ClusterServiceTests extends ESTestCase {
                 public void onFailure(String source, Throwable t) {
                     fail(ExceptionsHelper.detailedMessage(t));
                 }
-            });
+            })) ;
         }
 
         clusterService.submitStateUpdateTasks("test", tasks, ClusterStateTaskConfig.build(Priority.LANGUID),
@@ -941,9 +939,8 @@ public class ClusterServiceTests extends ESTestCase {
 
         public volatile Long currentTimeOverride = null;
 
-        public TimedClusterService(Settings settings, OperationRouting operationRouting, ClusterSettings clusterSettings,
-                                   ThreadPool threadPool, ClusterName clusterName) {
-            super(settings, operationRouting, clusterSettings, threadPool, clusterName);
+        public TimedClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+            super(settings, clusterSettings, threadPool);
         }
 
         @Override

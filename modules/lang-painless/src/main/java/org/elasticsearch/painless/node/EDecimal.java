@@ -20,12 +20,16 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.util.Objects;
+import java.util.Set;
+
 /**
- * Respresents a decimal constant.
+ * Represents a decimal constant.
  */
 public final class EDecimal extends AExpression {
 
@@ -34,8 +38,11 @@ public final class EDecimal extends AExpression {
     public EDecimal(Location location, String value) {
         super(location);
 
-        this.value = value;
+        this.value = Objects.requireNonNull(value);
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
     void analyze(Locals locals) {
@@ -57,7 +64,7 @@ public final class EDecimal extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

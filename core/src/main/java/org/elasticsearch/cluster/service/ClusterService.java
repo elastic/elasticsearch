@@ -44,7 +44,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -97,6 +96,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
 
     public static final String UPDATE_THREAD_NAME = "clusterService#updateTask";
     private final ThreadPool threadPool;
+    private final ClusterName clusterName;
 
     private BiConsumer<ClusterChangedEvent, Discovery.AckListener> clusterStatePublisher;
 
@@ -130,14 +130,13 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
 
     private NodeConnectionsService nodeConnectionsService;
 
-    @Inject
-    public ClusterService(Settings settings, OperationRouting operationRouting,
-                          ClusterSettings clusterSettings, ThreadPool threadPool, ClusterName clusterName) {
+    public ClusterService(Settings settings,
+                          ClusterSettings clusterSettings, ThreadPool threadPool) {
         super(settings);
-        this.operationRouting = operationRouting;
+        this.operationRouting = new OperationRouting(settings, clusterSettings);
         this.threadPool = threadPool;
         this.clusterSettings = clusterSettings;
-
+        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         // will be replaced on doStart.
         this.clusterState = ClusterState.builder(clusterName).build();
 
@@ -238,7 +237,11 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
      * The local node.
      */
     public DiscoveryNode localNode() {
-        return clusterState.getNodes().getLocalNode();
+        DiscoveryNode localNode = clusterState.getNodes().getLocalNode();
+        if (localNode == null) {
+            throw new IllegalStateException("No local node found. Is the node started?");
+        }
+        return localNode;
     }
 
     public OperationRouting operationRouting() {
@@ -488,6 +491,10 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
         assert Thread.currentThread().getName().contains(ClusterService.UPDATE_THREAD_NAME) :
                 "not called from the cluster state update thread";
         return true;
+    }
+
+    public ClusterName getClusterName() {
+        return clusterName;
     }
 
     static abstract class SourcePrioritizedRunnable extends PrioritizedRunnable {
@@ -1038,5 +1045,9 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
 
     public ClusterSettings getClusterSettings() {
         return clusterSettings;
+    }
+
+    public Settings getSettings() {
+        return settings;
     }
 }

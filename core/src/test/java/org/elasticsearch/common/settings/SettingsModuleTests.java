@@ -51,7 +51,8 @@ public class SettingsModuleTests extends ModuleTestCase {
                 () -> new SettingsModule(settings));
             assertEquals("Failed to parse value [[2.0]] for setting [cluster.routing.allocation.balance.shard]", ex.getMessage());
             assertEquals(1, ex.getSuppressed().length);
-            assertEquals("unknown setting [some.foo.bar]", ex.getSuppressed()[0].getMessage());
+            assertEquals("unknown setting [some.foo.bar] please check that any required plugins are installed, or check the breaking " +
+                "changes documentation for removed settings", ex.getSuppressed()[0].getMessage());
         }
 
         {
@@ -127,7 +128,8 @@ public class SettingsModuleTests extends ModuleTestCase {
                 new SettingsModule(settings);
                 fail();
             } catch (IllegalArgumentException ex) {
-                assertEquals("tribe.blocks validation failed: unknown setting [wtf]", ex.getMessage());
+                assertEquals("tribe.blocks validation failed: unknown setting [wtf] please check that any required plugins are" +
+                    " installed, or check the breaking changes documentation for removed settings", ex.getMessage());
             }
         }
     }

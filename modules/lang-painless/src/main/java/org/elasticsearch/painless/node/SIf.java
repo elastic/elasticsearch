@@ -20,9 +20,14 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -36,8 +41,16 @@ public final class SIf extends AStatement {
     public SIf(Location location, AExpression condition, SBlock ifblock) {
         super(location);
 
-        this.condition = condition;
+        this.condition = Objects.requireNonNull(condition);
         this.ifblock = ifblock;
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        condition.extractVariables(variables);
+        if (ifblock != null) {
+            ifblock.extractVariables(variables);
+        }
     }
 
     @Override
@@ -58,9 +71,7 @@ public final class SIf extends AStatement {
         ifblock.inLoop = inLoop;
         ifblock.lastLoop = lastLoop;
 
-        locals.incrementScope();
-        ifblock.analyze(locals);
-        locals.decrementScope();
+        ifblock.analyze(Locals.newLocalScope(locals));
 
         anyContinue = ifblock.anyContinue;
         anyBreak = ifblock.anyBreak;
@@ -68,17 +79,17 @@ public final class SIf extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeStatementOffset(location);
 
         Label fals = new Label();
 
         condition.fals = fals;
-        condition.write(writer);
+        condition.write(writer, globals);
 
         ifblock.continu = continu;
         ifblock.brake = brake;
-        ifblock.write(writer);
+        ifblock.write(writer, globals);
 
         writer.mark(fals);
     }

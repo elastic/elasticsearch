@@ -180,6 +180,9 @@ with inner hits defined inside the query dsl.
 * Source filtering for inner hits inside nested queries requires full field names instead of relative field names.
 This is now consistent for source filtering on other places in the search API.
 
+* Nested inner hits will now no longer include `_index`, `_type` and `_id` keys. For nested inner hits these values
+are always the same as the `_index`, `_type` and `_id` keys of the root search hit.
+
 ==== Query Profiler
 
 In the response for profiling queries, the `query_type` has been renamed to `type` and `lucene` has been renamed to

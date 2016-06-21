@@ -99,10 +99,12 @@ public class ScriptIndexSettingsTests extends ESIntegTestCase {
     @Test
     public void testScriptIndexDefaults() {
         createIndex(ScriptService.SCRIPT_INDEX);
+        ensureGreen(ScriptService.SCRIPT_INDEX);
+        int expectedNumberOfReplicas = cluster().numDataNodes() - 1;
         IndexMetaData indexMetaData = client().admin().cluster().prepareState().get()
                 .getState().getMetaData().index(ScriptService.SCRIPT_INDEX);
         assertThat(indexMetaData.getNumberOfShards(), equalTo(1));
-        assertThat(indexMetaData.getNumberOfReplicas(), equalTo(0));
+        assertThat(indexMetaData.getNumberOfReplicas(), equalTo(expectedNumberOfReplicas));
         assertThat(indexMetaData.getSettings().get("index.auto_expand_replicas"), equalTo("0-all"));
 
         client().admin().indices().prepareDelete(ScriptService.SCRIPT_INDEX).get();

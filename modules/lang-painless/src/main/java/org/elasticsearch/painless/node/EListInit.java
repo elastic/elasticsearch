@@ -30,6 +30,9 @@ import org.elasticsearch.painless.MethodWriter;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Represents a list initialization shortcut.
+ */
 public class EListInit extends AExpression {
     final List<AExpression> values;
 

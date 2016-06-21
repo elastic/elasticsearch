@@ -30,6 +30,9 @@ import org.elasticsearch.painless.MethodWriter;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Represents a map initialization shortcut.
+ */
 public class EMapInit extends AExpression {
     final List<AExpression> keys;
     final List<AExpression> values;

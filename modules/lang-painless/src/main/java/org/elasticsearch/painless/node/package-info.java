@@ -44,6 +44,8 @@
  * {@link org.elasticsearch.painless.node.EDecimal} - Represents a decimal constant.
  * {@link org.elasticsearch.painless.node.EExplicit} - Represents an explicit cast.
  * {@link org.elasticsearch.painless.node.EFunctionRef} - Represents a function reference (non-capturing).
+ * {@link org.elasticsearch.painless.node.EListInit} - Represents a list initialization shortcut.
+ * {@link org.elasticsearch.painless.node.EMapInit} - Represents a map initializiation shortcut.
  * {@link org.elasticsearch.painless.node.ENull} - Represents a null constant.
  * {@link org.elasticsearch.painless.node.ENumeric} - Represents a non-decimal numeric constant.
  * {@link org.elasticsearch.painless.node.EUnary} - Represents a unary math expression.

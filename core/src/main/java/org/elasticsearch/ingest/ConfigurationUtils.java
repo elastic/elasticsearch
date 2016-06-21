@@ -243,6 +243,7 @@ public final class ConfigurationUtils {
                 }
             }
         }
+
         return processors;
     }
 
@@ -256,7 +257,12 @@ public final class ConfigurationUtils {
             List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorRegistry);
             Processor processor;
             processor = factory.create(config);
-            if (!config.isEmpty()) {
+
+            if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
+                throw newConfigurationException(processor.getType(), processor.getTag(), Pipeline.ON_FAILURE_KEY,
+                    "processors list cannot be empty");
+            }
+            if (config.isEmpty() == false) {
                 throw new ElasticsearchParseException("processor [{}] doesn't support one or more provided configuration parameters {}",
                     type, Arrays.toString(config.keySet().toArray()));
             }

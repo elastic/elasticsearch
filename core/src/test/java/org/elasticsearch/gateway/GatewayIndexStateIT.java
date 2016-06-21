@@ -351,7 +351,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             logger.info("--> created temp data path for shadow replicas [" + dataPath + "]");
             logger.info("--> starting a cluster with " + numNodes + " nodes");
             final Settings nodeSettings = Settings.builder()
-                                                  .put("node.add_id_to_custom_path", false)
+                                                  .put("node.add_lock_id_to_custom_path", false)
                                                   .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath.toString())
                                                   .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
                                                   .build();

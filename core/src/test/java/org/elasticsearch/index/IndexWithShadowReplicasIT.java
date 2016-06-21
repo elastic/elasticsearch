@@ -454,7 +454,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
     public void testPrimaryRelocationWhereRecoveryFails() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = Settings.builder()
-                .put("node.add_id_to_custom_path", false)
+                .put("node.add_lock_id_to_custom_path", false)
                 .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath)
                 .build();
 

@@ -139,6 +139,16 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
         compareMappingOnNodes(mappingsBeforeUpdateResponse);
     }
 
+    // checks if the setting for timestamp and size are kept even if disabled
+    public void testDisabledSizeTimestampIndexDoNotLooseMappings() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/default_mapping_with_disabled_root_types.json");
+        prepareCreate(INDEX).addMapping(TYPE, mapping).get();
+        GetMappingsResponse mappingsBeforeGreen = client().admin().indices().prepareGetMappings(INDEX).addTypes(TYPE).get();
+        ensureGreen(INDEX);
+        // make sure all nodes have same cluster state
+        compareMappingOnNodes(mappingsBeforeGreen);
+    }
+
     protected void testConflict(String mapping, String mappingUpdate, String... errorMessages) throws InterruptedException {
         assertAcked(prepareCreate(INDEX).setSource(mapping).get());
         ensureGreen(INDEX);

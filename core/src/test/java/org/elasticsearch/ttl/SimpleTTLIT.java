@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ttl;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -27,19 +26,14 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -67,11 +61,6 @@ public class SimpleTTLIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(InternalSettingsPlugin.class);
-    }
-
-    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
@@ -81,7 +70,6 @@ public class SimpleTTLIT extends ESIntegTestCase {
 
     public void testSimpleTTL() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0.id)
                 .addMapping("type1", XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("type1")
@@ -221,7 +209,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
         String type = "mytype";
 
         XContentBuilder builder = jsonBuilder().startObject().startObject("_ttl").field("enabled", true).endObject().endObject();
-        assertAcked(client().admin().indices().prepareCreate(index).setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0.id).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
 
         // check mapping again
         assertTTLMappingEnabled(index, type);
@@ -244,7 +232,6 @@ public class SimpleTTLIT extends ESIntegTestCase {
      */
     public void testNoopUpdate() throws IOException {
         assertAcked(prepareCreate("test")
-                .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0.id)
                 .addMapping("type1", XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("type1")

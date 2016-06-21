@@ -20,6 +20,7 @@
 package org.elasticsearch.get;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -29,6 +30,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,11 +40,15 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.singleton;
@@ -51,6 +57,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -529,7 +536,7 @@ public class GetActionIT extends ESIntegTestCase {
     public void testGetFieldsMetaData() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("parent")
-                .addMapping("my-type1", "_parent", "type=parent")
+                .addMapping("my-type1", "_timestamp", "enabled=true", "_ttl", "enabled=true", "_parent", "type=parent")
                 .addAlias(new Alias("alias"))
                 .setSettings(Settings.builder().put("index.refresh_interval", -1)));
 
@@ -550,6 +557,12 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(getResponse.getField("field1").getValue().toString(), equalTo("value"));
         assertThat(getResponse.getField("_routing").isMetadataField(), equalTo(true));
         assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
+        assertThat(getResponse.getField("_timestamp").isMetadataField(), equalTo(true));
+        assertThat(getResponse.getField("_timestamp").getValue().toString(), equalTo("205097"));
+        assertThat(getResponse.getField("_ttl").isMetadataField(), equalTo(true));
+        // TODO: _ttl should return the original value, but it does not work today because
+        // it would use now() instead of the value of _timestamp to rebase
+        // assertThat(getResponse.getField("_ttl").getValue().toString(), equalTo("10000000205097"));
         assertThat(getResponse.getField("_parent").isMetadataField(), equalTo(true));
         assertThat(getResponse.getField("_parent").getValue().toString(), equalTo("parent_1"));
 
@@ -564,6 +577,12 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(getResponse.getField("field1").getValue().toString(), equalTo("value"));
         assertThat(getResponse.getField("_routing").isMetadataField(), equalTo(true));
         assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
+        assertThat(getResponse.getField("_timestamp").isMetadataField(), equalTo(true));
+        assertThat(getResponse.getField("_timestamp").getValue().toString(), equalTo("205097"));
+        assertThat(getResponse.getField("_ttl").isMetadataField(), equalTo(true));
+        // TODO: _ttl should return the original value, but it does not work today because
+        // it would use now() instead of the value of _timestamp to rebase
+        //assertThat(getResponse.getField("_ttl").getValue().toString(), equalTo("10000000000000"));
         assertThat(getResponse.getField("_parent").isMetadataField(), equalTo(true));
         assertThat(getResponse.getField("_parent").getValue().toString(), equalTo("parent_1"));
     }
@@ -760,10 +779,16 @@ public class GetActionIT extends ESIntegTestCase {
                 "  },\n" +
                 "  \"mappings\": {\n" +
                 "    \"parentdoc\": {\n" +
+                "      \"_ttl\": {\n" +
+                "        \"enabled\": true\n" +
+                "      }\n" +
                 "    },\n" +
                 "    \"doc\": {\n" +
                 "      \"_parent\": {\n" +
                 "        \"type\": \"parentdoc\"\n" +
+                "      },\n" +
+                "      \"_ttl\": {\n" +
+                "        \"enabled\": true\n" +
                 "      }\n" +
                 "    }\n" +
                 "  }\n" +
@@ -773,7 +798,7 @@ public class GetActionIT extends ESIntegTestCase {
 
         client().prepareIndex("test", "doc").setId("1").setSource("{}").setParent("1").setTTL(TimeValue.timeValueHours(1).getMillis()).get();
 
-        String[] fieldsList = {"_parent"};
+        String[] fieldsList = {"_ttl", "_parent"};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
         refresh();
@@ -789,6 +814,14 @@ public class GetActionIT extends ESIntegTestCase {
             "  \"settings\": {\n" +
             "    \"index.translog.flush_threshold_size\": \"1pb\",\n" +
             "    \"refresh_interval\": \"-1\"\n" +
+            "  },\n" +
+            "  \"mappings\": {\n" +
+            "    \"parentdoc\": {},\n" +
+            "    \"doc\": {\n" +
+            "      \"_timestamp\": {\n" +
+            "        \"enabled\": true\n" +
+            "      }\n" +
+            "    }\n" +
             "  }\n" +
             "}";
 
@@ -798,7 +831,7 @@ public class GetActionIT extends ESIntegTestCase {
             "  \"text\": \"some text.\"\n" +
             "}\n";
         client().prepareIndex("test", "doc").setId("1").setSource(doc).setRouting("1").get();
-        String[] fieldsList = {"_routing"};
+        String[] fieldsList = {"_timestamp", "_routing"};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
         refresh();

@@ -383,7 +383,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             XContentBuilder mappings = null;
             if (frequently() && randomDynamicTemplates()) {
-                mappings = XContentFactory.jsonBuilder().startObject().startObject("_default_").endObject().endObject();
+                mappings = XContentFactory.jsonBuilder().startObject().startObject("_default_");
+                if (randomBoolean()) {
+                    mappings.startObject(TimestampFieldMapper.NAME)
+                            .field("enabled", randomBoolean());
+                    mappings.endObject();
+                }
+                mappings.endObject().endObject();
             }
 
             for (String setting : randomSettingsBuilder.internalMap().keySet()) {

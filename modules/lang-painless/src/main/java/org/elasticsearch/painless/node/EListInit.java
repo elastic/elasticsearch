@@ -90,7 +90,7 @@ public class EListInit extends AExpression {
         for (AExpression value : values) {
             writer.dup();
             value.write(writer, globals);
-            writer.invokeInterface(method.owner.type, method.method);
+            method.write(writer);
             writer.pop();
         }
     }

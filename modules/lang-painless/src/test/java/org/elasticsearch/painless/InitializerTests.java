@@ -26,6 +26,7 @@ import java.util.Map;
 
 public class InitializerTests extends ScriptTestCase {
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testArrayInitializers() {
         int[] ints = (int[])exec("new int[] {}");
 
@@ -58,6 +59,7 @@ public class InitializerTests extends ScriptTestCase {
         assertEquals("aaaaaa", objects[3]);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testListInitializers() {
         List list = (List)exec("[]");
 
@@ -84,11 +86,12 @@ public class InitializerTests extends ScriptTestCase {
 
         assertEquals(4, list.size());
         assertEquals(new Integer(2), list.get(0));
-        assertEquals(new ArrayList(),  list.get(1));
+        assertEquals(new ArrayList(), list.get(1));
         assertEquals("1aaa",  list.get(2));
         assertEquals("aaaaaa", list.get(3));
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testMapInitializers() {
         Map map = (Map)exec("[:]");
 
@@ -115,22 +118,23 @@ public class InitializerTests extends ScriptTestCase {
         assertEquals("aaaaaa", map.get("1aaa"));
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testCrazyInitializer() {
         Map map = (Map)exec("int y = 2; int z = 3; Map x = [y*z : y + z, 's' : [y, [y : [[z], [], [:]]]], z : [z, 9]]; return x;");
 
-        List<Object> list0 = new ArrayList<>();
+        List list0 = new ArrayList();
         list0.add(3);
-        List<Object> list1 = new ArrayList();
+        List list1 = new ArrayList();
         list1.add(list0);
         list1.add(new ArrayList());
         list1.add(new HashMap());
-        Map<Object, Object> map0 = new HashMap<>();
+        Map map0 = new HashMap();
         map0.put(2, list1);
-        List<Object> list2 = new ArrayList();
+        List list2 = new ArrayList();
         list2.add(2);
         list2.add(map0);
 
-        List<Object> list3 = new ArrayList<>();
+        List list3 = new ArrayList();
         list3.add(3);
         list3.add(9);
 

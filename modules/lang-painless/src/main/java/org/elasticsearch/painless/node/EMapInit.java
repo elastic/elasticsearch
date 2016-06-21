@@ -27,7 +27,6 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -114,7 +113,7 @@ public class EMapInit extends AExpression {
             writer.dup();
             key.write(writer, globals);
             value.write(writer, globals);
-            writer.invokeInterface(method.owner.type, method.method);
+            method.write(writer);
             writer.pop();
         }
     }

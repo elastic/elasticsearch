@@ -112,7 +112,8 @@ public class ChainTransformTests extends ESTestCase {
     }
 
     public void testParser() throws Exception {
-        TransformRegistry registry = new TransformRegistry(Settings.EMPTY, singletonMap("named", new NamedExecutableTransform.Factory(logger)));
+        TransformRegistry registry = new TransformRegistry(Settings.EMPTY,
+                singletonMap("named", new NamedExecutableTransform.Factory(logger)));
 
         ChainTransformFactory transformParser = new ChainTransformFactory(Settings.EMPTY, registry);
 

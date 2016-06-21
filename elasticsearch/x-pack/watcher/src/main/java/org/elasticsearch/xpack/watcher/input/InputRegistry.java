@@ -7,9 +7,14 @@ package org.elasticsearch.xpack.watcher.input;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.watcher.input.chain.ChainInput;
+import org.elasticsearch.xpack.watcher.input.chain.ChainInputFactory;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 public class InputRegistry {
@@ -17,8 +22,10 @@ public class InputRegistry {
     private final Map<String, InputFactory> factories;
 
     @Inject
-    public InputRegistry(Map<String, InputFactory> factories) {
-        this.factories = factories;
+    public InputRegistry(Settings settings, Map<String, InputFactory> factories) {
+        Map<String, InputFactory> map = new HashMap<>(factories);
+        map.put(ChainInput.TYPE, new ChainInputFactory(settings, this));
+        this.factories = Collections.unmodifiableMap(map);
     }
 
     /**

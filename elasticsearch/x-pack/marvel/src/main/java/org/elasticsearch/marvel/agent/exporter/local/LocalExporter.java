@@ -30,7 +30,8 @@ import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.agent.resolver.ResolversRegistry;
 import org.elasticsearch.marvel.cleaner.CleanerService;
-import org.elasticsearch.marvel.support.init.proxy.MonitoringClientProxy;
+import org.elasticsearch.xpack.common.init.proxy.ClientProxy;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -50,14 +51,14 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     public static final String TYPE = "local";
 
-    private final MonitoringClientProxy client;
+    private final ClientProxy client;
     private final ClusterService clusterService;
     private final ResolversRegistry resolvers;
     private final CleanerService cleanerService;
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
 
-    public LocalExporter(Exporter.Config config, MonitoringClientProxy client,
+    public LocalExporter(Exporter.Config config, ClientProxy client,
                          ClusterService clusterService, CleanerService cleanerService) {
         super(TYPE, config);
         this.client = client;
@@ -303,14 +304,14 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     public static class Factory extends Exporter.Factory<LocalExporter> {
 
-        private final MonitoringClientProxy client;
+        private final ClientProxy client;
         private final ClusterService clusterService;
         private final CleanerService cleanerService;
 
         @Inject
-        public Factory(MonitoringClientProxy client, ClusterService clusterService, CleanerService cleanerService) {
+        public Factory(InternalClient client, ClusterService clusterService, CleanerService cleanerService) {
             super(TYPE, true);
-            this.client = client;
+            this.client = new ClientProxy(client);
             this.clusterService = clusterService;
             this.cleanerService = cleanerService;
         }

@@ -356,10 +356,10 @@ public class WatchTests extends ESTestCase {
                 QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
                 queryRegistry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
                 parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, queryRegistry, null, null));
-                return new InputRegistry(parsers);
+                return new InputRegistry(Settings.EMPTY, parsers);
             default:
                 parsers.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
-                return new InputRegistry(parsers);
+                return new InputRegistry(Settings.EMPTY, parsers);
         }
     }
 
@@ -424,12 +424,9 @@ public class WatchTests extends ESTestCase {
         QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
         queryRegistry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
         Map<String, TransformFactory> factories = new HashMap<>();
-        ChainTransformFactory parser = new ChainTransformFactory();
-        factories.put(ChainTransform.TYPE, parser);
         factories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
         factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, queryRegistry, null, null));
-        TransformRegistry registry = new TransformRegistry(unmodifiableMap(factories));
-        parser.init(registry);
+        TransformRegistry registry = new TransformRegistry(Settings.EMPTY, unmodifiableMap(factories));
         return registry;
     }
 

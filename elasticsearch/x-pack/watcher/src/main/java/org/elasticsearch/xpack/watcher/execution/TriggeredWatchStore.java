@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 
 import java.io.IOException;
@@ -57,6 +58,10 @@ public class TriggeredWatchStore extends AbstractComponent {
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     @Inject
+    public TriggeredWatchStore(Settings settings, InternalClient client, TriggeredWatch.Parser triggeredWatchParser) {
+        this(settings, new WatcherClientProxy(settings, client), triggeredWatchParser);
+    }
+
     public TriggeredWatchStore(Settings settings, WatcherClientProxy client, TriggeredWatch.Parser triggeredWatchParser) {
         super(settings);
         this.scrollSize = settings.getAsInt("xpack.watcher.execution.scroll.size", 100);

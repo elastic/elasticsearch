@@ -14,30 +14,29 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.user.XPackUser;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 
 /**
  *
  */
-public abstract class InternalClient extends FilterClient {
+public interface InternalClient extends Client {
 
-    protected InternalClient(Client in) {
-        super(in);
-    }
 
     /**
      * An insecured internal client, baseically simply delegates to the normal ES client
      * without doing anything extra.
      */
-    public static class Insecure extends InternalClient {
+    class Insecure extends FilterClient implements InternalClient {
 
         @Inject
-        public Insecure(Client in) {
-            super(in);
+        public Insecure(Settings settings, ThreadPool threadPool, Client in) {
+            super(settings, threadPool, in);
         }
     }
 
@@ -45,13 +44,13 @@ public abstract class InternalClient extends FilterClient {
      * A secured internal client that binds the internal XPack user to the current
      * execution context, before the action is executed.
      */
-    public static class Secure extends InternalClient {
+    class Secure extends FilterClient implements InternalClient {
 
-        private AuthenticationService authcService;
+        private final AuthenticationService authcService;
 
         @Inject
-        public Secure(Client in, AuthenticationService authcService) {
-            super(in);
+        public Secure(Settings settings, ThreadPool threadPool, Client in, AuthenticationService authcService) {
+            super(settings, threadPool, in);
             this.authcService = authcService;
         }
 

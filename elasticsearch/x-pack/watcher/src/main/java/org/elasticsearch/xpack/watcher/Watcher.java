@@ -20,11 +20,9 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.common.init.LazyInitializationModule;
 import org.elasticsearch.xpack.watcher.actions.WatcherActionModule;
 import org.elasticsearch.xpack.watcher.client.WatcherClientModule;
 import org.elasticsearch.xpack.watcher.condition.ConditionModule;
@@ -43,13 +41,10 @@ import org.elasticsearch.xpack.watcher.rest.action.RestHijackOperationAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestPutWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatcherStatsAction;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.xpack.watcher.transform.TransformModule;
-import org.elasticsearch.xpack.watcher.transform.chain.ChainTransformFactory;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.TransportAckWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.activate.ActivateWatchAction;
@@ -204,14 +199,6 @@ public class Watcher {
             module.registerAction(ActivateWatchAction.INSTANCE, TransportActivateWatchAction.class);
             module.registerAction(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class);
             module.registerAction(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class);
-        }
-    }
-
-    public void onModule(LazyInitializationModule module) {
-        if (enabled) {
-            module.registerLazyInitializable(WatcherClientProxy.class);
-            module.registerLazyInitializable(ChainTransformFactory.class);
-            module.registerLazyInitializable(ChainInputFactory.class);
         }
     }
 

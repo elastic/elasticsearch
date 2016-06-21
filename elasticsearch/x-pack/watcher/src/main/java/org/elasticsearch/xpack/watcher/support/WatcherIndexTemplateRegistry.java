@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.template.TemplateUtils;
 
@@ -62,9 +63,9 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
 
     @Inject
     public WatcherIndexTemplateRegistry(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService,
-                                        ThreadPool threadPool, WatcherClientProxy client) {
+                                        ThreadPool threadPool, InternalClient client) {
         super(settings);
-        this.client = client;
+        this.client = new WatcherClientProxy(settings, client);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indexTemplates = TEMPLATE_CONFIGS;

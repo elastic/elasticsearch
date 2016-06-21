@@ -115,7 +115,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -139,6 +138,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class InternalEngineTests extends ESTestCase {
+
 
     protected final ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
@@ -313,9 +313,10 @@ public class InternalEngineTests extends ESTestCase {
         return config;
     }
 
-    protected static final BytesReference B_1 = new BytesArray(new byte[]{1});
-    protected static final BytesReference B_2 = new BytesArray(new byte[]{2});
-    protected static final BytesReference B_3 = new BytesArray(new byte[]{3});
+    private static final BytesReference B_1 = new BytesArray(new byte[]{1});
+    private static final BytesReference B_2 = new BytesArray(new byte[]{2});
+    private static final BytesReference B_3 = new BytesArray(new byte[]{3});
+    private static final BytesArray SOURCE = new BytesArray("{}".getBytes(Charset.defaultCharset()));
 
     public void testSegments() throws Exception {
         try (Store store = createStore();
@@ -625,7 +626,7 @@ public class InternalEngineTests extends ESTestCase {
         try {
             initialEngine = engine;
             for (int i = 0; i < ops; i++) {
-                final ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+                final ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), SOURCE, null);
                 if (randomBoolean()) {
                     final Engine.Index operation = new Engine.Index(newUid("test#1"), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, i, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime());
                     operations.add(operation);
@@ -661,7 +662,7 @@ public class InternalEngineTests extends ESTestCase {
             initialEngine = engine;
             for (int i = 0; i < docs; i++) {
                 final String id = Integer.toString(i);
-                final ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocumentWithTextField(), new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+                final ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocumentWithTextField(), SOURCE, null);
                 initialEngine.index(new Engine.Index(newUid(id), doc));
             }
         } finally {
@@ -1575,163 +1576,80 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public void testSeqNoAndCheckpoints() throws IOException {
-        int opCount = randomIntBetween(1, 256);
+        // nocommit: does not test deletes
+        final int opCount = randomIntBetween(1, 256);
         long primarySeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
-        long replicaSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
-        // we lose deletes when recovering
         final String[] ids = new String[]{"1", "2", "3"};
-        final Map<String, Long> primaryMaxNoDeleteSeqNo = new HashMap<>();
-        final Map<String, Long> replicaMaxNoDeleteSeqNo = new HashMap<>();
+        long localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
         long replicaLocalCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
+        long globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
         InternalEngine initialEngine = null;
-        InternalEngine initialReplicaEngine = null;
+
         try {
             initialEngine = engine;
-            initialReplicaEngine = replicaEngine;
-            boolean broken = false;
+            initialEngine
+                .seqNoService()
+                .updateAllocationIdsFromMaster(new HashSet<>(Arrays.asList("primary", "replica")), Collections.emptySet());
             for (int op = 0; op < opCount; op++) {
                 final String id = randomFrom(ids);
-                ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-                if (randomBoolean()) {
-                    final Engine.Index index = new Engine.Index(newUid(id), doc,
-                            SequenceNumbersService.UNASSIGNED_SEQ_NO,
-                            rarely() ? 100 : Versions.MATCH_ANY, VersionType.INTERNAL,
-                            PRIMARY, System.currentTimeMillis());
-                    try {
-                        initialEngine.index(index);
-                        primarySeqNo++;
-                    } catch (VersionConflictEngineException e) {
-                        // OK
-                    }
-                    if (index.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                        if (rarely()) {
-                            // put a hole in the sequence numbers on the replica
-                            if (!broken) {
-                                broken = true;
-                                replicaLocalCheckpoint = replicaSeqNo;
-                            }
-                        } else {
-                            Engine.Index replica = new Engine.Index(index.uid(), index.parsedDoc(), index.seqNo(),
-                                    index.version(), VersionType.EXTERNAL, REPLICA, System.currentTimeMillis());
-                            initialReplicaEngine.index(replica);
-                            replicaSeqNo = primarySeqNo;
-                            replicaMaxNoDeleteSeqNo.put(id, replicaSeqNo);
-                        }
-                        primaryMaxNoDeleteSeqNo.put(id, primarySeqNo);
-                    }
-                } else {
-                    final Engine.Delete delete = new Engine.Delete("test", id, newUid(id),
-                            SequenceNumbersService.UNASSIGNED_SEQ_NO,
-                            rarely() ? 100 : Versions.MATCH_ANY, VersionType.INTERNAL,
-                            PRIMARY, System.currentTimeMillis(), false);
-                    try {
-                        initialEngine.delete(delete);
-                        primarySeqNo++;
-                    } catch (VersionConflictEngineException e) {
-                        // OK
-                    }
-                    if (delete.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                        if (rarely()) {
-                            // put a hole in the sequence numbers on the replica
-                            if (!broken) {
-                                broken = true;
-                                replicaLocalCheckpoint = replicaSeqNo;
-                            }
-                        } else {
-                            Engine.Delete replica = new Engine.Delete(delete.type(), delete.id(), delete.uid(), delete.seqNo(),
-                                    delete.version(), VersionType.EXTERNAL, REPLICA, System.currentTimeMillis(), false);
-                            initialReplicaEngine.delete(replica);
-                            replicaSeqNo = primarySeqNo;
-                            replicaMaxNoDeleteSeqNo.remove(id);
-                        }
-                        primaryMaxNoDeleteSeqNo.remove(id);
-                    }
+                ParsedDocument doc = testParsedDocument("test#" + id, id, "test", null, -1, -1, testDocumentWithTextField(), SOURCE, null);
+                final Engine.Index index = new Engine.Index(newUid("test#" + id), doc,
+                    SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                    rarely() ? 100 : Versions.MATCH_ANY, VersionType.INTERNAL,
+                    PRIMARY, System.currentTimeMillis());
+                try {
+                    initialEngine.index(index);
+                    primarySeqNo++;
+                } catch (VersionConflictEngineException e) {
+
+                }
+
+                replicaLocalCheckpoint =
+                    rarely() ? replicaLocalCheckpoint : randomIntBetween(Math.toIntExact(replicaLocalCheckpoint), Math.toIntExact(primarySeqNo));
+                initialEngine.seqNoService().updateLocalCheckpointForShard("primary", initialEngine.seqNoService().getLocalCheckpoint());
+                initialEngine.seqNoService().updateLocalCheckpointForShard("replica", replicaLocalCheckpoint);
+
+                if (rarely()) {
+                    localCheckpoint = primarySeqNo;
+                    globalCheckpoint = replicaLocalCheckpoint;
+                    initialEngine.seqNoService().updateGlobalCheckpointOnPrimary();
+                    initialEngine.flush(true, true);
                 }
             }
 
-            if (!broken) {
-                replicaLocalCheckpoint = primarySeqNo;
-            }
-
-            initialEngine
-                    .seqNoService()
-                    .updateAllocationIdsFromMaster(new HashSet<>(Arrays.asList("primary", "replica")), Collections.emptySet());
-            initialEngine.seqNoService().updateLocalCheckpointForShard("primary", initialEngine.seqNoService().getLocalCheckpoint());
-            initialEngine.seqNoService().updateLocalCheckpointForShard("replica", initialReplicaEngine.seqNoService().getLocalCheckpoint());
             initialEngine.seqNoService().updateGlobalCheckpointOnPrimary();
 
             assertThat(initialEngine.seqNoService().stats().getMaxSeqNo(), equalTo(primarySeqNo));
             assertThat(initialEngine.seqNoService().stats().getLocalCheckpoint(), equalTo(primarySeqNo));
             assertThat(initialEngine.seqNoService().stats().getGlobalCheckpoint(), equalTo(replicaLocalCheckpoint));
-            assertThat(initialReplicaEngine.seqNoService().stats().getMaxSeqNo(), equalTo(replicaSeqNo));
-            assertThat(initialReplicaEngine.seqNoService().stats().getLocalCheckpoint(), equalTo(replicaLocalCheckpoint));
-            assertThat(
-                    initialReplicaEngine.seqNoService().stats().getGlobalCheckpoint(),
-                    equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
 
-            initialEngine.flush(true, true);
             assertThat(
-                    Long.parseLong(initialEngine.commitStats().getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
-                    equalTo(primarySeqNo));
+                Long.parseLong(initialEngine.commitStats().getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
+                equalTo(localCheckpoint));
             assertThat(
-                    Long.parseLong(initialEngine.commitStats().getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
-                    equalTo(replicaLocalCheckpoint));
-            initialReplicaEngine.flush(true, true);
-            assertThat(
-                    Long.parseLong(initialReplicaEngine.commitStats().getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
-                    equalTo(replicaLocalCheckpoint));
-            assertThat(
-                    Long.parseLong(initialReplicaEngine.commitStats().getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
-                    equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+                Long.parseLong(initialEngine.commitStats().getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
+                equalTo(globalCheckpoint));
+
         } finally {
-            IOUtils.close(initialEngine, initialReplicaEngine);
+            IOUtils.close(initialEngine);
         }
 
         InternalEngine recoveringEngine = null;
-        InternalEngine recoveringReplicaEngine = null;
         try {
             recoveringEngine = new InternalEngine(copy(initialEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
-            recoveringReplicaEngine =
-                    new InternalEngine(copy(initialReplicaEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
-
-            long primaryMaxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
-            for (String id : ids) {
-                if (primaryMaxNoDeleteSeqNo.containsKey(id)) {
-                    primaryMaxSeqNo = Math.max(primaryMaxSeqNo, primaryMaxNoDeleteSeqNo.get(id));
-                }
-            }
-
-            long replicaMaxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
-            for (String id : ids) {
-                if (replicaMaxNoDeleteSeqNo.containsKey(id)) {
-                    replicaMaxSeqNo = Math.max(replicaMaxSeqNo, replicaMaxNoDeleteSeqNo.get(id));
-                }
-            }
+            recoveringEngine.recoverFromTranslog();
 
             assertThat(
-                    Long.parseLong(recoveringEngine.commitStats().getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
-                    equalTo(primarySeqNo));
+                Long.parseLong(recoveringEngine.commitStats().getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
+                equalTo(primarySeqNo));
             assertThat(
-                    Long.parseLong(recoveringEngine.commitStats().getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
-                    equalTo(replicaLocalCheckpoint));
+                Long.parseLong(recoveringEngine.commitStats().getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
+                equalTo(globalCheckpoint));
             assertThat(recoveringEngine.seqNoService().stats().getLocalCheckpoint(), equalTo(primarySeqNo));
-            assertThat(recoveringEngine.seqNoService().stats().getGlobalCheckpoint(), equalTo(replicaLocalCheckpoint));
-            assertThat(recoveringEngine.seqNoService().stats().getMaxSeqNo(), equalTo(primaryMaxSeqNo));
-            assertThat(recoveringEngine.seqNoService().generateSeqNo(), equalTo(primaryMaxSeqNo + 1));
-            assertThat(
-                    Long.parseLong(recoveringReplicaEngine.commitStats().getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
-                    equalTo(replicaLocalCheckpoint));
-            assertThat(
-                    Long.parseLong(recoveringReplicaEngine.commitStats().getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
-                    equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
-            assertThat(recoveringReplicaEngine.seqNoService().stats().getLocalCheckpoint(), equalTo(replicaLocalCheckpoint));
-            assertThat(
-                    recoveringReplicaEngine.seqNoService().stats().getGlobalCheckpoint(),
-                    equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
-            assertThat(recoveringReplicaEngine.seqNoService().stats().getMaxSeqNo(), equalTo(replicaMaxSeqNo));
-            assertThat(recoveringReplicaEngine.seqNoService().generateSeqNo(), equalTo(replicaMaxSeqNo + 1));
+            assertThat(recoveringEngine.seqNoService().stats().getMaxSeqNo(), equalTo(primarySeqNo));
+            assertThat(recoveringEngine.seqNoService().generateSeqNo(), equalTo(primarySeqNo + 1));
         } finally {
-            IOUtils.close(recoveringEngine, recoveringReplicaEngine);
+            IOUtils.close(recoveringEngine);
         }
     }
 

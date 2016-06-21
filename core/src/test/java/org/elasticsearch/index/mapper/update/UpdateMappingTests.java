@@ -259,6 +259,56 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testTimestampParsing() throws IOException {
+        IndexService indexService = createIndex("test");
+        XContentBuilder indexMapping = XContentFactory.jsonBuilder();
+        boolean enabled = randomBoolean();
+        indexMapping.startObject()
+                .startObject("type")
+                .startObject("_timestamp")
+                .field("enabled", enabled)
+                .endObject()
+                .endObject()
+                .endObject();
+        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedXContent(indexMapping.string()), true);
+        assertThat(documentMapper.timestampFieldMapper().enabled(), equalTo(enabled));
+        assertTrue(documentMapper.timestampFieldMapper().fieldType().stored());
+        assertTrue(documentMapper.timestampFieldMapper().fieldType().hasDocValues());
+        documentMapper = indexService.mapperService().parse("type", new CompressedXContent(documentMapper.mappingSource().string()), true);
+        assertThat(documentMapper.timestampFieldMapper().enabled(), equalTo(enabled));
+        assertTrue(documentMapper.timestampFieldMapper().fieldType().hasDocValues());
+        assertTrue(documentMapper.timestampFieldMapper().fieldType().stored());
+    }
+
+    public void testSizeTimestampIndexParsing() throws IOException {
+        IndexService indexService = createIndex("test", Settings.builder().build());
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/default_mapping_with_disabled_root_types.json");
+        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedXContent(mapping), true);
+        assertThat(documentMapper.mappingSource().string(), equalTo(mapping));
+        documentMapper = indexService.mapperService().parse("type", new CompressedXContent(documentMapper.mappingSource().string()), true);
+        assertThat(documentMapper.mappingSource().string(), equalTo(mapping));
+    }
+
+    public void testDefaultApplied() throws IOException {
+        createIndex("test1", Settings.builder().build());
+        createIndex("test2", Settings.builder().build());
+        XContentBuilder defaultMapping = XContentFactory.jsonBuilder().startObject()
+                .startObject(MapperService.DEFAULT_MAPPING).startObject("_timestamp").field("enabled", true).endObject().endObject()
+                .endObject();
+        client().admin().indices().preparePutMapping().setType(MapperService.DEFAULT_MAPPING).setSource(defaultMapping).get();
+        XContentBuilder typeMapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type").startObject("_all").field("enabled", false).endObject().endObject()
+                .endObject();
+        client().admin().indices().preparePutMapping("test1").setType("type").setSource(typeMapping).get();
+        client().admin().indices().preparePutMapping("test1", "test2").setType("type").setSource(typeMapping).get();
+
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings("test2").get();
+        assertNotNull(response.getMappings().get("test2").get("type").getSourceAsMap().get("_all"));
+        assertFalse((Boolean) ((LinkedHashMap) response.getMappings().get("test2").get("type").getSourceAsMap().get("_all")).get("enabled"));
+        assertNotNull(response.getMappings().get("test2").get("type").getSourceAsMap().get("_timestamp"));
+        assertTrue((Boolean)((LinkedHashMap)response.getMappings().get("test2").get("type").getSourceAsMap().get("_timestamp")).get("enabled"));
+    }
+
     public void testRejectFieldDefinedTwice() throws IOException {
         String mapping1 = XContentFactory.jsonBuilder().startObject()
                 .startObject("type1")

@@ -22,6 +22,7 @@ package org.elasticsearch.messy.tests;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -44,6 +45,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -86,6 +88,8 @@ public class SearchFieldsTests extends ESIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                // _timestamp is randomly enabled via templates but we don't want it here to test stored fields behaviour
+                .startObject("_timestamp").field("enabled", false).endObject()
                 .startObject("properties")
                 .startObject("field1").field("type", "text").field("store", true).endObject()
                 .startObject("field2").field("type", "text").field("store", false).endObject()
@@ -694,7 +698,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
     public void testLoadMetadata() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("parent")
-                .addMapping("my-type1", "_parent", "type=parent"));
+                .addMapping("my-type1", "_timestamp", "enabled=true", "_ttl", "enabled=true", "_parent", "type=parent"));
 
         indexRandom(true,
                 client().prepareIndex("test", "my-type1", "1")
@@ -713,6 +717,12 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertThat(fields.get("field1"), nullValue());
         assertThat(fields.get("_routing").isMetadataField(), equalTo(true));
         assertThat(fields.get("_routing").getValue().toString(), equalTo("1"));
+        assertThat(fields.get("_timestamp").isMetadataField(), equalTo(true));
+        assertThat(fields.get("_timestamp").getValue().toString(), equalTo("205097"));
+        assertThat(fields.get("_ttl").isMetadataField(), equalTo(true));
+        // TODO: _ttl should return the original value, but it does not work today because
+        // it would use now() instead of the value of _timestamp to rebase
+        // assertThat(fields.get("_ttl").getValue().toString(), equalTo("10000000205097"));
         assertThat(fields.get("_parent").isMetadataField(), equalTo(true));
         assertThat(fields.get("_parent").getValue().toString(), equalTo("parent_1"));
     }

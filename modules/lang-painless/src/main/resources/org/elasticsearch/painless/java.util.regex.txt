@@ -42,7 +42,7 @@ class Matcher -> java.util.regex.Matcher extends Object {
   boolean find(int)
   String group()
   String group(int)
-  String namedGroup/group(String)
+  String namedGroup*(String)
   int groupCount()
   boolean hasAnchoringBounds()
   boolean hasTransparentBounds()

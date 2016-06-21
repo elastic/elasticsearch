@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -49,7 +50,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
@@ -425,6 +428,23 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         parser.parse("test", new CompressedXContent(mapping));
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_numeric_detection_mapping.json");
         parser.parse("test", new CompressedXContent(mapping));
+    }
+
+    // issue https://github.com/elastic/elasticsearch/issues/5864
+    public void testMetadataMappersStillWorking() throws MapperParsingException, IOException {
+        String mapping = "{";
+        Map<String, String> rootTypes = new HashMap<>();
+        //just pick some example from DocumentMapperParser.rootTypeParsers
+        rootTypes.put(TimestampFieldMapper.NAME, "{\"enabled\" : true}");
+        rootTypes.put("include_in_all", "true");
+        rootTypes.put("dynamic_date_formats", "[\"yyyy-MM-dd\", \"dd-MM-yyyy\"]");
+        rootTypes.put("numeric_detection", "true");
+        rootTypes.put("dynamic_templates", "[]");
+        for (String key : rootTypes.keySet()) {
+            mapping += "\"" + key+ "\"" + ":" + rootTypes.get(key) + ",\n";
+        }
+        mapping += "\"properties\":{}}" ;
+        createIndex("test").mapperService().documentMapperParser().parse("test", new CompressedXContent(mapping));
     }
 
     public void testDocValuesNotAllowed() throws IOException {

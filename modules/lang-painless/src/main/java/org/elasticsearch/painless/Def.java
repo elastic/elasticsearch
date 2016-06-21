@@ -350,10 +350,10 @@ public final class Def {
                  }
                  throw new IllegalArgumentException("Unknown call [" + call + "] with [" + arity + "] arguments.");
              }
-             ref = new FunctionRef(clazz, interfaceMethod, handle, captures);
+             ref = new FunctionRef(clazz, interfaceMethod, handle, captures.length);
          } else {
              // whitelist lookup
-             ref = new FunctionRef(clazz, type, call, captures);
+             ref = new FunctionRef(clazz, type, call, captures.length);
          }
          final CallSite callSite;
          if (ref.needsBridges()) {

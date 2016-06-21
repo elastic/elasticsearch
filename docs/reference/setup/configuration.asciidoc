@@ -230,16 +230,16 @@ node:
   name: ${HOSTNAME}
 --------------------------------------------------
 
+[float]
+[[styles]]
+==== Configuration styles
+
 Internally, all settings are collapsed into "namespaced" settings. For
 example, the above gets collapsed into `node.name`. This means that
 its easy to support other configuration formats, for example,
 http://www.json.org[JSON]. If JSON is a preferred configuration format,
 simply rename the `elasticsearch.yml` file to `elasticsearch.json` and
 add:
-
-[float]
-[[styles]]
-==== Configuration styles
 
 [source,yaml]
 --------------------------------------------------

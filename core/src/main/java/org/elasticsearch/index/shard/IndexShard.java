@@ -1520,7 +1520,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
             final ShardStateMetaData newShardStateMetadata = new ShardStateMetaData(newRouting.primary(), getIndexUUID(), newRouting.allocationId());
-            ShardStateMetaData.FORMAT.write(newShardStateMetadata, newShardStateMetadata.legacyVersion, shardPath().getShardStatePath());
+            ShardStateMetaData.FORMAT.write(newShardStateMetadata, shardPath().getShardStatePath());
         } else {
             logger.trace("{} skip writing shard state, has been written before", shardId);
         }

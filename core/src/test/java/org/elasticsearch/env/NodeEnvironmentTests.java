@@ -22,7 +22,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -48,12 +47,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.not;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
 public class NodeEnvironmentTests extends ESTestCase {
@@ -392,7 +390,7 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         env.close();
         NodeEnvironment env2 = newNodeEnvironment(dataPaths, "/tmp",
-                Settings.builder().put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), false).build());
+                Settings.builder().put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), false).build());
 
         assertThat(env2.availableShardPaths(sid), equalTo(env2.availableShardPaths(sid)));
         assertThat(env2.resolveCustomLocation(s2, sid), equalTo(PathUtils.get("/tmp/foo/" + index.getUUID() + "/0")));
@@ -448,6 +446,27 @@ public class NodeEnvironmentTests extends ESTestCase {
             Path nodeDataPath = env.nodeDataPaths()[0];
             assertEquals(nodeDataPath, tempClusterPath.resolve("nodes").resolve("0"));
         }
+    }
+
+    public void testPersistentNodeId() throws IOException {
+        String[] paths = tmpPaths();
+        NodeEnvironment env = newNodeEnvironment(paths, Settings.builder()
+            .put("node.local_storage", false)
+            .put("node.master", false)
+            .put("node.data", false)
+            .build());
+        String nodeID = env.nodeId();
+        env.close();
+        env = newNodeEnvironment(paths, Settings.EMPTY);
+        assertThat("previous node didn't have local storage enabled, id should change", env.nodeId(), not(equalTo(nodeID)));
+        nodeID = env.nodeId();
+        env.close();
+        env = newNodeEnvironment(paths, Settings.EMPTY);
+        assertThat(env.nodeId(), equalTo(nodeID));
+        env.close();
+        env = newNodeEnvironment(Settings.EMPTY);
+        assertThat(env.nodeId(), not(equalTo(nodeID)));
+        env.close();
     }
 
     /** Converts an array of Strings to an array of Paths, adding an additional child if specified */

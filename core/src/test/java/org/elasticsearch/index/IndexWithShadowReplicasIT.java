@@ -94,7 +94,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     private Settings nodeSettings(String dataPath) {
         return Settings.builder()
-                .put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), false)
+                .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), false)
                 .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath)
                 .put(FsDirectoryService.INDEX_LOCK_FACTOR_SETTING.getKey(), randomFrom("native", "simple"))
                 .build();

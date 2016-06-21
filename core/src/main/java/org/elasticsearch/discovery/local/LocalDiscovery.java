@@ -46,6 +46,7 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
@@ -102,6 +103,13 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
             }
             logger.debug("Connected to cluster [{}]", clusterName);
 
+            Optional<LocalDiscovery> current = clusterGroup.members().stream().filter(other -> other.localNode().equals(this.localNode()))
+                .findFirst();
+            if (current.isPresent()) {
+                throw new IllegalStateException("current cluster group already contains a node with the same id. current "
+                    + current.get().localNode() + ", this node " + localNode());
+            }
+
             clusterGroup.members().add(this);
 
             LocalDiscovery firstMaster = null;
@@ -157,7 +165,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         }
                         nodesBuilder.localNodeId(master.localNode().getId()).masterNodeId(master.localNode().getId());
                         currentState = ClusterState.builder(currentState).nodes(nodesBuilder).build();
-                        RoutingAllocation.Result result =  master.allocationService.reroute(currentState, "node_add");
+                        RoutingAllocation.Result result = master.allocationService.reroute(currentState, "node_add");
                         if (result.changed()) {
                             currentState = ClusterState.builder(currentState).routingResult(result).build();
                         }
@@ -225,7 +233,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         // reroute here, so we eagerly remove dead nodes from the routing
                         ClusterState updatedState = ClusterState.builder(currentState).nodes(newNodes).build();
                         RoutingAllocation.Result routingResult = master.allocationService.reroute(
-                                ClusterState.builder(updatedState).build(), "elected as master");
+                            ClusterState.builder(updatedState).build(), "elected as master");
                         return ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }
 

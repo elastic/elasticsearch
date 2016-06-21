@@ -104,7 +104,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         Format format = new Format(randomFrom(XContentType.values()), "foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
-        format.write(state, version, dirs);
+        format.write(state, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
             assertEquals(list.length, 1);
@@ -119,7 +119,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
         final int version2 = between(version, Integer.MAX_VALUE);
         DummyState state2 = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
-        format.write(state2, version2, dirs);
+        format.write(state2, dirs);
 
         for (Path file : dirs) {
             Path[] list = content("*", file);
@@ -146,7 +146,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         Format format = new Format(randomFrom(XContentType.values()), "foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
-        format.write(state, version, dirs);
+        format.write(state, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
             assertEquals(list.length, 1);
@@ -170,7 +170,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         Format format = new Format(randomFrom(XContentType.values()), "foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
-        format.write(state, version, dirs);
+        format.write(state, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
             assertEquals(list.length, 1);
@@ -261,7 +261,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
                 }
             }
             for (int j = numLegacy; j < numStates; j++) {
-                format.write(meta.get(j), j, dirs[i]);
+                format.write(meta.get(j), dirs[i]);
                 if (randomBoolean() && (j < numStates - 1 || dirs.length > 0 && i != 0)) {  // corrupt a file that we do not necessarily need here....
                     Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + j + ".st");
                     corruptedFiles.add(file);

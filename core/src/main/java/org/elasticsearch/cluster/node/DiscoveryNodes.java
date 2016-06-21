@@ -545,7 +545,10 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 // reuse the same instance of our address and local node id for faster equality
                 node = localNode;
             }
-            builder.put(node);
+            // some one already built this and validated it's OK, skip the n2 scans
+            assert builder.preflightPut(node) == null : "building disco nodes from network doesn't pass preflight: "
+                + builder.preflightPut(node);
+            builder.putUnsafe(node);
         }
         return builder.build();
     }
@@ -579,13 +582,21 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             this.nodes = ImmutableOpenMap.builder(nodes.getNodes());
         }
 
+        /**
+         * adds a disco node to the builder. Will throw an {@link IllegalArgumentException} if
+         * the supplied node doesn't pass the pre-flight checks performed by {@link #preflightPut(DiscoveryNode)}
+         */
         public Builder put(DiscoveryNode node) {
             final String preflight = preflightPut(node);
             if (preflight != null) {
                 throw new IllegalArgumentException(preflight);
             }
-            nodes.put(node.getId(), node);
+            putUnsafe(node);
             return this;
+        }
+
+        private void putUnsafe(DiscoveryNode node) {
+            nodes.put(node.getId(), node);
         }
 
         public Builder remove(String nodeId) {

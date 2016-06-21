@@ -532,8 +532,8 @@ public class NodeJoinControllerTests extends ESTestCase {
 
     public void testRejectingJoinWithSameIdButDifferentAddress() throws InterruptedException, ExecutionException {
         ClusterState state = clusterService.state();
-        final DiscoveryNode other_node = new DiscoveryNode(state.nodes().getLocalNode().getId(), LocalTransportAddress.buildUnique(),
-            emptyMap(), emptySet(), Version.CURRENT);
+        final DiscoveryNode other_node = new DiscoveryNode(state.nodes().getLocalNode().getId(),
+            new LocalTransportAddress(randomAsciiOfLength(20)), emptyMap(), emptySet(), Version.CURRENT);
 
         ExecutionException e = expectThrows(ExecutionException.class, () -> joinNode(other_node));
         assertThat(e.getMessage(), containsString("found existing node"));
@@ -636,8 +636,8 @@ public class NodeJoinControllerTests extends ESTestCase {
      * creates an object clone of node, so it will be a different object instance
      */
     private DiscoveryNode cloneNode(DiscoveryNode node) {
-        return new DiscoveryNode(node.getName(), node.getId(), node.getHostName(), node.getHostAddress(), node.getAddress(),
-            node.getAttributes(), node.getRoles(), node.getVersion());
+        return new DiscoveryNode(node.getName(), node.getId(), node.getEphemeralId(), node.getHostName(), node.getHostAddress(),
+            node.getAddress(), node.getAttributes(), node.getRoles(), node.getVersion());
     }
 
     private void joinNode(final DiscoveryNode node) throws InterruptedException, ExecutionException {

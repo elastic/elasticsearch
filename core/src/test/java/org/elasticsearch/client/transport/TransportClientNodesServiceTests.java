@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transport;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
@@ -123,7 +122,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 @SuppressWarnings("unchecked")
                 public void handleResponse(T response) {
                     LivenessResponse livenessResponse = new LivenessResponse(clusterName,
-                            new DiscoveryNode(node.getName(), node.getId(), "liveness-hostname" + node.getId(),
+                            new DiscoveryNode(node.getName(), node.getId(), node.getEphemeralId(), "liveness-hostname" + node.getId(),
                                     "liveness-hostaddress" + node.getId(),
                                     new LocalTransportAddress("liveness-address-" + node.getId()), node.getAttributes(), node.getRoles(),
                                     node.getVersion()));

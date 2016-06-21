@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -113,7 +114,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
      */
     public DiscoveryNode(String id, TransportAddress address, Map<String, String> attributes, Set<Role> roles,
                          Version version) {
-        this("", id, id, address, attributes, roles, version);
+        this("", id, address, attributes, roles, version);
     }
 
     /**
@@ -127,15 +128,14 @@ public class DiscoveryNode implements Writeable, ToXContent {
      *
      * @param nodeName         the nodes name
      * @param nodeId           the nodes unique persistent id
-     * @param ephemeralId      the nodes unique ephemeral id
      * @param address          the nodes transport address
      * @param attributes       node attributes
      * @param roles            node roles
      * @param version          the version of the node
      */
-    public DiscoveryNode(String nodeName, String nodeId, String ephemeralId, TransportAddress address,
+    public DiscoveryNode(String nodeName, String nodeId, TransportAddress address,
                          Map<String, String> attributes, Set<Role> roles, Version version) {
-        this(nodeName, nodeId, ephemeralId, address.getHost(), address.getAddress(), address, attributes, roles, version);
+        this(nodeName, nodeId, UUIDs.randomBase64UUID(), address.getHost(), address.getAddress(), address, attributes, roles, version);
     }
 
     /**

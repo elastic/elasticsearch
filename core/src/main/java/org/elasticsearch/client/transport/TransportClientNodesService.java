@@ -396,9 +396,9 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                         // use discovered information but do keep the original transport address,
                         // so people can control which address is exactly used.
                         DiscoveryNode nodeWithInfo = livenessResponse.getDiscoveryNode();
-                        newNodes.add(new DiscoveryNode(nodeWithInfo.getName(), nodeWithInfo.getId(), nodeWithInfo.getHostName(),
-                                nodeWithInfo.getHostAddress(), listedNode.getAddress(), nodeWithInfo.getAttributes(),
-                                nodeWithInfo.getRoles(), nodeWithInfo.getVersion()));
+                        newNodes.add(new DiscoveryNode(nodeWithInfo.getName(), nodeWithInfo.getId(), nodeWithInfo.getEphemeralId(),
+                            nodeWithInfo.getHostName(), nodeWithInfo.getHostAddress(), listedNode.getAddress(),
+                            nodeWithInfo.getAttributes(), nodeWithInfo.getRoles(), nodeWithInfo.getVersion()));
                     } else {
                         // although we asked for one node, our target may not have completed
                         // initialization yet and doesn't have cluster nodes

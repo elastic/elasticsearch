@@ -70,7 +70,8 @@ public class NodesFaultDetection extends FaultDetection {
     public NodesFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
         super(settings, threadPool, transportService, clusterName);
 
-        logger.debug("[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
+        logger.debug("[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout,
+            pingRetryCount);
 
         transportService.registerRequestHandler(
             PING_ACTION_NAME, PingRequest::new, ThreadPool.Names.SAME, false, false, new PingRequestHandler());
@@ -201,8 +202,9 @@ public class NodesFaultDetection extends FaultDetection {
             if (!running()) {
                 return;
             }
-            final PingRequest pingRequest = new PingRequest(node.getId(), clusterName, localNode, clusterStateVersion);
-            final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout).build();
+            final PingRequest pingRequest = new PingRequest(node, clusterName, localNode, clusterStateVersion);
+            final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING)
+                .withTimeout(pingRetryTimeout).build();
             transportService.sendRequest(node, PING_ACTION_NAME, pingRequest, options, new BaseTransportResponseHandler<PingResponse>() {
                         @Override
                         public PingResponse newInstance() {
@@ -231,10 +233,12 @@ public class NodesFaultDetection extends FaultDetection {
                             retryCount++;
                             logger.trace("[node  ] failed to ping [{}], retry [{}] out of [{}]", exp, node, retryCount, pingRetryCount);
                             if (retryCount >= pingRetryCount) {
-                                logger.debug("[node  ] failed to ping [{}], tried [{}] times, each with  maximum [{}] timeout", node, pingRetryCount, pingRetryTimeout);
+                                logger.debug("[node  ] failed to ping [{}], tried [{}] times, each with  maximum [{}] timeout", node,
+                                    pingRetryCount, pingRetryTimeout);
                                 // not good, failure
                                 if (nodesFD.remove(node, NodeFD.this)) {
-                                    notifyNodeFailure(node, "failed to ping, tried [" + pingRetryCount + "] times, each with maximum [" + pingRetryTimeout + "] timeout");
+                                    notifyNodeFailure(node, "failed to ping, tried [" + pingRetryCount + "] times, each with maximum ["
+                                        + pingRetryTimeout + "] timeout");
                                 }
                             } else {
                                 // resend the request, not reschedule, rely on send timeout
@@ -256,14 +260,15 @@ public class NodesFaultDetection extends FaultDetection {
         public void messageReceived(PingRequest request, TransportChannel channel) throws Exception {
             // if we are not the node we are supposed to be pinged, send an exception
             // this can happen when a kill -9 is sent, and another node is started using the same port
-            if (!localNode.getId().equals(request.nodeId)) {
-                throw new IllegalStateException("Got pinged as node [" + request.nodeId + "], but I am node [" + localNode.getId() + "]");
+            if (!localNode.equals(request.node())) {
+                throw new IllegalStateException("Got pinged as node " + request.node() + "], but I am node " + localNode );
             }
 
             // PingRequest will have clusterName set to null if it came from a node of version <1.4.0
             if (request.clusterName != null && !request.clusterName.equals(clusterName)) {
                 // Don't introduce new exception for bwc reasons
-                throw new IllegalStateException("Got pinged with cluster name [" + request.clusterName + "], but I'm part of cluster [" + clusterName + "]");
+                throw new IllegalStateException("Got pinged with cluster name [" + request.clusterName + "], but I'm part of cluster ["
+                    + clusterName + "]");
             }
 
             notifyPingReceived(request);
@@ -275,8 +280,8 @@ public class NodesFaultDetection extends FaultDetection {
 
     public static class PingRequest extends TransportRequest {
 
-        // the (assumed) node id we are pinging
-        private String nodeId;
+        // the (assumed) node we are pinging
+        private DiscoveryNode node;
 
         private ClusterName clusterName;
 
@@ -287,15 +292,15 @@ public class NodesFaultDetection extends FaultDetection {
         public PingRequest() {
         }
 
-        PingRequest(String nodeId, ClusterName clusterName, DiscoveryNode masterNode, long clusterStateVersion) {
-            this.nodeId = nodeId;
+        PingRequest(DiscoveryNode node, ClusterName clusterName, DiscoveryNode masterNode, long clusterStateVersion) {
+            this.node = node;
             this.clusterName = clusterName;
             this.masterNode = masterNode;
             this.clusterStateVersion = clusterStateVersion;
         }
 
-        public String nodeId() {
-            return nodeId;
+        public DiscoveryNode node() {
+            return node();
         }
 
         public ClusterName clusterName() {
@@ -313,7 +318,7 @@ public class NodesFaultDetection extends FaultDetection {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            nodeId = in.readString();
+            node = new DiscoveryNode(in);
             clusterName = new ClusterName(in);
             masterNode = new DiscoveryNode(in);
             clusterStateVersion = in.readLong();
@@ -322,7 +327,7 @@ public class NodesFaultDetection extends FaultDetection {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(nodeId);
+            node.writeTo(out);
             clusterName.writeTo(out);
             masterNode.writeTo(out);
             out.writeLong(clusterStateVersion);

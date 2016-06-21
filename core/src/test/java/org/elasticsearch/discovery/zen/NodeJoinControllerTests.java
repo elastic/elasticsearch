@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -408,7 +407,7 @@ public class NodeJoinControllerTests extends ESTestCase {
     public void testNewClusterStateOnExistingNodeJoin() throws InterruptedException, ExecutionException {
         ClusterState state = clusterService.state();
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(state.nodes());
-        final DiscoveryNode other_node = new DiscoveryNode("other_node", DummyTransportAddress.INSTANCE,
+        final DiscoveryNode other_node = new DiscoveryNode("other_node", LocalTransportAddress.buildUnique(),
             emptyMap(), emptySet(), Version.CURRENT);
         nodesBuilder.put(other_node);
         setState(clusterService, ClusterState.builder(state).nodes(nodesBuilder));

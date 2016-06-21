@@ -34,7 +34,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Arrays;
@@ -256,7 +256,7 @@ public class ClusterStateCreationUtils {
     }
 
     private static DiscoveryNode newNode(int nodeId) {
-        return new DiscoveryNode("node_" + nodeId, DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+        return new DiscoveryNode("node_" + nodeId, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
                 new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.CURRENT);
     }
 

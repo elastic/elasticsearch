@@ -46,7 +46,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.NodeEnvironment;
@@ -198,7 +198,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
     }
 
     private DiscoveryNode getDiscoveryNode(String id) {
-        return new DiscoveryNode(id, id, DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+        return new DiscoveryNode(id, id, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
             Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
     }
 

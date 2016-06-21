@@ -22,7 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import static java.util.Collections.emptyMap;
@@ -32,8 +32,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class ClusterStateTests extends ESTestCase {
 
     public void testSupersedes() {
-        final DiscoveryNode node1 = new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
-        final DiscoveryNode node2 = new DiscoveryNode("node2", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+        final DiscoveryNode node1 = new DiscoveryNode("node1", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        final DiscoveryNode node2 = new DiscoveryNode("node2", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
         final DiscoveryNodes nodes = DiscoveryNodes.builder().put(node1).put(node2).build();
         ClusterName name = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
         ClusterState noMaster1 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();

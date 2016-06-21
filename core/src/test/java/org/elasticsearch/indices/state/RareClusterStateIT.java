@@ -42,7 +42,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -126,7 +126,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 // inject a node
                 ClusterState.Builder builder = ClusterState.builder(currentState);
                 builder.nodes(DiscoveryNodes.builder(currentState.nodes()).put(new DiscoveryNode("_non_existent",
-                        DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT)));
+                        LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT)));
 
                 // open index
                 final IndexMetaData indexMetaData = IndexMetaData.builder(currentState.metaData().index(index)).state(IndexMetaData.State.OPEN).build();

@@ -1573,8 +1573,8 @@ public class TranslogTests extends ESTestCase {
                     FileChannel channel = factory.open(file, openOption);
                     boolean success = false;
                     try {
-                        ThrowingFileChannel throwingFileChannel = new ThrowingFileChannel(fail, file.getFileName().endsWith(".ckp") // don't do partial writes for checkpoints we rely on the fact that the 20bytes are written as an atomic operation
-                            ? false : paritalWrites, throwUnknownException, channel);
+                        final boolean isCkpFile = file.getFileName().toString().endsWith(".ckp"); // don't do partial writes for checkpoints we rely on the fact that the 20bytes are written as an atomic operation
+                        ThrowingFileChannel throwingFileChannel = new ThrowingFileChannel(fail, isCkpFile ? false : paritalWrites, throwUnknownException, channel);
                         success = true;
                         return throwingFileChannel;
                     } finally {
@@ -1840,6 +1840,11 @@ public class TranslogTests extends ESTestCase {
                 } catch (IOException ex) {
                     assertEquals(ex.getMessage(), "__FAKE__ no space left on device");
                 } finally {
+                    Checkpoint checkpoint = failableTLog.readCheckpoint();
+                    if (checkpoint.numOps == unsynced.size() + syncedDocs.size()) {
+                        syncedDocs.addAll(unsynced); // failed in fsync but got fully written
+                        unsynced.clear();
+                    }
                     generation = failableTLog.getGeneration();
                     IOUtils.closeWhileHandlingException(failableTLog);
                 }

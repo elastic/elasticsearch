@@ -200,7 +200,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 Files.createDirectories(location);
                 final long generation = 1;
                 Checkpoint checkpoint = new Checkpoint(0, 0, generation);
-                Checkpoint.write(getChannelFactory()::open, location.resolve(CHECKPOINT_FILE_NAME), checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
+                Checkpoint.write(getChannelFactory(), location.resolve(CHECKPOINT_FILE_NAME), checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
                 current = createWriter(generation);
                 this.lastCommittedTranslogFileGeneration = NOT_SET_GENERATION;
 

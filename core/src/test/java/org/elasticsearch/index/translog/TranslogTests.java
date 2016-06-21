@@ -1881,11 +1881,19 @@ public class TranslogTests extends ESTestCase {
         try {
             Checkpoint.write((p, o) -> {
                 FileChannel open = FileChannel.open(p, o);
-                FailSwitch failSwitch = new FailSwitch();
-                failSwitch.failNever();
-                ThrowingFileChannel channel = new ThrowingFileChannel(failSwitch, false, false, open);
-                failSwitch.failAlways();
-                return channel;
+                boolean success = false;
+                try {
+                    FailSwitch failSwitch = new FailSwitch();
+                    failSwitch.failRandomly();
+                    ThrowingFileChannel channel = new ThrowingFileChannel(failSwitch, false, false, open);
+                    failSwitch.failAlways();
+                    success = true;
+                    return channel;
+                } finally {
+                    if (success == false) {
+                        IOUtils.closeWhileHandlingException(open);
+                    }
+                }
 
             }, tempDir.resolve("foo.cpk"), checkpoint2, StandardOpenOption.WRITE);
             fail("should have failed earlier");

@@ -54,10 +54,13 @@ import org.elasticsearch.index.mapper.ParseContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Utility to extract query terms from queries and create queries from documents.
@@ -69,18 +72,42 @@ public final class ExtractQueryTermsService {
     public static final String EXTRACTION_PARTIAL = "partial";
     public static final String EXTRACTION_NO_TERMS = "no_terms";
 
+    static final Map<Class<? extends Query>, Function<Query, Result>> queryProcessors;
+
+    static {
+        Map<Class<? extends Query>, Function<Query, Result>> map = new HashMap<>(16);
+        map.put(MatchAllDocsQuery.class, matchAllDocsQuery());
+        map.put(MatchNoDocsQuery.class, matchNoDocsQuery());
+        map.put(ConstantScoreQuery.class, constantScoreQuery());
+        map.put(BoostQuery.class, boostQuery());
+        map.put(TermQuery.class, termQuery());
+        map.put(TermsQuery.class, termsQuery());
+        map.put(CommonTermsQuery.class, commonTermsQuery());
+        map.put(BlendedTermQuery.class, blendedTermQuery());
+        map.put(PhraseQuery.class, phraseQuery());
+        map.put(SpanTermQuery.class, spanTermQuery());
+        map.put(SpanNearQuery.class, spanNearQuery());
+        map.put(SpanOrQuery.class, spanOrQuery());
+        map.put(SpanFirstQuery.class, spanFirstQuery());
+        map.put(SpanNotQuery.class, spanNotQuery());
+        map.put(BooleanQuery.class, booleanQuery());
+        map.put(DisjunctionMaxQuery.class, disjunctionMaxQuery());
+        queryProcessors = Collections.unmodifiableMap(map);
+    }
+
     private ExtractQueryTermsService() {
     }
 
     /**
      * Extracts all terms from the specified query and adds it to the specified document.
-     * @param query                     The query to extract terms from
-     * @param document                  The document to add the extracted terms to
-     * @param queryTermsFieldField      The field in the document holding the extracted terms
-     * @param extractionResultField     The field contains whether query term extraction was successful, partial or
-     *                                  failed. (For example the query contained an unsupported query (e.g. WildcardQuery)
-     *                                  then query extraction would fail)
-     * @param fieldType                 The field type for the query metadata field
+     *
+     * @param query                 The query to extract terms from
+     * @param document              The document to add the extracted terms to
+     * @param queryTermsFieldField  The field in the document holding the extracted terms
+     * @param extractionResultField The field contains whether query term extraction was successful, partial or
+     *                              failed. (For example the query contained an unsupported query (e.g. WildcardQuery)
+     *                              then query extraction would fail)
+     * @param fieldType             The field type for the query metadata field
      */
     public static void extractQueryTerms(Query query, ParseContext.Document document, String queryTermsFieldField,
                                          String extractionResultField, FieldType fieldType) {
@@ -110,33 +137,116 @@ public final class ExtractQueryTermsService {
     }
 
     /**
+     * Creates a boolean query with a should clause for each term on all fields of the specified index reader.
+     */
+    public static Query createQueryTermsQuery(IndexReader indexReader, String queryMetadataField,
+                                              Term... optionalTerms) throws IOException {
+        Objects.requireNonNull(queryMetadataField);
+
+        List<Term> extractedTerms = new ArrayList<>();
+        Collections.addAll(extractedTerms, optionalTerms);
+
+        Fields fields = MultiFields.getFields(indexReader);
+        for (String field : fields) {
+            Terms terms = fields.terms(field);
+            if (terms == null) {
+                continue;
+            }
+
+            BytesRef fieldBr = new BytesRef(field);
+            TermsEnum tenum = terms.iterator();
+            for (BytesRef term = tenum.next(); term != null; term = tenum.next()) {
+                BytesRefBuilder builder = new BytesRefBuilder();
+                builder.append(fieldBr);
+                builder.append(FIELD_VALUE_SEPARATOR);
+                builder.append(term);
+                extractedTerms.add(new Term(queryMetadataField, builder.toBytesRef()));
+            }
+        }
+        return new TermsQuery(extractedTerms);
+    }
+
+    /**
      * Extracts all query terms from the provided query and adds it to specified list.
-     *
+     * <p>
      * From boolean query with no should clauses or phrase queries only the longest term are selected,
      * since that those terms are likely to be the rarest. Boolean query's must_not clauses are always ignored.
-     *
+     * <p>
      * If from part of the query, no query terms can be extracted then term extraction is stopped and
      * an UnsupportedQueryException is thrown.
      */
-    // TODO: restructure this method? For example have a Function<Query, Result> per supported query.
-    // All functions then sit in a Map<Class<? extends Query>, Function<Query, Result>> and we lookup via map.get(query.getClass())
     static Result extractQueryTerms(Query query) {
-        if (query instanceof MatchAllDocsQuery) {
-            return new Result(true, true);
-        } else  if (query instanceof MatchNoDocsQuery) {
-            return new Result(true, false);
-        } else if (query instanceof TermQuery) {
+        Class queryClass = query.getClass();
+        if (queryClass.isAnonymousClass()) {
+            // Sometimes queries have anonymous classes in that case we need the direct super class.
+            // (for example blended term query)
+            queryClass = queryClass.getSuperclass();
+        }
+        Function<Query, Result> queryProcessor = queryProcessors.get(queryClass);
+        if (queryProcessor != null) {
+            return queryProcessor.apply(query);
+        } else {
+            throw new UnsupportedQueryException(query);
+        }
+    }
+
+    static Function<Query, Result> matchAllDocsQuery() {
+        return (query -> new Result(true, true));
+    }
+
+    static Function<Query, Result> matchNoDocsQuery() {
+        return (query -> new Result(true, false));
+    }
+
+    static Function<Query, Result> constantScoreQuery() {
+        return query -> {
+            Query wrappedQuery = ((ConstantScoreQuery) query).getQuery();
+            return extractQueryTerms(wrappedQuery);
+        };
+    }
+
+    static Function<Query, Result> boostQuery() {
+        return query -> {
+            Query wrappedQuery = ((BoostQuery) query).getQuery();
+            return extractQueryTerms(wrappedQuery);
+        };
+    }
+
+    static Function<Query, Result> termQuery() {
+        return (query -> {
             TermQuery termQuery = (TermQuery) query;
             return new Result(true, Collections.singleton(termQuery.getTerm()));
-        } else if (query instanceof TermsQuery) {
-            Set<Term> terms = new HashSet<>();
+        });
+    }
+
+    static Function<Query, Result> termsQuery() {
+        return query -> {
             TermsQuery termsQuery = (TermsQuery) query;
+            Set<Term> terms = new HashSet<>();
             PrefixCodedTerms.TermIterator iterator = termsQuery.getTermData().iterator();
             for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
                 terms.add(new Term(iterator.field(), term));
             }
             return new Result(true, terms);
-        } else if (query instanceof PhraseQuery) {
+        };
+    }
+
+    static Function<Query, Result> commonTermsQuery() {
+        return query -> {
+            List<Term> terms = ((CommonTermsQuery) query).getTerms();
+            return new Result(false, new HashSet<>(terms));
+        };
+    }
+
+    static Function<Query, Result> blendedTermQuery() {
+        return query -> {
+            List<Term> terms = ((BlendedTermQuery) query).getTerms();
+            return new Result(true, new HashSet<>(terms));
+        };
+    }
+
+    static Function<Query, Result> phraseQuery() {
+        return query -> {
             Term[] terms = ((PhraseQuery) query).getTerms();
             if (terms.length == 0) {
                 return new Result(true, false);
@@ -151,7 +261,49 @@ public final class ExtractQueryTermsService {
                 }
             }
             return new Result(false, Collections.singleton(longestTerm));
-        } else if (query instanceof BooleanQuery) {
+        };
+    }
+
+    static Function<Query, Result> spanTermQuery() {
+        return query -> {
+            Term term = ((SpanTermQuery) query).getTerm();
+            return new Result(false, Collections.singleton(term));
+        };
+    }
+
+    static Function<Query, Result> spanNearQuery() {
+        return query -> {
+            Set<Term> bestClauses = null;
+            SpanNearQuery spanNearQuery = (SpanNearQuery) query;
+            for (SpanQuery clause : spanNearQuery.getClauses()) {
+                Result temp = extractQueryTerms(clause);
+                bestClauses = selectTermListWithTheLongestShortestTerm(temp.terms, bestClauses);
+            }
+            return new Result(false, bestClauses);
+        };
+    }
+
+    static Function<Query, Result> spanOrQuery() {
+        return query -> {
+            Set<Term> terms = new HashSet<>();
+            SpanOrQuery spanOrQuery = (SpanOrQuery) query;
+            for (SpanQuery clause : spanOrQuery.getClauses()) {
+                terms.addAll(extractQueryTerms(clause).terms);
+            }
+            return new Result(false, terms);
+        };
+    }
+
+    static Function<Query, Result> spanNotQuery() {
+        return query -> extractQueryTerms(((SpanNotQuery) query).getInclude());
+    }
+
+    static Function<Query, Result> spanFirstQuery() {
+        return query -> extractQueryTerms(((SpanFirstQuery) query).getMatch());
+    }
+
+    static Function<Query, Result> booleanQuery() {
+        return query -> {
             BooleanQuery bq = (BooleanQuery) query;
             List<BooleanClause> clauses = bq.clauses();
             int minimumShouldMatch = bq.getMinimumNumberShouldMatch();
@@ -163,7 +315,7 @@ public final class ExtractQueryTermsService {
                     numRequiredClauses++;
                 }
                 if (clause.isProhibited()) {
-                   numProhibitedClauses++;
+                    numProhibitedClauses++;
                 }
                 if (clause.isScoring()) {
                     numOptionalClauses++;
@@ -219,46 +371,14 @@ public final class ExtractQueryTermsService {
                 }
                 return handleDisjunction(disjunctions, minimumShouldMatch, numProhibitedClauses > 0);
             }
-        } else if (query instanceof ConstantScoreQuery) {
-            Query wrappedQuery = ((ConstantScoreQuery) query).getQuery();
-            return extractQueryTerms(wrappedQuery);
-        } else if (query instanceof BoostQuery) {
-            Query wrappedQuery = ((BoostQuery) query).getQuery();
-            return extractQueryTerms(wrappedQuery);
-        } else if (query instanceof CommonTermsQuery) {
-            List<Term> terms = ((CommonTermsQuery) query).getTerms();
-            return new Result(false, new HashSet<>(terms));
-        } else if (query instanceof BlendedTermQuery) {
-            List<Term> terms = ((BlendedTermQuery) query).getTerms();
-            return new Result(true, new HashSet<>(terms));
-        } else if (query instanceof DisjunctionMaxQuery) {
+        };
+    }
+
+    static Function<Query, Result> disjunctionMaxQuery() {
+        return query -> {
             List<Query> disjuncts = ((DisjunctionMaxQuery) query).getDisjuncts();
             return handleDisjunction(disjuncts, 1, false);
-        } else if (query instanceof SpanTermQuery) {
-            Term term = ((SpanTermQuery) query).getTerm();
-            return new Result(false, Collections.singleton(term));
-        } else if (query instanceof SpanNearQuery) {
-            Set<Term> bestClauses = null;
-            SpanNearQuery spanNearQuery = (SpanNearQuery) query;
-            for (SpanQuery clause : spanNearQuery.getClauses()) {
-                Result temp = extractQueryTerms(clause);
-                bestClauses = selectTermListWithTheLongestShortestTerm(temp.terms, bestClauses);
-            }
-            return new Result(false, bestClauses);
-        } else if (query instanceof SpanOrQuery) {
-            Set<Term> terms = new HashSet<>();
-            SpanOrQuery spanOrQuery = (SpanOrQuery) query;
-            for (SpanQuery clause : spanOrQuery.getClauses()) {
-                terms.addAll(extractQueryTerms(clause).terms);
-            }
-            return new Result(false, terms);
-        } else if (query instanceof SpanFirstQuery) {
-            return extractQueryTerms(((SpanFirstQuery)query).getMatch());
-        } else if (query instanceof SpanNotQuery) {
-            return extractQueryTerms(((SpanNotQuery) query).getInclude());
-        } else {
-            throw new UnsupportedQueryException(query);
-        }
+        };
     }
 
     static Result handleDisjunction(List<Query> disjunctions, int minimumShouldMatch, boolean otherClauses) {
@@ -267,7 +387,7 @@ public final class ExtractQueryTermsService {
         Set<Term> terms = new HashSet<>();
         for (Query disjunct : disjunctions) {
             Result subResult = extractQueryTerms(disjunct);
-            if (subResult.verified == false){
+            if (subResult.verified == false) {
                 verified = false;
             }
             if (subResult.noTerms == false) {
@@ -299,42 +419,12 @@ public final class ExtractQueryTermsService {
         }
     }
 
-    private static int minTermLength(Set<Term> terms) {
+    static int minTermLength(Set<Term> terms) {
         int min = Integer.MAX_VALUE;
         for (Term term : terms) {
             min = Math.min(min, term.bytes().length);
         }
         return min;
-    }
-
-    /**
-     * Creates a boolean query with a should clause for each term on all fields of the specified index reader.
-     */
-    public static Query createQueryTermsQuery(IndexReader indexReader, String queryMetadataField,
-                                              Term... optionalTerms) throws IOException {
-        Objects.requireNonNull(queryMetadataField);
-
-        List<Term> extractedTerms = new ArrayList<>();
-        Collections.addAll(extractedTerms, optionalTerms);
-
-        Fields fields = MultiFields.getFields(indexReader);
-        for (String field : fields) {
-            Terms terms = fields.terms(field);
-            if (terms == null) {
-                continue;
-            }
-
-            BytesRef fieldBr = new BytesRef(field);
-            TermsEnum tenum = terms.iterator();
-            for (BytesRef term = tenum.next(); term != null; term = tenum.next()) {
-                BytesRefBuilder builder = new BytesRefBuilder();
-                builder.append(fieldBr);
-                builder.append(FIELD_VALUE_SEPARATOR);
-                builder.append(term);
-                extractedTerms.add(new Term(queryMetadataField, builder.toBytesRef()));
-            }
-        }
-        return new TermsQuery(extractedTerms);
     }
 
     static class Result {

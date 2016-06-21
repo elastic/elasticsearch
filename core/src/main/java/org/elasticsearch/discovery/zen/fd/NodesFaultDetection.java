@@ -96,7 +96,7 @@ public class NodesFaultDetection extends FaultDetection {
     public void updateNodesAndPing(ClusterState clusterState) {
         // remove any nodes we don't need, this will cause their FD to stop
         for (DiscoveryNode monitoredNode : nodesFD.keySet()) {
-            if (!clusterState.nodes().nodeExists(monitoredNode.getId())) {
+            if (!clusterState.nodes().nodeExists(monitoredNode)) {
                 nodesFD.remove(monitoredNode);
             }
         }

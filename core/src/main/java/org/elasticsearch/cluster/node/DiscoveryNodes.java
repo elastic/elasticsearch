@@ -604,6 +604,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             return this;
         }
 
+        public Builder remove(DiscoveryNode node) {
+            if (node.equals(nodes.get(node.getId()))) {
+                nodes.remove(node.getId());
+            }
+            return this;
+        }
+
+
         public Builder masterNodeId(String masterNodeId) {
             this.masterNodeId = masterNodeId;
             return this;

@@ -548,12 +548,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         clusterService.submitStateUpdateTask("zen-disco-node_failed(" + node + "), reason " + reason, new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                if (currentState.nodes().get(node.getId()) == null) {
+                if (currentState.nodes().nodeExists(node) == false) {
                     logger.debug("node [{}] already removed from cluster state. ignoring.", node);
                     return currentState;
                 }
-                DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes())
-                        .remove(node.getId());
+                DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes()).remove(node);
                 currentState = ClusterState.builder(currentState).nodes(builder).build();
                 // check if we have enough master nodes, if not, we need to move into joining the cluster again
                 if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
@@ -642,14 +641,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                if (!masterNode.getId().equals(currentState.nodes().getMasterNodeId())) {
+                if (!masterNode.equals(currentState.nodes().getMasterNode())) {
                     // master got switched on us, no need to send anything
                     return currentState;
                 }
 
                 DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(currentState.nodes())
                         // make sure the old master node, which has failed, is not part of the nodes we publish
-                        .remove(masterNode.getId())
+                        .remove(masterNode)
                         .masterNodeId(null).build();
 
                 // flush any pending cluster states from old master, so it will not be set as master again

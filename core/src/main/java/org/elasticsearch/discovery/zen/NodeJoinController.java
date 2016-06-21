@@ -418,7 +418,7 @@ public class NodeJoinController extends AbstractComponent {
             for (final DiscoveryNode node : joiningNodes) {
                 if (node.equals(BECOME_MASTER_TASK) || node.equals(FINISH_ELECTION_NOT_MASTER_TASK)) {
                     // noop
-                } else if (currentNodes.nodeExists(node.getId())) {
+                } else if (currentNodes.nodeExists(node)) {
                     logger.debug("received a join request for an existing node [{}]", node);
                 } else {
                     try {

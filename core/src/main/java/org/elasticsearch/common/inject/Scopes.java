@@ -56,7 +56,9 @@ public class Scopes {
                         */
                         synchronized (InjectorImpl.class) {
                             if (instance == null) {
+
                                 instance = creator.get();
+                                System.out.println("------------ " + instance.getClass());
                             }
                         }
                     }

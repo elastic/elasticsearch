@@ -1882,23 +1882,17 @@ public class TranslogTests extends ESTestCase {
         Path tempDir = createTempDir();
         Checkpoint.write(FileChannel::open, tempDir.resolve("foo.cpk"), checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
         Checkpoint checkpoint2 = new Checkpoint(randomLong(), randomInt(), randomLong());
-
         try {
             Checkpoint.write((p, o) -> {
-                FileChannel open = FileChannel.open(p, o);
-                boolean success = false;
-                try {
-                    FailSwitch failSwitch = new FailSwitch();
-                    failSwitch.failRandomly();
-                    ThrowingFileChannel channel = new ThrowingFileChannel(failSwitch, false, false, open);
-                    failSwitch.failAlways();
-                    success = true;
-                    return channel;
-                } finally {
-                    if (success == false) {
-                        IOUtils.closeWhileHandlingException(open);
-                    }
+                if (randomBoolean()) {
+                    throw new MockDirectoryWrapper.FakeIOException();
                 }
+                FileChannel open = FileChannel.open(p, o);
+                FailSwitch failSwitch = new FailSwitch();
+                failSwitch.failNever(); // don't fail in the ctor
+                ThrowingFileChannel channel = new ThrowingFileChannel(failSwitch, false, false, open);
+                failSwitch.failAlways();
+                return channel;
 
             }, tempDir.resolve("foo.cpk"), checkpoint2, StandardOpenOption.WRITE);
             fail("should have failed earlier");

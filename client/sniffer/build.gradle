@@ -27,12 +27,14 @@ targetCompatibility = JavaVersion.VERSION_1_7
 sourceCompatibility = JavaVersion.VERSION_1_7
 
 dependencies {
+  compile "org.elasticsearch.client:rest:${version}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
+  compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
 
-  testCompile "org.elasticsearch:client-test:${version}"
+  testCompile "org.elasticsearch.client:test:${version}"
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
   testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
@@ -61,6 +63,12 @@ namingConventions {
   testClass = 'org.elasticsearch.client.RestClientTestCase'
   //we don't have integration tests
   skipIntegTestInDisguise = true
+}
+
+dependencyLicenses {
+  dependencies = project.configurations.runtime.fileCollection {
+    it.group.startsWith('org.elasticsearch') == false
+  }
 }
 
 thirdPartyAudit.excludes = [

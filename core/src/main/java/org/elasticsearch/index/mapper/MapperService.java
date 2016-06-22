@@ -348,6 +348,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 logger.warn("Type [{}] starts with a '.', it is recommended not to start a type name with a '.'", mapper.type());
             }
         }
+        if (reason == MergeReason.MAPPING_UPDATE) {
+            if (mapper.timestampFieldMapper().enabled()) {
+                deprecationLogger.deprecated("[_timestamp] will be removed in 5.0. As a replacement, you should explicitly populate a date "
+                        + "field with the current timestamp in your documents.");
+            }
+            if (mapper.TTLFieldMapper().enabled()) {
+                deprecationLogger.deprecated("[_ttl] will be removed in 5.0. As a replacement, you should use time based indexes or cron "
+                        + "a delete-by-query with a range query on a timestamp field.");
+            }
+        }
 
         // 1. compute the merged DocumentMapper
         DocumentMapper oldMapper = mappers.get(mapper.type());

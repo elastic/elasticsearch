@@ -133,7 +133,7 @@ public class NodeService extends AbstractComponent implements Closeable {
                 httpServer == null ? null : httpServer.info(),
                 pluginService == null ? null : pluginService.info(),
                 ingestService == null ? null : ingestService.info(),
-                indicesService == null ? null : indicesService.getTotalIndexingBufferBytes()
+                indicesService.getTotalIndexingBufferBytes()
         );
     }
 

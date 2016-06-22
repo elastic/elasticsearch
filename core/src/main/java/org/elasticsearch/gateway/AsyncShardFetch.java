@@ -184,7 +184,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                 if (nodeEntry.isFailed()) {
                     logger.trace("{} node {} has failed for [{}] (failure [{}])", shardId, nodeEntry.getNodeId(), type, nodeEntry.getFailure());
                 } else {
-                    logger.trace("{} marking {} as done for [{}]", shardId, nodeEntry.getNodeId(), type);
+                    logger.trace("{} marking {} as done for [{}], result is [{}]", shardId, nodeEntry.getNodeId(), type, response);
                     nodeEntry.doneFetching(response);
                 }
             }

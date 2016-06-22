@@ -149,6 +149,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
             // try and see if we an list unallocated
             IndexMetaData metaData = clusterService.state().metaData().index(shardId.getIndex());
             if (metaData == null) {
+                logger.trace("{} node doesn't have meta data for the requests index, responding with empty", shardId);
                 return new StoreFilesMetaData(false, shardId, Store.MetadataSnapshot.EMPTY);
             }
             final IndexSettings indexSettings = indexService != null ? indexService.getIndexSettings() : new IndexSettings(metaData, settings);
@@ -233,6 +234,15 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
          */
         public String syncId() {
             return metadataSnapshot.getSyncId();
+        }
+
+        @Override
+        public String toString() {
+            return "StoreFilesMetaData{" +
+                "allocated=" + allocated +
+                ", shardId=" + shardId +
+                ", metadataSnapshot{size=" + metadataSnapshot.size() + ", syncId=" + metadataSnapshot.getSyncId() + "}" +
+                '}';
         }
     }
 
@@ -357,6 +367,11 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                 out.writeBoolean(true);
                 storeFilesMetaData.writeTo(out);
             }
+        }
+
+        @Override
+        public String toString() {
+            return "[[" + getNode() + "] found [" + storeFilesMetaData + "]";
         }
     }
 }

@@ -92,28 +92,32 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
         }
 
         if (task instanceof CancellableTask) {
-            CancellableTask cancellableTask = (CancellableTask) task;
-            CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
-            CancellableTaskHolder oldHolder = cancellableTasks.put(task.getId(), holder);
-            assert oldHolder == null;
-            // Check if this task was banned before we start it
-            if (task.getParentTaskId().isSet() && banedParents.isEmpty() == false) {
-                String reason = banedParents.get(task.getParentTaskId());
-                if (reason != null) {
-                    try {
-                        holder.cancel(reason);
-                        throw new IllegalStateException("Task cancelled before it started: " + reason);
-                    } finally {
-                        // let's clean up the registration
-                        unregister(task);
-                    }
-                }
-            }
+            registerCancellableTask(task);
         } else {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
         }
         return task;
+    }
+
+    private void registerCancellableTask(Task task) {
+        CancellableTask cancellableTask = (CancellableTask) task;
+        CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
+        CancellableTaskHolder oldHolder = cancellableTasks.put(task.getId(), holder);
+        assert oldHolder == null;
+        // Check if this task was banned before we start it
+        if (task.getParentTaskId().isSet() && banedParents.isEmpty() == false) {
+            String reason = banedParents.get(task.getParentTaskId());
+            if (reason != null) {
+                try {
+                    holder.cancel(reason);
+                    throw new IllegalStateException("Task cancelled before it started: " + reason);
+                } finally {
+                    // let's clean up the registration
+                    unregister(task);
+                }
+            }
+        }
     }
 
     /**

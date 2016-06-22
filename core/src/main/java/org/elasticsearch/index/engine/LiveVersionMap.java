@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -126,21 +127,21 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
     }
 
     /** Returns the live version (add or delete) for this uid. */
-    VersionValue getUnderLock(BytesRef uid) {
+    VersionValue getUnderLock(final Term uid) {
         Maps currentMaps = maps;
 
         // First try to get the "live" value:
-        VersionValue value = currentMaps.current.get(uid);
+        VersionValue value = currentMaps.current.get(uid.bytes());
         if (value != null) {
             return value;
         }
 
-        value = currentMaps.old.get(uid);
+        value = currentMaps.old.get(uid.bytes());
         if (value != null) {
             return value;
         }
 
-        return tombstones.get(uid);
+        return tombstones.get(uid.bytes());
     }
 
     /** Adds this uid/version to the pending adds map. */

@@ -394,7 +394,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         }
         if (randomBoolean()) {
             String field = randomBoolean() ? null : randomAsciiOfLengthBetween(5, 20);
-            int max = randomInt(1000);
+            int max = between(2, 1000);
             int id = randomInt(max-1);
             if (field == null) {
                 builder.slice(new SliceBuilder(id, max));

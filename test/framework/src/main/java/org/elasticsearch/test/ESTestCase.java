@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -55,8 +56,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
@@ -816,5 +821,22 @@ public abstract class ESTestCase extends LuceneTestCase {
                 }
             }
         };
+    }
+
+    /** Creates an IndicesModule for testing with the given mappers and metadata mappers. */
+    public static IndicesModule newTestIndicesModule(Map<String, Mapper.TypeParser> extraMappers,
+                                                     Map<String, MetadataFieldMapper.TypeParser> extraMetadataMappers) {
+        return new IndicesModule(new NamedWriteableRegistry(), Collections.singletonList(
+            new MapperPlugin() {
+                @Override
+                public Map<String, Mapper.TypeParser> getMappers() {
+                    return extraMappers;
+                }
+                @Override
+                public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+                    return extraMetadataMappers;
+                }
+            }
+        ));
     }
 }

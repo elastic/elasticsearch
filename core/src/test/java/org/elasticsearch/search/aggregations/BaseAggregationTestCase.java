@@ -143,8 +143,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
             },
             settingsModule,
             scriptModule,
-            new IndicesModule(namedWriteableRegistry) {
-
+            new IndicesModule(namedWriteableRegistry, Collections.emptyList()) {
                 @Override
                 protected void configure() {
                     bindMapperExtension();

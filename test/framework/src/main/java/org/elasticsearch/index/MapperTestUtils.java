@@ -40,7 +40,7 @@ import java.util.Collections;
 public class MapperTestUtils {
 
     public static MapperService newMapperService(Path tempDir, Settings indexSettings) throws IOException {
-        IndicesModule indicesModule = new IndicesModule(new NamedWriteableRegistry());
+        IndicesModule indicesModule = new IndicesModule(new NamedWriteableRegistry(), Collections.emptyList());
         return newMapperService(tempDir, indexSettings, indicesModule);
     }
 

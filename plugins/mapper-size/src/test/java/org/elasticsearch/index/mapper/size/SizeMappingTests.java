@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.mapper.size;
 
+import java.util.Collections;
+import java.util.Map;
+
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -26,10 +29,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
@@ -48,8 +53,9 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
     @Before
     public void before() {
         indexService = createIndex("test");
-        IndicesModule indices = new IndicesModule(new NamedWriteableRegistry());
-        indices.registerMetadataMapper(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser());
+        IndicesModule indices = newTestIndicesModule(Collections.emptyMap(),
+            Collections.singletonMap(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser())
+        );
         mapperService = new MapperService(indexService.getIndexSettings(), indexService.analysisService(), indexService.similarityService(), indices.getMapperRegistry(), indexService::newQueryShardContext);
         parser = mapperService.documentMapperParser();
     }

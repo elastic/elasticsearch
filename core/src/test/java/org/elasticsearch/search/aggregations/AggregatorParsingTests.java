@@ -113,8 +113,7 @@ public class AggregatorParsingTests extends ESTestCase {
                 b.bind(Environment.class).toInstance(new Environment(settings));
                 b.bind(ThreadPool.class).toInstance(threadPool);
             }, settingsModule
-            , scriptModule, new IndicesModule(namedWriteableRegistry) {
-
+            , scriptModule, new IndicesModule(namedWriteableRegistry, Collections.emptyList()) {
                     @Override
                     protected void configure() {
                         bindMapperExtension();

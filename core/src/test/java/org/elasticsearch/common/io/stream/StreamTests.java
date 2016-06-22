@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.common.bytes.ByteBufferBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -123,7 +122,6 @@ public class StreamTests extends ESTestCase {
         assertEquals(streamInput.available(), length - bytesToRead);
     }
 
-    @Seed("A67E5285367660F7")
     public void testWritableArrays() throws IOException {
 
         final String[] strings = generateRandomStringArray(10, 10, false, true);

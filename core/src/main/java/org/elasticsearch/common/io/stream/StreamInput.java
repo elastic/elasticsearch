@@ -439,7 +439,7 @@ public abstract class StreamInput extends InputStream {
             case 5:
                 return readBoolean();
             case 6:
-                return fastReadByteArray();
+                return readByteArray();
             case 7:
                 return readArrayList();
             case 8:
@@ -475,13 +475,6 @@ public abstract class StreamInput extends InputStream {
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
-    }
-
-    private byte[] fastReadByteArray() throws IOException {
-        int bytesSize = readVInt();
-        byte[] value = new byte[bytesSize];
-        readBytes(value, 0, bytesSize);
-        return value;
     }
 
     @SuppressWarnings("unchecked")
@@ -609,12 +602,10 @@ public abstract class StreamInput extends InputStream {
     }
 
     public byte[] readByteArray() throws IOException {
-        int length = readVInt();
-        byte[] values = new byte[length];
-        for (int i = 0; i < length; i++) {
-            values[i] = readByte();
-        }
-        return values;
+        final int length = readVInt();
+        final byte[] bytes = new byte[length];
+        readBytes(bytes, 0, bytes.length);
+        return bytes;
     }
 
     /**

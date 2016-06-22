@@ -19,7 +19,7 @@ on the node. Can hold multiple locations. | {path.home}/data| path.data
 
 | repo | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here. d| Not configured | path.repo
 
-| script | Location of script files. | {path.conf}/scripts | path.script
+| script | Location of script files. | {path.conf}/scripts | path.scripts
 
 |=======================================================================
 

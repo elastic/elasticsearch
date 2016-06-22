@@ -44,6 +44,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 
 import java.io.IOException;
@@ -206,8 +207,13 @@ public class PluginsService extends AbstractComponent {
                 }
                 Class moduleClass = method.getParameterTypes()[0];
                 if (!Module.class.isAssignableFrom(moduleClass)) {
-                    logger.warn("Plugin: {} implementing onModule by the type is not of Module type {}", pluginEntry.v1().getName(), moduleClass);
-                    continue;
+                    if (moduleClass == ScriptModule.class) {
+                        // This is still part of the Plugin class to point the user to the new implementation
+                        continue;
+                    }
+                    throw new RuntimeException(
+                            "Plugin: [" + pluginEntry.v1().getName() + "] implements onModule taking a parameter that isn't a Module ["
+                                    + moduleClass.getSimpleName() + "]");
                 }
                 list.add(new OnModuleReference(moduleClass, method));
             }

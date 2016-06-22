@@ -172,6 +172,11 @@ public class StreamTests extends ESTestCase {
         }
 
         @Override
+        public int hashCode() {
+            return string.hashCode();
+        }
+
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(string);
         }

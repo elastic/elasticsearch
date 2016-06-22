@@ -639,7 +639,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 }
                 if (node.getId().equals(existingNode.getId()) &&
                     node.getAddress().equals(existingNode.getAddress()) == false) {
-                    return "can't add node " + node + ", found existing node " + existingNode + " with the same id, but a different address";
+                    return "can't add node " + node + ", found existing node " + existingNode
+                        + " with the same id, but a different address";
                 }
             }
             return null;

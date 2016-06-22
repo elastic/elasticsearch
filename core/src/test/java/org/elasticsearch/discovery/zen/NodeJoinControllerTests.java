@@ -207,10 +207,12 @@ public class NodeJoinControllerTests extends ESTestCase {
 
             @Override
             protected void doRun() throws Exception {
-                nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.ElectionCallback() {
+                nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30),
+                    new NodeJoinController.ElectionCallback() {
                     @Override
                     public void onElectedAsMaster(ClusterState state) {
-                        assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(), equalTo(true));
+                        assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(),
+                            equalTo(true));
                         electionFuture.markAsDone();
                     }
 
@@ -255,10 +257,12 @@ public class NodeJoinControllerTests extends ESTestCase {
 
             @Override
             protected void doRun() throws Exception {
-                nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.ElectionCallback() {
+                nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30),
+                    new NodeJoinController.ElectionCallback() {
                     @Override
                     public void onElectedAsMaster(ClusterState state) {
-                        assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(), equalTo(true));
+                        assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(),
+                            equalTo(true));
                         electionFuture.markAsDone();
                     }
 

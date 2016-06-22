@@ -132,7 +132,8 @@ public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
     long startRecovery(RecoveriesCollection collection, RecoveryTargetService.RecoveryListener listener, TimeValue timeValue) {
         IndicesService indexServices = getInstanceFromNode(IndicesService.class);
         IndexShard indexShard = indexServices.indexServiceSafe(resolveIndex("test")).getShardOrNull(0);
-        final DiscoveryNode sourceNode = new DiscoveryNode("id", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        final DiscoveryNode sourceNode = new DiscoveryNode("id", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(),
+            Version.CURRENT);
         return collection.startRecovery(indexShard, sourceNode, listener, timeValue);
     }
 }

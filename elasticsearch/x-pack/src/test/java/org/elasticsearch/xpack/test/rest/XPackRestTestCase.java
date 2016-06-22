@@ -5,26 +5,11 @@
  */
 package org.elasticsearch.xpack.test.rest;
 
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.URI;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpDelete;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.conn.BasicHttpClientConnectionManager;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -33,15 +18,25 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.plugin.TestUtils;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
+import org.elasticsearch.test.rest.client.RestTestResponse;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
+import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.hamcrest.Matchers.is;
 
 public abstract class XPackRestTestCase extends ESRestTestCase {
 
@@ -58,31 +53,19 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
 
     @Before
     public void startWatcher() throws Exception {
-        try (CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
-            URL url = getClusterUrls()[0];
-            HttpPut request = new HttpPut(new URI("http",
-                                                  null,
-                                                  url.getHost(),
-                                                  url.getPort(),
-                                                  "/_xpack/watcher/_start", null, null));
-            request.addHeader("Authorization", BASIC_AUTH_VALUE);
-            try (CloseableHttpResponse response = client.execute(request)) {
-            }
+        try {
+            getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
+        } catch(ResponseException e) {
+            //TODO ignore for now, needs to be fixed though
         }
     }
 
     @After
     public void stopWatcher() throws Exception {
-        try(CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
-            URL url = getClusterUrls()[0];
-            HttpPut request = new HttpPut(new URI("http",
-                                                  null,
-                                                  url.getHost(),
-                                                  url.getPort(),
-                                                  "/_xpack/watcher/_stop", null, null));
-            request.addHeader("Authorization", BASIC_AUTH_VALUE);
-            try (CloseableHttpResponse response = client.execute(request)) {
-            }
+        try {
+            getAdminExecutionContext().callApi("xpack.watcher.stop", emptyMap(), emptyList(), emptyMap());
+        } catch(ResponseException e) {
+            //TODO ignore for now, needs to be fixed though
         }
     }
 
@@ -92,10 +75,10 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
         TestUtils.generateSignedLicense("trial", TimeValue.timeValueHours(2)).toXContent(builder, ToXContent.EMPTY_PARAMS);
         final BytesReference bytes = builder.bytes();
         try (XContentParser parser = XContentFactory.xContent(bytes).createParser(bytes)) {
-            final List<Map<String, Object>> bodies = Collections.singletonList(Collections.singletonMap("license",
+            final List<Map<String, Object>> bodies = singletonList(singletonMap("license",
                     parser.map()));
-            getAdminExecutionContext().callApi("license.post", Collections.singletonMap("acknowledge", "true"),
-                    bodies, Collections.singletonMap("Authorization", BASIC_AUTH_VALUE));
+            getAdminExecutionContext().callApi("license.post", singletonMap("acknowledge", "true"),
+                    bodies, singletonMap("Authorization", BASIC_AUTH_VALUE));
         }
     }
 
@@ -103,43 +86,21 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
     public void clearUsersAndRoles() throws Exception {
         // we cannot delete the .security index from a rest test since we aren't the internal user, lets wipe the data
         // TODO remove this once the built-in SUPERUSER role is added that can delete the index and we use the built in admin user here
-        try (CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
-            final URL url = getClusterUrls()[0];
-            HttpGet getUsersRequest = new HttpGet(new URI("http", null, url.getHost(), url.getPort(), "/_xpack/security/user", null, null));
-            getUsersRequest.addHeader("Authorization", BASIC_AUTH_VALUE);
-            try (CloseableHttpResponse closeableHttpResponse = client.execute(getUsersRequest)) {
-                assertThat(closeableHttpResponse.getStatusLine().getStatusCode(), is(200));
-                String response = Streams.copyToString(
-                        new InputStreamReader(closeableHttpResponse.getEntity().getContent(), StandardCharsets.UTF_8));
-                Map<String, Object> responseMap = XContentFactory.xContent(response).createParser(response).map();
-
-                // in the structure of this API, the users are the keyset
-                for (String user : responseMap.keySet()) {
-                    HttpDelete delete = new HttpDelete(new URI("http", null, url.getHost(), url.getPort(),
-                            "/_xpack/security/user/" + user, null, null));
-                    delete.addHeader("Authorization", BASIC_AUTH_VALUE);
-                    try (CloseableHttpResponse deleteResponse = client.execute(delete)) {
-                    }
-                }
+        RestTestResponse response = getAdminExecutionContext().callApi("xpack.security.get_user", emptyMap(), emptyList(), emptyMap());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> users = (Map<String, Object>) response.getBody();
+        for (String user: users.keySet()) {
+            if (ReservedRealm.isReserved(user) == false) {
+                getAdminExecutionContext().callApi("xpack.security.delete_user", singletonMap("username", user), emptyList(), emptyMap());
             }
+        }
 
-            HttpGet getRolesRequest = new HttpGet(new URI("http", null, url.getHost(), url.getPort(), "/_xpack/security/role",
-                    null, null));
-            getRolesRequest.addHeader("Authorization", BASIC_AUTH_VALUE);
-            try (CloseableHttpResponse closeableHttpResponse = client.execute(getRolesRequest)) {
-                assertThat(closeableHttpResponse.getStatusLine().getStatusCode(), is(200));
-                String response = Streams.copyToString(
-                        new InputStreamReader(closeableHttpResponse.getEntity().getContent(), StandardCharsets.UTF_8));
-                Map<String, Object> responseMap = XContentFactory.xContent(response).createParser(response).map();
-
-                // in the structure of this API, the users are the keyset
-                for (String role : responseMap.keySet()) {
-                    HttpDelete delete = new HttpDelete(new URI("http", null, url.getHost(), url.getPort(),
-                            "/_xpack/security/role/" + role, null, null));
-                    delete.addHeader("Authorization", BASIC_AUTH_VALUE);
-                    try (CloseableHttpResponse deleteResponse = client.execute(delete)) {
-                    }
-                }
+        response = getAdminExecutionContext().callApi("xpack.security.get_role", emptyMap(), emptyList(), emptyMap());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> roles = (Map<String, Object>) response.getBody();
+        for (String role: roles.keySet()) {
+            if (ReservedRolesStore.isReserved(role) == false) {
+                getAdminExecutionContext().callApi("xpack.security.delete_role", singletonMap("name", role), emptyList(), emptyMap());
             }
         }
     }

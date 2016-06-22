@@ -5,25 +5,16 @@
  */
 package org.elasticsearch.xpack.security.user;
 
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.xpack.security.authz.InternalAuthorizationService;
 import org.elasticsearch.test.SecurityIntegTestCase;
 
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.util.Locale;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -51,28 +42,22 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
     }
 
     public void testAnonymousViaHttp() throws Exception {
-        try (CloseableHttpClient client = HttpClients.createDefault();
-             CloseableHttpResponse response = client.execute(new HttpGet(getNodeUrl() + "_nodes"))) {
-            int statusCode = response.getStatusLine().getStatusCode();
-            String data = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
+        try {
+            getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null);
+            fail("request should have failed");
+        } catch(ResponseException e) {
+            int statusCode = e.getResponse().getStatusLine().getStatusCode();
+            Response response = e.getResponse();
             if (authorizationExceptionsEnabled) {
                 assertThat(statusCode, is(403));
-                assertThat(response.getFirstHeader("WWW-Authenticate"), nullValue());
-                assertThat(data, containsString("security_exception"));
+                assertThat(response.getHeader("WWW-Authenticate"), nullValue());
+                assertThat(e.getResponseBody(), containsString("security_exception"));
             } else {
                 assertThat(statusCode, is(401));
-                assertThat(response.getFirstHeader("WWW-Authenticate"), notNullValue());
-                assertThat(response.getFirstHeader("WWW-Authenticate").getValue(), containsString("Basic"));
-                assertThat(data, containsString("security_exception"));
+                assertThat(response.getHeader("WWW-Authenticate"), notNullValue());
+                assertThat(response.getHeader("WWW-Authenticate"), containsString("Basic"));
+                assertThat(e.getResponseBody(), containsString("security_exception"));
             }
         }
-    }
-
-    private String getNodeUrl() {
-        TransportAddress transportAddress =
-                randomFrom(internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddresses());
-        assertThat(transportAddress, is(instanceOf(InetSocketTransportAddress.class)));
-        InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) transportAddress;
-        return String.format(Locale.ROOT, "http://%s:%s/", "localhost", inetSocketTransportAddress.address().getPort());
     }
 }

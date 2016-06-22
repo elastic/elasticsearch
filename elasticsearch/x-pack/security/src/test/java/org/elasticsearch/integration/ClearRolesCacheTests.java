@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.integration;
 
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -23,11 +25,11 @@ import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -128,7 +130,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         final boolean useHttp = randomBoolean();
         final boolean clearAll = randomBoolean();
         logger.debug("--> starting to clear roles. using http [{}] clearing all [{}]", useHttp, clearAll);
-        String[] rolesToClear = clearAll ? (randomBoolean() ? roles : null) : toModify.toArray(Strings.EMPTY_ARRAY);
+        String[] rolesToClear = clearAll ? (randomBoolean() ? roles : null) : toModify.toArray(new String[toModify.size()]);
         if (useHttp) {
             String path;
             if (rolesToClear == null) {
@@ -136,12 +138,12 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
             } else {
                 path = "/_xpack/security/role/" + Strings.arrayToCommaDelimitedString(rolesToClear) + "/_clear_cache";
             }
-            HttpResponse response = httpClient().path(path).method("POST")
-                    .addHeader("Authorization",
+            try (Response response = getRestClient().performRequest("POST", path, Collections.emptyMap(), null,
+                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                                    new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray())))
-                    .execute();
-            assertThat(response.getStatusCode(), is(RestStatus.OK.getStatus()));
+                                    new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
+                assertThat(response.getStatusLine().getStatusCode(), is(RestStatus.OK.getStatus()));
+            }
         } else {
             securityClient.prepareClearRolesCache().names(rolesToClear).get();
         }

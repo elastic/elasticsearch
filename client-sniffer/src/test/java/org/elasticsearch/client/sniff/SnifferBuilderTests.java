@@ -21,13 +21,17 @@ package org.elasticsearch.client.sniff;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import org.apache.http.HttpHost;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientTestCase;
 
-public class SnifferBuilderTests extends LuceneTestCase {
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
+
+public class SnifferBuilderTests extends RestClientTestCase {
 
     public void testBuild() throws Exception {
-        int numNodes = RandomInts.randomIntBetween(random(), 1, 5);
+        int numNodes = RandomInts.randomIntBetween(getRandom(), 1, 5);
         HttpHost[] hosts = new HttpHost[numNodes];
         for (int i = 0; i < numNodes; i++) {
             hosts[i] = new HttpHost("localhost", 9200 + i);
@@ -51,7 +55,8 @@ public class SnifferBuilderTests extends LuceneTestCase {
             }
 
             try {
-                Sniffer.builder(client, hostsSniffer).setSniffIntervalMillis(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
+                Sniffer.builder(client, hostsSniffer)
+                        .setSniffIntervalMillis(RandomInts.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0));
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
                 assertEquals("sniffIntervalMillis must be greater than 0", e.getMessage());
@@ -59,7 +64,7 @@ public class SnifferBuilderTests extends LuceneTestCase {
 
             try {
                 Sniffer.builder(client, hostsSniffer)
-                        .setSniffAfterFailureDelayMillis(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
+                        .setSniffAfterFailureDelayMillis(RandomInts.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0));
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
                 assertEquals("sniffAfterFailureDelayMillis must be greater than 0", e.getMessage());
@@ -70,11 +75,11 @@ public class SnifferBuilderTests extends LuceneTestCase {
             }
 
             Sniffer.Builder builder = Sniffer.builder(client, hostsSniffer);
-            if (random().nextBoolean()) {
-                builder.setSniffIntervalMillis(RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
+            if (getRandom().nextBoolean()) {
+                builder.setSniffIntervalMillis(RandomInts.randomIntBetween(getRandom(), 1, Integer.MAX_VALUE));
             }
-            if (random().nextBoolean()) {
-                builder.setSniffAfterFailureDelayMillis(RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
+            if (getRandom().nextBoolean()) {
+                builder.setSniffAfterFailureDelayMillis(RandomInts.randomIntBetween(getRandom(), 1, Integer.MAX_VALUE));
             }
             try (Sniffer sniffer = builder.build()) {
                 assertNotNull(sniffer);

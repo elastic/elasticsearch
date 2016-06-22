@@ -20,10 +20,13 @@
 package org.elasticsearch.client.sniff;
 
 import org.apache.http.HttpHost;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientTestCase;
 
-public class SniffOnFailureListenerTests extends LuceneTestCase {
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
+
+public class SniffOnFailureListenerTests extends RestClientTestCase {
 
     public void testSetSniffer() throws Exception {
         SniffOnFailureListener listener = new SniffOnFailureListener();

@@ -27,17 +27,10 @@ targetCompatibility = JavaVersion.VERSION_1_7
 sourceCompatibility = JavaVersion.VERSION_1_7
 
 dependencies {
-  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile "commons-logging:commons-logging:${versions.commonslogging}"
-
-  testCompile "org.elasticsearch:client-test:${version}"
-  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testCompile "junit:junit:${versions.junit}"
-  testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
-  testCompile "org.elasticsearch:securemock:${versions.securemock}"
-  testCompile "org.codehaus.mojo:animal-sniffer-annotations:1.15"
+  compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  compile "junit:junit:${versions.junit}"
+  compile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  compile "org.codehaus.mojo:animal-sniffer-annotations:1.15"
   signature "org.codehaus.mojo.signature:java17:1.0@signature"
 }
 
@@ -57,22 +50,11 @@ forbiddenApisTest {
 //JarHell is part of es core, which we don't want to pull in
 jarHell.enabled=false
 
-namingConventions {
-  testClass = 'org.elasticsearch.client.RestClientTestCase'
-  //we don't have integration tests
-  skipIntegTestInDisguise = true
-}
+// TODO: should we have licenses for our test deps?
+dependencyLicenses.enabled = false
 
-thirdPartyAudit.excludes = [
-  //commons-logging optional dependencies
-  'org.apache.avalon.framework.logger.Logger',
-  'org.apache.log.Hierarchy',
-  'org.apache.log.Logger',
-  'org.apache.log4j.Category',
-  'org.apache.log4j.Level',
-  'org.apache.log4j.Logger',
-  'org.apache.log4j.Priority',
-  //commons-logging provided dependencies
-  'javax.servlet.ServletContextEvent',
-  'javax.servlet.ServletContextListener'
-]
+namingConventions.enabled = false
+
+//we aren't releasing this jar
+thirdPartyAudit.enabled = false
+test.enabled = false

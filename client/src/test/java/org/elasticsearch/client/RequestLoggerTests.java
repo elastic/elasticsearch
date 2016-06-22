@@ -36,7 +36,6 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.util.LuceneTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -45,15 +44,16 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assert.assertThat;
 
-public class RequestLoggerTests extends LuceneTestCase {
+public class RequestLoggerTests extends RestClientTestCase {
 
     public void testTraceRequest() throws IOException, URISyntaxException {
-        HttpHost host = new HttpHost("localhost", 9200, random().nextBoolean() ? "http" : "https");
+        HttpHost host = new HttpHost("localhost", 9200, getRandom().nextBoolean() ? "http" : "https");
         URI uri = new URI("/index/type/_api");
 
         HttpRequestBase request;
-        int requestType = RandomInts.randomIntBetween(random(), 0, 7);
+        int requestType = RandomInts.randomIntBetween(getRandom(), 0, 7);
         switch(requestType) {
             case 0:
                 request = new HttpGetWithEntity(uri);
@@ -84,13 +84,13 @@ public class RequestLoggerTests extends LuceneTestCase {
         }
 
         String expected = "curl -iX " + request.getMethod() + " '" + host + uri + "'";
-        boolean hasBody = request instanceof HttpEntityEnclosingRequest && random().nextBoolean();
+        boolean hasBody = request instanceof HttpEntityEnclosingRequest && getRandom().nextBoolean();
         String requestBody = "{ \"field\": \"value\" }";
         if (hasBody) {
             expected += " -d '" + requestBody + "'";
             HttpEntityEnclosingRequest enclosingRequest = (HttpEntityEnclosingRequest) request;
             HttpEntity entity;
-            if (random().nextBoolean()) {
+            if (getRandom().nextBoolean()) {
                 entity = new StringEntity(requestBody, StandardCharsets.UTF_8);
             } else {
                 entity = new InputStreamEntity(new ByteArrayInputStream(requestBody.getBytes(StandardCharsets.UTF_8)));
@@ -109,25 +109,25 @@ public class RequestLoggerTests extends LuceneTestCase {
 
     public void testTraceResponse() throws IOException {
         ProtocolVersion protocolVersion = new ProtocolVersion("HTTP", 1, 1);
-        int statusCode = RandomInts.randomIntBetween(random(), 200, 599);
+        int statusCode = RandomInts.randomIntBetween(getRandom(), 200, 599);
         String reasonPhrase = "REASON";
         BasicStatusLine statusLine = new BasicStatusLine(protocolVersion, statusCode, reasonPhrase);
         String expected = "# " + statusLine.toString();
         BasicHttpResponse httpResponse = new BasicHttpResponse(statusLine);
-        int numHeaders = RandomInts.randomIntBetween(random(), 0, 3);
+        int numHeaders = RandomInts.randomIntBetween(getRandom(), 0, 3);
         for (int i = 0; i < numHeaders; i++) {
             httpResponse.setHeader("header" + i, "value");
             expected += "\n# header" + i + ": value";
         }
         expected += "\n#";
-        boolean hasBody = random().nextBoolean();
+        boolean hasBody = getRandom().nextBoolean();
         String responseBody = "{\n  \"field\": \"value\"\n}";
         if (hasBody) {
             expected += "\n# {";
             expected += "\n#   \"field\": \"value\"";
             expected += "\n# }";
             HttpEntity entity;
-            if (random().nextBoolean()) {
+            if (getRandom().nextBoolean()) {
                 entity = new StringEntity(responseBody, StandardCharsets.UTF_8);
             } else {
                 entity = new InputStreamEntity(new ByteArrayInputStream(responseBody.getBytes(StandardCharsets.UTF_8)));

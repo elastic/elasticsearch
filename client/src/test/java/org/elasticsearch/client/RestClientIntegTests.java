@@ -31,7 +31,6 @@ import org.apache.http.HttpHost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.util.LuceneTestCase;
 import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -53,6 +52,10 @@ import static org.elasticsearch.client.RestClientTestUtil.getAllStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.elasticsearch.client.RestClientTestUtil.randomStatusCode;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.
@@ -60,7 +63,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
  */
 //animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
 @IgnoreJRERequirement
-public class RestClientIntegTests extends LuceneTestCase {
+public class RestClientIntegTests extends RestClientTestCase {
 
     private static HttpServer httpServer;
     private static RestClient restClient;
@@ -74,11 +77,11 @@ public class RestClientIntegTests extends LuceneTestCase {
         for (int statusCode : getAllStatusCodes()) {
             createStatusCodeContext(httpServer, statusCode);
         }
-        int numHeaders = RandomInts.randomIntBetween(random(), 0, 3);
+        int numHeaders = RandomInts.randomIntBetween(getRandom(), 0, 3);
         defaultHeaders = new Header[numHeaders];
         for (int i = 0; i < numHeaders; i++) {
-            String headerName = "Header-default" + (random().nextBoolean() ? i : "");
-            String headerValue = RandomStrings.randomAsciiOfLengthBetween(random(), 3, 10);
+            String headerName = "Header-default" + (getRandom().nextBoolean() ? i : "");
+            String headerValue = RandomStrings.randomAsciiOfLengthBetween(getRandom(), 3, 10);
             defaultHeaders[i] = new BasicHeader(headerName, headerValue);
         }
         restClient = RestClient.builder(new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort()))
@@ -144,20 +147,20 @@ public class RestClientIntegTests extends LuceneTestCase {
             if (method.equals("HEAD") == false) {
                 standardHeaders.add("Content-length");
             }
-            int numHeaders = RandomInts.randomIntBetween(random(), 1, 5);
+            int numHeaders = RandomInts.randomIntBetween(getRandom(), 1, 5);
             Map<String, String> expectedHeaders = new HashMap<>();
             for (Header defaultHeader : defaultHeaders) {
                 expectedHeaders.put(defaultHeader.getName(), defaultHeader.getValue());
             }
             Header[] headers = new Header[numHeaders];
             for (int i = 0; i < numHeaders; i++) {
-                String headerName = "Header" + (random().nextBoolean() ? i : "");
-                String headerValue = RandomStrings.randomAsciiOfLengthBetween(random(), 3, 10);
+                String headerName = "Header" + (getRandom().nextBoolean() ? i : "");
+                String headerValue = RandomStrings.randomAsciiOfLengthBetween(getRandom(), 3, 10);
                 headers[i] = new BasicHeader(headerName, headerValue);
                 expectedHeaders.put(headerName, headerValue);
             }
 
-            int statusCode = randomStatusCode(random());
+            int statusCode = randomStatusCode(getRandom());
             Response esResponse;
             try (Response response = restClient.performRequest(method, "/" + statusCode,
                     Collections.<String, String>emptyMap(), null, headers)) {
@@ -186,7 +189,7 @@ public class RestClientIntegTests extends LuceneTestCase {
      * Exercises the test http server ability to send back whatever body it received.
      */
     public void testDeleteWithBody() throws Exception {
-        testBody("DELETE");
+        bodyTest("DELETE");
     }
 
     /**
@@ -195,15 +198,15 @@ public class RestClientIntegTests extends LuceneTestCase {
      * Exercises the test http server ability to send back whatever body it received.
      */
     public void testGetWithBody() throws Exception {
-        testBody("GET");
+        bodyTest("GET");
     }
 
-    private void testBody(String method) throws Exception {
+    private void bodyTest(String method) throws Exception {
         String requestBody = "{ \"field\": \"value\" }";
         StringEntity entity = new StringEntity(requestBody);
         Response esResponse;
         String responseBody;
-        int statusCode = randomStatusCode(random());
+        int statusCode = randomStatusCode(getRandom());
         try (Response response = restClient.performRequest(method, "/" + statusCode,
                 Collections.<String, String>emptyMap(), entity)) {
             responseBody = EntityUtils.toString(response.getEntity());

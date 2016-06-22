@@ -165,6 +165,7 @@ subprojects {
     "org.elasticsearch:elasticsearch:${version}": ':core',
     "org.elasticsearch:client:${version}": ':client',
     "org.elasticsearch:client-sniffer:${version}": ':client-sniffer',
+    "org.elasticsearch:client-test:${version}": ':client-test',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
     "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:integ-test-zip',
     "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',

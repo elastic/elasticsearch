@@ -24,11 +24,14 @@ import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicHeader;
-import org.apache.lucene.util.LuceneTestCase;
 
 import java.io.IOException;
 
-public class RestClientBuilderTests extends LuceneTestCase {
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
+
+public class RestClientBuilderTests extends RestClientTestCase {
 
     public void testBuild() throws IOException {
         try {
@@ -54,7 +57,7 @@ public class RestClientBuilderTests extends LuceneTestCase {
 
         try {
             RestClient.builder(new HttpHost("localhost", 9200))
-                    .setMaxRetryTimeoutMillis(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
+                    .setMaxRetryTimeoutMillis(RandomInts.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0));
             fail("should have failed");
         } catch(IllegalArgumentException e) {
             assertEquals("maxRetryTimeoutMillis must be greater than 0", e.getMessage());
@@ -81,25 +84,25 @@ public class RestClientBuilderTests extends LuceneTestCase {
             assertEquals("failure listener must not be null", e.getMessage());
         }
 
-        int numNodes = RandomInts.randomIntBetween(random(), 1, 5);
+        int numNodes = RandomInts.randomIntBetween(getRandom(), 1, 5);
         HttpHost[] hosts = new HttpHost[numNodes];
         for (int i = 0; i < numNodes; i++) {
             hosts[i] = new HttpHost("localhost", 9200 + i);
         }
         RestClient.Builder builder = RestClient.builder(hosts);
-        if (random().nextBoolean()) {
+        if (getRandom().nextBoolean()) {
             builder.setHttpClient(HttpClientBuilder.create().build());
         }
-        if (random().nextBoolean()) {
-            int numHeaders = RandomInts.randomIntBetween(random(), 1, 5);
+        if (getRandom().nextBoolean()) {
+            int numHeaders = RandomInts.randomIntBetween(getRandom(), 1, 5);
             Header[] headers = new Header[numHeaders];
             for (int i = 0; i < numHeaders; i++) {
                 headers[i] = new BasicHeader("header" + i, "value");
             }
             builder.setDefaultHeaders(headers);
         }
-        if (random().nextBoolean()) {
-            builder.setMaxRetryTimeoutMillis(RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
+        if (getRandom().nextBoolean()) {
+            builder.setMaxRetryTimeoutMillis(RandomInts.randomIntBetween(getRandom(), 1, Integer.MAX_VALUE));
         }
         try (RestClient restClient = builder.build()) {
             assertNotNull(restClient);

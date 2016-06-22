@@ -30,11 +30,11 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.http.Consts;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.lucene.util.LuceneTestCase;
 import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -55,10 +55,13 @@ import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
 //animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
 @IgnoreJRERequirement
-public class HostsSnifferTests extends LuceneTestCase {
+public class HostsSnifferTests extends RestClientTestCase {
 
     private int sniffRequestTimeout;
     private HostsSniffer.Scheme scheme;
@@ -67,8 +70,8 @@ public class HostsSnifferTests extends LuceneTestCase {
 
     @Before
     public void startHttpServer() throws IOException {
-        this.sniffRequestTimeout = RandomInts.randomIntBetween(random(), 1000, 10000);
-        this.scheme = RandomPicks.randomFrom(random(), HostsSniffer.Scheme.values());
+        this.sniffRequestTimeout = RandomInts.randomIntBetween(getRandom(), 1000, 10000);
+        this.scheme = RandomPicks.randomFrom(getRandom(), HostsSniffer.Scheme.values());
         if (rarely()) {
             this.sniffResponse = SniffResponse.buildFailure();
         } else {
@@ -148,28 +151,28 @@ public class HostsSnifferTests extends LuceneTestCase {
     }
 
     private static SniffResponse buildSniffResponse(HostsSniffer.Scheme scheme) throws IOException {
-        int numNodes = RandomInts.randomIntBetween(random(), 1, 5);
+        int numNodes = RandomInts.randomIntBetween(getRandom(), 1, 5);
         List<HttpHost> hosts = new ArrayList<>(numNodes);
         JsonFactory jsonFactory = new JsonFactory();
         StringWriter writer = new StringWriter();
         JsonGenerator generator = jsonFactory.createGenerator(writer);
         generator.writeStartObject();
-        if (random().nextBoolean()) {
+        if (getRandom().nextBoolean()) {
             generator.writeStringField("cluster_name", "elasticsearch");
         }
-        if (random().nextBoolean()) {
+        if (getRandom().nextBoolean()) {
             generator.writeObjectFieldStart("bogus_object");
             generator.writeEndObject();
         }
         generator.writeObjectFieldStart("nodes");
         for (int i = 0; i < numNodes; i++) {
-            String nodeId = RandomStrings.randomAsciiOfLengthBetween(random(), 5, 10);
+            String nodeId = RandomStrings.randomAsciiOfLengthBetween(getRandom(), 5, 10);
             generator.writeObjectFieldStart(nodeId);
-            if (random().nextBoolean()) {
+            if (getRandom().nextBoolean()) {
                 generator.writeObjectFieldStart("bogus_object");
                 generator.writeEndObject();
             }
-            if (random().nextBoolean()) {
+            if (getRandom().nextBoolean()) {
                 generator.writeArrayFieldStart("bogus_array");
                 generator.writeStartObject();
                 generator.writeEndObject();
@@ -178,35 +181,35 @@ public class HostsSnifferTests extends LuceneTestCase {
             boolean isHttpEnabled = rarely() == false;
             if (isHttpEnabled) {
                 String host = "host" + i;
-                int port = RandomInts.randomIntBetween(random(), 9200, 9299);
+                int port = RandomInts.randomIntBetween(getRandom(), 9200, 9299);
                 HttpHost httpHost = new HttpHost(host, port, scheme.toString());
                 hosts.add(httpHost);
                 generator.writeObjectFieldStart("http");
-                if (random().nextBoolean()) {
+                if (getRandom().nextBoolean()) {
                     generator.writeArrayFieldStart("bound_address");
                     generator.writeString("[fe80::1]:" + port);
                     generator.writeString("[::1]:" + port);
                     generator.writeString("127.0.0.1:" + port);
                     generator.writeEndArray();
                 }
-                if (random().nextBoolean()) {
+                if (getRandom().nextBoolean()) {
                     generator.writeObjectFieldStart("bogus_object");
                     generator.writeEndObject();
                 }
                 generator.writeStringField("publish_address", httpHost.toHostString());
-                if (random().nextBoolean()) {
+                if (getRandom().nextBoolean()) {
                     generator.writeNumberField("max_content_length_in_bytes", 104857600);
                 }
                 generator.writeEndObject();
             }
-            if (random().nextBoolean()) {
+            if (getRandom().nextBoolean()) {
                 String[] roles = {"master", "data", "ingest"};
-                int numRoles = RandomInts.randomIntBetween(random(), 0, 3);
+                int numRoles = RandomInts.randomIntBetween(getRandom(), 0, 3);
                 Set<String> nodeRoles = new HashSet<>(numRoles);
                 for (int j = 0; j < numRoles; j++) {
                     String role;
                     do {
-                        role = RandomPicks.randomFrom(random(), roles);
+                        role = RandomPicks.randomFrom(getRandom(), roles);
                     } while(nodeRoles.add(role) == false);
                 }
                 generator.writeArrayFieldStart("roles");
@@ -215,7 +218,7 @@ public class HostsSnifferTests extends LuceneTestCase {
                 }
                 generator.writeEndArray();
             }
-            int numAttributes = RandomInts.randomIntBetween(random(), 0, 3);
+            int numAttributes = RandomInts.randomIntBetween(getRandom(), 0, 3);
             Map<String, String> attributes = new HashMap<>(numAttributes);
             for (int j = 0; j < numAttributes; j++) {
                 attributes.put("attr" + j, "value" + j);
@@ -264,6 +267,6 @@ public class HostsSnifferTests extends LuceneTestCase {
     }
 
     private static int randomErrorResponseCode() {
-        return RandomInts.randomIntBetween(random(), 400, 599);
+        return RandomInts.randomIntBetween(getRandom(), 400, 599);
     }
 }

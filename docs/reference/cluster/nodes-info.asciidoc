@@ -15,9 +15,43 @@ The second command selectively retrieves nodes information of only
 `nodeId1` and `nodeId2`. All the nodes selective options are explained
 <<cluster-nodes,here>>.
 
-By default, it just returns all attributes and core settings for a node.
+By default, it just returns all attributes and core settings for a node:
+
+[float]
+[[core-info]]
+
+`build_hash`::
+	Short hash of the last git commit in this release.
+
+`host`::
+	The node's host name.
+
+`http_address`::
+	Host and port where primary HTTP connections are accepted.
+
+`ip`::
+	The node's IP address.
+
+`name`::
+	The node's name.
+
+`total_indexing_buffer`::
+	Total heap allowed to be used to hold recently indexed
+	documents before they must be written to disk.  This size is
+	a shared pool across all shards on this node, and is
+        controlled by <<indexing-buffer,Indexing Buffer settings>>.
+
+`total_indexing_buffer_in_bytes`::
+	Same as `total_indexing_buffer`, but expressed in bytes.
+
+`transport_address`::
+	Host and port where transport HTTP connections are accepted.
+
+`version`::
+	Elasticsearch version running on this node.
+
 It also allows to get only information on `settings`, `os`, `process`, `jvm`,
-`thread_pool`, `transport`, `http`, `plugins` and `ingest`:
+`thread_pool`, `transport`, `http`, `plugins`, `ingest` and `indices`:
 
 [source,js]
 --------------------------------------------------

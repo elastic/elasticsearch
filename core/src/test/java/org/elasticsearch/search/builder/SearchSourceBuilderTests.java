@@ -219,12 +219,12 @@ public class SearchSourceBuilderTests extends ESTestCase {
             for (int i = 0; i < fieldsSize; i++) {
                 fields.add(randomAsciiOfLengthBetween(5, 50));
             }
-            builder.fields(fields);
+            builder.storedFields(fields);
         }
         if (randomBoolean()) {
             int fieldDataFieldsSize = randomInt(25);
             for (int i = 0; i < fieldDataFieldsSize; i++) {
-                builder.fieldDataField(randomAsciiOfLengthBetween(5, 50));
+                builder.docValueField(randomAsciiOfLengthBetween(5, 50));
             }
         }
         if (randomBoolean()) {
@@ -394,7 +394,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         }
         if (randomBoolean()) {
             String field = randomBoolean() ? null : randomAsciiOfLengthBetween(5, 20);
-            int max = randomInt(1000);
+            int max = between(2, 1000);
             int id = randomInt(max-1);
             if (field == null) {
                 builder.slice(new SliceBuilder(id, max));

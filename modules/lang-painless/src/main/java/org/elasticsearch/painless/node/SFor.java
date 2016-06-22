@@ -176,10 +176,14 @@ public final class SFor extends AStatement {
                 ++statementCount;
             }
 
-            writer.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
+            if (loopCounter != null) {
+                writer.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
+            }
             block.write(writer, globals);
         } else {
-            writer.writeLoopCounter(loopCounter.getSlot(), 1, location);
+            if (loopCounter != null) {
+                writer.writeLoopCounter(loopCounter.getSlot(), 1, location);
+            }
         }
 
         if (afterthought != null) {

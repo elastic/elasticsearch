@@ -113,13 +113,17 @@ public final class SWhile extends AStatement {
         condition.write(writer, globals);
 
         if (block != null) {
-            writer.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
+            if (loopCounter != null) {
+                writer.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
+            }
 
             block.continu = begin;
             block.brake = end;
             block.write(writer, globals);
         } else {
-            writer.writeLoopCounter(loopCounter.getSlot(), 1, location);
+            if (loopCounter != null) {
+                writer.writeLoopCounter(loopCounter.getSlot(), 1, location);
+            }
         }
 
         if (block == null || !block.allEscape) {

@@ -32,16 +32,31 @@ dependencies {
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
 
-  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testCompile "junit:junit:${versions.junit}"
-  testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
-  //we use the last lucene-test version that is compatible with java 1.7
-  testCompile "org.apache.lucene:lucene-test-framework:5.5.1"
-  testCompile "org.apache.lucene:lucene-core:5.5.1"
-  testCompile "org.apache.lucene:lucene-codecs:5.5.1"
-  testCompile "org.elasticsearch:securemock:${versions.securemock}"
-  testCompile "org.codehaus.mojo:animal-sniffer-annotations:1.15"
+  if (isEclipse == false || project.path == ":client-tests") {
+    testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+    testCompile "junit:junit:${versions.junit}"
+    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+    //we use the last lucene-test version that is compatible with java 1.7
+    testCompile "org.apache.lucene:lucene-test-framework:5.5.1"
+    testCompile "org.apache.lucene:lucene-core:5.5.1"
+    testCompile "org.apache.lucene:lucene-codecs:5.5.1"
+    testCompile "org.elasticsearch:securemock:${versions.securemock}"
+    testCompile "org.codehaus.mojo:animal-sniffer-annotations:1.15"
+  }
   signature "org.codehaus.mojo.signature:java17:1.0@signature"
+}
+
+if (isEclipse) {
+  // in eclipse the project is under a fake root, we need to change around the source sets
+  sourceSets {
+    if (project.path == ":client") {
+      main.java.srcDirs = ['java']
+      main.resources.srcDirs = ['resources']
+    } else {
+      test.java.srcDirs = ['java']
+      test.resources.srcDirs = ['resources']
+    }
+  }
 }
 
 forbiddenApisMain {

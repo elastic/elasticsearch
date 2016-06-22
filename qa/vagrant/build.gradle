@@ -56,9 +56,32 @@ for (String box : getProperties().get('vagrant.boxes', 'sample').split(',')) {
   }
 }
 
-/* The version of elasticsearch that we upgrade *from* as part of testing
- * upgrades. */
-String upgradeFromVersion = '2.3.3'
+long seed
+String formattedSeed
+String upgradeFromVersions
+String upgradeFromVersion
+
+String maybeTestsSeed = System.getProperty("tests.seed", null);
+if (maybeTestsSeed != null) {
+  seed = new BigInteger(maybeTestsSeed, 16).longValue()
+  formattedSeed = maybeTestsSeed
+} else {
+  seed = new Random().nextLong()
+  formattedSeed = String.format("%016X", seed)
+}
+
+String maybeUpdradeFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
+if (maybeUpdradeFromVersions != null) {
+  upgradeFromVersions = maybeUpdradeFromVersions
+} else {
+  new URL('http://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
+    def xml = new XmlParser().parse(s)
+    def versions = xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /2\.\d\.\d/ }
+    upgradeFromVersions = versions.join(",")
+  }
+}
+String[] values = upgradeFromVersions.split(",")
+upgradeFromVersion = values[new Random(seed).nextInt(values.length)]
 
 configurations {
   test
@@ -84,6 +107,17 @@ dependencies {
   test "org.elasticsearch.distribution.deb:elasticsearch:$upgradeFromVersion@deb"
   test "org.elasticsearch.distribution.rpm:elasticsearch:$upgradeFromVersion@rpm"
 }
+
+BuildAdapter adapter = new BuildAdapter() {
+  @Override
+  void buildFinished(BuildResult result) {
+    if (result.failure) {
+      println "Reproduce with: gradle packagingTest -Pvagrant.boxes=${getProperty("vagrant.boxes")} -Dtests.seed=${formattedSeed} -Dtests.packaging.upgrade.from.versions=${upgradeFromVersions}"
+    }
+  }
+}
+
+gradle.addBuildListener adapter
 
 task clean(type: Delete) {
   group 'Build'
@@ -199,4 +233,3 @@ for (String box : availableBoxes) {
   }
   packagingTest.dependsOn(packaging)
 }
-

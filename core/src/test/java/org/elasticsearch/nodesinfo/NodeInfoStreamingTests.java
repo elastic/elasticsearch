@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpInfo;
@@ -141,6 +142,13 @@ public class NodeInfoStreamingTests extends ESTestCase {
         plugins.addModule(DummyPluginInfo.INSTANCE);
         plugins.addPlugin(DummyPluginInfo.INSTANCE);
         IngestInfo ingestInfo = new IngestInfo(Collections.emptyList());
-        return new NodeInfo(VersionUtils.randomVersion(random()), build, node, serviceAttributes, settings, osInfo, process, jvm, threadPoolInfo, transport, htttpInfo, plugins, ingestInfo, null);
+        ByteSizeValue indexingBuffer;
+        if (random().nextBoolean()) {
+            indexingBuffer = null;
+        } else {
+            // pick a random long that sometimes exceeds an int:
+            indexingBuffer = new ByteSizeValue(random().nextLong() & ((1L<<40)-1));
+        }
+        return new NodeInfo(VersionUtils.randomVersion(random()), build, node, serviceAttributes, settings, osInfo, process, jvm, threadPoolInfo, transport, htttpInfo, plugins, ingestInfo, indexingBuffer);
     }
 }

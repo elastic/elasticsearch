@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -357,7 +356,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      */
     public ShardIterator onlyNodeSelectorActiveInitializingShardsIt(String[] nodeAttributes, DiscoveryNodes discoveryNodes) {
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
-        Set<String> selectedNodes = Sets.newHashSet(discoveryNodes.resolveNodesIds(nodeAttributes));
+        Set<String> selectedNodes = Sets.newHashSet(discoveryNodes.resolveNodes(nodeAttributes));
         int seed = shuffler.nextSeed();
         for (ShardRouting shardRouting : shuffler.shuffle(activeShards, seed)) {
             if (selectedNodes.contains(shardRouting.currentNodeId())) {

@@ -148,16 +148,18 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
     protected abstract boolean accumulateExceptions();
 
-    protected DiscoveryNode[] resolveNodes(NodesRequest request, ClusterState clusterState) {
-        String[] nodesIds = clusterState.nodes().resolveNodesIds(request.nodesIds());
-        return Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new);
+    /**
+     * resolve node ids to concrete nodes the incoming request
+     ***/
+    protected void resolveRequest(NodesRequest request, ClusterState clusterState) {
+        String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
+        request.setConcreteNodes(Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new));
     }
 
 
     class AsyncAction {
 
         private final NodesRequest request;
-        private final DiscoveryNode[] nodes;
         private final ActionListener<NodesResponse> listener;
         private final AtomicReferenceArray<Object> responses;
         private final AtomicInteger counter = new AtomicInteger();
@@ -167,20 +169,18 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
             this.task = task;
             this.request = request;
             this.listener = listener;
-            ClusterState clusterState = clusterService.state();
-            this.nodes = resolveNodes(request, clusterState);
-            this.responses = new AtomicReferenceArray<>(this.nodes.length);
+            if (request.concreteNodes() == null) {
+                resolveRequest(request, clusterService.state());
+                assert request.concreteNodes() != null;
+            }
+            this.responses = new AtomicReferenceArray<>(request.concreteNodes().length);
         }
 
         void start() {
+            final DiscoveryNode[] nodes = request.concreteNodes();
             if (nodes.length == 0) {
                 // nothing to notify
-                threadPool.generic().execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        listener.onResponse(newResponse(request, responses));
-                    }
-                });
+                threadPool.generic().execute(() -> listener.onResponse(newResponse(request, responses)));
                 return;
             }
             TransportRequestOptions.Builder builder = TransportRequestOptions.builder();

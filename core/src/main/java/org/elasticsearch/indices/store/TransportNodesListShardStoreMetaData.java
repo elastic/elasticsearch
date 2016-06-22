@@ -29,12 +29,10 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -55,7 +53,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -90,13 +87,6 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     @Override
     public void list(ShardId shardId, DiscoveryNode[] nodes, ActionListener<NodesStoreFilesMetaData> listener) {
         execute(new Request(shardId, false, nodes), listener);
-    }
-
-    @Override
-    protected DiscoveryNode[] resolveNodes(Request request, ClusterState clusterState) {
-        // default implementation may filter out non existent nodes. it's important to keep exactly the ids
-        // we were given for accounting on the caller
-        return request.nodes;
     }
 
     @Override
@@ -249,7 +239,6 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
 
     public static class Request extends BaseNodesRequest<Request> {
 
-        private DiscoveryNode[] nodes;
         private ShardId shardId;
 
         private boolean unallocated;
@@ -258,17 +247,14 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         }
 
         public Request(ShardId shardId, boolean unallocated, DiscoveryNode[] nodes) {
-            super(Strings.EMPTY_ARRAY);
+            super(nodes);
             this.shardId = shardId;
             this.unallocated = unallocated;
-            this.nodes = nodes;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            List<DiscoveryNode> discoveryNodes = in.readList(DiscoveryNode::new);
-            nodes = discoveryNodes.toArray(new DiscoveryNode[discoveryNodes.size()]);
             shardId = ShardId.readShardId(in);
             unallocated = in.readBoolean();
         }
@@ -276,7 +262,6 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(Arrays.asList(nodes));
             shardId.writeTo(out);
             out.writeBoolean(unallocated);
         }

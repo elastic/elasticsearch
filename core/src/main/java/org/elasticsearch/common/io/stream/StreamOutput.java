@@ -540,6 +540,22 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public <T extends Writeable> void writeArray(T[] array) throws IOException {
+        writeVInt(array.length);
+        for (T value: array) {
+            value.writeTo(this);
+        }
+    }
+
+    public <T extends Writeable> void writeOptionalArray(@Nullable T[] array) throws IOException {
+        if (array == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeArray(array);
+        }
+    }
+
     /**
      * Serializes a potential null value.
      */

@@ -96,7 +96,7 @@ public class TransportNodesActionTests extends ESTestCase {
         TestNodesRequest request = new TestNodesRequest(finalNodesIds);
         action.new AsyncAction(null, request, new PlainActionFuture<>()).start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
-        assertEquals(clusterService.state().nodes().resolveNodesIds(finalNodesIds).length, capturedRequests.size());
+        assertEquals(clusterService.state().nodes().resolveNodes(finalNodesIds).length, capturedRequests.size());
     }
 
     public void testNewResponseNullArray() {
@@ -129,9 +129,9 @@ public class TransportNodesActionTests extends ESTestCase {
         assertTrue(failures.containsAll(response.failures()));
     }
 
-    public void testFiltering() throws Exception {
-        TransportNodesAction action = getFilteringTestTransportNodesAction(transportService);
-        TestNodesRequest request = new TestNodesRequest();
+    public void testCustomResolving() throws Exception {
+        TransportNodesAction action = getDataNodesOnlyTransportNodesAction(transportService);
+        TestNodesRequest request = new TestNodesRequest(randomBoolean() ? null : generateRandomStringArray(10, 5, false, true));
         PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
         action.new AsyncAction(null, request, listener).start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
@@ -221,8 +221,8 @@ public class TransportNodesActionTests extends ESTestCase {
         );
     }
 
-    public FilteringTestTransportNodesAction getFilteringTestTransportNodesAction(TransportService transportService) {
-        return new FilteringTestTransportNodesAction(
+    public DataNodesOnlyTransportNodesAction getDataNodesOnlyTransportNodesAction(TransportService transportService) {
+        return new DataNodesOnlyTransportNodesAction(
             Settings.EMPTY,
             THREAD_POOL,
             clusterService,
@@ -276,18 +276,18 @@ public class TransportNodesActionTests extends ESTestCase {
         }
     }
 
-    private static class FilteringTestTransportNodesAction
+    private static class DataNodesOnlyTransportNodesAction
         extends TestTransportNodesAction {
 
-        FilteringTestTransportNodesAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService
+        DataNodesOnlyTransportNodesAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService
             transportService, ActionFilters actionFilters, Supplier<TestNodesRequest> request,
                                           Supplier<TestNodeRequest> nodeRequest, String nodeExecutor) {
             super(settings, threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor);
         }
 
         @Override
-        protected DiscoveryNode[] resolveNodes(TestNodesRequest request, ClusterState clusterState) {
-            return clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode.class);
+        protected void resolveRequest(TestNodesRequest request, ClusterState clusterState) {
+            request.setConcreteNodes(clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode.class));
         }
     }
 

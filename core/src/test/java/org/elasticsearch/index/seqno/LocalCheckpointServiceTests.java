@@ -53,12 +53,13 @@ public class LocalCheckpointServiceTests extends ESTestCase {
 
     private LocalCheckpointService getCheckpointService() {
         return new LocalCheckpointService(
-            new ShardId("test", "_na_", 0),
-            IndexSettingsModule.newIndexSettings("test",
-                Settings.builder()
-                    .put(LocalCheckpointService.SETTINGS_BIT_ARRAYS_SIZE.getKey(), SMALL_CHUNK_SIZE)
-                    .build()
-            ));
+                new ShardId("test", "_na_", 0),
+                IndexSettingsModule.newIndexSettings("test",
+                        Settings.builder()
+                                .put(LocalCheckpointService.SETTINGS_BIT_ARRAYS_SIZE.getKey(), SMALL_CHUNK_SIZE)
+                                .build()),
+                SequenceNumbersService.NO_OPS_PERFORMED,
+                SequenceNumbersService.NO_OPS_PERFORMED);
     }
 
     public void testSimplePrimary() {

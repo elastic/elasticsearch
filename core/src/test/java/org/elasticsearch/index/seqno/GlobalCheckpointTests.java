@@ -41,7 +41,7 @@ public class GlobalCheckpointTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         checkpointService = new GlobalCheckpointService(new ShardId("test", "_na_", 0),
-            IndexSettingsModule.newIndexSettings("test", Settings.EMPTY));
+            IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), SequenceNumbersService.UNASSIGNED_SEQ_NO);
     }
 
     public void testEmptyShards() {

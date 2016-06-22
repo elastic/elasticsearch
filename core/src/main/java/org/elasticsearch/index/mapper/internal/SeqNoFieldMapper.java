@@ -22,7 +22,13 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.Bits;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -108,6 +114,36 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             throw new QueryShardException(context, "SeqNoField field [" + name() + "] is not searchable");
         }
 
+        @Override
+        public FieldStats stats(IndexReader reader) throws IOException {
+            // nocommit remove implementation when late-binding commits
+            // are possible
+            final List<LeafReaderContext> leaves = reader.leaves();
+            if (leaves.isEmpty()) {
+                return null;
+            }
+
+            long currentMin = Long.MAX_VALUE;
+            long currentMax = Long.MIN_VALUE;
+            boolean found = false;
+            for (int i = 0; i < leaves.size(); i++) {
+                final LeafReader leaf = leaves.get(i).reader();
+                final NumericDocValues values = leaf.getNumericDocValues(name());
+                if (values == null) continue;
+                final Bits bits = leaf.getLiveDocs();
+                for (int docID = 0; docID < leaf.maxDoc(); docID++) {
+                    if (bits == null || bits.get(docID)) {
+                        found = true;
+                        final long value = values.get(docID);
+                        currentMin = Math.min(currentMin, value);
+                        currentMax = Math.max(currentMax, value);
+                    }
+                }
+            }
+
+            return found ? new FieldStats.Long(reader.maxDoc(), 0, -1, -1, false, true, currentMin, currentMax) : null;
+        }
+
     }
 
     public SeqNoFieldMapper(Settings indexSettings) {
@@ -129,7 +165,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
     @Override
     public Mapper parse(ParseContext context) throws IOException {
-        // _seqno added in preparse
+        // _seq_no added in pre-parse
         return null;
     }
 
@@ -157,4 +193,5 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         // nothing to do
     }
+
 }

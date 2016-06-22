@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 
 public abstract class FieldStats<T> implements Writeable, ToXContent {
+
     private final byte type;
     private long maxDoc;
     private long docCount;
@@ -628,4 +629,5 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
         final static String MAX_VALUE = new String("max_value");
         final static String MAX_VALUE_AS_STRING = new String("max_value_as_string");
     }
+
 }

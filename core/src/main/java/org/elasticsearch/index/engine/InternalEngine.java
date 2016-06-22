@@ -41,6 +41,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.ESLogger;
@@ -54,8 +55,10 @@ import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.SeqNoFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
@@ -78,10 +81,13 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.seqno.SequenceNumbersService.NO_OPS_PERFORMED;
+
 /**
  *
  */
 public class InternalEngine extends Engine {
+
     /**
      * When we last pruned expired tombstones from versionMap.deletes:
      */
@@ -111,6 +117,8 @@ public class InternalEngine extends Engine {
     private final IndexThrottle throttle;
 
     private final SequenceNumbersService seqNoService;
+    final static String LOCAL_CHECKPOINT_KEY = "local_checkpoint";
+    final static String GLOBAL_CHECKPOINT_KEY = "global_checkpoint";
 
     // How many callers are currently requesting index throttling.  Currently there are only two situations where we do this: when merges
     // are falling behind and when writing indexing buffer to disk is too slow.  When this is 0, there is no throttling, else we throttling
@@ -131,12 +139,27 @@ public class InternalEngine extends Engine {
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
-            seqNoService = new SequenceNumbersService(shardId, engineConfig.getIndexSettings());
+
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
             this.searcherFactory = new SearchFactory(logger, isClosed, engineConfig);
             try {
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG);
+                final SeqNoStats seqNoStats = loadSeqNoStatsFromCommit(writer);
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                            "recovering max sequence number: [{}], local checkpoint: [{}], global checkpoint: [{}]",
+                            seqNoStats.getMaxSeqNo(),
+                            seqNoStats.getLocalCheckpoint(),
+                            seqNoStats.getGlobalCheckpoint());
+                }
+                seqNoService =
+                        new SequenceNumbersService(
+                                shardId,
+                                engineConfig.getIndexSettings(),
+                                seqNoStats.getMaxSeqNo(),
+                                seqNoStats.getLocalCheckpoint(),
+                                seqNoStats.getGlobalCheckpoint());
                 indexWriter = writer;
                 translog = openTranslog(engineConfig, writer);
                 assert translog.getGeneration() != null;
@@ -285,6 +308,36 @@ public class InternalEngine extends Engine {
             return new Translog.TranslogGeneration(translogUUID, translogGen);
         }
         return null;
+    }
+
+    private SeqNoStats loadSeqNoStatsFromCommit(IndexWriter writer) throws IOException {
+        final long maxSeqNo;
+        try (IndexReader reader = DirectoryReader.open(writer)) {
+            final FieldStats stats = SeqNoFieldMapper.Defaults.FIELD_TYPE.stats(reader);
+            if (stats != null) {
+                maxSeqNo = (long) stats.getMaxValue();
+            } else {
+                maxSeqNo = NO_OPS_PERFORMED;
+            }
+        }
+
+        final Map<String, String> commitUserData = writer.getCommitData();
+
+        final long localCheckpoint;
+        if (commitUserData.containsKey(LOCAL_CHECKPOINT_KEY)) {
+            localCheckpoint = Long.parseLong(commitUserData.get(LOCAL_CHECKPOINT_KEY));
+        } else {
+            localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
+        }
+
+        final long globalCheckpoint;
+        if (commitUserData.containsKey(GLOBAL_CHECKPOINT_KEY)) {
+            globalCheckpoint = Long.parseLong(commitUserData.get(GLOBAL_CHECKPOINT_KEY));
+        } else {
+            globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        }
+
+        return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
     }
 
     private SearcherManager createSearcherManager() throws EngineException {
@@ -1132,13 +1185,22 @@ public class InternalEngine extends Engine {
         ensureCanFlush();
         try {
             Translog.TranslogGeneration translogGeneration = translog.getGeneration();
-            logger.trace("committing writer with translog id [{}]  and sync id [{}] ", translogGeneration.translogFileGeneration, syncId);
-            Map<String, String> commitData = new HashMap<>(2);
+            final Map<String, String> commitData = new HashMap<>(5);
+
             commitData.put(Translog.TRANSLOG_GENERATION_KEY, Long.toString(translogGeneration.translogFileGeneration));
             commitData.put(Translog.TRANSLOG_UUID_KEY, translogGeneration.translogUUID);
+
+            commitData.put(LOCAL_CHECKPOINT_KEY, Long.toString(seqNoService().getLocalCheckpoint()));
+            commitData.put(GLOBAL_CHECKPOINT_KEY, Long.toString(seqNoService().getGlobalCheckpoint()));
+
             if (syncId != null) {
                 commitData.put(Engine.SYNC_COMMIT_ID, syncId);
             }
+
+            if (logger.isTraceEnabled()) {
+                logger.trace("committing writer with commit data [{}]", commitData);
+            }
+
             indexWriter.setCommitData(commitData);
             writer.commit();
         } catch (Throwable ex) {

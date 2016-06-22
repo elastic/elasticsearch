@@ -115,6 +115,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -123,6 +124,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
@@ -137,6 +139,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class InternalEngineTests extends ESTestCase {
+
 
     protected final ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
@@ -235,6 +238,7 @@ public class InternalEngineTests extends ESTestCase {
         Field seqNoField = new NumericDocValuesField("_seq_no", 0);
         document.add(uidField);
         document.add(versionField);
+        document.add(seqNoField);
         return new ParsedDocument(versionField, seqNoField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
     }
 
@@ -310,9 +314,10 @@ public class InternalEngineTests extends ESTestCase {
         return config;
     }
 
-    protected static final BytesReference B_1 = new BytesArray(new byte[]{1});
-    protected static final BytesReference B_2 = new BytesArray(new byte[]{2});
-    protected static final BytesReference B_3 = new BytesArray(new byte[]{3});
+    private static final BytesReference B_1 = new BytesArray(new byte[]{1});
+    private static final BytesReference B_2 = new BytesArray(new byte[]{2});
+    private static final BytesReference B_3 = new BytesArray(new byte[]{3});
+    private static final BytesArray SOURCE = new BytesArray("{}".getBytes(Charset.defaultCharset()));
 
     public void testSegments() throws Exception {
         try (Store store = createStore();
@@ -538,26 +543,66 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
-    public void testCommitStats() {
-        Document document = testDocumentWithTextField();
-        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
-        engine.index(new Engine.Index(newUid("1"), doc));
+    public void testCommitStats() throws IOException {
+        InternalEngine engine = null;
+        try {
+            this.engine.close();
 
-        CommitStats stats1 = engine.commitStats();
-        assertThat(stats1.getGeneration(), greaterThan(0L));
-        assertThat(stats1.getId(), notNullValue());
-        assertThat(stats1.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
+            final AtomicLong maxSeqNo = new AtomicLong(SequenceNumbersService.NO_OPS_PERFORMED);
+            final AtomicLong localCheckpoint = new AtomicLong(SequenceNumbersService.NO_OPS_PERFORMED);
+            final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbersService.UNASSIGNED_SEQ_NO);
 
-        engine.flush(true, true);
-        CommitStats stats2 = engine.commitStats();
-        assertThat(stats2.getGeneration(), greaterThan(stats1.getGeneration()));
-        assertThat(stats2.getId(), notNullValue());
-        assertThat(stats2.getId(), not(equalTo(stats1.getId())));
-        assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
-        assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_UUID_KEY));
-        assertThat(stats2.getUserData().get(Translog.TRANSLOG_GENERATION_KEY), not(equalTo(stats1.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
-        assertThat(stats2.getUserData().get(Translog.TRANSLOG_UUID_KEY), equalTo(stats1.getUserData().get(Translog.TRANSLOG_UUID_KEY)));
+            engine = new InternalEngine(copy(this.engine.config(), this.engine.config().getOpenMode())) {
+                @Override
+                public SequenceNumbersService seqNoService() {
+                    return new SequenceNumbersService(
+                        this.config().getShardId(),
+                        this.config().getIndexSettings(),
+                        maxSeqNo.get(),
+                        localCheckpoint.get(),
+                        globalCheckpoint.get());
+                }
+            };
+            CommitStats stats1 = engine.commitStats();
+            assertThat(stats1.getGeneration(), greaterThan(0L));
+            assertThat(stats1.getId(), notNullValue());
+            assertThat(stats1.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
+            assertThat(stats1.getUserData(), hasKey(InternalEngine.LOCAL_CHECKPOINT_KEY));
+            assertThat(
+                Long.parseLong(stats1.getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
+                equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
+            assertThat(stats1.getUserData(), hasKey(InternalEngine.GLOBAL_CHECKPOINT_KEY));
+            assertThat(
+                Long.parseLong(stats1.getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
+                equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+
+            maxSeqNo.set(rarely() ? SequenceNumbersService.NO_OPS_PERFORMED : randomIntBetween(0, 1024));
+            localCheckpoint.set(
+                rarely() || maxSeqNo.get() == SequenceNumbersService.NO_OPS_PERFORMED ?
+                    SequenceNumbersService.NO_OPS_PERFORMED : randomIntBetween(0, 1024));
+            globalCheckpoint.set(rarely() || localCheckpoint.get() == SequenceNumbersService.NO_OPS_PERFORMED ?
+                SequenceNumbersService.UNASSIGNED_SEQ_NO : randomIntBetween(0, (int) localCheckpoint.get()));
+
+            engine.flush(true, true);
+
+            CommitStats stats2 = engine.commitStats();
+            assertThat(stats2.getGeneration(), greaterThan(stats1.getGeneration()));
+            assertThat(stats2.getId(), notNullValue());
+            assertThat(stats2.getId(), not(equalTo(stats1.getId())));
+            assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
+            assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_UUID_KEY));
+            assertThat(
+                stats2.getUserData().get(Translog.TRANSLOG_GENERATION_KEY),
+                not(equalTo(stats1.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
+            assertThat(stats2.getUserData().get(Translog.TRANSLOG_UUID_KEY), equalTo(stats1.getUserData().get(Translog.TRANSLOG_UUID_KEY)));
+            assertThat(Long.parseLong(stats2.getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)), equalTo(localCheckpoint.get()));
+            assertThat(stats2.getUserData(), hasKey(InternalEngine.GLOBAL_CHECKPOINT_KEY));
+            assertThat(
+                Long.parseLong(stats2.getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
+                equalTo(globalCheckpoint.get()));
+        } finally {
+            IOUtils.close(engine);
+        }
     }
 
     public void testIndexSearcherWrapper() throws Exception {
@@ -609,7 +654,7 @@ public class InternalEngineTests extends ESTestCase {
         try {
             initialEngine = engine;
             for (int i = 0; i < ops; i++) {
-                final ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+                final ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), SOURCE, null);
                 if (randomBoolean()) {
                     final Engine.Index operation = new Engine.Index(newUid("test#1"), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, i, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime());
                     operations.add(operation);
@@ -645,7 +690,7 @@ public class InternalEngineTests extends ESTestCase {
             initialEngine = engine;
             for (int i = 0; i < docs; i++) {
                 final String id = Integer.toString(i);
-                final ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocumentWithTextField(), new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+                final ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocumentWithTextField(), SOURCE, null);
                 initialEngine.index(new Engine.Index(newUid(id), doc));
             }
         } finally {
@@ -655,7 +700,7 @@ public class InternalEngineTests extends ESTestCase {
         Engine recoveringEngine = null;
         try {
             final AtomicBoolean flushed = new AtomicBoolean();
-            recoveringEngine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG)) {
+            recoveringEngine = new InternalEngine(copy(initialEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG)) {
                 @Override
                 public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
                     assertThat(getTranslog().totalOperations(), equalTo(docs));
@@ -1558,51 +1603,82 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
-    public void testSeqNoAndLocalCheckpoint() {
-        int opCount = randomIntBetween(1, 10);
-        long seqNoCount = -1;
-        for (int op = 0; op < opCount; op++) {
-            final String id = randomFrom("1", "2", "3");
-            ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-            if (randomBoolean()) {
-                final Engine.Index index = new Engine.Index(newUid(id), doc,
-                        SequenceNumbersService.UNASSIGNED_SEQ_NO,
-                        rarely() ? 100 : Versions.MATCH_ANY, VersionType.INTERNAL,
-                        PRIMARY, System.currentTimeMillis());
+    public void testSeqNoAndCheckpoints() throws IOException {
+        // nocommit: does not test deletes
+        final int opCount = randomIntBetween(1, 256);
+        long primarySeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
+        final String[] ids = new String[]{"1", "2", "3"};
+        long localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
+        long replicaLocalCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
+        long globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        InternalEngine initialEngine = null;
 
+        try {
+            initialEngine = engine;
+            initialEngine
+                .seqNoService()
+                .updateAllocationIdsFromMaster(new HashSet<>(Arrays.asList("primary", "replica")), Collections.emptySet());
+            for (int op = 0; op < opCount; op++) {
+                final String id = randomFrom(ids);
+                ParsedDocument doc = testParsedDocument("test#" + id, id, "test", null, -1, -1, testDocumentWithTextField(), SOURCE, null);
+                final Engine.Index index = new Engine.Index(newUid("test#" + id), doc,
+                    SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                    rarely() ? 100 : Versions.MATCH_ANY, VersionType.INTERNAL,
+                    PRIMARY, System.currentTimeMillis());
                 try {
-                    engine.index(index);
+                    initialEngine.index(index);
+                    primarySeqNo++;
                 } catch (VersionConflictEngineException e) {
-                    // OK
+
                 }
-                if (index.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                    seqNoCount++;
-                    Engine.Index replica = new Engine.Index(index.uid(), index.parsedDoc(), index.seqNo(),
-                            index.version(), VersionType.EXTERNAL, REPLICA, System.currentTimeMillis());
-                    replicaEngine.index(replica);
-                }
-            } else {
-                final Engine.Delete delete = new Engine.Delete("test", id, newUid(id),
-                        SequenceNumbersService.UNASSIGNED_SEQ_NO,
-                        rarely() ? 100 : Versions.MATCH_ANY, VersionType.INTERNAL,
-                        PRIMARY, System.currentTimeMillis(), false);
-                try {
-                    engine.delete(delete);
-                } catch (VersionConflictEngineException e) {
-                    // OK
-                }
-                if (delete.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                    seqNoCount++;
-                    Engine.Delete replica = new Engine.Delete(delete.type(), delete.id(), delete.uid(), delete.seqNo(),
-                            delete.version(), VersionType.EXTERNAL, REPLICA, System.currentTimeMillis(), false);
-                    replicaEngine.delete(replica);
+
+                replicaLocalCheckpoint =
+                    rarely() ? replicaLocalCheckpoint : randomIntBetween(Math.toIntExact(replicaLocalCheckpoint), Math.toIntExact(primarySeqNo));
+                initialEngine.seqNoService().updateLocalCheckpointForShard("primary", initialEngine.seqNoService().getLocalCheckpoint());
+                initialEngine.seqNoService().updateLocalCheckpointForShard("replica", replicaLocalCheckpoint);
+
+                if (rarely()) {
+                    localCheckpoint = primarySeqNo;
+                    globalCheckpoint = replicaLocalCheckpoint;
+                    initialEngine.seqNoService().updateGlobalCheckpointOnPrimary();
+                    initialEngine.flush(true, true);
                 }
             }
+
+            initialEngine.seqNoService().updateGlobalCheckpointOnPrimary();
+
+            assertThat(initialEngine.seqNoService().stats().getMaxSeqNo(), equalTo(primarySeqNo));
+            assertThat(initialEngine.seqNoService().stats().getLocalCheckpoint(), equalTo(primarySeqNo));
+            assertThat(initialEngine.seqNoService().stats().getGlobalCheckpoint(), equalTo(replicaLocalCheckpoint));
+
+            assertThat(
+                Long.parseLong(initialEngine.commitStats().getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
+                equalTo(localCheckpoint));
+            assertThat(
+                Long.parseLong(initialEngine.commitStats().getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
+                equalTo(globalCheckpoint));
+
+        } finally {
+            IOUtils.close(initialEngine);
         }
-        assertThat(engine.seqNoService().stats().getMaxSeqNo(), equalTo(seqNoCount));
-        assertThat(engine.seqNoService().stats().getLocalCheckpoint(), equalTo(seqNoCount));
-        assertThat(replicaEngine.seqNoService().stats().getMaxSeqNo(), equalTo(seqNoCount));
-        assertThat(replicaEngine.seqNoService().stats().getLocalCheckpoint(), equalTo(seqNoCount));
+
+        InternalEngine recoveringEngine = null;
+        try {
+            recoveringEngine = new InternalEngine(copy(initialEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
+            recoveringEngine.recoverFromTranslog();
+
+            assertThat(
+                Long.parseLong(recoveringEngine.commitStats().getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
+                equalTo(primarySeqNo));
+            assertThat(
+                Long.parseLong(recoveringEngine.commitStats().getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
+                equalTo(globalCheckpoint));
+            assertThat(recoveringEngine.seqNoService().stats().getLocalCheckpoint(), equalTo(primarySeqNo));
+            assertThat(recoveringEngine.seqNoService().stats().getMaxSeqNo(), equalTo(primarySeqNo));
+            assertThat(recoveringEngine.seqNoService().generateSeqNo(), equalTo(primarySeqNo + 1));
+        } finally {
+            IOUtils.close(recoveringEngine);
+        }
     }
 
     // #8603: make sure we can separately log IFD's messages
@@ -1920,9 +1996,9 @@ public class InternalEngineTests extends ESTestCase {
                     }
                     CommitStats commitStats = engine.commitStats();
                     Map<String, String> userData = commitStats.getUserData();
-                    assertTrue("userdata dosn't contain uuid", userData.containsKey(Translog.TRANSLOG_UUID_KEY));
-                    assertTrue("userdata doesn't contain generation key", userData.containsKey(Translog.TRANSLOG_GENERATION_KEY));
-                    assertFalse("userdata contains legacy marker", userData.containsKey("translog_id"));
+                    assertTrue("user data doesn't contain uuid", userData.containsKey(Translog.TRANSLOG_UUID_KEY));
+                    assertTrue("user data doesn't contain generation key", userData.containsKey(Translog.TRANSLOG_GENERATION_KEY));
+                    assertFalse("user data contains legacy marker", userData.containsKey("translog_id"));
                 }
             }
 

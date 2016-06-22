@@ -43,7 +43,7 @@ public class CheckpointsIT extends ESIntegTestCase {
             "index.number_of_shards", "1" // simplify things so we know how many ops goes to the shards
         ).get();
         final List<IndexRequestBuilder> builders = new ArrayList<>();
-        final int numDocs = scaledRandomIntBetween(0, 100);
+        final long numDocs = scaledRandomIntBetween(0, 100);
         logger.info("--> will index [{}] docs", numDocs);
         for (int i = 0; i < numDocs; i++) {
             builders.add(client().prepareIndex("test", "type", "id_" + i).setSource("{}"));
@@ -60,23 +60,14 @@ public class CheckpointsIT extends ESIntegTestCase {
                 logger.debug("seq_no stats for {}: {}", shardStats.getShardRouting(),
                     XContentHelper.toString(shardStats.getSeqNoStats(),
                         new ToXContent.MapParams(Collections.singletonMap("pretty", "false"))));
-                final Matcher<Long> localCheckpointRule;
-                final Matcher<Long> globalCheckpointRule;
-                if (shardStats.getShardRouting().primary()) {
-                    localCheckpointRule = equalTo(numDocs - 1L);
-                    globalCheckpointRule = equalTo(numDocs - 1L);
-                } else {
-                    // nocommit: recovery doesn't transfer checkpoints yet (we don't persist them in lucene).
-                    localCheckpointRule = anyOf(equalTo(numDocs - 1L), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
-                    globalCheckpointRule = anyOf(equalTo(numDocs - 1L), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
-                }
                 assertThat(shardStats.getShardRouting() + " local checkpoint mismatch",
-                    shardStats.getSeqNoStats().getLocalCheckpoint(), localCheckpointRule);
+                    shardStats.getSeqNoStats().getLocalCheckpoint(), equalTo(numDocs - 1));
                 assertThat(shardStats.getShardRouting() + " global checkpoint mismatch",
-                    shardStats.getSeqNoStats().getGlobalCheckpoint(), globalCheckpointRule);
+                    shardStats.getSeqNoStats().getGlobalCheckpoint(), equalTo(numDocs - 1));
                 assertThat(shardStats.getShardRouting() + " max seq no mismatch",
-                    shardStats.getSeqNoStats().getMaxSeqNo(), equalTo(numDocs - 1L));
+                    shardStats.getSeqNoStats().getMaxSeqNo(), equalTo(numDocs - 1));
             }
         });
     }
+
 }

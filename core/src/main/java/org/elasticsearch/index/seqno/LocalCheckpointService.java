@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.SnapshotStatus;
 
 import java.util.LinkedList;
 
@@ -39,39 +40,64 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
     public static Setting<Integer> SETTINGS_BIT_ARRAYS_SIZE = Setting.intSetting("index.seq_no.checkpoint.bit_arrays_size", 1024,
         4, Setting.Property.IndexScope);
 
-
     /**
      * an ordered list of bit arrays representing pending seq nos. The list is "anchored" in {@link #firstProcessedSeqNo}
      * which marks the seqNo the fist bit in the first array corresponds to.
      */
     final LinkedList<FixedBitSet> processedSeqNo;
-    final int bitArraysSize;
-    long firstProcessedSeqNo = 0;
+    private final int bitArraysSize;
+    long firstProcessedSeqNo;
 
     /** the current local checkpoint, i.e., all seqNo lower (&lt;=) than this number have been completed */
-    volatile long checkpoint = SequenceNumbersService.NO_OPS_PERFORMED;
+    volatile long checkpoint;
 
     /** the next available seqNo - used for seqNo generation */
-    volatile long nextSeqNo = 0;
+    private volatile long nextSeqNo;
 
-
-    public LocalCheckpointService(ShardId shardId, IndexSettings indexSettings) {
+    /**
+     * Initialize the local checkpoint service. The {@code maxSeqNo} should be
+     * set to the last sequence number assigned by this shard, or
+     * {@link SequenceNumbersService#NO_OPS_PERFORMED} and
+     * {@code localCheckpoint} should be set to the last known local checkpoint
+     * for this shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED}.
+     *
+     * @param shardId         the shard this service is providing tracking
+     *                        local checkpoints for
+     * @param indexSettings   the index settings
+     * @param maxSeqNo        the last sequence number assigned by this shard, or
+     *                        {@link SequenceNumbersService#NO_OPS_PERFORMED}
+     * @param localCheckpoint the last known local checkpoint for this shard, or
+     *                        {@link SequenceNumbersService#NO_OPS_PERFORMED}
+     */
+    LocalCheckpointService(final ShardId shardId, final IndexSettings indexSettings, final long maxSeqNo, final long localCheckpoint) {
         super(shardId, indexSettings);
+        if (localCheckpoint < 0 && localCheckpoint != SequenceNumbersService.NO_OPS_PERFORMED) {
+            throw new IllegalArgumentException(
+                "local checkpoint must be non-negative or [" + SequenceNumbersService.NO_OPS_PERFORMED + "] "
+                    + "but was [" +  localCheckpoint + "]");
+        }
+        if (maxSeqNo < 0 && maxSeqNo != SequenceNumbersService.NO_OPS_PERFORMED) {
+            throw new IllegalArgumentException(
+                "max seq. no. must be non-negative or [" + SequenceNumbersService.NO_OPS_PERFORMED + "] but was [" + maxSeqNo + "]");
+        }
         bitArraysSize = SETTINGS_BIT_ARRAYS_SIZE.get(indexSettings.getSettings());
         processedSeqNo = new LinkedList<>();
+        firstProcessedSeqNo = localCheckpoint == SequenceNumbersService.NO_OPS_PERFORMED ? 0 : localCheckpoint + 1;
+        this.nextSeqNo = maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED ? 0 : maxSeqNo + 1;
+        this.checkpoint = localCheckpoint;
     }
 
     /**
      * issue the next sequence number
      **/
-    public synchronized long generateSeqNo() {
+    synchronized long generateSeqNo() {
         return nextSeqNo++;
     }
 
     /**
      * marks the processing of the given seqNo have been completed
      **/
-    public synchronized void markSeqNoAsCompleted(long seqNo) {
+    synchronized void markSeqNoAsCompleted(long seqNo) {
         // make sure we track highest seen seqNo
         if (seqNo >= nextSeqNo) {
             nextSeqNo = seqNo + 1;
@@ -94,7 +120,7 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
     }
 
     /** gets the maximum seqno seen so far */
-    public long getMaxSeqNo() {
+    long getMaxSeqNo() {
         return nextSeqNo - 1;
     }
 
@@ -130,7 +156,7 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
      */
     private FixedBitSet getBitSetForSeqNo(long seqNo) {
         assert Thread.holdsLock(this);
-        assert seqNo >= firstProcessedSeqNo;
+        assert seqNo >= firstProcessedSeqNo : "seqNo: " + seqNo + " firstProcessedSeqNo: " + firstProcessedSeqNo;
         int bitSetOffset = ((int) (seqNo - firstProcessedSeqNo)) / bitArraysSize;
         while (bitSetOffset >= processedSeqNo.size()) {
             processedSeqNo.add(new FixedBitSet(bitArraysSize));
@@ -138,11 +164,11 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
         return processedSeqNo.get(bitSetOffset);
     }
 
-
     /** maps the given seqNo to a position in the bit set returned by {@link #getBitSetForSeqNo} */
     private int seqNoToBitSetOffset(long seqNo) {
         assert Thread.holdsLock(this);
         assert seqNo >= firstProcessedSeqNo;
         return ((int) (seqNo - firstProcessedSeqNo)) % bitArraysSize;
     }
+
 }

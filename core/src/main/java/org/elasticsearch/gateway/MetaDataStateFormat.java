@@ -116,7 +116,8 @@ public abstract class MetaDataStateFormat<T> {
         final Path finalStatePath = stateLocation.resolve(fileName);
         try {
             final String resourceDesc = "MetaDataStateFormat.write(path=\"" + tmpStatePath + "\")";
-            try (OutputStreamIndexOutput out = new OutputStreamIndexOutput(resourceDesc, fileName, Files.newOutputStream(tmpStatePath), BUFFER_SIZE)) {
+            try (OutputStreamIndexOutput out =
+                     new OutputStreamIndexOutput(resourceDesc, fileName, Files.newOutputStream(tmpStatePath), BUFFER_SIZE)) {
                 CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
                 out.writeInt(format.index());
                 try (XContentBuilder builder = newXContentBuilder(format, new IndexOutputOutputStream(out) {
@@ -144,7 +145,8 @@ public abstract class MetaDataStateFormat<T> {
                 Path finalPath = stateLocation.resolve(fileName);
                 try {
                     Files.copy(finalStatePath, tmpPath);
-                    Files.move(tmpPath, finalPath, StandardCopyOption.ATOMIC_MOVE); // we are on the same FileSystem / Partition here we can do an atomic move
+                    // we are on the same FileSystem / Partition here we can do an atomic move
+                    Files.move(tmpPath, finalPath, StandardCopyOption.ATOMIC_MOVE);
                     IOUtils.fsync(stateLocation, true); // we just fsync the dir here..
                 } finally {
                     Files.deleteIfExists(tmpPath);
@@ -265,7 +267,8 @@ public abstract class MetaDataStateFormat<T> {
                 // now, iterate over the current versions, and find latest one
                 // we don't check if the stateDir is present since it could be deleted
                 // after the check. Also if there is a _state file and it's not a dir something is really wrong
-                try (DirectoryStream<Path> paths = Files.newDirectoryStream(stateDir)) { // we don't pass a glob since we need the group part for parsing
+                // we don't pass a glob since we need the group part for parsing
+                try (DirectoryStream<Path> paths = Files.newDirectoryStream(stateDir)) {
                     for (Path stateFile : paths) {
                         final Matcher matcher = stateFilePattern.matcher(stateFile.getFileName().toString());
                         if (matcher.matches()) {

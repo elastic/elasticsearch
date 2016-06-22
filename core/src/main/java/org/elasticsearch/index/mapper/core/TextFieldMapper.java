@@ -317,6 +317,11 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         return (TextFieldMapper) super.clone();
     }
 
+    // pkg-private for testing
+    Boolean includeInAll() {
+        return includeInAll;
+    }
+
     @Override
     public TextFieldMapper includeInAll(Boolean includeInAll) {
         if (includeInAll != null) {

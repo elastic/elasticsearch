@@ -72,6 +72,8 @@ public final class WriterConstants {
     public final static Method CHAR_TO_STRING = getAsmMethod(String.class, "charToString", char.class);
     
     public final static Type METHOD_HANDLE_TYPE = Type.getType(MethodHandle.class);
+    
+    public static final Type AUGMENTATION_TYPE = Type.getType(Augmentation.class);
 
     /**
      * A Method instance for {@linkplain Pattern#compile}. This isn't available from Definition because we intentionally don't add it there

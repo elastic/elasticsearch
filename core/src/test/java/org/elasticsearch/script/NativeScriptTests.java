@@ -22,16 +22,12 @@ package org.elasticsearch.script;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
@@ -41,6 +37,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -49,28 +48,18 @@ public class NativeScriptTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("node.name", "testNativeScript")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                 .build();
-        ScriptModule scriptModule = new ScriptModule(new NativeScriptEngineService(settings,
-            Collections.singletonMap("my", new MyNativeScriptFactory())));
+        ScriptModule scriptModule = new ScriptModule(settings, new Environment(settings), null,
+                singletonList(new NativeScriptEngineService(settings, singletonMap("my", new MyNativeScriptFactory()))), emptyList());
         List<Setting<?>> scriptSettings = scriptModule.getSettings();
         scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
-        SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, Collections.emptyList());
-        final ThreadPool threadPool = new ThreadPool(settings);
-        Injector injector = new ModulesBuilder().add(
-                (b) -> {
-                    b.bind(Environment.class).toInstance(new Environment(settings));
-                    b.bind(ThreadPool.class).toInstance(threadPool);
-                },
-                new SettingsModule(settings),
-                scriptModule).createInjector();
-
-        ScriptService scriptService = injector.getInstance(ScriptService.class);
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
-        ExecutableScript executable = scriptService.executable(new Script("my", ScriptType.INLINE, NativeScriptEngineService.NAME, null),
-                ScriptContext.Standard.SEARCH, Collections.emptyMap(), state);
+        ExecutableScript executable = scriptModule.getScriptService().executable(
+                new Script("my", ScriptType.INLINE, NativeScriptEngineService.NAME, null), ScriptContext.Standard.SEARCH,
+                Collections.emptyMap(), state);
         assertThat(executable.run().toString(), equalTo("test"));
-        terminate(injector.getInstance(ThreadPool.class));
     }
 
     public void testFineGrainedSettingsDontAffectNativeScripts() throws IOException {

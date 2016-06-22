@@ -37,7 +37,7 @@
           }
         }
       },
-      "result" : {
+      "response" : {
         "type" : "object",
         "enabled" : false
       },

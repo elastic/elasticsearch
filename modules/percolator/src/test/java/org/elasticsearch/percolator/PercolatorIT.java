@@ -89,9 +89,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class PercolatorIT extends ESIntegTestCase {
 
     private final static String INDEX_NAME = "queries";

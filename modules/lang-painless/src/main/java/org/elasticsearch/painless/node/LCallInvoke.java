@@ -122,14 +122,8 @@ public final class LCallInvoke extends ALink {
         for (AExpression argument : arguments) {
             argument.write(writer, globals);
         }
-
-        if (java.lang.reflect.Modifier.isStatic(method.modifiers)) {
-            writer.invokeStatic(method.owner.type, method.method);
-        } else if (java.lang.reflect.Modifier.isInterface(method.owner.clazz.getModifiers())) {
-            writer.invokeInterface(method.owner.type, method.method);
-        } else {
-            writer.invokeVirtual(method.owner.type, method.method);
-        }
+        
+        method.write(writer);
     }
 
     @Override

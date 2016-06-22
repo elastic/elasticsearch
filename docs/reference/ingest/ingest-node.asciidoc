@@ -439,8 +439,7 @@ The following example sets the `_id` metadata field of a document to `1`:
 }
 --------------------------------------------------
 
-The following metadata fields are accessible by a processor: `_index`, `_type`, `_id`, `_routing`, `_parent`,
-`_timestamp`, and `_ttl`.
+The following metadata fields are accessible by a processor: `_index`, `_type`, `_id`, `_routing`, `_parent`.
 
 [float]
 [[accessing-ingest-metadata]]

@@ -300,12 +300,12 @@ requests can now be validated at call time which results in much clearer errors.
 
 The `setQuery(BytesReference)` method have been removed in favor of using `setQuery(QueryBuilder)`
 
-=== ClusterStatsResponse
+==== ClusterStatsResponse
 
 Removed the `getMemoryAvailable` method from `OsStats`, which could be previously accessed calling
 `clusterStatsResponse.getNodesStats().getOs().getMemoryAvailable()`.
 
-=== setRefresh(boolean) has been removed
+==== setRefresh(boolean) has been removed
 
 `setRefresh(boolean)` has been removed in favor of `setRefreshPolicy(RefreshPolicy)` because there
 are now three options (NONE, IMMEDIATE, and WAIT_FOR). `setRefresh(IMMEDIATE)` has the same behavior

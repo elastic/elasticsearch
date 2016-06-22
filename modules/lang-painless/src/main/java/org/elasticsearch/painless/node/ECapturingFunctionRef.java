@@ -76,7 +76,7 @@ public class ECapturingFunctionRef extends AExpression implements ILambda {
             // static case
             if (captured.type.sort != Definition.Sort.DEF) {
                 try {
-                    ref = new FunctionRef(expected, captured.type.name, call, captured.type.clazz);
+                    ref = new FunctionRef(expected, captured.type.name, call, 1);
                 } catch (IllegalArgumentException e) {
                     throw createError(e);
                 }

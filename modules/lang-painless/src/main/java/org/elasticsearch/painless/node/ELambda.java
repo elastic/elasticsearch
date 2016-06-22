@@ -175,11 +175,7 @@ public class ELambda extends AExpression implements ILambda {
         } else {
             defPointer = null;
             try {
-                Class<?> captureClasses[] = new Class<?>[captures.size()];
-                for (int i = 0; i < captures.size(); i++) {
-                    captureClasses[i] = captures.get(i).type.clazz;
-                }
-                ref = new FunctionRef(expected, interfaceMethod, desugared.method, captureClasses);
+                ref = new FunctionRef(expected, interfaceMethod, desugared.method, captures.size());
             } catch (IllegalArgumentException e) {
                 throw createError(e);
             }

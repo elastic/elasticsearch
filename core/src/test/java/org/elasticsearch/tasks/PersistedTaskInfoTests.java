@@ -78,11 +78,11 @@ public class PersistedTaskInfoTests extends ESTestCase {
     private static PersistedTaskInfo randomTaskResult() throws IOException {
         switch (between(0, 2)) {
         case 0:
-            return new PersistedTaskInfo(randomTaskInfo());
+            return new PersistedTaskInfo(randomBoolean(), randomTaskInfo());
         case 1:
             return new PersistedTaskInfo(randomTaskInfo(), new RuntimeException("error"));
         case 2:
-            return new PersistedTaskInfo(randomTaskInfo(), randomTaskActionResult());
+            return new PersistedTaskInfo(randomTaskInfo(), randomTaskResponse());
         default:
             throw new UnsupportedOperationException("Unsupported random TaskResult constructor");
         }
@@ -117,7 +117,7 @@ public class PersistedTaskInfoTests extends ESTestCase {
         }
     }
 
-    private static ToXContent randomTaskActionResult() {
+    private static ToXContent randomTaskResponse() {
         Map<String, String> result = new TreeMap<>();
         int fields = between(0, 10);
         for (int f = 0; f < fields; f++) {
@@ -126,7 +126,7 @@ public class PersistedTaskInfoTests extends ESTestCase {
         return new ToXContent() {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                // Results in Elasticsearch never output a leading startObject. There isn't really a good reason, they just don't.
+                // Responses in Elasticsearch never output a leading startObject. There isn't really a good reason, they just don't.
                 for (Map.Entry<String, String> entry : result.entrySet()) {
                     builder.field(entry.getKey(), entry.getValue());
                 }

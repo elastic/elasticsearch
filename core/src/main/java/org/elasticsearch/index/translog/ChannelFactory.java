@@ -16,28 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.index.translog;
 
-package org.elasticsearch.percolator;
+import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
-
-public class PercolateAction extends Action<PercolateRequest, PercolateResponse, PercolateRequestBuilder> {
-
-    public static final PercolateAction INSTANCE = new PercolateAction();
-    public static final String NAME = "indices:data/read/percolate";
-
-    private PercolateAction() {
-        super(NAME);
+/**
+ * only for testing until we have a disk-full FileSystem
+ */
+@FunctionalInterface
+interface ChannelFactory {
+    default FileChannel open(Path path) throws IOException {
+        return open(path, StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
     }
 
-    @Override
-    public PercolateResponse newResponse() {
-        return new PercolateResponse();
-    }
-
-    @Override
-    public PercolateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new PercolateRequestBuilder(client, this);
-    }
+    FileChannel open(Path path, OpenOption... options) throws IOException;
 }

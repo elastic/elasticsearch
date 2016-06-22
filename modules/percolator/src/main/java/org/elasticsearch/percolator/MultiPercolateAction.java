@@ -21,8 +21,6 @@ package org.elasticsearch.percolator;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class MultiPercolateAction extends Action<MultiPercolateRequest, MultiPercolateResponse, MultiPercolateRequestBuilder> {
 
     public static final MultiPercolateAction INSTANCE = new MultiPercolateAction();

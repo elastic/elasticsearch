@@ -41,6 +41,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.tasks.PersistedTaskInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskPersistenceService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
@@ -140,6 +141,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
     void getRunningTaskFromNode(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
         Task runningTask = taskManager.getTask(request.getTaskId().getId());
         if (runningTask == null) {
+            // Task isn't running, go look in the task index
             getFinishedTaskFromIndex(thisTask, request, listener);
         } else {
             if (request.getWaitForCompletion()) {
@@ -148,9 +150,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     @Override
                     protected void doRun() throws Exception {
                         taskManager.waitForTaskCompletion(runningTask, waitForCompletionTimeout(request.getTimeout()));
-                        // TODO look up the task's result from the .tasks index now that it is done
-                        listener.onResponse(
-                                new GetTaskResponse(new PersistedTaskInfo(runningTask.taskInfo(clusterService.localNode(), true))));
+                        waitedForCompletion(thisTask, request, runningTask.taskInfo(clusterService.localNode(), true), listener);
                     }
 
                     @Override
@@ -159,15 +159,44 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     }
                 });
             } else {
-                listener.onResponse(new GetTaskResponse(new PersistedTaskInfo(runningTask.taskInfo(clusterService.localNode(), true))));
+                TaskInfo info = runningTask.taskInfo(clusterService.localNode(), true);
+                listener.onResponse(new GetTaskResponse(new PersistedTaskInfo(false, info)));
             }
         }
     }
 
     /**
-     * Send a {@link GetRequest} to the results index looking for the results of the task. It'll only be found only if the task's result was
-     * persisted. Called on the node that once had the task if that node is part of the cluster or on the coordinating node if the node
-     * wasn't part of the cluster.
+     * Called after waiting for the task to complete. Attempts to load the results of the task from the tasks index. If it isn't in the
+     * index then returns a snapshot of the task taken shortly after completion.
+     */
+    void waitedForCompletion(Task thisTask, GetTaskRequest request, TaskInfo snapshotOfRunningTask,
+            ActionListener<GetTaskResponse> listener) {
+        getFinishedTaskFromIndex(thisTask, request, new ActionListener<GetTaskResponse>() {
+            @Override
+            public void onResponse(GetTaskResponse response) {
+                // We were able to load the task from the task index. Let's send that back.
+                listener.onResponse(response);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                /*
+                 * We couldn't load the task from the task index. Instead of 404 we should use the snapshot we took after it finished. If
+                 * the error isn't a 404 then we'll just throw it back to the user.
+                 */
+                if (ExceptionsHelper.unwrap(e, ResourceNotFoundException.class) != null) {
+                    listener.onResponse(new GetTaskResponse(new PersistedTaskInfo(true, snapshotOfRunningTask)));
+                } else {
+                    listener.onFailure(e);
+                }
+            }
+        });
+    }
+
+    /**
+     * Send a {@link GetRequest} to the tasks index looking for a persisted copy of the task completed task. It'll only be found only if the
+     * task's result was persisted. Called on the node that once had the task if that node is still part of the cluster or on the
+     * coordinating node if the node is no longer part of the cluster.
      */
     void getFinishedTaskFromIndex(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
         GetRequest get = new GetRequest(TaskPersistenceService.TASK_INDEX, TaskPersistenceService.TASK_TYPE,
@@ -202,6 +231,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
     void onGetFinishedTaskFromIndex(GetResponse response, ActionListener<GetTaskResponse> listener) throws IOException {
         if (false == response.isExists()) {
             listener.onFailure(new ResourceNotFoundException("task [{}] isn't running or persisted", response.getId()));
+            return;
         }
         if (response.isSourceEmpty()) {
             listener.onFailure(new ElasticsearchException("Stored task status for [{}] didn't contain any source!", response.getId()));

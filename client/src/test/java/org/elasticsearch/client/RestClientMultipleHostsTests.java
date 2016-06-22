@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
@@ -29,7 +30,6 @@ import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.message.BasicStatusLine;
-import org.apache.lucene.util.LuceneTestCase;
 import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -46,6 +46,10 @@ import static org.elasticsearch.client.RestClientTestUtil.randomHttpMethod;
 import static org.elasticsearch.client.RestClientTestUtil.randomOkStatusCode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -54,7 +58,7 @@ import static org.mockito.Mockito.when;
  * Tests for {@link RestClient} behaviour against multiple hosts: fail-over, blacklisting etc.
  * Relies on a mock http client to intercept requests and return desired responses based on request path.
  */
-public class RestClientMultipleHostsTests extends LuceneTestCase {
+public class RestClientMultipleHostsTests extends RestClientTestCase {
 
     private RestClient restClient;
     private HttpHost[] httpHosts;
@@ -82,7 +86,7 @@ public class RestClientMultipleHostsTests extends LuceneTestCase {
             }
         });
 
-        int numHosts = RandomInts.randomIntBetween(random(), 2, 5);
+        int numHosts = RandomInts.randomIntBetween(getRandom(), 2, 5);
         httpHosts = new HttpHost[numHosts];
         for (int i = 0; i < numHosts; i++) {
             httpHosts[i] = new HttpHost("localhost", 9200 + i);
@@ -92,13 +96,13 @@ public class RestClientMultipleHostsTests extends LuceneTestCase {
     }
 
     public void testRoundRobinOkStatusCodes() throws Exception {
-        int numIters = RandomInts.randomIntBetween(random(), 1, 5);
+        int numIters = RandomInts.randomIntBetween(getRandom(), 1, 5);
         for (int i = 0; i < numIters; i++) {
             Set<HttpHost> hostsSet = new HashSet<>();
             Collections.addAll(hostsSet, httpHosts);
             for (int j = 0; j < httpHosts.length; j++) {
-                int statusCode = randomOkStatusCode(random());
-                try (Response response = restClient.performRequest(randomHttpMethod(random()), "/" + statusCode,
+                int statusCode = randomOkStatusCode(getRandom());
+                try (Response response = restClient.performRequest(randomHttpMethod(getRandom()), "/" + statusCode,
                         Collections.<String, String>emptyMap(), null)) {
                     assertThat(response.getStatusLine().getStatusCode(), equalTo(statusCode));
                     assertTrue("host not found: " + response.getHost(), hostsSet.remove(response.getHost()));
@@ -110,13 +114,13 @@ public class RestClientMultipleHostsTests extends LuceneTestCase {
     }
 
     public void testRoundRobinNoRetryErrors() throws Exception {
-        int numIters = RandomInts.randomIntBetween(random(), 1, 5);
+        int numIters = RandomInts.randomIntBetween(getRandom(), 1, 5);
         for (int i = 0; i < numIters; i++) {
             Set<HttpHost> hostsSet = new HashSet<>();
             Collections.addAll(hostsSet, httpHosts);
             for (int j = 0; j < httpHosts.length; j++) {
-                String method = randomHttpMethod(random());
-                int statusCode = randomErrorNoRetryStatusCode(random());
+                String method = randomHttpMethod(getRandom());
+                int statusCode = randomErrorNoRetryStatusCode(getRandom());
                 try (Response response = restClient.performRequest(method, "/" + statusCode,
                         Collections.<String, String>emptyMap(), null)) {
                     if (method.equals("HEAD") && statusCode == 404) {
@@ -145,7 +149,7 @@ public class RestClientMultipleHostsTests extends LuceneTestCase {
     public void testRoundRobinRetryErrors() throws Exception {
         String retryEndpoint = randomErrorRetryEndpoint();
         try  {
-            restClient.performRequest(randomHttpMethod(random()), retryEndpoint, Collections.<String, String>emptyMap(), null);
+            restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint, Collections.<String, String>emptyMap(), null);
             fail("request should have failed");
         } catch(ResponseException e) {
             Set<HttpHost> hostsSet = new HashSet<>();
@@ -187,7 +191,7 @@ public class RestClientMultipleHostsTests extends LuceneTestCase {
             assertEquals("every host should have been used but some weren't: " + hostsSet, 0, hostsSet.size());
         }
 
-        int numIters = RandomInts.randomIntBetween(random(), 2, 5);
+        int numIters = RandomInts.randomIntBetween(getRandom(), 2, 5);
         for (int i = 1; i <= numIters; i++) {
             //check that one different host is resurrected at each new attempt
             Set<HttpHost> hostsSet = new HashSet<>();
@@ -195,7 +199,7 @@ public class RestClientMultipleHostsTests extends LuceneTestCase {
             for (int j = 0; j < httpHosts.length; j++) {
                 retryEndpoint = randomErrorRetryEndpoint();
                 try  {
-                    restClient.performRequest(randomHttpMethod(random()), retryEndpoint, Collections.<String, String>emptyMap(), null);
+                    restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint, Collections.<String, String>emptyMap(), null);
                     fail("request should have failed");
                 } catch(ResponseException e) {
                     Response response = e.getResponse();
@@ -214,14 +218,14 @@ public class RestClientMultipleHostsTests extends LuceneTestCase {
                 }
             }
             assertEquals("every host should have been used but some weren't: " + hostsSet, 0, hostsSet.size());
-            if (random().nextBoolean()) {
+            if (getRandom().nextBoolean()) {
                 //mark one host back alive through a successful request and check that all requests after that are sent to it
                 HttpHost selectedHost = null;
-                int iters = RandomInts.randomIntBetween(random(), 2, 10);
+                int iters = RandomInts.randomIntBetween(getRandom(), 2, 10);
                 for (int y = 0; y < iters; y++) {
-                    int statusCode = randomErrorNoRetryStatusCode(random());
+                    int statusCode = randomErrorNoRetryStatusCode(getRandom());
                     Response response;
-                    try (Response esResponse = restClient.performRequest(randomHttpMethod(random()), "/" + statusCode,
+                    try (Response esResponse = restClient.performRequest(randomHttpMethod(getRandom()), "/" + statusCode,
                             Collections.<String, String>emptyMap(), null)) {
                         response = esResponse;
                     }
@@ -241,7 +245,7 @@ public class RestClientMultipleHostsTests extends LuceneTestCase {
                 for (int y = 0; y < i + 1; y++) {
                     retryEndpoint = randomErrorRetryEndpoint();
                     try {
-                        restClient.performRequest(randomHttpMethod(random()), retryEndpoint,
+                        restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint,
                                 Collections.<String, String>emptyMap(), null);
                         fail("request should have failed");
                     } catch(ResponseException e) {
@@ -260,9 +264,9 @@ public class RestClientMultipleHostsTests extends LuceneTestCase {
     }
 
     private static String randomErrorRetryEndpoint() {
-        switch(RandomInts.randomIntBetween(random(), 0, 3)) {
+        switch(RandomInts.randomIntBetween(getRandom(), 0, 3)) {
             case 0:
-                return "/" + randomErrorRetryStatusCode(random());
+                return "/" + randomErrorRetryStatusCode(getRandom());
             case 1:
                 return "/coe";
             case 2:

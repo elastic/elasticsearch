@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.Header;
@@ -43,7 +44,6 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.util.LuceneTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
@@ -65,6 +65,12 @@ import static org.elasticsearch.client.RestClientTestUtil.randomHttpMethod;
 import static org.elasticsearch.client.RestClientTestUtil.randomStatusCode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -76,7 +82,7 @@ import static org.mockito.Mockito.when;
  * body, different status codes and corresponding responses/exceptions.
  * Relies on a mock http client to intercept requests and return desired responses based on request path.
  */
-public class RestClientSingleHostTests extends LuceneTestCase {
+public class RestClientSingleHostTests extends RestClientTestCase {
 
     private RestClient restClient;
     private Header[] defaultHeaders;
@@ -114,11 +120,11 @@ public class RestClientSingleHostTests extends LuceneTestCase {
                 return httpResponse;
             }
         });
-        int numHeaders = RandomInts.randomIntBetween(random(), 0, 3);
+        int numHeaders = RandomInts.randomIntBetween(getRandom(), 0, 3);
         defaultHeaders = new Header[numHeaders];
         for (int i = 0; i < numHeaders; i++) {
-            String headerName = "Header-default" + (random().nextBoolean() ? i : "");
-            String headerValue = RandomStrings.randomAsciiOfLengthBetween(random(), 3, 10);
+            String headerName = "Header-default" + (getRandom().nextBoolean() ? i : "");
+            String headerValue = RandomStrings.randomAsciiOfLengthBetween(getRandom(), 3, 10);
             defaultHeaders[i] = new BasicHeader(headerName, headerValue);
         }
         httpHost = new HttpHost("localhost", 9200);
@@ -269,7 +275,7 @@ public class RestClientSingleHostTests extends LuceneTestCase {
         }
         for (String method : Arrays.asList("HEAD", "OPTIONS", "TRACE")) {
             try {
-                restClient.performRequest(method, "/" + randomStatusCode(random()),
+                restClient.performRequest(method, "/" + randomStatusCode(getRandom()),
                         Collections.<String, String>emptyMap(), entity);
                 fail("request should have failed");
             } catch(UnsupportedOperationException e) {
@@ -279,8 +285,8 @@ public class RestClientSingleHostTests extends LuceneTestCase {
     }
 
     public void testNullHeaders() throws Exception {
-        String method = randomHttpMethod(random());
-        int statusCode = randomStatusCode(random());
+        String method = randomHttpMethod(getRandom());
+        int statusCode = randomStatusCode(getRandom());
         try {
             restClient.performRequest(method, "/" + statusCode, Collections.<String, String>emptyMap(), null, (Header[])null);
             fail("request should have failed");
@@ -296,8 +302,8 @@ public class RestClientSingleHostTests extends LuceneTestCase {
     }
 
     public void testNullParams() throws Exception {
-        String method = randomHttpMethod(random());
-        int statusCode = randomStatusCode(random());
+        String method = randomHttpMethod(getRandom());
+        int statusCode = randomStatusCode(getRandom());
         try {
             restClient.performRequest(method, "/" + statusCode, null, null);
             fail("request should have failed");
@@ -316,16 +322,16 @@ public class RestClientSingleHostTests extends LuceneTestCase {
             for (Header defaultHeader : defaultHeaders) {
                 expectedHeaders.put(defaultHeader.getName(), defaultHeader.getValue());
             }
-            int numHeaders = RandomInts.randomIntBetween(random(), 1, 5);
+            int numHeaders = RandomInts.randomIntBetween(getRandom(), 1, 5);
             Header[] headers = new Header[numHeaders];
             for (int i = 0; i < numHeaders; i++) {
-                String headerName = "Header" + (random().nextBoolean() ? i : "");
-                String headerValue = RandomStrings.randomAsciiOfLengthBetween(random(), 3, 10);
+                String headerName = "Header" + (getRandom().nextBoolean() ? i : "");
+                String headerValue = RandomStrings.randomAsciiOfLengthBetween(getRandom(), 3, 10);
                 headers[i] = new BasicHeader(headerName, headerValue);
                 expectedHeaders.put(headerName, headerValue);
             }
 
-            int statusCode = randomStatusCode(random());
+            int statusCode = randomStatusCode(getRandom());
             Response esResponse;
             try (Response response = restClient.performRequest(method, "/" + statusCode,
                     Collections.<String, String>emptyMap(), null, headers)) {
@@ -343,15 +349,15 @@ public class RestClientSingleHostTests extends LuceneTestCase {
     }
 
     private HttpUriRequest performRandomRequest(String method) throws IOException, URISyntaxException {
-        String uriAsString = "/" + randomStatusCode(random());
+        String uriAsString = "/" + randomStatusCode(getRandom());
         URIBuilder uriBuilder = new URIBuilder(uriAsString);
         Map<String, String> params = Collections.emptyMap();
-        if (random().nextBoolean()) {
-            int numParams = RandomInts.randomIntBetween(random(), 1, 3);
+        if (getRandom().nextBoolean()) {
+            int numParams = RandomInts.randomIntBetween(getRandom(), 1, 3);
             params = new HashMap<>(numParams);
             for (int i = 0; i < numParams; i++) {
                 String paramKey = "param-" + i;
-                String paramValue = RandomStrings.randomAsciiOfLengthBetween(random(), 3, 10);
+                String paramValue = RandomStrings.randomAsciiOfLengthBetween(getRandom(), 3, 10);
                 params.put(paramKey, paramValue);
                 uriBuilder.addParameter(paramKey, paramValue);
             }
@@ -389,8 +395,8 @@ public class RestClientSingleHostTests extends LuceneTestCase {
         }
 
         HttpEntity entity = null;
-        if (request instanceof HttpEntityEnclosingRequest && random().nextBoolean()) {
-            entity = new StringEntity(RandomStrings.randomAsciiOfLengthBetween(random(), 10, 100));
+        if (request instanceof HttpEntityEnclosingRequest && getRandom().nextBoolean()) {
+            entity = new StringEntity(RandomStrings.randomAsciiOfLengthBetween(getRandom(), 10, 100));
             ((HttpEntityEnclosingRequest) request).setEntity(entity);
         }
 
@@ -399,12 +405,12 @@ public class RestClientSingleHostTests extends LuceneTestCase {
             //default headers are expected but not sent for each request
             request.setHeader(defaultHeader);
         }
-        if (random().nextBoolean()) {
-            int numHeaders = RandomInts.randomIntBetween(random(), 1, 5);
+        if (getRandom().nextBoolean()) {
+            int numHeaders = RandomInts.randomIntBetween(getRandom(), 1, 5);
             headers = new Header[numHeaders];
             for (int i = 0; i < numHeaders; i++) {
-                String headerName = "Header" + (random().nextBoolean() ? i : "");
-                String headerValue = RandomStrings.randomAsciiOfLengthBetween(random(), 3, 10);
+                String headerName = "Header" + (getRandom().nextBoolean() ? i : "");
+                String headerValue = RandomStrings.randomAsciiOfLengthBetween(getRandom(), 3, 10);
                 BasicHeader basicHeader = new BasicHeader(headerName, headerValue);
                 headers[i] = basicHeader;
                 request.setHeader(basicHeader);

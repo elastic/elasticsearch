@@ -22,10 +22,14 @@ package org.elasticsearch.client.sniff;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.HttpHost;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientTestCase;
 
-public class HostsSnifferBuilderTests extends LuceneTestCase {
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
+
+public class HostsSnifferBuilderTests extends RestClientTestCase {
 
     public void testBuild() throws Exception {
         try {
@@ -35,7 +39,7 @@ public class HostsSnifferBuilderTests extends LuceneTestCase {
             assertEquals(e.getMessage(), "restClient cannot be null");
         }
 
-        int numNodes = RandomInts.randomIntBetween(random(), 1, 5);
+        int numNodes = RandomInts.randomIntBetween(getRandom(), 1, 5);
         HttpHost[] hosts = new HttpHost[numNodes];
         for (int i = 0; i < numNodes; i++) {
             hosts[i] = new HttpHost("localhost", 9200 + i);
@@ -50,18 +54,18 @@ public class HostsSnifferBuilderTests extends LuceneTestCase {
             }
 
             try {
-                HostsSniffer.builder(client).setSniffRequestTimeoutMillis(RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
+                HostsSniffer.builder(client).setSniffRequestTimeoutMillis(RandomInts.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0));
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
                 assertEquals(e.getMessage(), "sniffRequestTimeoutMillis must be greater than 0");
             }
 
             HostsSniffer.Builder builder = HostsSniffer.builder(client);
-            if (random().nextBoolean()) {
-                builder.setScheme(RandomPicks.randomFrom(random(), HostsSniffer.Scheme.values()));
+            if (getRandom().nextBoolean()) {
+                builder.setScheme(RandomPicks.randomFrom(getRandom(), HostsSniffer.Scheme.values()));
             }
-            if (random().nextBoolean()) {
-                builder.setSniffRequestTimeoutMillis(RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
+            if (getRandom().nextBoolean()) {
+                builder.setSniffRequestTimeoutMillis(RandomInts.randomIntBetween(getRandom(), 1, Integer.MAX_VALUE));
             }
             assertNotNull(builder.build());
         }

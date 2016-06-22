@@ -15,7 +15,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.watch.Payload;
+import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -63,19 +63,9 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
 
         IndexRequest indexRequest = new IndexRequest();
-
         indexRequest.index(action.index);
         indexRequest.type(action.docType);
-
-        if (action.executionTimeField != null && !TimestampFieldMapper.NAME.equals(action.executionTimeField)) {
-            if (!(data instanceof HashMap)) {
-                data = new HashMap<>(data); // ensuring mutability
-            }
-            data.put(action.executionTimeField, WatcherDateTimeUtils.formatDate(ctx.executionTime()));
-        } else {
-            indexRequest.timestamp(WatcherDateTimeUtils.formatDate(ctx.executionTime()));
-        }
-
+        data = addTimestampToDocument(data, ctx.executionTime());
         indexRequest.source(jsonBuilder().prettyPrint().map(data));
 
         if (ctx.simulateAction(actionId)) {
@@ -100,14 +90,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             IndexRequest indexRequest = new IndexRequest();
             indexRequest.index(action.index);
             indexRequest.type(action.docType);
-            if (action.executionTimeField != null && !TimestampFieldMapper.NAME.equals(action.executionTimeField)) {
-                if (!(doc instanceof HashMap)) {
-                    doc = new HashMap<>(doc); // ensuring mutability
-                }
-                doc.put(action.executionTimeField, WatcherDateTimeUtils.formatDate(ctx.executionTime()));
-            } else {
-                indexRequest.timestamp(WatcherDateTimeUtils.formatDate(ctx.executionTime()));
-            }
+            doc = addTimestampToDocument(doc, ctx.executionTime());
             indexRequest.source(jsonBuilder().prettyPrint().map(doc));
             bulkRequest.add(indexRequest);
         }
@@ -119,6 +102,16 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
         jsonBuilder.endArray();
         return new IndexAction.Result.Success(new XContentSource(jsonBuilder.bytes(), XContentType.JSON));
+    }
+
+    private Map<String, Object> addTimestampToDocument(Map<String, Object> data, DateTime executionTime) {
+        if (action.executionTimeField != null) {
+            if (!(data instanceof HashMap)) {
+                data = new HashMap<>(data); // ensuring mutability
+            }
+            data.put(action.executionTimeField, WatcherDateTimeUtils.formatDate(executionTime));
+        }
+        return data;
     }
 
     static void indexResponseToXContent(XContentBuilder builder, IndexResponse response) throws IOException {

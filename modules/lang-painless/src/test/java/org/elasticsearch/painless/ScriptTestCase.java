@@ -56,6 +56,7 @@ public abstract class ScriptTestCase extends ESTestCase {
     public Object exec(String script, Map<String, Object> vars) {
         Map<String,String> compilerSettings = new HashMap<>();
         compilerSettings.put(CompilerSettings.PICKY, "true");
+        compilerSettings.put(CompilerSettings.INITIAL_CALL_SITE_DEPTH, random().nextBoolean() ? "0" : "10");
         return exec(script, vars, compilerSettings, null);
     }
 

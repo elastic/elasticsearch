@@ -48,24 +48,10 @@ Here we configure the DFRSimilarity so it can be referenced as
 === Available similarities
 
 [float]
-[[classic-similarity]]
-==== Classic similarity
-
-The classic similarity that is based on the TF/IDF model. This
-similarity has the following option:
-
-`discount_overlaps`::
-    Determines whether overlap tokens (Tokens with
-    0 position increment) are ignored when computing norm. By default this
-    is true, meaning overlap tokens do not count when computing norms.
-
-Type name: `classic`
-
-[float]
 [[bm25]]
-==== BM25 similarity
+==== BM25 similarity (*default*)
 
-Another TF/IDF based similarity that has built-in tf normalization and
+TF/IDF based similarity that has built-in tf normalization and
 is supposed to work better for short fields (like names). See
 http://en.wikipedia.org/wiki/Okapi_BM25[Okapi_BM25] for more details.
 This similarity has the following options:
@@ -85,6 +71,20 @@ This similarity has the following options:
     is true, meaning overlap tokens do not count when computing norms.
 
 Type name: `BM25`
+
+[float]
+[[classic-similarity]]
+==== Classic similarity
+
+The classic similarity that is based on the TF/IDF model. This
+similarity has the following option:
+
+`discount_overlaps`::
+    Determines whether overlap tokens (Tokens with
+    0 position increment) are ignored when computing norm. By default this
+    is true, meaning overlap tokens do not count when computing norms.
+
+Type name: `classic`
 
 [float]
 [[drf]]
@@ -178,5 +178,5 @@ You can change the default similarity for all fields by putting the following se
 
 [source,js]
 --------------------------------------------------
-index.similarity.default.type: BM25
+index.similarity.default.type: classic
 --------------------------------------------------

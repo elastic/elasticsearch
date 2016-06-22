@@ -20,23 +20,22 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ingest.SimulateProcessorResult;
-import org.elasticsearch.action.ingest.TrackingResultProcessor;
 import org.elasticsearch.ingest.TestProcessor;
-import org.elasticsearch.ingest.core.CompoundProcessor;
-import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.CompoundProcessor;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.core.CompoundProcessor.ON_FAILURE_MESSAGE_FIELD;
-import static org.elasticsearch.ingest.core.CompoundProcessor.ON_FAILURE_PROCESSOR_TAG_FIELD;
-import static org.elasticsearch.ingest.core.CompoundProcessor.ON_FAILURE_PROCESSOR_TYPE_FIELD;
+import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_MESSAGE_FIELD;
+import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_PROCESSOR_TAG_FIELD;
+import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_PROCESSOR_TYPE_FIELD;
 import static org.elasticsearch.action.ingest.TrackingResultProcessor.decorate;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -54,7 +53,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
     public void testActualProcessor() throws Exception {
         TestProcessor actualProcessor = new TestProcessor(ingestDocument -> {});
-        TrackingResultProcessor trackingProcessor = new TrackingResultProcessor(actualProcessor, resultList);
+        TrackingResultProcessor trackingProcessor = new TrackingResultProcessor(false, actualProcessor, resultList);
         trackingProcessor.execute(ingestDocument);
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getTag(), ingestDocument);
@@ -128,5 +127,22 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertThat(metadata.get(ON_FAILURE_PROCESSOR_TAG_FIELD), equalTo("fail"));
         assertThat(resultList.get(3).getFailure(), nullValue());
         assertThat(resultList.get(3).getProcessorTag(), equalTo(expectedSuccessResult.getProcessorTag()));
+    }
+
+    public void testActualCompoundProcessorWithIgnoreFailure() throws Exception {
+        RuntimeException exception = new RuntimeException("processor failed");
+        TestProcessor testProcessor = new TestProcessor(ingestDocument -> {  throw exception; });
+        CompoundProcessor actualProcessor = new CompoundProcessor(true, Collections.singletonList(testProcessor),
+            Collections.emptyList());
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, resultList);
+
+        trackingProcessor.execute(ingestDocument);
+
+        SimulateProcessorResult expectedResult = new SimulateProcessorResult(testProcessor.getTag(), ingestDocument);
+        assertThat(testProcessor.getInvokedCounter(), equalTo(1));
+        assertThat(resultList.size(), equalTo(1));
+        assertThat(resultList.get(0).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertThat(resultList.get(0).getFailure(), nullValue());
+        assertThat(resultList.get(0).getProcessorTag(), equalTo(expectedResult.getProcessorTag()));
     }
 }

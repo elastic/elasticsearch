@@ -85,7 +85,7 @@ import static org.hamcrest.Matchers.nullValue;
 @TestLogging("discovery.zen.publish:TRACE")
 public class PublishClusterStateActionTests extends ESTestCase {
 
-    private static final ClusterName CLUSTER_NAME = ClusterName.DEFAULT;
+    private static final ClusterName CLUSTER_NAME = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
 
     protected ThreadPool threadPool;
     protected Map<String, MockNode> nodes = new HashMap<>();
@@ -145,26 +145,22 @@ public class PublishClusterStateActionTests extends ESTestCase {
     }
 
     public MockNode createMockNode(final String name) throws Exception {
-        return createMockNode(name, Settings.EMPTY, Version.CURRENT);
+        return createMockNode(name, Settings.EMPTY);
     }
 
     public MockNode createMockNode(String name, Settings settings) throws Exception {
-        return createMockNode(name, settings, Version.CURRENT);
+        return createMockNode(name, settings, null);
     }
 
-    public MockNode createMockNode(final String name, Settings settings, Version version) throws Exception {
-        return createMockNode(name, settings, version, null);
-    }
-
-    public MockNode createMockNode(String name, Settings settings, Version version, @Nullable ClusterStateListener listener) throws Exception {
+    public MockNode createMockNode(String name, Settings settings, @Nullable ClusterStateListener listener) throws Exception {
         settings = Settings.builder()
                 .put("name", name)
                 .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "", TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                 .put(settings)
                 .build();
 
-        MockTransportService service = buildTransportService(settings, version);
-        DiscoveryNodeService discoveryNodeService = new DiscoveryNodeService(settings, version);
+        MockTransportService service = buildTransportService(settings);
+        DiscoveryNodeService discoveryNodeService = new DiscoveryNodeService(settings);
         DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(service.boundAddress().publishAddress());
         MockNode node = new MockNode(discoveryNode, service, listener, logger);
         node.action = buildPublishClusterStateAction(settings, service, () -> node.clusterState, node);
@@ -232,8 +228,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    protected MockTransportService buildTransportService(Settings settings, Version version) {
-        MockTransportService transportService = MockTransportService.local(Settings.EMPTY, version, threadPool, CLUSTER_NAME);
+    protected MockTransportService buildTransportService(Settings settings) {
+        MockTransportService transportService = MockTransportService.local(Settings.EMPTY, Version.CURRENT, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
         return transportService;
@@ -257,8 +253,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
     }
 
     public void testSimpleClusterStatePublishing() throws Exception {
-        MockNode nodeA = createMockNode("nodeA", Settings.EMPTY, Version.CURRENT).setAsMaster();
-        MockNode nodeB = createMockNode("nodeB", Settings.EMPTY, Version.CURRENT);
+        MockNode nodeA = createMockNode("nodeA", Settings.EMPTY).setAsMaster();
+        MockNode nodeB = createMockNode("nodeB", Settings.EMPTY);
 
         // Initial cluster state
         ClusterState clusterState = nodeA.clusterState;
@@ -286,7 +282,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         // Adding new node - this node should get full cluster state while nodeB should still be getting diffs
 
-        MockNode nodeC = createMockNode("nodeC", Settings.EMPTY, Version.CURRENT);
+        MockNode nodeC = createMockNode("nodeC", Settings.EMPTY);
 
         // cluster state update 3 - register node C
         previousClusterState = clusterState;
@@ -336,14 +332,11 @@ public class PublishClusterStateActionTests extends ESTestCase {
     }
 
     public void testUnexpectedDiffPublishing() throws Exception {
-        MockNode nodeA = createMockNode("nodeA", Settings.EMPTY, Version.CURRENT, new ClusterStateListener() {
-            @Override
-            public void clusterChanged(ClusterChangedEvent event) {
-                fail("Shouldn't send cluster state to myself");
-            }
+        MockNode nodeA = createMockNode("nodeA", Settings.EMPTY, event -> {
+            fail("Shouldn't send cluster state to myself");
         }).setAsMaster();
 
-        MockNode nodeB = createMockNode("nodeB", Settings.EMPTY, Version.CURRENT);
+        MockNode nodeB = createMockNode("nodeB", Settings.EMPTY);
 
         // Initial cluster state with both states - the second node still shouldn't get diff even though it's present in the previous cluster state
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(nodeA.nodes()).put(nodeB.discoveryNode).build();
@@ -362,14 +355,14 @@ public class PublishClusterStateActionTests extends ESTestCase {
     public void testDisablingDiffPublishing() throws Exception {
         Settings noDiffPublishingSettings = Settings.builder().put(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.getKey(), false).build();
 
-        MockNode nodeA = createMockNode("nodeA", noDiffPublishingSettings, Version.CURRENT, new ClusterStateListener() {
+        MockNode nodeA = createMockNode("nodeA", noDiffPublishingSettings, new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 fail("Shouldn't send cluster state to myself");
             }
         });
 
-        MockNode nodeB = createMockNode("nodeB", noDiffPublishingSettings, Version.CURRENT, new ClusterStateListener() {
+        MockNode nodeB = createMockNode("nodeB", noDiffPublishingSettings, new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 assertFalse(event.state().wasReadFromDiff());
@@ -400,7 +393,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         int numberOfNodes = randomIntBetween(2, 10);
         int numberOfIterations = scaledRandomIntBetween(5, 50);
         Settings settings = Settings.builder().put(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.getKey(), randomBoolean()).build();
-        MockNode master = createMockNode("node0", settings, Version.CURRENT, new ClusterStateListener() {
+        MockNode master = createMockNode("node0", settings, new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 assertProperMetaDataForVersion(event.state().metaData(), event.state().version());
@@ -409,7 +402,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder(master.nodes());
         for (int i = 1; i < numberOfNodes; i++) {
             final String name = "node" + i;
-            final MockNode node = createMockNode(name, settings, Version.CURRENT, new ClusterStateListener() {
+            final MockNode node = createMockNode(name, settings, new ClusterStateListener() {
                 @Override
                 public void clusterChanged(ClusterChangedEvent event) {
                     assertProperMetaDataForVersion(event.state().metaData(), event.state().version());
@@ -444,14 +437,14 @@ public class PublishClusterStateActionTests extends ESTestCase {
     }
 
     public void testSerializationFailureDuringDiffPublishing() throws Exception {
-        MockNode nodeA = createMockNode("nodeA", Settings.EMPTY, Version.CURRENT, new ClusterStateListener() {
+        MockNode nodeA = createMockNode("nodeA", Settings.EMPTY, new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 fail("Shouldn't send cluster state to myself");
             }
         }).setAsMaster();
 
-        MockNode nodeB = createMockNode("nodeB", Settings.EMPTY, Version.CURRENT);
+        MockNode nodeB = createMockNode("nodeB", Settings.EMPTY);
 
         // Initial cluster state with both states - the second node still shouldn't get diff even though it's present in the previous cluster state
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(nodeA.nodes()).put(nodeB.discoveryNode).build();

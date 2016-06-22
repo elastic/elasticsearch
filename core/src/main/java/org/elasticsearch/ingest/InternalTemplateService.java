@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;

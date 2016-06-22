@@ -24,9 +24,9 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.ingest.core.ConfigurationUtils;
-import org.elasticsearch.ingest.core.IngestDocument;
-import org.elasticsearch.ingest.core.Pipeline;
+import org.elasticsearch.ingest.ConfigurationUtils;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.PipelineStore;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.core.IngestDocument.MetaData;
+import static org.elasticsearch.ingest.IngestDocument.MetaData;
 
 public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineRequest> {
 

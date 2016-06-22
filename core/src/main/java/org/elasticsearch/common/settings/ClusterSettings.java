@@ -24,11 +24,11 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.bootstrap.BootstrapSettings;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
@@ -420,6 +420,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
                     ResourceWatcherService.RELOAD_INTERVAL_LOW,
                     SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
-                    ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING
+                    ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
+                    Node.BREAKER_TYPE_KEY
             )));
 }

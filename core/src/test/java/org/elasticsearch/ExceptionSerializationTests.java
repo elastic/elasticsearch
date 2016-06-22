@@ -121,7 +121,6 @@ public class ExceptionSerializationTests extends ESTestCase {
                 .resolve("org").resolve("elasticsearch");
         final Set<? extends Class<?>> ignore = Sets.newHashSet(
                 org.elasticsearch.test.rest.parser.RestTestParseException.class,
-                org.elasticsearch.test.rest.client.RestException.class,
                 CancellableThreadsTests.CustomException.class,
                 org.elasticsearch.rest.BytesRestResponseTests.WithHeadersException.class,
                 AbstractClientHeadersTestCase.InternalException.class);

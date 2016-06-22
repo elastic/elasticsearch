@@ -29,11 +29,21 @@ import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Locals.ExecuteReserved;
-import org.elasticsearch.painless.Locals.FunctionReserved;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.antlr.PainlessParser.ListinitContext;
+import org.elasticsearch.painless.antlr.PainlessParser.ListinitializerContext;
+import org.elasticsearch.painless.antlr.PainlessParser.MapinitContext;
+import org.elasticsearch.painless.antlr.PainlessParser.MapinitializerContext;
+import org.elasticsearch.painless.antlr.PainlessParser.MaptokenContext;
+import org.elasticsearch.painless.antlr.PainlessParser.NewinitializedarrayContext;
+import org.elasticsearch.painless.antlr.PainlessParser.NewstandardarrayContext;
+import org.elasticsearch.painless.node.EListInit;
+import org.elasticsearch.painless.node.EMapInit;
+import org.elasticsearch.painless.node.SFunction.Reserved;
+import org.elasticsearch.painless.node.SSource.MainMethodReserved;
+import org.elasticsearch.painless.node.SFunction.FunctionReserved;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Locals.Reserved;
 import org.elasticsearch.painless.antlr.PainlessParser.AfterthoughtContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentsContext;
@@ -147,10 +157,12 @@ import org.elasticsearch.painless.node.SSource;
 import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
+import org.objectweb.asm.util.Printer;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Deque;
 import java.util.List;
 
@@ -159,28 +171,32 @@ import java.util.List;
  */
 public final class Walker extends PainlessParserBaseVisitor<Object> {
 
-    public static SSource buildPainlessTree(String sourceName, String sourceText, CompilerSettings settings) {
-        return new Walker(sourceName, sourceText, settings).source;
+    public static SSource buildPainlessTree(String sourceName, String sourceText, CompilerSettings settings, Printer debugStream) {
+        return new Walker(sourceName, sourceText, settings, debugStream).source;
     }
 
     private final SSource source;
     private final CompilerSettings settings;
+    private final Printer debugStream;
     private final String sourceName;
     private final String sourceText;
 
     private final Deque<Reserved> reserved = new ArrayDeque<>();
-    private final List<SFunction> synthetic = new ArrayList<>();
+    private final Globals globals;
+    private int syntheticCounter = 0;
 
-    private Walker(String sourceName, String sourceText, CompilerSettings settings) {
+    private Walker(String sourceName, String sourceText, CompilerSettings settings, Printer debugStream) {
+        this.debugStream = debugStream;
         this.settings = settings;
         this.sourceName = Location.computeSourceName(sourceName, sourceText);
         this.sourceText = sourceText;
+        this.globals = new Globals(new BitSet(sourceText.length()));
         this.source = (SSource)visit(buildAntlrTree(sourceText));
     }
 
     private SourceContext buildAntlrTree(String source) {
         ANTLRInputStream stream = new ANTLRInputStream(source);
-        PainlessLexer lexer = new ErrorHandlingLexer(stream, sourceName);
+        PainlessLexer lexer = new EnhancedPainlessLexer(stream, sourceName);
         PainlessParser parser = new PainlessParser(new CommonTokenStream(lexer));
         ParserErrorStrategy strategy = new ParserErrorStrategy(sourceName);
 
@@ -220,7 +236,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
     @Override
     public Object visitSource(SourceContext ctx) {
-        reserved.push(new ExecuteReserved());
+        reserved.push(new MainMethodReserved());
 
         List<SFunction> functions = new ArrayList<>();
 
@@ -233,10 +249,9 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         for (StatementContext statement : ctx.statement()) {
             statements.add((AStatement)visit(statement));
         }
-        
-        functions.addAll(synthetic);
 
-        return new SSource(sourceName, sourceText, (ExecuteReserved)reserved.pop(), location(ctx), functions, statements);
+        return new SSource(settings, sourceName, sourceText, debugStream, (MainMethodReserved)reserved.pop(),
+                           location(ctx), functions, globals, statements);
     }
 
     @Override
@@ -261,7 +276,8 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SFunction((FunctionReserved)reserved.pop(), location(ctx), rtnType, name, paramTypes, paramNames, statements, false);
+        return new SFunction((FunctionReserved)reserved.pop(), location(ctx), rtnType, name,
+                             paramTypes, paramNames, statements, false);
     }
 
     @Override
@@ -512,6 +528,10 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             operation = Operation.ADD;
         } else if (ctx.SUB() != null) {
             operation = Operation.SUB;
+        } else if (ctx.FIND() != null) {
+            operation = Operation.FIND;
+        } else if (ctx.MATCH() != null) {
+            operation = Operation.MATCH;
         } else if (ctx.LSH() != null) {
             operation = Operation.LSH;
         } else if (ctx.RSH() != null) {
@@ -710,6 +730,16 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
     }
 
     @Override
+    public Object visitListinit(ListinitContext ctx) {
+        return visit(ctx.listinitializer());
+    }
+
+    @Override
+    public Object visitMapinit(MapinitContext ctx) {
+        return visit(ctx.mapinitializer());
+    }
+
+    @Override
     public Object visitOperator(OperatorContext ctx) {
         if (ctx.SUB() != null && ctx.unary() instanceof NumericContext) {
             return visit(ctx.unary());
@@ -786,27 +816,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
     @Override
     public Object visitNewarray(NewarrayContext ctx) {
-        String type = ctx.TYPE().getText();
-        List<AExpression> expressions = new ArrayList<>();
-
-        for (ExpressionContext expression : ctx.expression()) {
-            expressions.add((AExpression)visitExpression(expression));
-        }
-
-        List<ALink> links = new ArrayList<>();
-        links.add(new LNewArray(location(ctx), type, expressions));
-
-        if (ctx.dot() != null) {
-            links.add((ALink)visit(ctx.dot()));
-
-            for (SecondaryContext secondary : ctx.secondary()) {
-                links.add((ALink)visit(secondary));
-            }
-        } else if (!ctx.secondary().isEmpty()) {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
-        }
-
-        return links;
+        return visit(ctx.arrayinitializer());
     }
 
     @Override
@@ -830,9 +840,12 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
     @Override
     public Object visitRegex(RegexContext ctx) {
-        String pattern = ctx.REGEX().getText().substring(1, ctx.REGEX().getText().length() - 1);
+        String text = ctx.REGEX().getText();
+        int lastSlash = text.lastIndexOf('/');
+        String pattern = text.substring(1, lastSlash);
+        String flags = text.substring(lastSlash + 1);
         List<ALink> links = new ArrayList<>();
-        links.add(new LRegex(location(ctx), pattern));
+        links.add(new LRegex(location(ctx), pattern, flags));
 
         return links;
     }
@@ -947,7 +960,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
         for (LamtypeContext lamtype : ctx.lamtype()) {
             if (lamtype.decltype() == null) {
-                paramTypes.add(null);
+                paramTypes.add("def");
             } else {
                 paramTypes.add(lamtype.decltype().getText());
             }
@@ -955,11 +968,19 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             paramNames.add(lamtype.ID().getText());
         }
 
-        for (StatementContext statement : ctx.block().statement()) {
-            statements.add((AStatement)visit(statement));
+        if (ctx.expression() != null) {
+            // single expression
+            AExpression expression = (AExpression) visitExpression(ctx.expression());
+            statements.add(new SReturn(location(ctx), expression));
+        } else {
+            for (StatementContext statement : ctx.block().statement()) {
+                statements.add((AStatement)visit(statement));
+            }
         }
 
-        return new ELambda((FunctionReserved)reserved.pop(), location(ctx), paramTypes, paramNames, statements);
+        String name = nextLambda();
+        return new ELambda(name, (FunctionReserved)reserved.pop(), location(ctx),
+                           paramTypes, paramNames, statements);
     }
 
     @Override
@@ -994,14 +1015,14 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             // taking integer as argument and returning a new instance, and return a ref to that.
             Location location = location(ctx);
             String arrayType = ctx.decltype().getText();
-            SReturn code = new SReturn(location, 
+            SReturn code = new SReturn(location,
                            new EChain(location,
                            new LNewArray(location, arrayType, Arrays.asList(
-                           new EChain(location, 
-                           new LVariable(location, "size"))))));
-            String name = "lambda$" + synthetic.size();
-            synthetic.add(new SFunction(new FunctionReserved(), location, arrayType, name, 
-                          Arrays.asList("int"), Arrays.asList("size"), Arrays.asList(code), true));
+                           new EChain(location,
+                           new LVariable(location, "size"))), false)));
+            String name = nextLambda();
+            globals.addSyntheticMethod(new SFunction(new FunctionReserved(), location, arrayType, name,
+                                       Arrays.asList("int"), Arrays.asList("size"), Arrays.asList(code), true));
             return new EFunctionRef(location(ctx), "this", name);
         }
         return new EFunctionRef(location(ctx), ctx.decltype().getText(), ctx.NEW().getText());
@@ -1015,5 +1036,79 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
     @Override
     public Object visitLocalFuncref(LocalFuncrefContext ctx) {
         return new EFunctionRef(location(ctx), ctx.THIS().getText(), ctx.ID().getText());
+    }
+
+    @Override
+    public Object visitNewstandardarray(NewstandardarrayContext ctx) {
+        String type = ctx.TYPE().getText();
+        List<AExpression> expressions = new ArrayList<>();
+
+        for (ExpressionContext expression : ctx.expression()) {
+            expressions.add((AExpression)visitExpression(expression));
+        }
+
+        List<ALink> links = new ArrayList<>();
+        links.add(new LNewArray(location(ctx), type, expressions, false));
+
+        if (ctx.dot() != null) {
+            links.add((ALink)visit(ctx.dot()));
+
+            for (SecondaryContext secondary : ctx.secondary()) {
+                links.add((ALink)visit(secondary));
+            }
+        } else if (!ctx.secondary().isEmpty()) {
+            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        }
+
+        return links;
+    }
+
+    @Override
+    public Object visitNewinitializedarray(NewinitializedarrayContext ctx) {
+        String type = ctx.TYPE().getText();
+        List<AExpression> expressions = new ArrayList<>();
+
+        for (ExpressionContext expression : ctx.expression()) {
+            expressions.add((AExpression)visitExpression(expression));
+        }
+
+        List<ALink> links = new ArrayList<>();
+        links.add(new LNewArray(location(ctx), type, expressions, true));
+
+        return links;
+    }
+
+    @Override
+    public Object visitListinitializer(ListinitializerContext ctx) {
+        List<AExpression> values = new ArrayList<>();
+
+        for (ExpressionContext expression : ctx.expression()) {
+            values.add((AExpression)visitExpression(expression));
+        }
+
+        return new EListInit(location(ctx), values);
+    }
+
+    @Override
+    public Object visitMapinitializer(MapinitializerContext ctx) {
+        List<AExpression> keys = new ArrayList<>();
+        List<AExpression> values = new ArrayList<>();
+
+        for (MaptokenContext maptoken : ctx.maptoken()) {
+            keys.add((AExpression)visitExpression(maptoken.expression(0)));
+            values.add((AExpression)visitExpression(maptoken.expression(1)));
+        }
+
+        return new EMapInit(location(ctx), keys, values);
+    }
+
+    @Override
+    public Object visitMaptoken(MaptokenContext ctx) {
+        throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+    }
+
+    /** Returns name of next lambda */
+    private String nextLambda() {
+        return "lambda$" + syntheticCounter++;
     }
 }

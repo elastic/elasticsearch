@@ -86,7 +86,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = new TransportService(transport, threadPool, clusterService.state().getClusterName());
+        transportService = new TransportService(clusterService.getSettings(), transport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
         localNode = new DiscoveryNode("local_node", DummyTransportAddress.INSTANCE, Collections.emptyMap(),

@@ -120,7 +120,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
         for (String node : nodes) {
             builderDiscoNodes.put(newNode(node));
         }
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).nodes(builderDiscoNodes.build()).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).nodes(builderDiscoNodes.build()).build();
         if (balanceFirst()) {
             clusterState = rebalance(clusterState);
         }

@@ -92,17 +92,6 @@ trap
 delimiter
     : SEMICOLON
     | EOF
-    // RBRACK is a delimiter but we don't consume it because it is only valid
-    // in places where RBRACK can follow the statement. It is simpler to not
-    // consume it here then it is to consume it here. Unfortunately, they
-    // obvious syntax to do this `| { _input.LA(1) == RBRACK }?` generates an
-    // amazingly intense `adaptivePredict` call that doesn't actually work
-    // and builds a serious DFA. Huge. So instead we use standard ANTLR syntax
-    // to consume the token and then undo the consumption. This looks hairy but
-    // it is better than the alternatives.
-    |   { int mark = _input.mark(); int index = _input.index(); }
-            RBRACK
-        { _input.seek(index); _input.release(mark); }
     ;
 
 // Note we return the boolean s.  This is returned as true
@@ -113,6 +102,7 @@ expression returns [boolean s = true]
     :               u = unary[false]                                       { $s = $u.s; }           # single
     |               expression ( MUL | DIV | REM ) expression              { $s = false; }          # binary
     |               expression ( ADD | SUB ) expression                    { $s = false; }          # binary
+    |               expression ( FIND | MATCH ) expression                 { $s = false; }          # binary
     |               expression ( LSH | RSH | USH ) expression              { $s = false; }          # binary
     |               expression ( LT | LTE | GT | GTE ) expression          { $s = false; }          # comp
     |               expression ( EQ | EQR | NE | NER ) expression          { $s = false; }          # comp
@@ -136,21 +126,23 @@ expression returns [boolean s = true]
 // processing a variable/method chain.  This prevents the chain
 // from being applied to rules where it wouldn't be allowed.
 unary[boolean c] returns [boolean s = true]
-    : { !$c }? ( INCR | DECR ) chain[true]                                  # pre
-    | { !$c }? chain[true] (INCR | DECR )                                   # post
-    | { !$c }? chain[false]                                                 # read
-    | { !$c }? ( OCTAL | HEX | INTEGER | DECIMAL )          { $s = false; } # numeric
-    | { !$c }? TRUE                                         { $s = false; } # true
-    | { !$c }? FALSE                                        { $s = false; } # false
-    | { !$c }? NULL                                         { $s = false; } # null
-    | { !$c }? ( BOOLNOT | BWNOT | ADD | SUB ) unary[false]                 # operator
-    |          LP decltype RP unary[$c]                                     # cast
+    : { !$c }? ( INCR | DECR ) chain[true]                                   # pre
+    | { !$c }? chain[true] (INCR | DECR )                                    # post
+    | { !$c }? chain[false]                                                  # read
+    | { !$c }? ( OCTAL | HEX | INTEGER | DECIMAL )           { $s = false; } # numeric
+    | { !$c }? TRUE                                          { $s = false; } # true
+    | { !$c }? FALSE                                         { $s = false; } # false
+    | { !$c }? NULL                                          { $s = false; } # null
+    | { !$c }? listinitializer                               { $s = false; } # listinit
+    | { !$c }? mapinitializer                                { $s = false; } # mapinit
+    | { !$c }? ( BOOLNOT | BWNOT | ADD | SUB ) unary[false]                  # operator
+    |          LP decltype RP unary[$c]                                      # cast
     ;
 
 chain[boolean c]
-    : p = primary[$c] secondary[$p.s]*                             # dynamic
-    | decltype dot secondary[true]*                                # static
-    | NEW TYPE (LBRACE expression RBRACE)+ (dot secondary[true]*)? # newarray
+    : p = primary[$c] secondary[$p.s]* # dynamic
+    | decltype dot secondary[true]*    # static
+    | arrayinitializer                 # newarray
     ;
 
 primary[boolean c] returns [boolean s = true]
@@ -188,7 +180,7 @@ argument
     ;
 
 lambda
-    : ( lamtype | LP ( lamtype ( COMMA lamtype )* )? RP ) ARROW block
+    : ( lamtype | LP ( lamtype ( COMMA lamtype )* )? RP ) ARROW ( block | expression )
     ;
 
 lamtype
@@ -222,4 +214,23 @@ capturingFuncref
 // reference to a local function, e.g. this::myfunc
 localFuncref
     : THIS REF ID
+    ;
+
+arrayinitializer
+    : NEW TYPE (LBRACE expression RBRACE)+ (dot secondary[true]*)?                          # newstandardarray
+    | NEW TYPE LBRACE RBRACE LBRACK ( expression ( COMMA expression )* )? SEMICOLON? RBRACK # newinitializedarray
+    ;
+
+listinitializer
+    : LBRACE expression ( COMMA expression)* RBRACE
+    | LBRACE RBRACE
+    ;
+
+mapinitializer
+    : LBRACE maptoken ( COMMA maptoken )* RBRACE
+    | LBRACE COLON RBRACE
+    ;
+
+maptoken
+    : expression COLON expression
     ;

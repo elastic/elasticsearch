@@ -20,15 +20,14 @@
 package org.elasticsearch.painless.antlr;
 
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenFactory;
 
 /**
  * Utility to figure out if a {@code /} is division or the start of a regex literal.
  */
 public class SlashStrategy {
-    public static boolean slashIsRegex(TokenFactory<?> factory) {
-        StashingTokenFactory<?> stashingFactory = (StashingTokenFactory<?>) factory;
-        Token lastToken = stashingFactory.getLastToken();
+    public static boolean slashIsRegex(PainlessLexer lexer) {
+        EnhancedPainlessLexer realLexer = (EnhancedPainlessLexer) lexer;
+        Token lastToken = realLexer.getPreviousToken();
         if (lastToken == null) {
             return true;
         }

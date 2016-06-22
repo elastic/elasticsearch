@@ -18,22 +18,7 @@
  */
 package org.elasticsearch.node;
 
-import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.plugins.Plugin;
 
-public class NodeMocksPlugin extends Plugin {
-
-    @Override
-    public String name() {
-        return "node-mocks";
-    }
-
-    @Override
-    public String description() {
-        return "a plugin to setup mocks for node level classes";
-    }
-
-    public void onModule(NodeModule module) {
-        module.bigArraysImpl = MockBigArrays.class;
-    }
+public class NodeMocksPlugin extends Plugin { // just a marker plugin for MockNode to mock out BigArrays
 }

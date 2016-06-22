@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Sort;
@@ -29,6 +30,8 @@ import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a field load/store or defers to a possible shortcuts.
@@ -42,8 +45,11 @@ public final class LField extends ALink {
     public LField(Location location, String value) {
         super(location, 1);
 
-        this.value = value;
+        this.value = Objects.requireNonNull(value);
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
     ALink analyze(Locals locals) {
@@ -100,12 +106,12 @@ public final class LField extends ALink {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter writer) {
+    void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
@@ -116,7 +122,7 @@ public final class LField extends ALink {
     }
 
     @Override
-    void store(MethodWriter writer) {
+    void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {

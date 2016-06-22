@@ -20,9 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
+
+import java.util.Set;
+
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -43,10 +47,26 @@ public final class SFor extends AStatement {
         this.afterthought = afterthought;
         this.block = block;
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        if (initializer != null) {
+            initializer.extractVariables(variables);
+        }
+        if (condition != null) {
+            condition.extractVariables(variables);
+        }
+        if (afterthought != null) {
+            afterthought.extractVariables(variables);
+        }
+        if (block != null) {
+            block.extractVariables(variables);
+        }
+    }
 
     @Override
     void analyze(Locals locals) {
-        locals.incrementScope();
+        locals = Locals.newLocalScope(locals);
 
         boolean continuous = false;
 
@@ -116,15 +136,13 @@ public final class SFor extends AStatement {
 
         statementCount = 1;
 
-        if (locals.getMaxLoopCounter() > 0) {
-            loopCounterSlot = locals.getVariable(location, "#loop").slot;
+        if (locals.hasVariable(Locals.LOOP)) {
+            loopCounter = locals.getVariable(location, Locals.LOOP);
         }
-
-        locals.decrementScope();
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeStatementOffset(location);
 
         Label start = new Label();
@@ -132,11 +150,11 @@ public final class SFor extends AStatement {
         Label end = new Label();
 
         if (initializer instanceof SDeclBlock) {
-            ((SDeclBlock)initializer).write(writer);
+            ((SDeclBlock)initializer).write(writer, globals);
         } else if (initializer instanceof AExpression) {
             AExpression initializer = (AExpression)this.initializer;
 
-            initializer.write(writer);
+            initializer.write(writer, globals);
             writer.writePop(initializer.expected.sort.size);
         }
 
@@ -144,7 +162,7 @@ public final class SFor extends AStatement {
 
         if (condition != null) {
             condition.fals = end;
-            condition.write(writer);
+            condition.write(writer, globals);
         }
 
         boolean allEscape = false;
@@ -158,15 +176,15 @@ public final class SFor extends AStatement {
                 ++statementCount;
             }
 
-            writer.writeLoopCounter(loopCounterSlot, statementCount, location);
-            block.write(writer);
+            writer.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
+            block.write(writer, globals);
         } else {
-            writer.writeLoopCounter(loopCounterSlot, 1, location);
+            writer.writeLoopCounter(loopCounter.getSlot(), 1, location);
         }
 
         if (afterthought != null) {
             writer.mark(begin);
-            afterthought.write(writer);
+            afterthought.write(writer, globals);
         }
 
         if (afterthought != null || !allEscape) {

@@ -21,6 +21,7 @@ package org.elasticsearch.test.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.transport.TransportService;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -79,20 +80,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class MockTransportService extends TransportService {
 
     public static class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "mock-transport-service";
-        }
-        @Override
-        public String description() {
-            return "a mock transport service for testing";
-        }
         public void onModule(NetworkModule module) {
             module.registerTransportService("mock", MockTransportService.class);
         }
 
-        public void onModule(SettingsModule module) {
-            module.registerSetting(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
         }
         @Override
         public Settings additionalSettings() {
@@ -100,29 +94,37 @@ public class MockTransportService extends TransportService {
         }
     }
 
-    public static MockTransportService local(Settings settings, Version version, ThreadPool threadPool, ClusterName clusterName) {
+    public static MockTransportService local(Settings settings, Version version, ThreadPool threadPool) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        Transport transport = new LocalTransport(settings, threadPool, version, namedWriteableRegistry, new NoneCircuitBreakerService());
-        return new MockTransportService(settings, transport, threadPool, clusterName);
+        Transport transport = new LocalTransport(settings, threadPool, namedWriteableRegistry, new NoneCircuitBreakerService()) {
+            @Override
+            protected Version getVersion() {
+                return version;
+            }
+        };
+        return new MockTransportService(settings, transport, threadPool);
     }
 
     public static MockTransportService nettyFromThreadPool(
             Settings settings,
-            Version version,
-            ThreadPool threadPool,
-            ClusterName clusterName) {
+            ThreadPool threadPool, final Version version) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         Transport transport = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE,
-                version, namedWriteableRegistry, new NoneCircuitBreakerService());
-        return new MockTransportService(Settings.EMPTY, transport, threadPool, clusterName);
+                namedWriteableRegistry, new NoneCircuitBreakerService()) {
+            @Override
+            protected Version getCurrentVersion() {
+                return version;
+            }
+        };
+        return new MockTransportService(Settings.EMPTY, transport, threadPool);
     }
 
 
     private final Transport original;
 
     @Inject
-    public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, ClusterName clusterName) {
-        super(settings, new LookupTestTransport(transport), threadPool, clusterName);
+    public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
+        super(settings, new LookupTestTransport(transport), threadPool);
         this.original = transport;
     }
 

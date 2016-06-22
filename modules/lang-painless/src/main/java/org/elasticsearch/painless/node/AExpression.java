@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Locals;
@@ -111,7 +112,7 @@ public abstract class AExpression extends ANode {
     /**
      * Writes ASM based on the data collected during the analysis phase.
      */
-    abstract void write(MethodWriter writer);
+    abstract void write(MethodWriter writer, Globals globals);
 
     /**
      * Inserts {@link ECast} nodes into the tree for implicit casts.  Also replaces

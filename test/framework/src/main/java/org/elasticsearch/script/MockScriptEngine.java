@@ -53,20 +53,6 @@ public class MockScriptEngine implements ScriptEngineService {
     }
 
     public static class TestPlugin extends Plugin implements ScriptPlugin {
-
-        public TestPlugin() {
-        }
-
-        @Override
-        public String name() {
-            return NAME;
-        }
-
-        @Override
-        public String description() {
-            return "Mock script engine for integration tests";
-        }
-
         @Override
         public ScriptEngineService getScriptEngineService(Settings settings) {
             return new MockScriptEngine();
@@ -122,10 +108,6 @@ public class MockScriptEngine implements ScriptEngineService {
                 return false;
             }
         };
-    }
-
-    @Override
-    public void scriptRemoved(@Nullable CompiledScript script) {
     }
 
     @Override

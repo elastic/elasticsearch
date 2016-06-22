@@ -23,140 +23,286 @@ import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.Type;
 
-import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.HashMap;
-import java.util.Iterator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.Set;
 
 /**
  * Tracks user defined methods and variables across compilation phases.
  */
 public final class Locals {
+    
+    /** Reserved word: params map parameter */
+    public static final String PARAMS = "params";
+    /** Reserved word: Lucene scorer parameter */
+    public static final String SCORER = "#scorer";
+    /** Reserved word: _value variable for aggregations */
+    public static final String VALUE  = "_value";
+    /** Reserved word: _score variable for search scripts */
+    public static final String SCORE  = "_score";
+    /** Reserved word: ctx map for executable scripts */
+    public static final String CTX    = "ctx";
+    /** Reserved word: loop counter */
+    public static final String LOOP   = "#loop";
+    /** Reserved word: unused */
+    public static final String THIS   = "#this";
+    /** Reserved word: unused */
+    public static final String DOC    = "doc";
+    
+    /** Map of always reserved keywords */
+    public static final Set<String> KEYWORDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            THIS,PARAMS,SCORER,DOC,VALUE,SCORE,CTX,LOOP
+    )));
+    
+    /** Creates a new local variable scope (e.g. loop) inside the current scope */
+    public static Locals newLocalScope(Locals currentScope) {
+        return new Locals(currentScope);
+    }
+    
+    /** 
+     * Creates a new lambda scope inside the current scope
+     * <p>
+     * This is just like {@link #newFunctionScope}, except the captured parameters are made read-only.
+     */
+    public static Locals newLambdaScope(Locals programScope, Type returnType, List<Parameter> parameters, 
+                                        int captureCount, int maxLoopCounter) {
+        Locals locals = new Locals(programScope, returnType);
+        for (int i = 0; i < parameters.size(); i++) {
+            Parameter parameter = parameters.get(i);
+            boolean isCapture = i < captureCount;
+            locals.addVariable(parameter.location, parameter.type, parameter.name, isCapture);
+        }
+        // Loop counter to catch infinite loops.  Internal use only.
+        if (maxLoopCounter > 0) {
+            locals.defineVariable(null, Definition.INT_TYPE, LOOP, true);
+        }
+        return locals;
+    }
+    
+    /** Creates a new function scope inside the current scope */
+    public static Locals newFunctionScope(Locals programScope, Type returnType, List<Parameter> parameters, int maxLoopCounter) {
+        Locals locals = new Locals(programScope, returnType);
+        for (Parameter parameter : parameters) {
+            locals.addVariable(parameter.location, parameter.type, parameter.name, false);
+        }
+        // Loop counter to catch infinite loops.  Internal use only.
+        if (maxLoopCounter > 0) {
+            locals.defineVariable(null, Definition.INT_TYPE, LOOP, true);
+        }
+        return locals;
+    }
+    
+    /** Creates a new main method scope */
+    public static Locals newMainMethodScope(Locals programScope, boolean usesScore, boolean usesCtx, int maxLoopCounter) {
+        Locals locals = new Locals(programScope, Definition.OBJECT_TYPE);
+        // This reference.  Internal use only.
+        locals.defineVariable(null, Definition.getType("Object"), THIS, true);
+
+        // Input map of variables passed to the script.
+        locals.defineVariable(null, Definition.getType("Map"), PARAMS, true);
+
+        // Scorer parameter passed to the script.  Internal use only.
+        locals.defineVariable(null, Definition.DEF_TYPE, SCORER, true);
+
+        // Doc parameter passed to the script. TODO: Currently working as a Map, we can do better?
+        locals.defineVariable(null, Definition.getType("Map"), DOC, true);
+
+        // Aggregation _value parameter passed to the script.
+        locals.defineVariable(null, Definition.DEF_TYPE, VALUE, true);
+
+        // Shortcut variables.
+
+        // Document's score as a read-only double.
+        if (usesScore) {
+            locals.defineVariable(null, Definition.DOUBLE_TYPE, SCORE, true);
+        }
+
+        // The ctx map set by executable scripts as a read-only map.
+        if (usesCtx) {
+            locals.defineVariable(null, Definition.getType("Map"), CTX, true);
+        }
+
+        // Loop counter to catch infinite loops.  Internal use only.
+        if (maxLoopCounter > 0) {
+            locals.defineVariable(null, Definition.INT_TYPE, LOOP, true);
+        }
+        return locals;
+    }
+    
+    /** Creates a new program scope: the list of methods. It is the parent for all methods */
+    public static Locals newProgramScope(Collection<Method> methods) {
+        Locals locals = new Locals(null, null);
+        for (Method method : methods) {
+            locals.addMethod(method);
+        }
+        return locals;
+    }
+    
+    /** Checks if a variable exists or not, in this scope or any parents. */
+    public boolean hasVariable(String name) {
+        Variable variable = lookupVariable(null, name);
+        if (variable != null) {
+            return true;
+        }
+        if (parent != null) {
+            return parent.hasVariable(name);
+        }
+        return false;
+    }
+    
+    /** Accesses a variable. This will throw IAE if the variable does not exist */
+    public Variable getVariable(Location location, String name) {
+        Variable variable = lookupVariable(location, name);
+        if (variable != null) {
+            return variable;
+        }
+        if (parent != null) {
+            return parent.getVariable(location, name);
+        }
+        throw location.createError(new IllegalArgumentException("Variable [" + name + "] is not defined."));
+    }
+    
+    /** Looks up a method. Returns null if the method does not exist. */
+    public Method getMethod(MethodKey key) {
+        Method method = lookupMethod(key);
+        if (method != null) {
+            return method;
+        }
+        if (parent != null) {
+            return parent.getMethod(key);
+        }
+        return null;
+    }
+    
+    /** Creates a new variable. Throws IAE if the variable has already been defined (even in a parent) or reserved. */
+    public Variable addVariable(Location location, Type type, String name, boolean readonly) {
+        if (hasVariable(name)) {
+            throw location.createError(new IllegalArgumentException("Variable [" + name + "] is already defined."));
+        }
+        if (KEYWORDS.contains(name)) {
+            throw location.createError(new IllegalArgumentException("Variable [" + name + "] is reserved."));
+        }
+        return defineVariable(location, type, name, readonly);
+    }
+    
+    /** Return type of this scope (e.g. int, if inside a function that returns int) */
+    public Type getReturnType() {
+        return returnType;
+    }
+    
+    /** Returns the top-level program scope. */
+    public Locals getProgramScope() {
+        Locals locals = this;
+        while (locals.getParent() != null) {
+            locals = locals.getParent();
+        }
+        return locals;
+    }
+    
+    ///// private impl
+
+    // parent scope
+    private final Locals parent;
+    // return type of this scope
+    private final Type returnType;
+    // next slot number to assign
+    private int nextSlotNumber;
+    // variable name -> variable
+    private Map<String,Variable> variables;
+    // method name+arity -> methods
+    private Map<MethodKey,Method> methods;
 
     /**
-     * Tracks reserved variables.  Must be given to any source of input
-     * prior to beginning the analysis phase so that reserved variables
-     * are known ahead of time to assign appropriate slots without
-     * being wasteful.
+     * Create a new Locals
      */
-    public interface Reserved {
-        void markReserved(String name);
-        boolean isReserved(String name);
-
-        void setMaxLoopCounter(int max);
-        int getMaxLoopCounter();
+    private Locals(Locals parent) {
+        this(parent, parent.getReturnType());
     }
-
-    public static final class ExecuteReserved implements Reserved {
-        public static final String THIS   = "#this";
-        public static final String PARAMS = "params";
-        public static final String SCORER = "#scorer";
-        public static final String DOC    = "doc";
-        public static final String VALUE  = "_value";
-        public static final String SCORE  = "_score";
-        public static final String CTX    = "ctx";
-        public static final String LOOP   = "#loop";
-
-        private boolean score = false;
-        private boolean ctx = false;
-        private int maxLoopCounter = 0;
-
-        @Override
-        public void markReserved(String name) {
-            if (SCORE.equals(name)) {
-                score = true;
-            } else if (CTX.equals(name)) {
-                ctx = true;
-            }
-        }
-
-        @Override
-        public boolean isReserved(String name) {
-            return name.equals(THIS) || name.equals(PARAMS) || name.equals(SCORER) || name.equals(DOC) ||
-                name.equals(VALUE) || name.equals(SCORE) || name.equals(CTX) || name.equals(LOOP);
-        }
-
-        public boolean usesScore() {
-            return score;
-        }
-
-        public boolean usesCtx() {
-            return ctx;
-        }
-
-        @Override
-        public void setMaxLoopCounter(int max) {
-            maxLoopCounter = max;
-        }
-
-        @Override
-        public int getMaxLoopCounter() {
-            return maxLoopCounter;
+    
+    /**
+     * Create a new Locals with specified return type
+     */
+    private Locals(Locals parent, Type returnType) {
+        this.parent = parent;
+        this.returnType = returnType;
+        if (parent == null) {
+            this.nextSlotNumber = 0;
+        } else {
+            this.nextSlotNumber = parent.getNextSlot();
         }
     }
 
-    public static final class FunctionReserved implements Reserved {
-        public static final String THIS = "#this";
-        public static final String LOOP = "#loop";
+    /** Returns the parent scope */
+    private Locals getParent() {
+        return parent;
+    }
 
-        private int maxLoopCounter = 0;
-
-        public void markReserved(String name) {
-            // Do nothing.
+    /** Looks up a variable at this scope only. Returns null if the variable does not exist. */
+    private Variable lookupVariable(Location location, String name) {
+        if (variables == null) {
+            return null;
         }
+        return variables.get(name);
+    }
 
-        public boolean isReserved(String name) {
-            return name.equals(THIS) || name.equals(LOOP);
+    /** Looks up a method at this scope only. Returns null if the method does not exist. */
+    private Method lookupMethod(MethodKey key) {
+        if (methods == null) {
+            return null;
         }
+        return methods.get(key);
+    }
 
-        @Override
-        public void setMaxLoopCounter(int max) {
-            maxLoopCounter = max;
+    
+    /** Defines a variable at this scope internally. */
+    private Variable defineVariable(Location location, Type type, String name, boolean readonly) {
+        if (variables == null) {
+            variables = new HashMap<>();
         }
+        Variable variable = new Variable(location, name, type, getNextSlot(), readonly);
+        variables.put(name, variable); // TODO: check result
+        nextSlotNumber += type.type.getSize();
+        return variable;
+    }
+    
+    private void addMethod(Method method) {
+        if (methods == null) {
+            methods = new HashMap<>();
+        }
+        methods.put(new MethodKey(method.name, method.arguments.size()), method);
+        // TODO: check result
+    }
 
-        @Override
-        public int getMaxLoopCounter() {
-            return maxLoopCounter;
-        }
+
+    private int getNextSlot() {
+        return nextSlotNumber;
     }
 
     public static final class Variable {
         public final Location location;
         public final String name;
         public final Type type;
-        public final int slot;
         public final boolean readonly;
-
-        public boolean read = false;
-
-        private Variable(Location location, String name, Type type, int slot, boolean readonly) {
+        private final int slot;
+        
+        public Variable(Location location, String name, Type type, int slot, boolean readonly) {
             this.location = location;
             this.name = name;
             this.type = type;
             this.slot = slot;
             this.readonly = readonly;
         }
-    }
-
-    public static final class Constant {
-        public final Location location;
-        public final String name;
-        public final org.objectweb.asm.Type type;
-        public final Consumer<MethodWriter> initializer;
-
-        private Constant(Location location, String name, org.objectweb.asm.Type type, Consumer<MethodWriter> initializer) {
-            this.location = location;
-            this.name = name;
-            this.type = type;
-            this.initializer = initializer;
+        
+        public int getSlot() {
+            return slot;
         }
     }
-
+    
     public static final class Parameter {
         public final Location location;
         public final String name;
@@ -168,197 +314,4 @@ public final class Locals {
             this.type = type;
         }
     }
-
-    private final Reserved reserved;
-    private final Map<MethodKey, Method> methods;
-    private final Map<String, Constant> constants;
-    private final Type rtnType;
-
-    // TODO: this datastructure runs in linear time for nearly all operations. use linkedhashset instead?
-    private final Deque<Integer> scopes = new ArrayDeque<>();
-    private final Deque<Variable> variables = new ArrayDeque<>();
-
-    public Locals(ExecuteReserved reserved, Map<MethodKey, Method> methods) {
-        this.reserved = reserved;
-        this.methods = Collections.unmodifiableMap(methods);
-        this.constants = new HashMap<>();
-        this.rtnType = Definition.OBJECT_TYPE;
-
-        incrementScope();
-
-        // Method variables.
-
-        // This reference.  Internal use only.
-        addVariable(null, Definition.getType("Object"), ExecuteReserved.THIS, true, true);
-
-        // Input map of variables passed to the script.
-        addVariable(null, Definition.getType("Map"), ExecuteReserved.PARAMS, true, true);
-
-        // Scorer parameter passed to the script.  Internal use only.
-        addVariable(null, Definition.DEF_TYPE, ExecuteReserved.SCORER, true, true);
-
-        // Doc parameter passed to the script. TODO: Currently working as a Map, we can do better?
-        addVariable(null, Definition.getType("Map"), ExecuteReserved.DOC, true, true);
-
-        // Aggregation _value parameter passed to the script.
-        addVariable(null, Definition.DEF_TYPE, ExecuteReserved.VALUE, true, true);
-
-        // Shortcut variables.
-
-        // Document's score as a read-only double.
-        if (reserved.usesScore()) {
-            addVariable(null, Definition.DOUBLE_TYPE, ExecuteReserved.SCORE, true, true);
-        }
-
-        // The ctx map set by executable scripts as a read-only map.
-        if (reserved.usesCtx()) {
-            addVariable(null, Definition.getType("Map"), ExecuteReserved.CTX, true, true);
-        }
-
-        // Loop counter to catch infinite loops.  Internal use only.
-        if (reserved.getMaxLoopCounter() > 0) {
-            addVariable(null, Definition.INT_TYPE, ExecuteReserved.LOOP, true, true);
-        }
-    }
-
-    public Locals(FunctionReserved reserved, Locals locals, Type rtnType, List<Parameter> parameters) {
-        this.reserved = reserved;
-        this.methods = locals.methods;
-        this.constants = locals.constants;
-        this.rtnType = rtnType;
-
-        incrementScope();
-
-        for (Parameter parameter : parameters) {
-            addVariable(parameter.location, parameter.type, parameter.name, false, false);
-        }
-
-        // Loop counter to catch infinite loops.  Internal use only.
-        if (reserved.getMaxLoopCounter() > 0) {
-            addVariable(null, Definition.INT_TYPE, ExecuteReserved.LOOP, true, true);
-        }
-    }
-
-    public int getMaxLoopCounter() {
-        return reserved.getMaxLoopCounter();
-    }
-
-    public Method getMethod(MethodKey key) {
-        return methods.get(key);
-    }
-
-    public Type getReturnType() {
-        return rtnType;
-    }
-
-    public void incrementScope() {
-        scopes.push(0);
-    }
-
-    public void decrementScope() {
-        int remove = scopes.pop();
-
-        while (remove > 0) {
-            Variable variable = variables.pop();
-
-            // This checks whether or not a variable is used when exiting a local scope.
-            if (variable.read) {
-                throw variable.location.createError(new IllegalArgumentException("Variable [" + variable.name + "] is never used."));
-            }
-
-            --remove;
-        }
-    }
-
-    public Variable getVariable(Location location, String name) {
-         Iterator<Variable> itr = variables.iterator();
-
-        while (itr.hasNext()) {
-             Variable variable = itr.next();
-
-            if (variable.name.equals(name)) {
-                return variable;
-            }
-        }
-
-        throw location.createError(new IllegalArgumentException("Variable [" + name + "] is not defined."));
-    }
-
-    public boolean isVariable(String name) {
-        Iterator<Variable> itr = variables.iterator();
-
-        while (itr.hasNext()) {
-            Variable variable = itr.next();
-
-            if (variable.name.equals(name)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    public Variable addVariable(Location location, Type type, String name, boolean readonly, boolean reserved) {
-        if (!reserved && this.reserved.isReserved(name)) {
-            throw location.createError(new IllegalArgumentException("Variable [" + name + "] is reserved."));
-        }
-
-        if (isVariable(name)) {
-            throw location.createError(new IllegalArgumentException("Variable [" + name + "] is already defined."));
-        }
-
-        Variable previous = variables.peekFirst();
-        int slot = 0;
-
-        if (previous != null) {
-            slot = previous.slot + previous.type.type.getSize();
-        }
-
-        Variable variable = new Variable(location, name, type, slot, readonly);
-        variables.push(variable);
-
-        int update = scopes.pop() + 1;
-        scopes.push(update);
-
-        return variable;
-    }
-
-    /**
-     * Create a new constant.
-     *
-     * @param location the location in the script that is creating it
-     * @param type the type of the constant
-     * @param name the name of the constant
-     * @param initializer code to initialize the constant. It will be called when generating the clinit method and is expected to leave the
-     *        value of the constant on the stack. Generating the load instruction is managed by the caller.
-     * @return the constant
-     */
-    public Constant addConstant(Location location, org.objectweb.asm.Type type, String name, Consumer<MethodWriter> initializer) {
-        if (constants.containsKey(name)) {
-            throw location.createError(new IllegalArgumentException("Constant [" + name + "] is already defined."));
-        }
-
-        Constant constant = new Constant(location, name, type, initializer);
-        constants.put(name, constant);
-        return constant;
-    }
-
-    /**
-     * Create a new constant.
-     *
-     * @param location the location in the script that is creating it
-     * @param type the type of the constant
-     * @param name the name of the constant
-     * @param initializer code to initialize the constant. It will be called when generating the clinit method and is expected to leave the
-     *        value of the constant on the stack. Generating the load instruction is managed by the caller.
-     * @return the constant
-     */
-    public Constant addConstant(Location location, Type type, String name, Consumer<MethodWriter> initializer) {
-        return addConstant(location, type.type, name, initializer);
-    }
-
-    public Collection<Constant> getConstants() {
-        return constants.values();
-    }
 }
-

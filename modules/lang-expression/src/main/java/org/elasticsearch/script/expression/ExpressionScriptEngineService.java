@@ -267,11 +267,6 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     public void close() {}
 
     @Override
-    public void scriptRemoved(CompiledScript script) {
-        // Nothing to do
-    }
-
-    @Override
     public boolean isInlineScriptEnabled() {
         return true;
     }

@@ -30,16 +30,6 @@ import java.io.IOException;
 
 public class DummyQueryParserPlugin extends Plugin {
 
-    @Override
-    public String name() {
-        return "dummy";
-    }
-
-    @Override
-    public String description() {
-        return "dummy query";
-    }
-
     public void onModule(SearchModule module) {
         module.registerQuery(DummyQueryBuilder::new, DummyQueryBuilder::fromXContent, DummyQueryBuilder.QUERY_NAME_FIELD);
     }

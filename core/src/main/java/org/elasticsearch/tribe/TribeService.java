@@ -40,7 +40,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
@@ -175,7 +174,6 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
 
     private final List<Node> nodes = new CopyOnWriteArrayList<>();
 
-    @Inject
     public TribeService(Settings settings, ClusterService clusterService) {
         super(settings);
         this.clusterService = clusterService;

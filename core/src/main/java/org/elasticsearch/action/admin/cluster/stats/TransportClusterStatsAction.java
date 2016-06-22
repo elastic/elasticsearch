@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -62,11 +61,11 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
 
     @Inject
-    public TransportClusterStatsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+    public TransportClusterStatsAction(Settings settings, ThreadPool threadPool,
                                        ClusterService clusterService, TransportService transportService,
                                        NodeService nodeService, IndicesService indicesService,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClusterStatsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+        super(settings, ClusterStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
               indexNameExpressionResolver, ClusterStatsRequest::new, ClusterStatsNodeRequest::new, ThreadPool.Names.MANAGEMENT,
               ClusterStatsNodeResponse.class);
         this.nodeService = nodeService;
@@ -76,8 +75,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
     @Override
     protected ClusterStatsResponse newResponse(ClusterStatsRequest request,
                                                List<ClusterStatsNodeResponse> responses, List<FailedNodeException> failures) {
-        return new ClusterStatsResponse(System.currentTimeMillis(), clusterName, clusterService.state().metaData().clusterUUID(),
-                                        responses, failures);
+        return new ClusterStatsResponse(System.currentTimeMillis(), clusterService.getClusterName(),
+            clusterService.state().metaData().clusterUUID(), responses, failures);
     }
 
     @Override

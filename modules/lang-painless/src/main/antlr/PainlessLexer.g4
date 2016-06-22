@@ -56,7 +56,7 @@ THIS:      'this';
 BOOLNOT: '!';
 BWNOT:   '~';
 MUL:     '*';
-DIV:     '/' { false == SlashStrategy.slashIsRegex(_factory) }?;
+DIV:     '/' { false == SlashStrategy.slashIsRegex(this) }?;
 REM:     '%';
 ADD:     '+';
 SUB:     '-';
@@ -80,6 +80,8 @@ COND:    '?';
 COLON:   ':';
 REF:     '::';
 ARROW:   '->';
+FIND:    '=~';
+MATCH:   '==~';
 INCR:    '++';
 DECR:    '--';
 
@@ -102,7 +104,7 @@ INTEGER: ( '0' | [1-9] [0-9]* ) [lLfFdD]?;
 DECIMAL: ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? ( [eE] [+\-]? [0-9]+ )? [fF]?;
 
 STRING: ( '"' ( '\\"' | '\\\\' | ~[\\"] )*? '"' ) | ( '\'' ( '\\\'' | '\\\\' | ~[\\"] )*? '\'' );
-REGEX: '/' ( ~('/' | '\n') | '\\' ~'\n' )+ '/' { SlashStrategy.slashIsRegex(_factory) }?;
+REGEX: '/' ( ~('/' | '\n') | '\\' ~'\n' )+ '/' [cilmsUux]* { SlashStrategy.slashIsRegex(this) }?;
 
 TRUE:  'true';
 FALSE: 'false';

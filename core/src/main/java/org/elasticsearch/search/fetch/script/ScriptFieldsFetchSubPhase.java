@@ -64,9 +64,7 @@ public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
             SearchHitField hitField = hitContext.hit().fields().get(scriptField.name());
             if (hitField == null) {
                 final List<Object> values;
-                if (value == null) {
-                    values = Collections.emptyList();
-                } else if (value instanceof Collection) {
+                if (value instanceof Collection) {
                     // TODO: use diamond operator once JI-9019884 is fixed
                     values = new ArrayList<>((Collection<?>) value);
                 } else {

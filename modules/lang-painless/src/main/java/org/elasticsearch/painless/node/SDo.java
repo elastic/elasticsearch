@@ -20,9 +20,14 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -36,13 +41,21 @@ public final class SDo extends AStatement {
     public SDo(Location location, SBlock block, AExpression condition) {
         super(location);
 
-        this.condition = condition;
+        this.condition = Objects.requireNonNull(condition);
         this.block = block;
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        condition.extractVariables(variables);
+        if (block != null) {
+            block.extractVariables(variables);
+        }
     }
 
     @Override
     void analyze(Locals locals) {
-        locals.incrementScope();
+        locals = Locals.newLocalScope(locals);
 
         if (block == null) {
             throw createError(new IllegalArgumentException("Extraneous do while loop."));
@@ -76,15 +89,13 @@ public final class SDo extends AStatement {
 
         statementCount = 1;
 
-        if (locals.getMaxLoopCounter() > 0) {
-            loopCounterSlot = locals.getVariable(location, "#loop").slot;
+        if (locals.hasVariable(Locals.LOOP)) {
+            loopCounter = locals.getVariable(location, Locals.LOOP);
         }
-
-        locals.decrementScope();
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeStatementOffset(location);
 
         Label start = new Label();
@@ -95,14 +106,14 @@ public final class SDo extends AStatement {
 
         block.continu = begin;
         block.brake = end;
-        block.write(writer);
+        block.write(writer, globals);
 
         writer.mark(begin);
 
         condition.fals = end;
-        condition.write(writer);
+        condition.write(writer, globals);
 
-        writer.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount), location);
+        writer.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
 
         writer.goTo(start);
         writer.mark(end);

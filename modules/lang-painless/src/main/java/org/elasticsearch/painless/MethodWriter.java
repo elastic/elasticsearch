@@ -22,7 +22,7 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
-import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
@@ -30,6 +30,7 @@ import org.objectweb.asm.commons.Method;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Deque;
 import java.util.List;
@@ -78,15 +79,17 @@ import static org.elasticsearch.painless.WriterConstants.UTILITY_TYPE;
  */
 public final class MethodWriter extends GeneratorAdapter {
     private final BitSet statements;
+    private final CompilerSettings settings;
 
     private final Deque<List<org.objectweb.asm.Type>> stringConcatArgs =
         (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ?  null : new ArrayDeque<>();
 
-    public MethodWriter(int access, Method method, ClassWriter cw, BitSet statements) {
+    public MethodWriter(int access, Method method, ClassVisitor cw, BitSet statements, CompilerSettings settings) {
         super(Opcodes.ASM5, cw.visitMethod(access, method.getName(), method.getDescriptor(), null, null),
                 access, method.getName(), method.getDescriptor());
 
         this.statements = statements;
+        this.settings = settings;
     }
 
     /**
@@ -209,15 +212,20 @@ public final class MethodWriter extends GeneratorAdapter {
         }
     }
 
-    public void writeNewStrings() {
+    /** Starts a new string concat.
+     * @return the size of arguments pushed to stack (the object that does string concats, e.g. a StringBuilder)
+     */
+    public int writeNewStrings() {
         if (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE != null) {
             // Java 9+: we just push our argument collector onto deque
             stringConcatArgs.push(new ArrayList<>());
+            return 0; // nothing added to stack
         } else {
             // Java 8: create a StringBuilder in bytecode
             newInstance(STRINGBUILDER_TYPE);
             dup();
             invokeConstructor(STRINGBUILDER_TYPE, STRINGBUILDER_CONSTRUCTOR);
+            return 1; // StringBuilder on stack
         }
     }
 
@@ -264,23 +272,18 @@ public final class MethodWriter extends GeneratorAdapter {
 
     /** Writes a dynamic binary instruction: returnType, lhs, and rhs can be different */
     public void writeDynamicBinaryInstruction(Location location, Type returnType, Type lhs, Type rhs, 
-                                              Operation operation, boolean compoundAssignment) {
+                                              Operation operation, int flags) {
         org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(returnType.type, lhs.type, rhs.type);
-        String descriptor = methodType.getDescriptor();
         
-        int flags = 0;
-        if (compoundAssignment) {
-            flags |= DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT;
-        }
         switch (operation) {
             case MUL:
-                invokeDynamic("mul", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, flags); 
+                invokeDefCall("mul", methodType, DefBootstrap.BINARY_OPERATOR, flags); 
                 break;
             case DIV:
-                invokeDynamic("div", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, flags); 
+                invokeDefCall("div", methodType, DefBootstrap.BINARY_OPERATOR, flags); 
                 break;
             case REM:
-                invokeDynamic("rem", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, flags); 
+                invokeDefCall("rem", methodType, DefBootstrap.BINARY_OPERATOR, flags); 
                 break;
             case ADD:
                 // if either side is primitive, then the + operator should always throw NPE on null,
@@ -290,28 +293,28 @@ public final class MethodWriter extends GeneratorAdapter {
                 if (!hasPrimitiveArg) {
                     flags |= DefBootstrap.OPERATOR_ALLOWS_NULL;
                 }
-                invokeDynamic("add", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, flags);
+                invokeDefCall("add", methodType, DefBootstrap.BINARY_OPERATOR, flags);
                 break;
             case SUB:
-                invokeDynamic("sub", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, flags); 
+                invokeDefCall("sub", methodType, DefBootstrap.BINARY_OPERATOR, flags); 
                 break;
             case LSH:
-                invokeDynamic("lsh", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR, flags);
+                invokeDefCall("lsh", methodType, DefBootstrap.SHIFT_OPERATOR, flags);
                 break;
             case USH:
-                invokeDynamic("ush", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR, flags); 
+                invokeDefCall("ush", methodType, DefBootstrap.SHIFT_OPERATOR, flags); 
                 break;
             case RSH:
-                invokeDynamic("rsh", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.SHIFT_OPERATOR, flags); 
+                invokeDefCall("rsh", methodType, DefBootstrap.SHIFT_OPERATOR, flags); 
                 break;
             case BWAND: 
-                invokeDynamic("and", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, flags);
+                invokeDefCall("and", methodType, DefBootstrap.BINARY_OPERATOR, flags);
                 break;
             case XOR:   
-                invokeDynamic("xor", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, flags);
+                invokeDefCall("xor", methodType, DefBootstrap.BINARY_OPERATOR, flags);
                 break;
             case BWOR:  
-                invokeDynamic("or", descriptor, DEF_BOOTSTRAP_HANDLE, DefBootstrap.BINARY_OPERATOR, flags);
+                invokeDefCall("or", methodType, DefBootstrap.BINARY_OPERATOR, flags);
                 break;
             default:
                 throw location.createError(new IllegalStateException("Illegal tree structure."));
@@ -387,4 +390,18 @@ public final class MethodWriter extends GeneratorAdapter {
         throw new AssertionError("Should never call this method on MethodWriter, use endMethod() instead");
     }
 
+    /**
+     * Writes a dynamic call for a def method.
+     * @param name method name
+     * @param methodType callsite signature
+     * @param flavor type of call
+     * @param params flavor-specific parameters
+     */
+    public void invokeDefCall(String name, org.objectweb.asm.Type methodType, int flavor, Object... params) {
+        Object[] args = new Object[params.length + 2];
+        args[0] = settings.getInitialCallSiteDepth();
+        args[1] = flavor;
+        System.arraycopy(params, 0, args, 2, params.length);
+        invokeDynamic(name, methodType.getDescriptor(), DEF_BOOTSTRAP_HANDLE, args);
+    }
 }

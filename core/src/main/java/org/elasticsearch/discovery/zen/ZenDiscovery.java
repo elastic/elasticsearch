@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -113,7 +113,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private final TransportService transportService;
     private final ClusterService clusterService;
-    private RoutingService routingService;
+    private AllocationService allocationService;
     private final ClusterName clusterName;
     private final DiscoverySettings discoverySettings;
     private final ZenPingService pingService;
@@ -146,16 +146,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     /** counts the time this node has joined the cluster or have elected it self as master */
     private final AtomicLong clusterJoinsCounter = new AtomicLong();
 
-    // must initialized in doStart(), when we have the routingService set
+    // must initialized in doStart(), when we have the allocationService set
     private volatile NodeJoinController nodeJoinController;
 
     @Inject
-    public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+    public ZenDiscovery(Settings settings, ThreadPool threadPool,
                         TransportService transportService, final ClusterService clusterService, ClusterSettings clusterSettings,
                         ZenPingService pingService, ElectMasterService electMasterService) {
         super(settings);
-        this.clusterName = clusterName;
         this.clusterService = clusterService;
+        this.clusterName = clusterService.getClusterName();
         this.transportService = transportService;
         this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
         this.pingService = pingService;
@@ -182,10 +182,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             }
         });
 
-        this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, clusterName, clusterService);
+        this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, clusterService);
         this.masterFD.addListener(new MasterNodeFailureListener());
 
-        this.nodesFD = new NodesFaultDetection(settings, threadPool, transportService, clusterName);
+        this.nodesFD = new NodesFaultDetection(settings, threadPool, transportService, clusterService.getClusterName());
         this.nodesFD.addListener(new NodeFaultDetectionListener());
 
         this.publishClusterState =
@@ -195,7 +195,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         clusterService::state,
                         new NewPendingClusterStateListener(),
                         discoverySettings,
-                        clusterName);
+                        clusterService.getClusterName());
         this.pingService.setPingContextProvider(this);
         this.membership = new MembershipAction(settings, clusterService, transportService, this, new MembershipListener());
 
@@ -206,8 +206,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
-    public void setRoutingService(RoutingService routingService) {
-        this.routingService = routingService;
+    public void setAllocationService(AllocationService allocationService) {
+        this.allocationService = allocationService;
     }
 
     @Override
@@ -215,7 +215,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         nodesFD.setLocalNode(clusterService.localNode());
         joinThreadControl.start();
         pingService.start();
-        this.nodeJoinController = new NodeJoinController(clusterService, routingService, electMaster, discoverySettings, settings);
+        this.nodeJoinController = new NodeJoinController(clusterService, allocationService, electMaster, discoverySettings, settings);
     }
 
     @Override
@@ -372,7 +372,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private void innerJoinCluster() {
         DiscoveryNode masterNode = null;
         final Thread currentThread = Thread.currentThread();
-        nodeJoinController.startAccumulatingJoins();
+        nodeJoinController.startElectionContext();
         while (masterNode == null && joinThreadControl.joinThreadActive(currentThread)) {
             masterNode = findMaster();
         }
@@ -406,7 +406,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             );
         } else {
             // process any incoming joins (they will fail because we are not the master)
-            nodeJoinController.stopAccumulatingJoins("not master");
+            nodeJoinController.stopElectionContext("not master");
 
             // send join request
             final boolean success = joinElectedMaster(masterNode);
@@ -516,8 +516,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         return rejoin(currentState, "not enough master nodes");
                     }
                     // eagerly run reroute to remove dead nodes from routing table
-                    RoutingAllocation.Result routingResult = routingService.getAllocationService().reroute(
-                            ClusterState.builder(currentState).build(),
+                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(currentState).build(),
                             "[" + node + "] left");
                     return ClusterState.builder(currentState).routingResult(routingResult).build();
                 }
@@ -561,7 +560,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     return rejoin(currentState, "not enough master nodes");
                 }
                 // eagerly run reroute to remove dead nodes from routing table
-                RoutingAllocation.Result routingResult = routingService.getAllocationService().reroute(
+                RoutingAllocation.Result routingResult = allocationService.reroute(
                         ClusterState.builder(currentState).build(),
                         "[" + node + "] failed");
                 return ClusterState.builder(currentState).routingResult(routingResult).build();

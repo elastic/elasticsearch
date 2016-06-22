@@ -78,11 +78,11 @@ public class ReplicationOperation<
 
     private final List<ReplicationResponse.ShardInfo.Failure> shardReplicaFailures = Collections.synchronizedList(new ArrayList<>());
 
-    ReplicationOperation(Request request, Primary<Request, ReplicaRequest, PrimaryResultT> primary,
-                         ActionListener<PrimaryResultT> listener,
-                         boolean executeOnReplicas, boolean checkWriteConsistency,
-                         Replicas<ReplicaRequest> replicas,
-                         Supplier<ClusterState> clusterStateSupplier, ESLogger logger, String opType) {
+    public ReplicationOperation(Request request, Primary<Request, ReplicaRequest, PrimaryResultT> primary,
+                                ActionListener<PrimaryResultT> listener,
+                                boolean executeOnReplicas, boolean checkWriteConsistency,
+                                Replicas<ReplicaRequest> replicas,
+                                Supplier<ClusterState> clusterStateSupplier, ESLogger logger, String opType) {
         this.checkWriteConsistency = checkWriteConsistency;
         this.executeOnReplicas = executeOnReplicas;
         this.replicasProxy = replicas;
@@ -94,7 +94,7 @@ public class ReplicationOperation<
         this.opType = opType;
     }
 
-    void execute() throws Exception {
+    public void execute() throws Exception {
         final String writeConsistencyFailure = checkWriteConsistency ? checkWriteConsistency() : null;
         final ShardRouting primaryRouting = primary.routingEntry();
         final ShardId primaryId = primaryRouting.shardId();
@@ -112,6 +112,14 @@ public class ReplicationOperation<
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] op [{}] completed on primary for request [{}]", primaryId, opType, request);
         }
+
+        performOnReplicas(primaryId, replicaRequest);
+
+        successfulShards.incrementAndGet();
+        decPendingAndFinishIfNeeded();
+    }
+
+    private void performOnReplicas(ShardId primaryId, ReplicaRequest replicaRequest) {
         // we have to get a new state after successfully indexing into the primary in order to honour recovery semantics.
         // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
         // to the recovery target. If we use an old cluster state, we may miss a relocation that has started since then.
@@ -134,9 +142,6 @@ public class ReplicationOperation<
                 performOnReplica(shard.buildTargetRelocatingShard(), replicaRequest);
             }
         }
-
-        successfulShards.incrementAndGet();
-        decPendingAndFinishIfNeeded();
     }
 
     private void performOnReplica(final ShardRouting shard, final ReplicaRequest replicaRequest) {
@@ -294,7 +299,7 @@ public class ReplicationOperation<
     }
 
 
-    interface Primary<
+    public interface Primary<
                 Request extends ReplicationRequest<Request>,
                 ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
                 PrimaryResultT extends PrimaryResult<ReplicaRequest>
@@ -322,7 +327,7 @@ public class ReplicationOperation<
 
     }
 
-    interface Replicas<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> {
+    public interface Replicas<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> {
 
         /**
          * performs the the given request on the specified replica
@@ -366,7 +371,7 @@ public class ReplicationOperation<
         }
     }
 
-    interface PrimaryResult<R extends ReplicationRequest<R>> {
+    public interface PrimaryResult<R extends ReplicationRequest<R>> {
 
         R replicaRequest();
 

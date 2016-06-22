@@ -221,4 +221,8 @@ public class StringTests extends ScriptTestCase {
             exec("def x = null; def y = null; x += y");
         });
     }
+
+    public void testAppendStringIntoMap() {
+        assertEquals("nullcat", exec("def a = new HashMap(); a.cat += 'cat'"));
+    }
 }

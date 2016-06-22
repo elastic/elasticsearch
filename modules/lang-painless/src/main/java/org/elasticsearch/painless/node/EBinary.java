@@ -20,12 +20,19 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.Locals;
 
 /**
@@ -40,17 +47,25 @@ public final class EBinary extends AExpression {
     Type shiftDistance; // for shifts, the RHS is promoted independently
 
     boolean cat = false;
+    boolean originallyExplicit = false; // record whether there was originally an explicit cast
 
     public EBinary(Location location, Operation operation, AExpression left, AExpression right) {
         super(location);
 
-        this.operation = operation;
-        this.left = left;
-        this.right = right;
+        this.operation = Objects.requireNonNull(operation);
+        this.left = Objects.requireNonNull(left);
+        this.right = Objects.requireNonNull(right);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        left.extractVariables(variables);
+        right.extractVariables(variables);
     }
 
     @Override
     void analyze(Locals locals) {
+        originallyExplicit = explicit;
         if (operation == Operation.MUL) {
             analyzeMul(locals);
         } else if (operation == Operation.DIV) {
@@ -61,6 +76,10 @@ public final class EBinary extends AExpression {
             analyzeAdd(locals);
         } else if (operation == Operation.SUB) {
             analyzeSub(locals);
+        } else if (operation == Operation.FIND) {
+            analyzeRegexOp(locals);
+        } else if (operation == Operation.MATCH) {
+            analyzeRegexOp(locals);
         } else if (operation == Operation.LSH) {
             analyzeLSH(locals);
         } else if (operation == Operation.RSH) {
@@ -318,6 +337,21 @@ public final class EBinary extends AExpression {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
+    }
+
+    private void analyzeRegexOp(Locals variables) {
+        left.analyze(variables);
+        right.analyze(variables);
+
+        left.expected = Definition.STRING_TYPE;
+        right.expected = Definition.PATTERN_TYPE;
+
+        left = left.cast(variables);
+        right = right.cast(variables);
+
+        // It'd be nice to be able to do constant folding here but we can't because constants aren't flowing through EChain
+        promote = Definition.BOOLEAN_TYPE;
+        actual = Definition.BOOLEAN_TYPE;
     }
 
     private void analyzeLSH(Locals variables) {
@@ -584,7 +618,7 @@ public final class EBinary extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         if (promote.sort == Sort.STRING && operation == Operation.ADD) {
@@ -592,13 +626,13 @@ public final class EBinary extends AExpression {
                 writer.writeNewStrings();
             }
 
-            left.write(writer);
+            left.write(writer, globals);
 
             if (!(left instanceof EBinary) || ((EBinary)left).operation != Operation.ADD || left.actual.sort != Sort.STRING) {
                 writer.writeAppendStrings(left.actual);
             }
 
-            right.write(writer);
+            right.write(writer, globals);
 
             if (!(right instanceof EBinary) || ((EBinary)right).operation != Operation.ADD || right.actual.sort != Sort.STRING) {
                 writer.writeAppendStrings(right.actual);
@@ -607,17 +641,35 @@ public final class EBinary extends AExpression {
             if (!cat) {
                 writer.writeToStrings();
             }
+        } else if (operation == Operation.FIND) {
+            writeBuildMatcher(writer, globals);
+            writer.invokeVirtual(Definition.MATCHER_TYPE.type, WriterConstants.MATCHER_FIND);
+        } else if (operation == Operation.MATCH) {
+            writeBuildMatcher(writer, globals);
+            writer.invokeVirtual(Definition.MATCHER_TYPE.type, WriterConstants.MATCHER_MATCHES);
         } else {
-            left.write(writer);
-            right.write(writer);
+            left.write(writer, globals);
+            right.write(writer, globals);
 
             if (promote.sort == Sort.DEF || (shiftDistance != null && shiftDistance.sort == Sort.DEF)) {
-                writer.writeDynamicBinaryInstruction(location, actual, left.actual, right.actual, operation, false);
+                // def calls adopt the wanted return value. if there was a narrowing cast,
+                // we need to flag that so that its done at runtime.
+                int flags = 0;
+                if (originallyExplicit) {
+                    flags |= DefBootstrap.OPERATOR_EXPLICIT_CAST;
+                }
+                writer.writeDynamicBinaryInstruction(location, actual, left.actual, right.actual, operation, flags);
             } else {
                 writer.writeBinaryInstruction(location, actual, operation);
             }
         }
 
         writer.writeBranch(tru, fals);
+    }
+
+    private void writeBuildMatcher(MethodWriter writer, Globals globals) {
+        right.write(writer, globals);
+        left.write(writer, globals);
+        writer.invokeVirtual(Definition.PATTERN_TYPE.type, WriterConstants.PATTERN_MATCHER);
     }
 }

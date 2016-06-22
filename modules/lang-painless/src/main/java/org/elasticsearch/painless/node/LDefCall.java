@@ -20,15 +20,17 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
+import org.objectweb.asm.Type;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a method call made on a def type. (Internal only.)
@@ -37,26 +39,26 @@ final class LDefCall extends ALink implements IDefLink {
 
     final String name;
     final List<AExpression> arguments;
-    long recipe;
+    StringBuilder recipe;
     List<String> pointers = new ArrayList<>();
 
     LDefCall(Location location, String name, List<AExpression> arguments) {
         super(location, -1);
 
-        this.name = name;
-        this.arguments = arguments;
+        this.name = Objects.requireNonNull(name);
+        this.arguments = Objects.requireNonNull(arguments);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        for (AExpression argument : arguments) {
+            argument.extractVariables(variables);
+        }
     }
 
     @Override
     ALink analyze(Locals locals) {
-        if (arguments.size() > 63) {
-            // technically, the limitation is just methods with > 63 params, containing method references.
-            // this is because we are lazy and use a long as a bitset. we can always change to a "string" if need be.
-            // but NEED NOT BE. nothing with this many parameters is in the whitelist and we do not support varargs.
-            throw new UnsupportedOperationException("methods with > 63 arguments are currently not supported");
-        }
-
-        recipe = 0;
+        recipe = new StringBuilder();
         int totalCaptures = 0;
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
@@ -64,13 +66,13 @@ final class LDefCall extends ALink implements IDefLink {
             expression.internal = true;
             expression.analyze(locals);
 
-            if (expression instanceof EFunctionRef) {
-                pointers.add(((EFunctionRef)expression).defPointer);
-                recipe |= (1L << (argument + totalCaptures)); // mark argument as deferred reference
-            } else if (expression instanceof ECapturingFunctionRef) {
-                pointers.add(((ECapturingFunctionRef)expression).defPointer);
-                recipe |= (1L << (argument + totalCaptures)); // mark argument as deferred reference
-                totalCaptures++;
+            if (expression instanceof ILambda) {
+                ILambda lambda = (ILambda) expression;
+                pointers.add(lambda.getPointer());
+                // encode this parameter as a deferred reference
+                char ch = (char) (argument + totalCaptures);
+                recipe.append(ch);
+                totalCaptures += lambda.getCaptureCount();
             }
 
             expression.expected = expression.actual;
@@ -84,42 +86,42 @@ final class LDefCall extends ALink implements IDefLink {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter writer) {
+    void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        StringBuilder signature = new StringBuilder();
+        List<Type> parameterTypes = new ArrayList<>();
 
-        signature.append('(');
         // first parameter is the receiver, we never know its type: always Object
-        signature.append(Definition.DEF_TYPE.type.getDescriptor());
+        parameterTypes.add(Definition.DEF_TYPE.type);
 
+        // append each argument
         for (AExpression argument : arguments) {
-            signature.append(argument.actual.type.getDescriptor());
-            if (argument instanceof ECapturingFunctionRef) {
-                ECapturingFunctionRef capturingRef = (ECapturingFunctionRef) argument;
-                signature.append(capturingRef.captured.type.type.getDescriptor());
+            parameterTypes.add(argument.actual.type);
+            if (argument instanceof ILambda) {
+                ILambda lambda = (ILambda) argument;
+                for (Type capture : lambda.getCaptures()) {
+                    parameterTypes.add(capture);
+                }
             }
-            argument.write(writer);
+            argument.write(writer, globals);
         }
 
-        signature.append(')');
-        // return value
-        signature.append(after.type.getDescriptor());
+        // create method type from return value and arguments
+        Type methodType = Type.getMethodType(after.type, parameterTypes.toArray(new Type[0]));
 
         List<Object> args = new ArrayList<>();
-        args.add(DefBootstrap.METHOD_CALL);
-        args.add(recipe);
+        args.add(recipe.toString());
         args.addAll(pointers);
-        writer.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, args.toArray());
+        writer.invokeDefCall(name, methodType, DefBootstrap.METHOD_CALL, args.toArray());
     }
 
     @Override
-    void store(MethodWriter writer) {
+    void store(MethodWriter writer, Globals globals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

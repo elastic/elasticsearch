@@ -68,11 +68,11 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         assertTrue(configDir, configDir.startsWith(home));
     }
 
-    public void testClusterNameDefault() {
+    public void testDefaultClusterName() {
         Settings settings = InternalSettingsPreparer.prepareSettings(Settings.EMPTY);
-        assertEquals(ClusterName.DEFAULT.value(), settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()));
-        settings = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null).settings();
-        assertEquals(ClusterName.DEFAULT.value(), settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()));
+        assertEquals("elasticsearch", settings.get("cluster.name"));
+        settings = InternalSettingsPreparer.prepareSettings(Settings.builder().put("cluster.name", "foobar").build());
+        assertEquals("foobar", settings.get("cluster.name"));
     }
 
     public void testReplacePromptPlaceholders() {

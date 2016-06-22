@@ -39,9 +39,9 @@ import java.util.List;
 
 public class TransportRethrottleAction extends TransportTasksAction<BulkByScrollTask, RethrottleRequest, ListTasksResponse, TaskInfo> {
     @Inject
-    public TransportRethrottleAction(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService,
+    public TransportRethrottleAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
             TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, RethrottleAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+        super(settings, RethrottleAction.NAME, threadPool, clusterService, transportService, actionFilters,
                 indexNameExpressionResolver, RethrottleRequest::new, ListTasksResponse::new, ThreadPool.Names.MANAGEMENT);
     }
 

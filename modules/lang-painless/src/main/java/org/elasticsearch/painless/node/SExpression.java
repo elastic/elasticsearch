@@ -20,8 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition.Type;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Sort;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -35,7 +40,12 @@ public final class SExpression extends AStatement {
     public SExpression(Location location, AExpression expression) {
         super(location);
 
-        this.expression = expression;
+        this.expression = Objects.requireNonNull(expression);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        expression.extractVariables(variables);
     }
 
     @Override
@@ -63,9 +73,9 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeStatementOffset(location);
-        expression.write(writer);
+        expression.write(writer, globals);
 
         if (methodEscape) {
             writer.returnValue();

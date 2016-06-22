@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -45,7 +46,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -76,8 +76,8 @@ public class MasterFaultDetection extends FaultDetection {
     private final AtomicBoolean notifiedMasterFailure = new AtomicBoolean();
 
     public MasterFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                ClusterName clusterName, ClusterService clusterService) {
-        super(settings, threadPool, transportService, clusterName);
+                                ClusterService clusterService) {
+        super(settings, threadPool, transportService, clusterService.getClusterName());
         this.clusterService = clusterService;
 
         logger.debug("[master] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
@@ -203,7 +203,7 @@ public class MasterFaultDetection extends FaultDetection {
                         listener.onMasterFailure(masterNode, cause, reason);
                     }
                 });
-            } catch (RejectedExecutionException e) {
+            } catch (EsRejectedExecutionException e) {
                 logger.error("master failure notification was rejected, it's highly likely the node is shutting down", e);
             }
             stop("master failure, " + reason);
@@ -418,7 +418,7 @@ public class MasterFaultDetection extends FaultDetection {
             super.readFrom(in);
             nodeId = in.readString();
             masterNodeId = in.readString();
-            clusterName = ClusterName.readClusterName(in);
+            clusterName = new ClusterName(in);
         }
 
         @Override

@@ -43,17 +43,6 @@ public class DateScriptMocks {
      * Mock plugin for the {@link DateScriptMocks.ExtractFieldScript} and {@link DateScriptMocks.PlusOneMonthScript}
      */
     public static class DateScriptsMockPlugin extends Plugin implements ScriptPlugin {
-
-        @Override
-        public String name() {
-            return "DateScriptMocks";
-        }
-
-        @Override
-        public String description() {
-            return "A mock script plugin.";
-        }
-
         @Override
         public List<NativeScriptFactory> getNativeScripts() {
             return Arrays.asList(new ExtractFieldScriptFactory(), new PlusOneMonthScriptFactory());

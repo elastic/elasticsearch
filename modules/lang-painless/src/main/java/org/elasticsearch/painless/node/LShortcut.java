@@ -20,10 +20,15 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -40,8 +45,11 @@ final class LShortcut extends ALink {
     LShortcut(Location location, String value) {
         super(location, 1);
 
-        this.value = value;
+        this.value = Objects.requireNonNull(value);
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
     ALink analyze(Locals locals) {
@@ -79,19 +87,15 @@ final class LShortcut extends ALink {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter writer) {
+    void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
-            writer.invokeInterface(getter.owner.type, getter.method);
-        } else {
-            writer.invokeVirtual(getter.owner.type, getter.method);
-        }
+        getter.write(writer);
 
         if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
             writer.checkCast(getter.rtn.type);
@@ -99,14 +103,10 @@ final class LShortcut extends ALink {
     }
 
     @Override
-    void store(MethodWriter writer) {
+    void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {
-            writer.invokeInterface(setter.owner.type, setter.method);
-        } else {
-            writer.invokeVirtual(setter.owner.type, setter.method);
-        }
+        setter.write(writer);
 
         writer.writePop(setter.rtn.sort.size);
     }

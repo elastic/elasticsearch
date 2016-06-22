@@ -76,6 +76,14 @@ PUT my_index
 Also the `precision_step` parameter is now irrelevant and will be rejected on
 indices that are created on or after 5.0.
 
+==== `_timestamp` and `_ttl`
+
+The `_timestamp` and `_ttl` fields were deprecated and are now removed. As a
+replacement for `_timestamp`, you should populate a regular date field with the
+current timestamp on application side. For `_ttl`, you should either use
+time-based indices when applicable, or cron a delete-by-query with a range
+query on a timestamp field
+
 ==== `index` property
 
 On all field datatypes (except for the deprecated `string` field), the `index`

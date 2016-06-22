@@ -19,11 +19,13 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -33,54 +35,56 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * An {@link org.elasticsearch.common.inject.Module} which manages {@link ScriptEngineService}s, as well
- * as named script
+ * Manages building {@link ScriptService} and {@link ScriptSettings} from a list of plugins.
  */
-public class ScriptModule extends AbstractModule {
-
-    protected final ScriptContextRegistry scriptContextRegistry;
-    protected final ScriptEngineRegistry scriptEngineRegistry;
-    protected final ScriptSettings scriptSettings;
-
-    public ScriptModule(ScriptEngineService... services) {
-        this(Arrays.asList(services), Collections.emptyList());
-    }
-
-    public ScriptModule(List<ScriptEngineService> scriptEngineServices,
-                        List<ScriptContext.Plugin> customScriptContexts) {
-        this.scriptContextRegistry = new ScriptContextRegistry(customScriptContexts);
-        this.scriptEngineRegistry = new ScriptEngineRegistry(scriptEngineServices);
-        this.scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-    }
+public class ScriptModule {
+    private final ScriptSettings scriptSettings;
+    private final ScriptService scriptService;
 
     /**
-     * This method is called after all modules have been processed but before we actually validate all settings. This allows the
-     * script extensions to add all their settings.
+     * Build from {@linkplain ScriptPlugin}s. Convenient for normal use but not great for tests. See
+     * {@link ScriptModule#ScriptModule(Settings, Environment, ResourceWatcherService, List, List)} for easier use in tests.
      */
-    public void prepareSettings(SettingsModule settingsModule) {
-        scriptSettings.getScriptTypeSettings().forEach(settingsModule::registerSetting);
-        scriptSettings.getScriptContextSettings().forEach(settingsModule::registerSetting);
-        scriptSettings.getScriptLanguageSettings().forEach(settingsModule::registerSetting);
-        settingsModule.registerSetting(scriptSettings.getDefaultScriptLanguageSetting());
-    }
-
-    @Override
-    protected void configure() {
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
-        bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
-        bind(ScriptSettings.class).toInstance(scriptSettings);
-        bind(ScriptService.class).asEagerSingleton();
-    }
-
-    public static ScriptModule create(Settings settings, List<ScriptPlugin> scriptPlugins) {
+    public static ScriptModule create(Settings settings, Environment environment, ResourceWatcherService resourceWatcherService,
+            List<ScriptPlugin> scriptPlugins) {
         Map<String, NativeScriptFactory> factoryMap = scriptPlugins.stream().flatMap(x -> x.getNativeScripts().stream())
             .collect(Collectors.toMap(NativeScriptFactory::getName, Function.identity()));
         NativeScriptEngineService nativeScriptEngineService = new NativeScriptEngineService(settings, factoryMap);
         List<ScriptEngineService> scriptEngineServices = scriptPlugins.stream().map(x -> x.getScriptEngineService(settings))
             .filter(Objects::nonNull).collect(Collectors.toList());
         scriptEngineServices.add(nativeScriptEngineService);
-        return new ScriptModule(scriptEngineServices, scriptPlugins.stream().map(x -> x.getCustomScriptContexts())
-            .filter(Objects::nonNull).collect(Collectors.toList()));
+        List<ScriptContext.Plugin> plugins = scriptPlugins.stream().map(x -> x.getCustomScriptContexts()).filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        return new ScriptModule(settings, environment, resourceWatcherService, scriptEngineServices, plugins);
+    }
+
+    /**
+     * Build {@linkplain ScriptEngineService} and {@linkplain ScriptContext.Plugin}.
+     */
+    public ScriptModule(Settings settings, Environment environment, ResourceWatcherService resourceWatcherService,
+            List<ScriptEngineService> scriptEngineServices, List<ScriptContext.Plugin> customScriptContexts) {
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customScriptContexts);
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngineServices);
+        scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        try {
+            scriptService = new ScriptService(settings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry,
+                    scriptSettings);
+        } catch (IOException e) {
+            throw new RuntimeException("Couldn't setup ScriptService", e);
+        }
+    }
+
+    /**
+     * Extra settings for scripts.
+     */
+    public List<Setting<?>> getSettings() {
+        return scriptSettings.getSettings();
+    }
+
+    /**
+     * Service responsible for managing scripts.
+     */
+    public ScriptService getScriptService() {
+        return scriptService;
     }
 }

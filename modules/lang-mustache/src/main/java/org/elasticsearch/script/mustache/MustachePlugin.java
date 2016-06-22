@@ -29,16 +29,6 @@ import org.elasticsearch.script.ScriptModule;
 public class MustachePlugin extends Plugin implements ScriptPlugin {
 
     @Override
-    public String name() {
-        return "lang-mustache";
-    }
-
-    @Override
-    public String description() {
-        return "Mustache scripting integration for Elasticsearch";
-    }
-
-    @Override
     public ScriptEngineService getScriptEngineService(Settings settings) {
         return new MustacheScriptEngineService(settings);
     }

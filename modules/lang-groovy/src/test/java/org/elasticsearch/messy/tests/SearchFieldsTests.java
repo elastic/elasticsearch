@@ -44,7 +44,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -69,6 +68,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -86,8 +86,6 @@ public class SearchFieldsTests extends ESIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                // _timestamp is randomly enabled via templates but we don't want it here to test stored fields behaviour
-                .startObject("_timestamp").field("enabled", false).endObject()
                 .startObject("properties")
                 .startObject("field1").field("type", "text").field("store", true).endObject()
                 .startObject("field2").field("type", "text").field("store", false).endObject()
@@ -367,6 +365,24 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
         List<?> sObj2Arr3 = response.getHits().getAt(0).field("s_arr3").values();
         assertThat(((Map<?, ?>) sObj2Arr3.get(0)).get("arr3_field1").toString(), equalTo("arr3_value1"));
+    }
+
+    public void testScriptFieldsForNullReturn() throws Exception {
+        client().prepareIndex("test", "type1", "1")
+            .setSource("foo", "bar")
+            .setRefreshPolicy("true").get();
+
+        SearchResponse response = client().prepareSearch().setQuery(matchAllQuery())
+            .addScriptField("test_script_1", new Script("return null"))
+            .get();
+
+        assertNoFailures(response);
+
+        SearchHitField fieldObj = response.getHits().getAt(0).field("test_script_1");
+        assertThat(fieldObj, notNullValue());
+        List<?> fieldValues = fieldObj.values();
+        assertThat(fieldValues, hasSize(1));
+        assertThat(fieldValues.get(0), nullValue());
     }
 
     public void testPartialFields() throws Exception {
@@ -678,7 +694,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
     public void testLoadMetadata() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("parent")
-                .addMapping("my-type1", "_timestamp", "enabled=true", "_ttl", "enabled=true", "_parent", "type=parent"));
+                .addMapping("my-type1", "_parent", "type=parent"));
 
         indexRandom(true,
                 client().prepareIndex("test", "my-type1", "1")
@@ -697,12 +713,6 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertThat(fields.get("field1"), nullValue());
         assertThat(fields.get("_routing").isMetadataField(), equalTo(true));
         assertThat(fields.get("_routing").getValue().toString(), equalTo("1"));
-        assertThat(fields.get("_timestamp").isMetadataField(), equalTo(true));
-        assertThat(fields.get("_timestamp").getValue().toString(), equalTo("205097"));
-        assertThat(fields.get("_ttl").isMetadataField(), equalTo(true));
-        // TODO: _ttl should return the original value, but it does not work today because
-        // it would use now() instead of the value of _timestamp to rebase
-        // assertThat(fields.get("_ttl").getValue().toString(), equalTo("10000000205097"));
         assertThat(fields.get("_parent").isMetadataField(), equalTo(true));
         assertThat(fields.get("_parent").getValue().toString(), equalTo("parent_1"));
     }

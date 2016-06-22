@@ -46,12 +46,10 @@ public class DiscoveryNodeService extends AbstractComponent {
             // don't use node.id.seed so it won't be seen as an attribute
             Setting.longSetting("node_id.seed", 0L, Long.MIN_VALUE, Property.NodeScope);
     private final List<CustomAttributesProvider> customAttributesProviders = new CopyOnWriteArrayList<>();
-    private final Version version;
 
     @Inject
-    public DiscoveryNodeService(Settings settings, Version version) {
+    public DiscoveryNodeService(Settings settings) {
         super(settings);
-        this.version = version;
     }
 
     public static String generateNodeId(Settings settings) {
@@ -93,7 +91,7 @@ public class DiscoveryNodeService extends AbstractComponent {
             }
         }
         return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes,
-                roles, version);
+                roles, Version.CURRENT);
     }
 
     public interface CustomAttributesProvider {

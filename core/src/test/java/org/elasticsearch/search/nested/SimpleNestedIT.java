@@ -317,8 +317,8 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
         Explanation explanation = searchResponse.getHits().hits()[0].explanation();
-        assertThat(explanation.getValue(), equalTo(2f));
-        assertThat(explanation.toString(), startsWith("2.0 = sum of:\n  2.0 = Score based on 2 child docs in range from 0 to 1"));
+        assertThat(explanation.getValue(), equalTo(searchResponse.getHits().getHits()[0].score()));
+        assertThat(explanation.toString(), startsWith("0.36464313 = sum of:\n  0.36464313 = Score based on 2 child docs in range from 0 to 1"));
     }
 
     public void testSimpleNestedSorting() throws Exception {

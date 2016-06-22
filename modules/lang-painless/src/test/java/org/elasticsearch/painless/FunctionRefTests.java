@@ -162,4 +162,32 @@ public class FunctionRefTests extends ScriptTestCase {
             exec("List l = new ArrayList(); l.add(2); l.add(1); l.sort(String::startsWith); return l.get(0);");
         });
     }
+    
+    public void testWrongArity() {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("Optional.empty().orElseGet(String::startsWith);");
+        });
+        assertTrue(expected.getMessage().contains("Unknown reference"));
+    }
+    
+    public void testWrongArityNotEnough() {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("List l = new ArrayList(); l.add(2); l.add(1); l.sort(String::isEmpty);");
+        });
+        assertTrue(expected.getMessage().contains("Unknown reference"));
+    }
+    
+    public void testWrongArityDef() {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("def y = Optional.empty(); return y.orElseGet(String::startsWith);");
+        });
+        assertTrue(expected.getMessage().contains("Unknown reference"));
+    }
+    
+    public void testWrongArityNotEnoughDef() {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("def l = new ArrayList(); l.add(2); l.add(1); l.sort(String::isEmpty);");
+        });
+        assertTrue(expected.getMessage().contains("Unknown reference"));
+    }
 }

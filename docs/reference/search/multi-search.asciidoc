@@ -42,10 +42,10 @@ Note, the above includes an example of an empty header (can also be just
 without any content) which is supported as well.
 
 The response returns a `responses` array, which includes the search
-response for each search request matching its order in the original
-multi search request. If there was a complete failure for that specific
-search request, an object with `error` message will be returned in place
-of the actual search response.
+response and status code for each search request matching its order in
+the original multi search request. If there was a complete failure for that
+specific search request, an object with `error` message and corresponding
+status code will be returned in place of the actual search response.
 
 The endpoint allows to also search against an index/indices and
 type/types in the URI itself, in which case it will be used as the

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ingest.core.TemplateService;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;

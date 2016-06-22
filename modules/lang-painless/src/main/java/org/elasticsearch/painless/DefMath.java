@@ -1027,25 +1027,7 @@ public class DefMath {
      * class if its not a boxed type.
      */
     private static Class<?> unbox(Class<?> clazz) {
-        if (clazz == Boolean.class) {
-            return boolean.class;
-        } else if (clazz == Byte.class) { 
-            return byte.class; 
-        } else if (clazz == Short.class) { 
-            return short.class; 
-        } else if (clazz == Character.class) {
-            return char.class;
-        } else if (clazz == Integer.class) {
-            return int.class;
-        } else if (clazz == Long.class) {
-            return long.class;
-        } else if (clazz == Float.class) {
-            return float.class;
-        } else if (clazz == Double.class) {
-            return double.class;
-        } else {
-            return clazz;
-        }
+        return MethodType.methodType(clazz).unwrap().returnType();
     }
     
     /** Unary promotion. All Objects are promoted to Object. */
@@ -1146,37 +1128,47 @@ public class DefMath {
     public static MethodHandle lookupGeneric(String name) {
         return TYPE_OP_MAPPING.get(Object.class).get(name);
     }
-    
-    
+
     /**
      * Slow dynamic cast: casts {@code returnValue} to the runtime type of {@code lhs}
      * based upon inspection. If {@code lhs} is null, no cast takes place.
      * This is used for the generic fallback case of compound assignment.
      */
-    static Object dynamicCast(Object returnValue, Object lhs) {
+    static Object dynamicReceiverCast(Object returnValue, Object lhs) {
         if (lhs != null) {
-            Class<?> c = lhs.getClass();
-            if (c == returnValue.getClass()) {
-                return returnValue;
-            }
-            if (c == Integer.class) {
-                return getNumber(returnValue).intValue();
-            } else if (c == Long.class) {
-                return getNumber(returnValue).longValue();
-            } else if (c == Double.class) {
-                return getNumber(returnValue).doubleValue();
-            } else if (c == Float.class) {
-                return getNumber(returnValue).floatValue();
-            } else if (c == Short.class) {
-                return getNumber(returnValue).shortValue();
-            } else if (c == Byte.class) {
-                return getNumber(returnValue).byteValue();
-            } else if (c == Character.class) {
-                return (char) getNumber(returnValue).intValue();
-            }
-            return lhs.getClass().cast(returnValue);
+            return dynamicCast(lhs.getClass(), returnValue);
         } else {
             return returnValue;
+        }
+    }
+    
+    /**
+     * Slow dynamic cast: casts {@code value} to an instance of {@code clazz}
+     * based upon inspection. If {@code lhs} is null, no cast takes place.
+     */
+    static Object dynamicCast(Class<?> clazz, Object value) {
+        if (value != null) {
+            if (clazz == value.getClass()) {
+                return value;
+            }
+            if (clazz == Integer.class) {
+                return getNumber(value).intValue();
+            } else if (clazz == Long.class) {
+                return getNumber(value).longValue();
+            } else if (clazz == Double.class) {
+                return getNumber(value).doubleValue();
+            } else if (clazz == Float.class) {
+                return getNumber(value).floatValue();
+            } else if (clazz == Short.class) {
+                return getNumber(value).shortValue();
+            } else if (clazz == Byte.class) {
+                return getNumber(value).byteValue();
+            } else if (clazz == Character.class) {
+                return (char) getNumber(value).intValue();
+            }
+            return clazz.cast(value);
+        } else {
+            return value;
         }
     }
     
@@ -1192,28 +1184,40 @@ public class DefMath {
     }
     
     private static final MethodHandle DYNAMIC_CAST;
+    private static final MethodHandle DYNAMIC_RECEIVER_CAST;
     static {
         final Lookup lookup = MethodHandles.lookup();
         try {
             DYNAMIC_CAST = lookup.findStatic(lookup.lookupClass(), 
-                                             "dynamicCast", 
-                                             MethodType.methodType(Object.class, Object.class, Object.class));
+                                            "dynamicCast", 
+                                            MethodType.methodType(Object.class, Class.class, Object.class));
+            DYNAMIC_RECEIVER_CAST = lookup.findStatic(lookup.lookupClass(), 
+                                                     "dynamicReceiverCast", 
+                                                     MethodType.methodType(Object.class, Object.class, Object.class));
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }
     }
 
     /** Looks up generic method, with a dynamic cast to the receiver's type. (compound assignment) */
-    public static MethodHandle lookupGenericWithCast(String name) {
-        MethodHandle generic = lookupGeneric(name);
-        // adapt dynamic cast to the generic method
-        MethodHandle cast = DYNAMIC_CAST.asType(MethodType.methodType(generic.type().returnType(), 
-                                                                      generic.type().returnType(),
-                                                                      generic.type().parameterType(0)));
+    public static MethodHandle dynamicCast(MethodHandle target) {
+        // adapt dynamic receiver cast to the generic method
+        MethodHandle cast = DYNAMIC_RECEIVER_CAST.asType(MethodType.methodType(target.type().returnType(), 
+                                                                      target.type().returnType(),
+                                                                      target.type().parameterType(0)));
         // drop the RHS parameter
-        cast = MethodHandles.dropArguments(cast, 2, generic.type().parameterType(1));
+        cast = MethodHandles.dropArguments(cast, 2, target.type().parameterType(1));
         // combine: f(x,y) -> g(f(x,y), x, y);
-        return MethodHandles.foldArguments(cast, generic);
+        return MethodHandles.foldArguments(cast, target);
+    }
+    
+    /** Looks up generic method, with a dynamic cast to the specified type. (explicit assignment) */
+    public static MethodHandle dynamicCast(MethodHandle target, Class<?> desired) {
+        // adapt dynamic cast to the generic method
+        desired = MethodType.methodType(desired).wrap().returnType();
+        // bind to the boxed type
+        MethodHandle cast = DYNAMIC_CAST.bindTo(desired);
+        return MethodHandles.filterReturnValue(target, cast);
     }
     
     /** Forces a cast to class A for target (only if types differ) */
@@ -1221,12 +1225,18 @@ public class DefMath {
         MethodType newType = MethodType.methodType(classA).unwrap();
         MethodType targetType = MethodType.methodType(target.type().returnType()).unwrap();
         
+        // don't do a conversion if types are the same. explicitCastArguments has this opto,
+        // but we do it explicitly, to make the boolean check simpler
         if (newType.returnType() == targetType.returnType()) {
-            return target; // no conversion
+            return target;
         }
         
-        // this is safe for our uses of it here only, because we change just the return value,
-        // the original method itself does all the type checks correctly.
+        // we don't allow the to/from boolean conversions of explicitCastArguments
+        if (newType.returnType() == boolean.class || targetType.returnType() == boolean.class) {
+            throw new ClassCastException("Cannot cast " + targetType.returnType() + " to " + newType.returnType());
+        }
+        
+        // null return values are not possible for our arguments.
         return MethodHandles.explicitCastArguments(target, target.type().changeReturnType(newType.returnType()));
     }
 }

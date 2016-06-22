@@ -44,31 +44,36 @@ import java.util.Set;
  */
 public class NamingConventionsCheck {
     public static void main(String[] args) throws IOException {
-        int i = 0;
-        NamingConventionsCheck check = new NamingConventionsCheck(
-                loadClassWithoutInitializing(args[i++]),
-                loadClassWithoutInitializing(args[i++]));
+        Class<?> testClass = null;
+        Class<?> integTestClass = null;
+        Path rootPath = null;
         boolean skipIntegTestsInDisguise = false;
         boolean selfTest = false;
-        while (true) {
-            switch (args[i]) {
-            case "--skip-integ-tests-in-disguise":
-                skipIntegTestsInDisguise = true;
-                i++;
-                continue;
-            case "--self-test":
-                selfTest = true;
-                i++;
-                continue;
-            case "--":
-                i++;
-                break;
-            default:
-                fail("Expected -- before a path.");
+        for (int i = 0; i < args.length; i++) {
+            String arg = args[i];
+            switch (arg) {
+                case "--test-class":
+                    testClass = loadClassWithoutInitializing(args[++i]);
+                    break;
+                case "--integ-test-class":
+                    integTestClass = loadClassWithoutInitializing(args[++i]);
+                    break;
+                case "--skip-integ-tests-in-disguise":
+                    skipIntegTestsInDisguise = true;
+                    break;
+                case "--self-test":
+                    selfTest = true;
+                    break;
+                case "--":
+                    rootPath = Paths.get(args[++i]);
+                    break;
+                default:
+                    fail("unsupported argument '" + arg + "'");
             }
-            break;
         }
-        check.check(Paths.get(args[i]));
+
+        NamingConventionsCheck check = new NamingConventionsCheck(testClass, integTestClass);
+        check.check(rootPath, skipIntegTestsInDisguise);
 
         if (selfTest) {
             assertViolation("WrongName", check.missingSuffix);
@@ -87,9 +92,9 @@ public class NamingConventionsCheck {
         assertNoViolations("Found inner classes that are tests, which are excluded from the test runner", check.innerClasses);
         assertNoViolations("Pure Unit-Test found must subclass [" + check.testClass.getSimpleName() + "]", check.pureUnitTest);
         assertNoViolations("Classes ending with [Tests] must subclass [" + check.testClass.getSimpleName() + "]", check.notImplementing);
-        if (!skipIntegTestsInDisguise) {
-            assertNoViolations("Subclasses of ESIntegTestCase should end with IT as they are integration tests",
-                    check.integTestsInDisguise);
+        if (skipIntegTestsInDisguise == false) {
+            assertNoViolations("Subclasses of " + check.integTestClass.getSimpleName() +
+                    " should end with IT as they are integration tests", check.integTestsInDisguise);
         }
     }
 
@@ -108,7 +113,7 @@ public class NamingConventionsCheck {
         this.integTestClass = integTestClass;
     }
 
-    public void check(Path rootPath) throws IOException {
+    public void check(Path rootPath, boolean skipTestsInDisguised) throws IOException {
         Files.walkFileTree(rootPath, new FileVisitor<Path>() {
             /**
              * The package name of the directory we are currently visiting. Kept as a string rather than something fancy because we load
@@ -143,7 +148,7 @@ public class NamingConventionsCheck {
                     String className = filename.substring(0, filename.length() - ".class".length());
                     Class<?> clazz = loadClassWithoutInitializing(packageName + className);
                     if (clazz.getName().endsWith("Tests")) {
-                        if (integTestClass.isAssignableFrom(clazz)) {
+                        if (skipTestsInDisguised == false && integTestClass.isAssignableFrom(clazz)) {
                             integTestsInDisguise.add(clazz);
                         }
                         if (Modifier.isAbstract(clazz.getModifiers()) || Modifier.isInterface(clazz.getModifiers())) {

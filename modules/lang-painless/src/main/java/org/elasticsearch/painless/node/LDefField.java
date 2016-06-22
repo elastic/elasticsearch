@@ -20,13 +20,16 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Type;
-import org.elasticsearch.painless.MethodWriter;
 
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
+import java.util.Objects;
+import java.util.Set;
+
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a field load/store or shortcut on a def type.  (Internal only.)
@@ -38,9 +41,11 @@ final class LDefField extends ALink implements IDefLink {
     LDefField(Location location, String value) {
         super(location, 1);
 
-        this.value = value;
+        this.value = Objects.requireNonNull(value);
     }
 
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
     ALink analyze(Locals locals) {
@@ -50,23 +55,23 @@ final class LDefField extends ALink implements IDefLink {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter writer) {
+    void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        String desc = Type.getMethodDescriptor(after.type, Definition.DEF_TYPE.type);
-        writer.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.LOAD);
+        Type methodType = Type.getMethodType(after.type, Definition.DEF_TYPE.type);
+        writer.invokeDefCall(value, methodType, DefBootstrap.LOAD);
     }
 
     @Override
-    void store(MethodWriter writer) {
+    void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        String desc = Type.getMethodDescriptor(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, after.type);
-        writer.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.STORE);
+        Type methodType = Type.getMethodType(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, after.type);
+        writer.invokeDefCall(value, methodType, DefBootstrap.STORE);
     }
 }

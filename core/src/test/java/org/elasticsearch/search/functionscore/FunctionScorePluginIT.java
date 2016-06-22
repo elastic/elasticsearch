@@ -95,17 +95,6 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
     }
 
     public static class CustomDistanceScorePlugin extends Plugin {
-
-        @Override
-        public String name() {
-            return "test-plugin-distance-score";
-        }
-
-        @Override
-        public String description() {
-            return "Distance score plugin to test pluggable implementation";
-        }
-
         public void onModule(SearchModule scoreModule) {
             scoreModule.registerScoreFunction(CustomDistanceScoreBuilder::new, CustomDistanceScoreBuilder.PARSER,
                     CustomDistanceScoreBuilder.FUNCTION_NAME_FIELD);

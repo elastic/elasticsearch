@@ -25,9 +25,42 @@
 class Pattern -> java.util.regex.Pattern extends Object {
 # Pattern compile(String)   Intentionally not included. We don't want dynamic patterns because they allow regexes to be generated per time
 #                           the script is run which is super slow. LRegex generates code that calls this method but it skips these checks.
+  Predicate asPredicate()
+  int flags()
   Matcher matcher(CharSequence)
+  String pattern()
+  String quote(String)
+  String[] split(CharSequence)
+  String[] split(CharSequence,int)
+  Stream splitAsStream(CharSequence)
 }
 
 class Matcher -> java.util.regex.Matcher extends Object {
+  int end()
+  int end(int)
+  boolean find()
+  boolean find(int)
+  String group()
+  String group(int)
+  String namedGroup*(String)
+  int groupCount()
+  boolean hasAnchoringBounds()
+  boolean hasTransparentBounds()
+  boolean hitEnd()
+  boolean lookingAt()
   boolean matches()
+  Pattern pattern()
+  String quoteReplacement(String)
+  Matcher region(int,int)
+  int regionEnd()
+  int regionStart()
+  String replaceAll(String)
+  String replaceFirst(String)
+  boolean requireEnd()
+  Matcher reset()
+  int start()
+  int start(int)
+  Matcher useAnchoringBounds(boolean)
+  Matcher usePattern(Pattern)
+  Matcher useTransparentBounds(boolean)
 }

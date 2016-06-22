@@ -21,9 +21,6 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.core.IngestInfo;
-import org.elasticsearch.ingest.core.Processor;
-import org.elasticsearch.ingest.core.ProcessorInfo;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 

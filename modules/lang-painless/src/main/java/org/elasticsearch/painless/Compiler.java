@@ -22,6 +22,7 @@ package org.elasticsearch.painless;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.node.SSource;
+import org.objectweb.asm.util.Printer;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -98,7 +99,7 @@ final class Compiler {
                 " plugin if a script longer than this length is a requirement.");
         }
 
-        SSource root = Walker.buildPainlessTree(name, source, settings);
+        SSource root = Walker.buildPainlessTree(name, source, settings, null);
 
         root.analyze();
         root.write();
@@ -108,7 +109,7 @@ final class Compiler {
             java.lang.reflect.Constructor<? extends Executable> constructor =
                     clazz.getConstructor(String.class, String.class, BitSet.class);
 
-            return constructor.newInstance(name, source, root.getExpressions());
+            return constructor.newInstance(name, source, root.getStatements());
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException("An internal error occurred attempting to define the script [" + name + "].", exception);
         }
@@ -120,14 +121,14 @@ final class Compiler {
      * @param settings The CompilerSettings to be used during the compilation.
      * @return The bytes for compilation.
      */
-    static byte[] compile(String name, String source, CompilerSettings settings) {
+    static byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
         if (source.length() > MAXIMUM_SOURCE_LENGTH) {
             throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
 
-        SSource root = Walker.buildPainlessTree(name, source, settings);
+        SSource root = Walker.buildPainlessTree(name, source, settings, debugStream);
 
         root.analyze();
         root.write();

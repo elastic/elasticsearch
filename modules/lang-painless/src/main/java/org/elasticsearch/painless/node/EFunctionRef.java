@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.FunctionRef;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Definition.Method;
@@ -31,11 +32,13 @@ import org.objectweb.asm.Type;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 import java.lang.invoke.LambdaMetafactory;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a function reference.
  */
-public class EFunctionRef extends AExpression {
+public class EFunctionRef extends AExpression implements ILambda {
     public final String type;
     public final String call;
 
@@ -45,9 +48,12 @@ public class EFunctionRef extends AExpression {
     public EFunctionRef(Location location, String type, String call) {
         super(location);
 
-        this.type = type;
-        this.call = call;
+        this.type = Objects.requireNonNull(type);
+        this.call = Objects.requireNonNull(call);
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
     void analyze(Locals locals) {
@@ -70,10 +76,10 @@ public class EFunctionRef extends AExpression {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                            "to [" + expected.name + "], function not found");
                     }
-                    ref = new FunctionRef(expected, interfaceMethod, implMethod);
+                    ref = new FunctionRef(expected, interfaceMethod, implMethod, 0);
                 } else {
                     // whitelist lookup
-                    ref = new FunctionRef(expected, type, call);
+                    ref = new FunctionRef(expected, type, call, 0);
                 }
             } catch (IllegalArgumentException e) {
                 throw createError(e);
@@ -83,7 +89,7 @@ public class EFunctionRef extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         if (ref != null) {
             writer.writeDebugInfo(location);
             // convert MethodTypes to asm Type for the constant pool.
@@ -113,5 +119,15 @@ public class EFunctionRef extends AExpression {
             // TODO: don't do this: its just to cutover :)
             writer.push((String)null);
         }
+    }
+
+    @Override
+    public String getPointer() {
+        return defPointer;
+    }
+
+    @Override
+    public Type[] getCaptures() {
+        return new Type[0]; // no captures
     }
 }

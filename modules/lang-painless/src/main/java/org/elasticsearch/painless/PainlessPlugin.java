@@ -38,16 +38,6 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin {
     }
 
     @Override
-    public String name() {
-        return "lang-painless";
-    }
-
-    @Override
-    public String description() {
-        return "Painless scripting language for Elasticsearch";
-    }
-
-    @Override
     public ScriptEngineService getScriptEngineService(Settings settings) {
         return new PainlessScriptEngineService(settings);
     }

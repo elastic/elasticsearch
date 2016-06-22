@@ -142,12 +142,13 @@ public class ScriptSettings {
         return scriptModeSettings;
     }
 
-    public Iterable<Setting<Boolean>> getScriptTypeSettings() {
-        return Collections.unmodifiableCollection(SCRIPT_TYPE_SETTING_MAP.values());
-    }
-
-    public Iterable<Setting<Boolean>> getScriptContextSettings() {
-        return Collections.unmodifiableCollection(scriptContextSettingMap.values());
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> settings = new ArrayList<>();
+        settings.addAll(SCRIPT_TYPE_SETTING_MAP.values());
+        settings.addAll(scriptContextSettingMap.values());
+        settings.addAll(scriptLanguageSettings);
+        settings.add(defaultScriptLanguageSetting);
+        return settings;
     }
 
     public Iterable<Setting<Boolean>> getScriptLanguageSettings() {

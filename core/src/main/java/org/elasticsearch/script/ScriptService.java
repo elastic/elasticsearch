@@ -41,7 +41,6 @@ import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -72,7 +71,6 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 import static java.util.Collections.unmodifiableMap;
@@ -132,7 +130,6 @@ public class ScriptService extends AbstractComponent implements Closeable {
     @Deprecated
     public static final ParseField SCRIPT_INLINE = new ParseField("script");
 
-    @Inject
     public ScriptService(Settings settings, Environment env,
                          ResourceWatcherService resourceWatcherService, ScriptEngineRegistry scriptEngineRegistry,
                          ScriptContextRegistry scriptContextRegistry, ScriptSettings scriptSettings) throws IOException {
@@ -507,16 +504,10 @@ public class ScriptService extends AbstractComponent implements Closeable {
     private class ScriptCacheRemovalListener implements RemovalListener<CacheKey, CompiledScript> {
         @Override
         public void onRemoval(RemovalNotification<CacheKey, CompiledScript> notification) {
-            scriptMetrics.onCacheEviction();
-            for (ScriptEngineService service : scriptEngines) {
-                try {
-                    service.scriptRemoved(notification.getValue());
-                } catch (Exception e) {
-                    logger.warn("exception calling script removal listener for script service", e);
-                    // We don't rethrow because Guava would just catch the
-                    // exception and log it, which we have already done
-                }
+            if (logger.isDebugEnabled()) {
+                logger.debug("removed {} from cache, reason: {}", notification.getValue(), notification.getRemovalReason());
             }
+            scriptMetrics.onCacheEviction();
         }
     }
 

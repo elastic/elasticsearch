@@ -34,7 +34,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.ingest.core.IngestInfo;
+import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.DummyOsInfo;
 import org.elasticsearch.monitor.os.OsInfo;

@@ -38,11 +38,4 @@ public interface QueryParser<QB extends QueryBuilder> {
      * @return the new QueryBuilder
      */
     Optional<QB> fromXContent(QueryParseContext parseContext) throws IOException;
-
-    /**
-     * @return an empty {@link QueryBuilder} instance for this parser that can be used for deserialization
-     */
-    default QB getBuilderPrototype() { // TODO remove this when nothing implements it
-        throw new UnsupportedOperationException();
-    }
 }

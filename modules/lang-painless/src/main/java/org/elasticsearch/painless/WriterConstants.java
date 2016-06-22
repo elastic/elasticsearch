@@ -35,6 +35,7 @@ import java.util.BitSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -71,19 +72,25 @@ public final class WriterConstants {
     public final static Method CHAR_TO_STRING = getAsmMethod(String.class, "charToString", char.class);
     
     public final static Type METHOD_HANDLE_TYPE = Type.getType(MethodHandle.class);
+    
+    public static final Type AUGMENTATION_TYPE = Type.getType(Augmentation.class);
 
     /**
-     * A Method instance for {@linkplain Pattern#compile}. This isn't looked up from Definition because we intentionally don't add it there
+     * A Method instance for {@linkplain Pattern#compile}. This isn't available from Definition because we intentionally don't add it there
      * so that the script can't create regexes without this syntax. Essentially, our static regex syntax has a monopoly on building regexes
      * because it can do it statically. This is both faster and prevents the script from doing something super slow like building a regex
      * per time it is run.
      */
-    public final static Method PATTERN_COMPILE = getAsmMethod(Pattern.class, "compile", String.class);
+    public final static Method PATTERN_COMPILE = getAsmMethod(Pattern.class, "compile", String.class, int.class);
+    public final static Method PATTERN_MATCHER = getAsmMethod(Matcher.class, "matcher", CharSequence.class);
+    public final static Method MATCHER_MATCHES = getAsmMethod(boolean.class, "matches");
+    public final static Method MATCHER_FIND = getAsmMethod(boolean.class, "find");
 
     /** dynamic callsite bootstrap signature */
-    public final static MethodType DEF_BOOTSTRAP_TYPE =
-        MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, int.class, Object[].class);
-    public final static Handle DEF_BOOTSTRAP_HANDLE =
+    final static MethodType DEF_BOOTSTRAP_TYPE =
+        MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, 
+                              int.class, int.class, Object[].class);
+    final static Handle DEF_BOOTSTRAP_HANDLE =
         new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(DefBootstrap.class),
             "bootstrap", DEF_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
 

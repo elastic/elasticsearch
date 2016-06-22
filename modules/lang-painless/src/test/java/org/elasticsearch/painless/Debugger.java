@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless;
 
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.util.TraceClassVisitor;
+import org.apache.lucene.util.IOUtils;
+import org.objectweb.asm.util.Textifier;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -35,14 +35,19 @@ final class Debugger {
 
     /** compiles to bytecode, and returns debugging output */
     static String toString(String source, CompilerSettings settings) {
-        final byte[] bytes = Compiler.compile("<debugging>", source, settings);
-        final StringWriter output = new StringWriter();
-        final PrintWriter outputWriter = new PrintWriter(output);
-        final ClassReader reader = new ClassReader(bytes);
-
-        reader.accept(new TraceClassVisitor(outputWriter), 0);
-        outputWriter.flush();
+        StringWriter output = new StringWriter();
+        PrintWriter outputWriter = new PrintWriter(output);
+        Textifier textifier = new Textifier();
+        try {
+            Compiler.compile("<debugging>", source, settings, textifier);
+        } catch (Exception e) {
+            textifier.print(outputWriter);
+            e.addSuppressed(new Exception("current bytecode: \n" + output));
+            IOUtils.reThrowUnchecked(e);
+            throw new AssertionError();
+        }
         
+        textifier.print(outputWriter);
         return output.toString();
     }
 }

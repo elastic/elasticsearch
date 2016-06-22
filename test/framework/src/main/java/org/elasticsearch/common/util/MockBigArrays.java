@@ -74,7 +74,6 @@ public class MockBigArrays extends BigArrays {
     private final PageCacheRecycler recycler;
     private final CircuitBreakerService breakerService;
 
-    @Inject
     public MockBigArrays(Settings settings, CircuitBreakerService breakerService) {
         this(new MockPageCacheRecycler(settings), breakerService, false);
     }

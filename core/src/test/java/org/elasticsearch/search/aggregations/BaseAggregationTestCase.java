@@ -25,15 +25,14 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -42,7 +41,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -50,30 +48,20 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
-import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -113,54 +101,9 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
      */
     @BeforeClass
     public static void init() throws IOException {
-        // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        Version version = randomBoolean() ? Version.CURRENT
-                : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
-        Settings settings = Settings.builder()
-                .put("node.name", AbstractQueryTestCase.class.toString())
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
-                .build();
-
-        namedWriteableRegistry = new NamedWriteableRegistry();
         index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        final ThreadPool threadPool = new ThreadPool(settings);
-        final ClusterService clusterService = createClusterService(threadPool);
-        setState(clusterService, new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder()
-                .put(new IndexMetaData.Builder(index.getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
-        SettingsModule settingsModule = new SettingsModule(settings);
-        settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
-        ScriptModule scriptModule = newTestScriptModule();
-        scriptModule.prepareSettings(settingsModule);
-        injector = new ModulesBuilder().add(
-                new EnvironmentModule(new Environment(settings)),
-                settingsModule,
-                new ThreadPoolModule(threadPool),
-                scriptModule,
-                new IndicesModule() {
-
-                    @Override
-                    protected void configure() {
-                        bindMapperExtension();
-                    }
-                }, new SearchModule(settings, namedWriteableRegistry) {
-                    @Override
-                    protected void configureSearch() {
-                        // Skip me
-                    }
-                },
-                new IndexSettingsModule(index, settings),
-
-                new AbstractModule() {
-                    @Override
-                    protected void configure() {
-                        bind(ClusterService.class).toProvider(Providers.of(clusterService));
-                        bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
-                        bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
-                    }
-                }
-        ).createInjector();
+        injector = buildInjector(index);
+        namedWriteableRegistry = injector.getInstance(NamedWriteableRegistry.class);
         aggParsers = injector.getInstance(AggregatorParsers.class);
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
@@ -171,6 +114,54 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         queriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
         parseFieldMatcher = ParseFieldMatcher.STRICT;
     }
+
+    public static final Injector buildInjector(Index index) {
+        // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
+        Version version = randomBoolean() ? Version.CURRENT
+            : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
+        Settings settings = Settings.builder()
+            .put("node.name", AbstractQueryTestCase.class.toString())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
+            .build();
+
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        final ThreadPool threadPool = new ThreadPool(settings);
+        final ClusterService clusterService = createClusterService(threadPool);
+        setState(clusterService, new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder()
+            .put(new IndexMetaData.Builder(index.getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
+        ScriptModule scriptModule = newTestScriptModule();
+        List<Setting<?>> scriptSettings = scriptModule.getSettings();
+        scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
+        SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, Collections.emptyList());
+        return new ModulesBuilder().add(
+            (b) -> {
+                b.bind(Environment.class).toInstance(new Environment(settings));
+                b.bind(ThreadPool.class).toInstance(threadPool);
+                b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
+                b.bind(ClusterService.class).toProvider(Providers.of(clusterService));
+                b.bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
+                b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
+            },
+            settingsModule,
+            new IndicesModule(namedWriteableRegistry) {
+
+                @Override
+                protected void configure() {
+                    bindMapperExtension();
+                }
+            },
+            new SearchModule(settings, namedWriteableRegistry) {
+                @Override
+                protected void configureSearch() {
+                    // Skip me
+                }
+            },
+            new IndexSettingsModule(index, settings)
+        ).createInjector();
+    }
+
 
     @AfterClass
     public static void afterClass() throws Exception {

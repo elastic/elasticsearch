@@ -71,14 +71,6 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
     public static class CustomNativeScriptFactory implements NativeScriptFactory  {
         public static class TestPlugin extends Plugin implements ScriptPlugin {
             @Override
-            public String name() {
-                return "mock-native-script";
-            }
-            @Override
-            public String description() {
-                return "a mock native script for testing";
-            }
-            @Override
             public List<NativeScriptFactory> getNativeScripts() {
                 return Collections.singletonList(new CustomNativeScriptFactory());
             }

@@ -8,7 +8,7 @@ backends are available via officially supported repository plugins.
 [float]
 === Repositories
 
-Before any snapshot or restore operation can be performed a snapshot repository should be registered in
+Before any snapshot or restore operation can be performed, a snapshot repository should be registered in
 Elasticsearch. The repository settings are repository-type specific. See below for details.
 
 [source,js]

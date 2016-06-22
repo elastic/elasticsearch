@@ -25,7 +25,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -120,8 +120,8 @@ public class EwmaModel extends MovAvgModel {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MovAvgPipelineAggregatorBuilder.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
-        builder.startObject(MovAvgPipelineAggregatorBuilder.SETTINGS.getPreferredName());
+        builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+        builder.startObject(MovAvgPipelineAggregationBuilder.SETTINGS.getPreferredName());
         builder.field("alpha", alpha);
         builder.endObject();
         return builder;
@@ -174,8 +174,8 @@ public class EwmaModel extends MovAvgModel {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(MovAvgPipelineAggregatorBuilder.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
-            builder.startObject(MovAvgPipelineAggregatorBuilder.SETTINGS.getPreferredName());
+            builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+            builder.startObject(MovAvgPipelineAggregationBuilder.SETTINGS.getPreferredName());
             builder.field("alpha", alpha);
 
             builder.endObject();

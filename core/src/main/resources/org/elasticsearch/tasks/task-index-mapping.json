@@ -2,6 +2,9 @@
   "task" : {
     "dynamic" : "strict",
     "properties" : {
+      "completed": {
+        "type": "boolean"
+      },
       "task" : {
         "properties": {
           "action": {

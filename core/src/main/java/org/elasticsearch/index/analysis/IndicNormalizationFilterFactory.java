@@ -27,7 +27,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  * Factory for {@link IndicNormalizationFilter}
  */
-public class IndicNormalizationFilterFactory extends AbstractTokenFilterFactory {
+public class IndicNormalizationFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
     public IndicNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -38,4 +38,8 @@ public class IndicNormalizationFilterFactory extends AbstractTokenFilterFactory 
         return new IndicNormalizationFilter(tokenStream);
     }
 
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
+    }
 }

@@ -16,30 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.AnalysisFactoryTestCase;
 
-/**
- *
- */
-public class ArabicNormalizationFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
+import java.util.HashMap;
+import java.util.Map;
 
-    public ArabicNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
-    }
+public class AnalysisSmartChineseFactoryTests extends AnalysisFactoryTestCase {
 
     @Override
-    public TokenStream create(TokenStream tokenStream) {
-        return new ArabicNormalizationFilter(tokenStream);
+    protected Map<String, Class<?>> getTokenizers() {
+        Map<String, Class<?>> tokenizers = new HashMap<>(super.getTokenizers());
+        tokenizers.put("hmmchinese", SmartChineseTokenizerTokenizerFactory.class);
+        return tokenizers;
     }
 
-    @Override
-    public Object getMultiTermComponent() {
-        return this;
-    }
 }

@@ -371,7 +371,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * This test isolates the master from rest of the cluster, waits for a new master to be elected, restores the partition
      * and verifies that all node agree on the new cluster state
      */
-    @TestLogging("_root:DEBUG,cluster.service:TRACE,gateway:TRACE")
+    @TestLogging("_root:DEBUG,cluster.service:TRACE,gateway:TRACE,indices.store:TRACE")
     public void testIsolateMasterAndVerifyClusterStateConsensus() throws Exception {
         final List<String> nodes = startCluster(3);
 

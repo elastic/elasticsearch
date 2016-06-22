@@ -58,7 +58,7 @@ for (String box : getProperties().get('vagrant.boxes', 'sample').split(',')) {
 
 /* The version of elasticsearch that we upgrade *from* as part of testing
  * upgrades. */
-String upgradeFromVersion = '2.0.0'
+String upgradeFromVersion = '2.3.3'
 
 configurations {
   test

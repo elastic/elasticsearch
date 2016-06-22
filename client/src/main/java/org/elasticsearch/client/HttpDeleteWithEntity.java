@@ -16,26 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.client;
+package org.elasticsearch.client;
+
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
+
+import java.net.URI;
 
 /**
- * Thrown when a status code that holds an error is received (unless needs to be ignored)
- * Holds the original {@link RestResponse}
+ * Allows to send DELETE requests providing a body (not supported out of the box)
  */
-public class RestException extends Exception {
+final class HttpDeleteWithEntity extends HttpEntityEnclosingRequestBase {
 
-    private final RestResponse restResponse;
+    final static String METHOD_NAME = HttpDelete.METHOD_NAME;
 
-    public RestException(String message, RestResponse restResponse) {
-        super(message);
-        this.restResponse = restResponse;
+    HttpDeleteWithEntity(final URI uri) {
+        setURI(uri);
     }
 
-    public RestResponse restResponse() {
-        return restResponse;
-    }
-
-    public int statusCode() {
-        return restResponse.getStatusCode();
+    @Override
+    public String getMethod() {
+        return METHOD_NAME;
     }
 }

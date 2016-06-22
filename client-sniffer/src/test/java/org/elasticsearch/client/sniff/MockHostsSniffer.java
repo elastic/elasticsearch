@@ -16,25 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.client.http;
 
-import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
+package org.elasticsearch.client.sniff;
 
-import java.net.URI;
+import org.apache.http.HttpHost;
 
-/**
- * Allows to send GET requests providing a body (not supported out of the box)
- */
-public class HttpGetWithEntity extends HttpEntityEnclosingRequestBase {
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
-    public final static String METHOD_NAME = "GET";
-
-    public HttpGetWithEntity(final URI uri) {
-        setURI(uri);
+class MockHostsSniffer extends HostsSniffer {
+    MockHostsSniffer() {
+        super(null, -1, null);
     }
 
     @Override
-    public String getMethod() {
-        return METHOD_NAME;
+    public List<HttpHost> sniffHosts() throws IOException {
+        List<HttpHost> hosts = new ArrayList<>();
+        hosts.add(new HttpHost("localhost", 9200));
+        return hosts;
     }
 }

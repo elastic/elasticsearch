@@ -16,25 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.client.http;
 
-import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
+package org.elasticsearch.client;
 
-import java.net.URI;
+import org.apache.http.StatusLine;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.message.BasicHttpResponse;
+
+import java.io.IOException;
 
 /**
- * Allows to send DELETE requests providing a body (not supported out of the box)
+ * Simple {@link CloseableHttpResponse} impl needed to easily create http responses that are closeable given that
+ * org.apache.http.impl.execchain.HttpResponseProxy is not public.
  */
-public class HttpDeleteWithEntity extends HttpEntityEnclosingRequestBase {
+class CloseableBasicHttpResponse extends BasicHttpResponse implements CloseableHttpResponse {
 
-    public final static String METHOD_NAME = "DELETE";
-
-    public HttpDeleteWithEntity(final URI uri) {
-        setURI(uri);
+    public CloseableBasicHttpResponse(StatusLine statusline) {
+        super(statusline);
     }
 
     @Override
-    public String getMethod() {
-        return METHOD_NAME;
+    public void close() throws IOException {
+        //nothing to close
     }
 }

@@ -219,12 +219,12 @@ public class SearchSourceBuilderTests extends ESTestCase {
             for (int i = 0; i < fieldsSize; i++) {
                 fields.add(randomAsciiOfLengthBetween(5, 50));
             }
-            builder.fields(fields);
+            builder.storedFields(fields);
         }
         if (randomBoolean()) {
             int fieldDataFieldsSize = randomInt(25);
             for (int i = 0; i < fieldDataFieldsSize; i++) {
-                builder.fieldDataField(randomAsciiOfLengthBetween(5, 50));
+                builder.docValueField(randomAsciiOfLengthBetween(5, 50));
             }
         }
         if (randomBoolean()) {

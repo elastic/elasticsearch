@@ -42,5 +42,3 @@ include::indices/request_cache.asciidoc[]
 
 include::indices/recovery.asciidoc[]
 
-include::indices/ttl_interval.asciidoc[]
-

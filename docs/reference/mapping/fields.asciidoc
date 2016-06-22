@@ -84,10 +84,6 @@ include::fields/routing-field.asciidoc[]
 
 include::fields/source-field.asciidoc[]
 
-include::fields/timestamp-field.asciidoc[]
-
-include::fields/ttl-field.asciidoc[]
-
 include::fields/type-field.asciidoc[]
 
 include::fields/uid-field.asciidoc[]

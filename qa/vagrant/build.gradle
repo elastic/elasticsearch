@@ -84,7 +84,7 @@ dependencies {
   if (maybeUpdradeFromVersions != null) {
     upgradeFromVersions = maybeUpdradeFromVersions.split(",")
   } else {
-    upgradeFromVersions = new File(project.projectDir, 'src/build/resources/versions')
+    upgradeFromVersions = new File(project.projectDir, 'versions')
   }
 
   upgradeFromVersion = upgradeFromVersions[new Random(seed).nextInt(upgradeFromVersions.length)]
@@ -125,7 +125,7 @@ Set<String> getVersions() {
 
 task updatePackagingTestUpgradeFromVersions {
   Set<String> versions = getVersions()
-  new File(project.projectDir, '/src/build/resources/versions').text = versions.join('\n') + '\n'
+  new File(project.projectDir, 'versions').text = versions.join('\n') + '\n'
 }
 
 task verifyPackagingTestUpgradeFromVersions {

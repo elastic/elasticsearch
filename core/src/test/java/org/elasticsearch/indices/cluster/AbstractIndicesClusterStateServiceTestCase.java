@@ -21,6 +21,7 @@ package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
@@ -37,8 +38,8 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndex;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService.Shard;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService.Shard;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -49,13 +50,17 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Abstract base class for tests against {@link IndicesClusterStateService}
@@ -85,7 +90,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 Index index = shardRouting.index();
                 IndexMetaData indexMetaData = state.metaData().getIndexSafe(index);
 
-                Shard shard = indicesService.getShardOrNull(shardRouting.shardId());
+                MockIndexShard shard = (MockIndexShard) indicesService.getShardOrNull(shardRouting.shardId());
                 ShardRouting failedShard = failedShardsCache.get(shardRouting.shardId());
                 if (shard == null && failedShard == null) {
                     fail("Shard with id " + shardRouting + " expected but missing in indicesService and failedShardsCache");
@@ -106,6 +111,22 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                             shard != null);
                         // shard has latest shard routing
                         assertThat(shard.routingEntry(), equalTo(shardRouting));
+
+                        final IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shard.shardId());
+                        final Set<String> initializingIds = shardRoutingTable.getAllInitializingShards().stream()
+                            .map(r -> r.allocationId().getId()).collect(Collectors.toSet());
+                        final Set<String> activeIds = shardRoutingTable.activeShards().stream().map(r -> r.allocationId().getId())
+                            .collect(Collectors.toSet());
+                        if (shardRouting.primary() == false) {
+                            assertThat(shard.activeIds(), nullValue());
+                            assertThat(shard.initializingIds(), nullValue());
+                        } else if (shardRouting.active()) {
+                            assertThat(shard.activeIds(), equalTo(activeIds));
+                            assertThat(shard.initializingIds(), equalTo(initializingIds));
+                        } else {
+                            assertThat(shard.activeIds(), anyOf(nullValue(), equalTo(activeIds)));
+                            assertThat(shard.initializingIds(), anyOf(nullValue(), equalTo(initializingIds)));
+                        }
                     }
                 }
             }
@@ -286,6 +307,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
     protected class MockIndexShard implements IndicesClusterStateService.Shard {
         private volatile ShardRouting shardRouting;
         private volatile RecoveryState recoveryState;
+        private volatile Set<String> initializingIds;
+        private volatile Set<String> activeIds;
 
         public MockIndexShard(ShardRouting shardRouting) {
             this.shardRouting = shardRouting;
@@ -317,6 +340,20 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             assert this.shardId().equals(shardRouting.shardId());
             assert this.shardRouting.isSameAllocation(shardRouting);
             this.shardRouting = shardRouting;
+        }
+
+        @Override
+        public void updateAllocationIdsFromMaster(Set<String> activeIds, Set<String> initializingIds) {
+            this.activeIds = activeIds;
+            this.initializingIds = initializingIds;
+        }
+
+        public Set<String> initializingIds() {
+            return initializingIds;
+        }
+
+        public Set<String> activeIds() {
+            return activeIds;
         }
     }
 }

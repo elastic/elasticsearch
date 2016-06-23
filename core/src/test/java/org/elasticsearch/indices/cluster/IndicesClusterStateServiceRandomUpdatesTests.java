@@ -61,6 +61,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+
 public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndicesClusterStateServiceTestCase {
 
     private final ClusterStateChanges cluster = new ClusterStateChanges();
@@ -275,7 +276,9 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             transportService, null, clusterService);
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         return new IndicesClusterStateService(Settings.EMPTY, indicesService, clusterService,
-            threadPool, recoveryTargetService, shardStateAction, null, repositoriesService, null, null, null, null, null, null);
+            threadPool, recoveryTargetService, shardStateAction, null, repositoriesService, null, null, null, null, null,
+            shardId -> {
+            });
     }
 
 }

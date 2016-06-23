@@ -34,6 +34,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -56,10 +57,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- *
+ * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
+ * this class are created through {@link RecoveriesCollection}.
  */
-
-
 public class RecoveryTarget extends AbstractRefCounted implements RecoveryTargetHandler {
 
     private final ESLogger logger;
@@ -75,6 +75,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final String tempFilePrefix;
     private final Store store;
     private final RecoveryTargetService.RecoveryListener listener;
+    private final Callback<Long> ensureClusterStateVersionCallback;
 
     private final AtomicBoolean finished = new AtomicBoolean();
 
@@ -87,15 +88,26 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
     private RecoveryTarget(RecoveryTarget copyFrom) { // copy constructor
-        this(copyFrom.indexShard, copyFrom.sourceNode, copyFrom.listener, copyFrom.cancellableThreads, copyFrom.recoveryId);
+        this(copyFrom.indexShard, copyFrom.sourceNode, copyFrom.listener, copyFrom.cancellableThreads, copyFrom.recoveryId,
+            copyFrom.ensureClusterStateVersionCallback);
     }
 
-    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryTargetService.RecoveryListener listener) {
-        this(indexShard, sourceNode, listener, new CancellableThreads(), idGenerator.incrementAndGet());
+    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryTargetService.RecoveryListener listener,
+                          Callback<Long> ensureClusterStateVersionCallback) {
+        this(indexShard, sourceNode, listener, new CancellableThreads(), idGenerator.incrementAndGet(), ensureClusterStateVersionCallback);
     }
-
+    /**
+     * creates a new recovery target object that represents a recovery to the provided indexShard
+     *
+     * @param indexShard local shard where we want to recover to
+     * @param sourceNode source node of the recovery where we recover from
+     * @param listener called when recovery is completed / failed
+     * @param ensureClusterStateVersionCallback callback to ensure that the current node is at least on a cluster state with the provided
+     *                                          version. Necessary for primary relocation so that new primary knows about all other ongoing
+     *                                          replica recoveries when replicating documents (see {@link RecoverySourceHandler}).
+     */
     private RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryTargetService.RecoveryListener listener,
-                           CancellableThreads cancellableThreads, long recoveryId) {
+                           CancellableThreads cancellableThreads, long recoveryId, Callback<Long> ensureClusterStateVersionCallback) {
         super("recovery_status");
         this.cancellableThreads = cancellableThreads;
         this.recoveryId = recoveryId;
@@ -106,6 +118,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.shardId = indexShard.shardId();
         this.tempFilePrefix = RECOVERY_PREFIX + UUIDs.base64UUID() + ".";
         this.store = indexShard.store();
+        this.ensureClusterStateVersionCallback = ensureClusterStateVersionCallback;
         // make sure the store is not released until we are done.
         store.incRef();
         indexShard.recoveryStats().incCurrentAsTarget();
@@ -319,6 +332,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     @Override
     public void finalizeRecovery() {
         indexShard().finalizeRecovery();
+    }
+
+    @Override
+    public void ensureClusterStateVersion(long clusterStateVersion) {
+        ensureClusterStateVersionCallback.handle(clusterStateVersion);
     }
 
     @Override

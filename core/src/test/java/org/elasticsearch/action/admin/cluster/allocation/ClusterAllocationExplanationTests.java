@@ -202,7 +202,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
                 yesDecision, nodeWeight, storeStatus, "", activeAllocationIds, false);
         nodeExplanations.put(ne.getNode(), ne);
         ClusterAllocationExplanation cae = new ClusterAllocationExplanation(shard, true,
-                "assignedNode", allocationDelay, remainingDelay, null, false, nodeExplanations);
+                "assignedNode", allocationDelay, remainingDelay, null, false, nodeExplanations, null);
         BytesStreamOutput out = new BytesStreamOutput();
         cae.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes());
@@ -240,7 +240,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         Map<DiscoveryNode, NodeExplanation> nodeExplanations = new HashMap<>(1);
         nodeExplanations.put(ne.getNode(), ne);
         ClusterAllocationExplanation cae = new ClusterAllocationExplanation(shardId, true,
-                "assignedNode", 42, 42, null, false, nodeExplanations);
+                "assignedNode", 42, 42, null, false, nodeExplanations, null);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"shard\":{\"index\":\"foo\",\"index_uuid\":\"uuid\",\"id\":0,\"primary\":true},\"assigned\":true," +

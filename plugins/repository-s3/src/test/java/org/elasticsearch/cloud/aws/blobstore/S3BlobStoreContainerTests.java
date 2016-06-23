@@ -19,11 +19,9 @@
 
 package org.elasticsearch.cloud.aws.blobstore;
 
-import com.amazonaws.Protocol;
-import com.amazonaws.services.s3.AmazonS3;
-import org.elasticsearch.cloud.aws.InternalAwsS3Service;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
 
@@ -32,15 +30,10 @@ import java.util.Locale;
 
 public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
     protected BlobStore newBlobStore() throws IOException {
-        int maxRetries = 5;
-        String region = null;
-        Settings settings = Settings.EMPTY;
-
-        InternalAwsS3Service service = new InternalAwsS3Service(settings);
-        AmazonS3 client = service.client(null, Protocol.HTTPS, region, null, null, maxRetries);
+        MockAmazonS3 client = new MockAmazonS3();
         String bucket = randomAsciiOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
 
-        return new S3BlobStore(settings, client, bucket, region, false,
-            new ByteSizeValue(100), maxRetries, "public-read-write", "standard");
+        return new S3BlobStore(Settings.EMPTY, client, bucket, null, false,
+            new ByteSizeValue(10, ByteSizeUnit.MB), 5, "public-read-write", "standard");
     }
 }

@@ -21,36 +21,25 @@ package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cloud.azure.blobstore.AzureBlobStore;
-import org.elasticsearch.cloud.azure.storage.AzureStorageService;
-import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
+import org.elasticsearch.cloud.azure.storage.AzureStorageServiceMock;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
-import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 
-import static org.elasticsearch.cloud.azure.AzureTestUtils.readSettingsFromFile;
-
-/**
- * You must specify {@code -Dtests.thirdparty=true -Dtests.config=/path/to/elasticsearch.yml}
- * in order to run these tests.
- */
-@ESIntegTestCase.ThirdParty
 public class AzureBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
     @Override
     protected BlobStore newBlobStore() throws IOException {
         try {
             RepositoryName repositoryName = new RepositoryName("azure", "ittest");
-            Settings settings = readSettingsFromFile();
-            RepositorySettings repositorySettings = new RepositorySettings(settings, Settings.builder().build());
-            AzureStorageService storageService = new AzureStorageServiceImpl(settings);
-            AzureBlobStore blobStore = new AzureBlobStore(repositoryName, settings, repositorySettings, storageService);
-            blobStore.createContainer(blobStore.container());
-            return blobStore;
+            RepositorySettings repositorySettings = new RepositorySettings(
+                    Settings.EMPTY, Settings.EMPTY);
+            AzureStorageServiceMock client = new AzureStorageServiceMock(Settings.EMPTY);
+            return new AzureBlobStore(repositoryName, Settings.EMPTY, repositorySettings, client);
         } catch (URISyntaxException | StorageException e) {
             throw new IOException(e);
         }

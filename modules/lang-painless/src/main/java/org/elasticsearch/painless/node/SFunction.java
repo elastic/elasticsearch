@@ -23,10 +23,10 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Parameter;
 import org.elasticsearch.painless.Locals.Variable;
@@ -66,7 +66,7 @@ public class SFunction extends AStatement {
     Variable loop = null;
 
     public SFunction(FunctionReserved reserved, Location location,
-                     String rtnType, String name, List<String> paramTypes, 
+                     String rtnType, String name, List<String> paramTypes,
                      List<String> paramNames, List<AStatement> statements, boolean synthetic) {
         super(location);
 
@@ -78,7 +78,7 @@ public class SFunction extends AStatement {
         this.statements = Collections.unmodifiableList(statements);
         this.synthetic = synthetic;
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         // we should never be extracting from a function, as functions are top-level!
@@ -150,7 +150,7 @@ public class SFunction extends AStatement {
             loop = locals.getVariable(null, FunctionReserved.LOOP);
         }
     }
-    
+
     /** Writes the function to given ClassVisitor. */
     void write (ClassVisitor writer, CompilerSettings settings, Globals globals) {
         int access = Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC;
@@ -184,7 +184,7 @@ public class SFunction extends AStatement {
         }
 
         String staticHandleFieldName = Def.getUserFunctionHandleFieldName(name, parameters.size());
-        globals.addConstantInitializer(new Constant(location, WriterConstants.METHOD_HANDLE_TYPE, 
+        globals.addConstantInitializer(new Constant(location, WriterConstants.METHOD_HANDLE_TYPE,
                                                     staticHandleFieldName, this::initializeConstant));
     }
 
@@ -196,7 +196,7 @@ public class SFunction extends AStatement {
                 false);
         writer.push(handle);
     }
-    
+
     /**
      * Tracks reserved variables.  Must be given to any source of input
      * prior to beginning the analysis phase so that reserved variables
@@ -210,7 +210,7 @@ public class SFunction extends AStatement {
         void setMaxLoopCounter(int max);
         int getMaxLoopCounter();
     }
-    
+
     public static final class FunctionReserved implements Reserved {
         public static final String THIS = "#this";
         public static final String LOOP = "#loop";

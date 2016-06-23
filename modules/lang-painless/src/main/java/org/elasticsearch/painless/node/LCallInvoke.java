@@ -19,15 +19,15 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.lang.invoke.MethodType;
@@ -44,7 +44,7 @@ public final class LCallInvoke extends ALink {
     final List<AExpression> arguments;
 
     Method method = null;
-    
+
     boolean box = false; // true for primitive types
 
     public LCallInvoke(Location location, String name, List<AExpression> arguments) {
@@ -53,7 +53,7 @@ public final class LCallInvoke extends ALink {
         this.name = Objects.requireNonNull(name);
         this.arguments = Objects.requireNonNull(arguments);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         for (AExpression argument : arguments) {
@@ -114,7 +114,7 @@ public final class LCallInvoke extends ALink {
     @Override
     void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
-        
+
         if (box) {
             writer.box(before.type);
         }
@@ -122,7 +122,7 @@ public final class LCallInvoke extends ALink {
         for (AExpression argument : arguments) {
             argument.write(writer, globals);
         }
-        
+
         method.write(writer);
     }
 

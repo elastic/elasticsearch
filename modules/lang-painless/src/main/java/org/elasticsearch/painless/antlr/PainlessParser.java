@@ -1,13 +1,25 @@
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.painless.antlr;
-import org.antlr.v4.runtime.atn.*;
+
+import org.antlr.v4.runtime.FailedPredicateException;
+import org.antlr.v4.runtime.NoViableAltException;
+import org.antlr.v4.runtime.Parser;
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.RecognitionException;
+import org.antlr.v4.runtime.RuleContext;
+import org.antlr.v4.runtime.RuntimeMetaData;
+import org.antlr.v4.runtime.TokenStream;
+import org.antlr.v4.runtime.Vocabulary;
+import org.antlr.v4.runtime.VocabularyImpl;
+import org.antlr.v4.runtime.atn.ATN;
+import org.antlr.v4.runtime.atn.ATNDeserializer;
+import org.antlr.v4.runtime.atn.ParserATNSimulator;
+import org.antlr.v4.runtime.atn.PredictionContextCache;
 import org.antlr.v4.runtime.dfa.DFA;
-import org.antlr.v4.runtime.*;
-import org.antlr.v4.runtime.misc.*;
-import org.antlr.v4.runtime.tree.*;
+import org.antlr.v4.runtime.tree.ParseTreeVisitor;
+import org.antlr.v4.runtime.tree.TerminalNode;
+
 import java.util.List;
-import java.util.Iterator;
-import java.util.ArrayList;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 class PainlessParser extends Parser {
@@ -17,56 +29,56 @@ class PainlessParser extends Parser {
   protected static final PredictionContextCache _sharedContextCache =
     new PredictionContextCache();
   public static final int
-    WS=1, COMMENT=2, LBRACK=3, RBRACK=4, LBRACE=5, RBRACE=6, LP=7, RP=8, DOT=9, 
-    COMMA=10, SEMICOLON=11, IF=12, ELSE=13, WHILE=14, DO=15, FOR=16, CONTINUE=17, 
-    BREAK=18, RETURN=19, NEW=20, TRY=21, CATCH=22, THROW=23, THIS=24, BOOLNOT=25, 
-    BWNOT=26, MUL=27, DIV=28, REM=29, ADD=30, SUB=31, LSH=32, RSH=33, USH=34, 
-    LT=35, LTE=36, GT=37, GTE=38, EQ=39, EQR=40, NE=41, NER=42, BWAND=43, 
-    XOR=44, BWOR=45, BOOLAND=46, BOOLOR=47, COND=48, COLON=49, REF=50, ARROW=51, 
-    FIND=52, MATCH=53, INCR=54, DECR=55, ASSIGN=56, AADD=57, ASUB=58, AMUL=59, 
-    ADIV=60, AREM=61, AAND=62, AXOR=63, AOR=64, ALSH=65, ARSH=66, AUSH=67, 
-    OCTAL=68, HEX=69, INTEGER=70, DECIMAL=71, STRING=72, REGEX=73, TRUE=74, 
+    WS=1, COMMENT=2, LBRACK=3, RBRACK=4, LBRACE=5, RBRACE=6, LP=7, RP=8, DOT=9,
+    COMMA=10, SEMICOLON=11, IF=12, ELSE=13, WHILE=14, DO=15, FOR=16, CONTINUE=17,
+    BREAK=18, RETURN=19, NEW=20, TRY=21, CATCH=22, THROW=23, THIS=24, BOOLNOT=25,
+    BWNOT=26, MUL=27, DIV=28, REM=29, ADD=30, SUB=31, LSH=32, RSH=33, USH=34,
+    LT=35, LTE=36, GT=37, GTE=38, EQ=39, EQR=40, NE=41, NER=42, BWAND=43,
+    XOR=44, BWOR=45, BOOLAND=46, BOOLOR=47, COND=48, COLON=49, REF=50, ARROW=51,
+    FIND=52, MATCH=53, INCR=54, DECR=55, ASSIGN=56, AADD=57, ASUB=58, AMUL=59,
+    ADIV=60, AREM=61, AAND=62, AXOR=63, AOR=64, ALSH=65, ARSH=66, AUSH=67,
+    OCTAL=68, HEX=69, INTEGER=70, DECIMAL=71, STRING=72, REGEX=73, TRUE=74,
     FALSE=75, NULL=76, TYPE=77, ID=78, DOTINTEGER=79, DOTID=80;
   public static final int
-    RULE_source = 0, RULE_function = 1, RULE_parameters = 2, RULE_statement = 3, 
-    RULE_trailer = 4, RULE_block = 5, RULE_empty = 6, RULE_initializer = 7, 
-    RULE_afterthought = 8, RULE_declaration = 9, RULE_decltype = 10, RULE_declvar = 11, 
-    RULE_trap = 12, RULE_delimiter = 13, RULE_expression = 14, RULE_unary = 15, 
-    RULE_chain = 16, RULE_primary = 17, RULE_secondary = 18, RULE_dot = 19, 
-    RULE_brace = 20, RULE_arguments = 21, RULE_argument = 22, RULE_lambda = 23, 
-    RULE_lamtype = 24, RULE_funcref = 25, RULE_classFuncref = 26, RULE_constructorFuncref = 27, 
-    RULE_capturingFuncref = 28, RULE_localFuncref = 29, RULE_arrayinitializer = 30, 
+    RULE_source = 0, RULE_function = 1, RULE_parameters = 2, RULE_statement = 3,
+    RULE_trailer = 4, RULE_block = 5, RULE_empty = 6, RULE_initializer = 7,
+    RULE_afterthought = 8, RULE_declaration = 9, RULE_decltype = 10, RULE_declvar = 11,
+    RULE_trap = 12, RULE_delimiter = 13, RULE_expression = 14, RULE_unary = 15,
+    RULE_chain = 16, RULE_primary = 17, RULE_secondary = 18, RULE_dot = 19,
+    RULE_brace = 20, RULE_arguments = 21, RULE_argument = 22, RULE_lambda = 23,
+    RULE_lamtype = 24, RULE_funcref = 25, RULE_classFuncref = 26, RULE_constructorFuncref = 27,
+    RULE_capturingFuncref = 28, RULE_localFuncref = 29, RULE_arrayinitializer = 30,
     RULE_listinitializer = 31, RULE_mapinitializer = 32, RULE_maptoken = 33;
   public static final String[] ruleNames = {
-    "source", "function", "parameters", "statement", "trailer", "block", "empty", 
-    "initializer", "afterthought", "declaration", "decltype", "declvar", "trap", 
-    "delimiter", "expression", "unary", "chain", "primary", "secondary", "dot", 
-    "brace", "arguments", "argument", "lambda", "lamtype", "funcref", "classFuncref", 
-    "constructorFuncref", "capturingFuncref", "localFuncref", "arrayinitializer", 
+    "source", "function", "parameters", "statement", "trailer", "block", "empty",
+    "initializer", "afterthought", "declaration", "decltype", "declvar", "trap",
+    "delimiter", "expression", "unary", "chain", "primary", "secondary", "dot",
+    "brace", "arguments", "argument", "lambda", "lamtype", "funcref", "classFuncref",
+    "constructorFuncref", "capturingFuncref", "localFuncref", "arrayinitializer",
     "listinitializer", "mapinitializer", "maptoken"
   };
 
   private static final String[] _LITERAL_NAMES = {
-    null, null, null, "'{'", "'}'", "'['", "']'", "'('", "')'", "'.'", "','", 
-    "';'", "'if'", "'else'", "'while'", "'do'", "'for'", "'continue'", "'break'", 
-    "'return'", "'new'", "'try'", "'catch'", "'throw'", "'this'", "'!'", "'~'", 
-    "'*'", "'/'", "'%'", "'+'", "'-'", "'<<'", "'>>'", "'>>>'", "'<'", "'<='", 
-    "'>'", "'>='", "'=='", "'==='", "'!='", "'!=='", "'&'", "'^'", "'|'", 
-    "'&&'", "'||'", "'?'", "':'", "'::'", "'->'", "'=~'", "'==~'", "'++'", 
-    "'--'", "'='", "'+='", "'-='", "'*='", "'/='", "'%='", "'&='", "'^='", 
-    "'|='", "'<<='", "'>>='", "'>>>='", null, null, null, null, null, null, 
+    null, null, null, "'{'", "'}'", "'['", "']'", "'('", "')'", "'.'", "','",
+    "';'", "'if'", "'else'", "'while'", "'do'", "'for'", "'continue'", "'break'",
+    "'return'", "'new'", "'try'", "'catch'", "'throw'", "'this'", "'!'", "'~'",
+    "'*'", "'/'", "'%'", "'+'", "'-'", "'<<'", "'>>'", "'>>>'", "'<'", "'<='",
+    "'>'", "'>='", "'=='", "'==='", "'!='", "'!=='", "'&'", "'^'", "'|'",
+    "'&&'", "'||'", "'?'", "':'", "'::'", "'->'", "'=~'", "'==~'", "'++'",
+    "'--'", "'='", "'+='", "'-='", "'*='", "'/='", "'%='", "'&='", "'^='",
+    "'|='", "'<<='", "'>>='", "'>>>='", null, null, null, null, null, null,
     "'true'", "'false'", "'null'"
   };
   private static final String[] _SYMBOLIC_NAMES = {
-    null, "WS", "COMMENT", "LBRACK", "RBRACK", "LBRACE", "RBRACE", "LP", "RP", 
-    "DOT", "COMMA", "SEMICOLON", "IF", "ELSE", "WHILE", "DO", "FOR", "CONTINUE", 
-    "BREAK", "RETURN", "NEW", "TRY", "CATCH", "THROW", "THIS", "BOOLNOT", 
-    "BWNOT", "MUL", "DIV", "REM", "ADD", "SUB", "LSH", "RSH", "USH", "LT", 
-    "LTE", "GT", "GTE", "EQ", "EQR", "NE", "NER", "BWAND", "XOR", "BWOR", 
-    "BOOLAND", "BOOLOR", "COND", "COLON", "REF", "ARROW", "FIND", "MATCH", 
-    "INCR", "DECR", "ASSIGN", "AADD", "ASUB", "AMUL", "ADIV", "AREM", "AAND", 
-    "AXOR", "AOR", "ALSH", "ARSH", "AUSH", "OCTAL", "HEX", "INTEGER", "DECIMAL", 
-    "STRING", "REGEX", "TRUE", "FALSE", "NULL", "TYPE", "ID", "DOTINTEGER", 
+    null, "WS", "COMMENT", "LBRACK", "RBRACK", "LBRACE", "RBRACE", "LP", "RP",
+    "DOT", "COMMA", "SEMICOLON", "IF", "ELSE", "WHILE", "DO", "FOR", "CONTINUE",
+    "BREAK", "RETURN", "NEW", "TRY", "CATCH", "THROW", "THIS", "BOOLNOT",
+    "BWNOT", "MUL", "DIV", "REM", "ADD", "SUB", "LSH", "RSH", "USH", "LT",
+    "LTE", "GT", "GTE", "EQ", "EQR", "NE", "NER", "BWAND", "XOR", "BWOR",
+    "BOOLAND", "BOOLOR", "COND", "COLON", "REF", "ARROW", "FIND", "MATCH",
+    "INCR", "DECR", "ASSIGN", "AADD", "ASUB", "AMUL", "ADIV", "AREM", "AAND",
+    "AXOR", "AOR", "ALSH", "ARSH", "AUSH", "OCTAL", "HEX", "INTEGER", "DECIMAL",
+    "STRING", "REGEX", "TRUE", "FALSE", "NULL", "TYPE", "ID", "DOTINTEGER",
     "DOTID"
   };
   public static final Vocabulary VOCABULARY = new VocabularyImpl(_LITERAL_NAMES, _SYMBOLIC_NAMES);
@@ -160,7 +172,7 @@ class PainlessParser extends Parser {
           setState(68);
           function();
           }
-          } 
+          }
         }
         setState(73);
         _errHandler.sync(this);
@@ -176,7 +188,7 @@ class PainlessParser extends Parser {
           setState(74);
           statement();
           }
-          } 
+          }
         }
         setState(79);
         _errHandler.sync(this);
@@ -332,7 +344,7 @@ class PainlessParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_statement; }
-   
+
     public StatementContext() { }
     public void copyFrom(StatementContext ctx) {
       super.copyFrom(ctx);
@@ -772,7 +784,7 @@ class PainlessParser extends Parser {
         match(TRY);
         setState(168);
         block();
-        setState(170); 
+        setState(170);
         _errHandler.sync(this);
         _alt = 1;
         do {
@@ -788,7 +800,7 @@ class PainlessParser extends Parser {
           default:
             throw new NoViableAltException(this);
           }
-          setState(172); 
+          setState(172);
           _errHandler.sync(this);
           _alt = getInterpreter().adaptivePredict(_input,10,_ctx);
         } while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
@@ -919,7 +931,7 @@ class PainlessParser extends Parser {
           setState(188);
           statement();
           }
-          } 
+          }
         }
         setState(193);
         _errHandler.sync(this);
@@ -1333,7 +1345,7 @@ class PainlessParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_expression; }
-   
+
     public ExpressionContext() { }
     public void copyFrom(ExpressionContext ctx) {
       super.copyFrom(ctx);
@@ -1497,7 +1509,7 @@ class PainlessParser extends Parser {
         }
         setState(238);
         expression(1);
-         ((AssignmentContext)_localctx).s =  false; 
+         ((AssignmentContext)_localctx).s =  false;
         }
         break;
       case 2:
@@ -1507,7 +1519,7 @@ class PainlessParser extends Parser {
         _prevctx = _localctx;
         setState(241);
         ((SingleContext)_localctx).u = unary(false);
-         ((SingleContext)_localctx).s =  ((SingleContext)_localctx).u.s; 
+         ((SingleContext)_localctx).s =  ((SingleContext)_localctx).u.s;
         }
         break;
       }
@@ -1537,7 +1549,7 @@ class PainlessParser extends Parser {
             }
             setState(248);
             expression(14);
-             ((BinaryContext)_localctx).s =  false; 
+             ((BinaryContext)_localctx).s =  false;
             }
             break;
           case 2:
@@ -1555,7 +1567,7 @@ class PainlessParser extends Parser {
             }
             setState(253);
             expression(13);
-             ((BinaryContext)_localctx).s =  false; 
+             ((BinaryContext)_localctx).s =  false;
             }
             break;
           case 3:
@@ -1573,7 +1585,7 @@ class PainlessParser extends Parser {
             }
             setState(258);
             expression(12);
-             ((BinaryContext)_localctx).s =  false; 
+             ((BinaryContext)_localctx).s =  false;
             }
             break;
           case 4:
@@ -1591,7 +1603,7 @@ class PainlessParser extends Parser {
             }
             setState(263);
             expression(11);
-             ((BinaryContext)_localctx).s =  false; 
+             ((BinaryContext)_localctx).s =  false;
             }
             break;
           case 5:
@@ -1609,7 +1621,7 @@ class PainlessParser extends Parser {
             }
             setState(268);
             expression(10);
-             ((CompContext)_localctx).s =  false; 
+             ((CompContext)_localctx).s =  false;
             }
             break;
           case 6:
@@ -1627,7 +1639,7 @@ class PainlessParser extends Parser {
             }
             setState(273);
             expression(9);
-             ((CompContext)_localctx).s =  false; 
+             ((CompContext)_localctx).s =  false;
             }
             break;
           case 7:
@@ -1640,7 +1652,7 @@ class PainlessParser extends Parser {
             match(BWAND);
             setState(278);
             expression(8);
-             ((BinaryContext)_localctx).s =  false; 
+             ((BinaryContext)_localctx).s =  false;
             }
             break;
           case 8:
@@ -1653,7 +1665,7 @@ class PainlessParser extends Parser {
             match(XOR);
             setState(283);
             expression(7);
-             ((BinaryContext)_localctx).s =  false; 
+             ((BinaryContext)_localctx).s =  false;
             }
             break;
           case 9:
@@ -1666,7 +1678,7 @@ class PainlessParser extends Parser {
             match(BWOR);
             setState(288);
             expression(6);
-             ((BinaryContext)_localctx).s =  false; 
+             ((BinaryContext)_localctx).s =  false;
             }
             break;
           case 10:
@@ -1679,7 +1691,7 @@ class PainlessParser extends Parser {
             match(BOOLAND);
             setState(293);
             expression(5);
-             ((BoolContext)_localctx).s =  false; 
+             ((BoolContext)_localctx).s =  false;
             }
             break;
           case 11:
@@ -1692,7 +1704,7 @@ class PainlessParser extends Parser {
             match(BOOLOR);
             setState(298);
             expression(4);
-             ((BoolContext)_localctx).s =  false; 
+             ((BoolContext)_localctx).s =  false;
             }
             break;
           case 12:
@@ -1709,11 +1721,11 @@ class PainlessParser extends Parser {
             match(COLON);
             setState(305);
             ((ConditionalContext)_localctx).e1 = expression(2);
-             ((ConditionalContext)_localctx).s =  ((ConditionalContext)_localctx).e0.s && ((ConditionalContext)_localctx).e1.s; 
+             ((ConditionalContext)_localctx).s =  ((ConditionalContext)_localctx).e0.s && ((ConditionalContext)_localctx).e1.s;
             }
             break;
           }
-          } 
+          }
         }
         setState(312);
         _errHandler.sync(this);
@@ -1741,7 +1753,7 @@ class PainlessParser extends Parser {
       this.c = c;
     }
     @Override public int getRuleIndex() { return RULE_unary; }
-   
+
     public UnaryContext() { }
     public void copyFrom(UnaryContext ctx) {
       super.copyFrom(ctx);
@@ -1943,7 +1955,7 @@ class PainlessParser extends Parser {
         } else {
           consume();
         }
-         ((NumericContext)_localctx).s =  false; 
+         ((NumericContext)_localctx).s =  false;
         }
         break;
       case 5:
@@ -1954,7 +1966,7 @@ class PainlessParser extends Parser {
         if (!( !_localctx.c )) throw new FailedPredicateException(this, " !$c ");
         setState(326);
         match(TRUE);
-         ((TrueContext)_localctx).s =  false; 
+         ((TrueContext)_localctx).s =  false;
         }
         break;
       case 6:
@@ -1965,7 +1977,7 @@ class PainlessParser extends Parser {
         if (!( !_localctx.c )) throw new FailedPredicateException(this, " !$c ");
         setState(329);
         match(FALSE);
-         ((FalseContext)_localctx).s =  false; 
+         ((FalseContext)_localctx).s =  false;
         }
         break;
       case 7:
@@ -1976,7 +1988,7 @@ class PainlessParser extends Parser {
         if (!( !_localctx.c )) throw new FailedPredicateException(this, " !$c ");
         setState(332);
         match(NULL);
-         ((NullContext)_localctx).s =  false; 
+         ((NullContext)_localctx).s =  false;
         }
         break;
       case 8:
@@ -1987,7 +1999,7 @@ class PainlessParser extends Parser {
         if (!( !_localctx.c )) throw new FailedPredicateException(this, " !$c ");
         setState(335);
         listinitializer();
-         ((ListinitContext)_localctx).s =  false; 
+         ((ListinitContext)_localctx).s =  false;
         }
         break;
       case 9:
@@ -1998,7 +2010,7 @@ class PainlessParser extends Parser {
         if (!( !_localctx.c )) throw new FailedPredicateException(this, " !$c ");
         setState(339);
         mapinitializer();
-         ((MapinitContext)_localctx).s =  false; 
+         ((MapinitContext)_localctx).s =  false;
         }
         break;
       case 10:
@@ -2053,7 +2065,7 @@ class PainlessParser extends Parser {
       this.c = c;
     }
     @Override public int getRuleIndex() { return RULE_chain; }
-   
+
     public ChainContext() { }
     public void copyFrom(ChainContext ctx) {
       super.copyFrom(ctx);
@@ -2133,7 +2145,7 @@ class PainlessParser extends Parser {
             setState(353);
             secondary(((DynamicContext)_localctx).p.s);
             }
-            } 
+            }
           }
           setState(358);
           _errHandler.sync(this);
@@ -2159,7 +2171,7 @@ class PainlessParser extends Parser {
             setState(361);
             secondary(true);
             }
-            } 
+            }
           }
           setState(366);
           _errHandler.sync(this);
@@ -2197,7 +2209,7 @@ class PainlessParser extends Parser {
       this.c = c;
     }
     @Override public int getRuleIndex() { return RULE_primary; }
-   
+
     public PrimaryContext() { }
     public void copyFrom(PrimaryContext ctx) {
       super.copyFrom(ctx);
@@ -2303,7 +2315,7 @@ class PainlessParser extends Parser {
         ((ExprprecContext)_localctx).e = expression(0);
         setState(373);
         match(RP);
-         ((ExprprecContext)_localctx).s =  ((ExprprecContext)_localctx).e.s; 
+         ((ExprprecContext)_localctx).s =  ((ExprprecContext)_localctx).e.s;
         }
         break;
       case 2:
@@ -2442,7 +2454,7 @@ class PainlessParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_dot; }
-   
+
     public DotContext() { }
     public void copyFrom(DotContext ctx) {
       super.copyFrom(ctx);
@@ -2525,7 +2537,7 @@ class PainlessParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_brace; }
-   
+
     public BraceContext() { }
     public void copyFrom(BraceContext ctx) {
       super.copyFrom(ctx);
@@ -3107,7 +3119,7 @@ class PainlessParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_arrayinitializer; }
-   
+
     public ArrayinitializerContext() { }
     public void copyFrom(ArrayinitializerContext ctx) {
       super.copyFrom(ctx);
@@ -3188,7 +3200,7 @@ class PainlessParser extends Parser {
         match(NEW);
         setState(474);
         match(TYPE);
-        setState(479); 
+        setState(479);
         _errHandler.sync(this);
         _alt = 1;
         do {
@@ -3208,7 +3220,7 @@ class PainlessParser extends Parser {
           default:
             throw new NoViableAltException(this);
           }
-          setState(481); 
+          setState(481);
           _errHandler.sync(this);
           _alt = getInterpreter().adaptivePredict(_input,37,_ctx);
         } while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
@@ -3228,7 +3240,7 @@ class PainlessParser extends Parser {
               setState(484);
               secondary(true);
               }
-              } 
+              }
             }
             setState(489);
             _errHandler.sync(this);

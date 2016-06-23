@@ -45,7 +45,6 @@ import org.elasticsearch.test.geo.RandomGeoGenerator;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.lang.NumberFormatException;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;

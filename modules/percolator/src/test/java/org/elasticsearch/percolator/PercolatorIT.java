@@ -19,7 +19,6 @@
 package org.elasticsearch.percolator;
 
 import com.vividsolutions.jts.geom.Coordinate;
-
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -60,7 +59,6 @@ import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
 
-import static org.elasticsearch.percolator.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
@@ -74,11 +72,12 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
+import static org.elasticsearch.percolator.PercolateSourceBuilder.docBuilder;
+import static org.elasticsearch.percolator.PercolatorTestUtil.assertMatchCount;
 import static org.elasticsearch.percolator.PercolatorTestUtil.convertFromTextArray;
+import static org.elasticsearch.percolator.PercolatorTestUtil.preparePercolate;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.percolator.PercolatorTestUtil.assertMatchCount;
-import static org.elasticsearch.percolator.PercolatorTestUtil.preparePercolate;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;

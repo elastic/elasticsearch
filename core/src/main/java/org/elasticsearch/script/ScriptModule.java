@@ -26,8 +26,6 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;

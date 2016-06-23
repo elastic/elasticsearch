@@ -68,7 +68,8 @@ public class NodeJoinController extends AbstractComponent {
     private ElectionContext electionContext = null;
 
 
-    public NodeJoinController(ClusterService clusterService, RoutingService routingService, ElectMasterService electMaster, DiscoverySettings discoverySettings, Settings settings) {
+    public NodeJoinController(ClusterService clusterService, RoutingService routingService, ElectMasterService electMaster,
+                              DiscoverySettings discoverySettings, Settings settings) {
         super(settings);
         this.clusterService = clusterService;
         this.routingService = routingService;

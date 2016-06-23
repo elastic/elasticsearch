@@ -32,7 +32,7 @@ import java.io.IOException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
-public class ExistsIndexBlocksIT extends ESIntegTestCase {
+public class IndicesExistsIT extends ESIntegTestCase {
 
     public void testIndexExistsWithBlocksInPlace() throws IOException {
         Settings settings = Settings.builder().put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), 99).build();

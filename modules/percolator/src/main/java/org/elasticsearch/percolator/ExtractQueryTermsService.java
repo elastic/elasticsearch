@@ -35,7 +35,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -70,13 +69,12 @@ public final class ExtractQueryTermsService {
     private static final byte FIELD_VALUE_SEPARATOR = 0;  // nul code point
     public static final String EXTRACTION_COMPLETE = "complete";
     public static final String EXTRACTION_PARTIAL = "partial";
-    public static final String EXTRACTION_NO_TERMS = "no_terms";
+    public static final String EXTRACTION_FAILED = "failed";
 
     static final Map<Class<? extends Query>, Function<Query, Result>> queryProcessors;
 
     static {
         Map<Class<? extends Query>, Function<Query, Result>> map = new HashMap<>(16);
-        map.put(MatchAllDocsQuery.class, matchAllDocsQuery());
         map.put(MatchNoDocsQuery.class, matchNoDocsQuery());
         map.put(ConstantScoreQuery.class, constantScoreQuery());
         map.put(BoostQuery.class, boostQuery());
@@ -115,7 +113,7 @@ public final class ExtractQueryTermsService {
         try {
             result = extractQueryTerms(query);
         } catch (UnsupportedQueryException e) {
-            document.add(new Field(extractionResultField, EXTRACTION_NO_TERMS, fieldType));
+            document.add(new Field(extractionResultField, EXTRACTION_FAILED, fieldType));
             return;
         }
         for (Term term : result.terms) {
@@ -124,10 +122,6 @@ public final class ExtractQueryTermsService {
             builder.append(FIELD_VALUE_SEPARATOR);
             builder.append(term.bytes());
             document.add(new Field(queryTermsFieldField, builder.toBytesRef(), fieldType));
-        }
-        if (result.noTerms) {
-            assert result.terms.isEmpty() : "Expected zero terms, but got [" + result.terms + "]";
-            document.add(new Field(extractionResultField, EXTRACTION_NO_TERMS, fieldType));
         }
         if (result.verified) {
             document.add(new Field(extractionResultField, EXTRACTION_COMPLETE, fieldType));
@@ -190,12 +184,8 @@ public final class ExtractQueryTermsService {
         }
     }
 
-    static Function<Query, Result> matchAllDocsQuery() {
-        return (query -> new Result(true, true));
-    }
-
     static Function<Query, Result> matchNoDocsQuery() {
-        return (query -> new Result(true, false));
+        return (query -> new Result());
     }
 
     static Function<Query, Result> constantScoreQuery() {
@@ -249,7 +239,7 @@ public final class ExtractQueryTermsService {
         return query -> {
             Term[] terms = ((PhraseQuery) query).getTerms();
             if (terms.length == 0) {
-                return new Result(true, false);
+                return new Result();
             }
 
             // the longest term is likely to be the rarest,
@@ -267,7 +257,7 @@ public final class ExtractQueryTermsService {
     static Function<Query, Result> spanTermQuery() {
         return query -> {
             Term term = ((SpanTermQuery) query).getTerm();
-            return new Result(false, Collections.singleton(term));
+            return new Result(true, Collections.singleton(term));
         };
     }
 
@@ -295,11 +285,17 @@ public final class ExtractQueryTermsService {
     }
 
     static Function<Query, Result> spanNotQuery() {
-        return query -> extractQueryTerms(((SpanNotQuery) query).getInclude());
+        return query -> {
+            Result result = extractQueryTerms(((SpanNotQuery) query).getInclude());
+            return new Result(false, result.terms);
+        };
     }
 
     static Function<Query, Result> spanFirstQuery() {
-        return query -> extractQueryTerms(((SpanFirstQuery) query).getMatch());
+        return query -> {
+            Result result = extractQueryTerms(((SpanFirstQuery) query).getMatch());
+            return new Result(false, result.terms);
+        };
     }
 
     static Function<Query, Result> booleanQuery() {
@@ -317,13 +313,11 @@ public final class ExtractQueryTermsService {
                 if (clause.isProhibited()) {
                     numProhibitedClauses++;
                 }
-                if (clause.isScoring()) {
+                if (clause.getOccur() == BooleanClause.Occur.SHOULD) {
                     numOptionalClauses++;
                 }
             }
             if (numRequiredClauses > 0) {
-                // Keep track if we mark this query as verfied if it only contains match_all in must clauses:
-                boolean verifiedIfMatchAll = numProhibitedClauses == 0;
                 Set<Term> bestClause = null;
                 UnsupportedQueryException uqe = null;
                 for (BooleanClause clause : clauses) {
@@ -337,11 +331,6 @@ public final class ExtractQueryTermsService {
                     Result temp;
                     try {
                         temp = extractQueryTerms(clause.getQuery());
-                        if (temp.noTerms) {
-                            continue;
-                        } else {
-                            verifiedIfMatchAll = false;
-                        }
                     } catch (UnsupportedQueryException e) {
                         uqe = e;
                         continue;
@@ -349,23 +338,20 @@ public final class ExtractQueryTermsService {
                     bestClause = selectTermListWithTheLongestShortestTerm(temp.terms, bestClause);
                 }
                 if (bestClause != null) {
-                    // 1 required clause, no prohibited clause, maybe some optional clauses, so it is verified:
-                    boolean verified = minimumShouldMatch == 0 && numProhibitedClauses == 0 && numRequiredClauses == 1;
-                    return new Result(verified, bestClause);
+                    return new Result(false, bestClause);
                 } else {
                     if (uqe != null) {
                         // we're unable to select the best clause and an exception occurred, so we bail
                         throw uqe;
                     } else {
-                        // We didn't find a clause and no exception occurred, so this bq only contained MatchAllDocsQueries
-                        // and / or MatchNoDocsQueries, so we mark this result as no terms, because no terms were extracted:
-                        return new Result(verifiedIfMatchAll, true);
+                        // We didn't find a clause and no exception occurred, so this bq only contained MatchNoDocsQueries,
+                        return new Result();
                     }
                 }
             } else {
                 List<Query> disjunctions = new ArrayList<>(numOptionalClauses);
                 for (BooleanClause clause : clauses) {
-                    if (clause.isScoring()) {
+                    if (clause.getOccur() == BooleanClause.Occur.SHOULD) {
                         disjunctions.add(clause.getQuery());
                     }
                 }
@@ -382,24 +368,16 @@ public final class ExtractQueryTermsService {
     }
 
     static Result handleDisjunction(List<Query> disjunctions, int minimumShouldMatch, boolean otherClauses) {
-        boolean noTerms = true;
-        boolean verified = disjunctions.size() > 0 && minimumShouldMatch <= 1 && otherClauses == false;
+        boolean verified = minimumShouldMatch <= 1 && otherClauses == false;
         Set<Term> terms = new HashSet<>();
         for (Query disjunct : disjunctions) {
             Result subResult = extractQueryTerms(disjunct);
             if (subResult.verified == false) {
                 verified = false;
             }
-            if (subResult.noTerms == false) {
-                noTerms = false;
-            }
             terms.addAll(subResult.terms);
         }
-        if (noTerms) {
-            return new Result(verified, true);
-        } else {
-            return new Result(verified, terms);
-        }
+        return new Result(verified, terms);
     }
 
     static Set<Term> selectTermListWithTheLongestShortestTerm(Set<Term> terms1, Set<Term> terms2) {
@@ -431,18 +409,15 @@ public final class ExtractQueryTermsService {
 
         final Set<Term> terms;
         final boolean verified;
-        final boolean noTerms;
 
-        Result(boolean verified, boolean noTerms) {
-            this.verified = verified;
-            this.noTerms = noTerms;
+        Result() {
+            this.verified = true;
             this.terms = Collections.emptySet();
         }
 
         Result(boolean verified, Set<Term> terms) {
             this.terms = terms;
             this.verified = verified;
-            this.noTerms = false;
         }
 
     }

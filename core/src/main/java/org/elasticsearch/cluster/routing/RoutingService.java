@@ -72,6 +72,10 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> {
     protected void doClose() {
     }
 
+    public AllocationService getAllocationService() {
+        return this.allocationService;
+    }
+
     /**
      * Initiates a reroute.
      */

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
@@ -98,7 +99,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         // make sure we have a master
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(
             DiscoveryNodes.builder(initialNodes).masterNodeId(localNode.getId())));
-        nodeJoinController = new NodeJoinController(clusterService, new NoopAllocationService(Settings.EMPTY),
+        nodeJoinController = new NodeJoinController(clusterService, new NoopRoutingService(Settings.EMPTY),
             new ElectMasterService(Settings.EMPTY),
             new DiscoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             Settings.EMPTY);
@@ -297,8 +298,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         }
 
         logger.debug("--> asserting master election didn't finish yet");
-        assertThat("election finished after [" + initialJoins + "] master nodes but required joins is [" + requiredJoins + "]",
-            electionFuture.isDone(), equalTo(false));
+        assertThat("election finished after [" + initialJoins + "] master nodes but required joins is [" + requiredJoins + "]", electionFuture.isDone(), equalTo(false));
 
         final int finalJoins = requiredJoins - initialJoins + randomInt(5);
         nodesToJoin.clear();
@@ -374,8 +374,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueMillis(1), new NodeJoinController.ElectionCallback() {
             @Override
             public void onElectedAsMaster(ClusterState state) {
-                assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(),
-                    equalTo(true));
+                assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(), equalTo(true));
                 latch.countDown();
             }
 
@@ -493,8 +492,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.ElectionCallback() {
             @Override
             public void onElectedAsMaster(ClusterState state) {
-                assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(),
-                    equalTo(true));
+                assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(), equalTo(true));
                 latch.countDown();
             }
 
@@ -518,6 +516,18 @@ public class NodeJoinControllerTests extends ESTestCase {
     }
 
 
+    static class NoopRoutingService extends RoutingService {
+
+        public NoopRoutingService(Settings settings) {
+            super(settings, null, new NoopAllocationService(settings));
+        }
+
+        @Override
+        protected void performReroute(String reason) {
+
+        }
+    }
+
     static class NoopAllocationService extends AllocationService {
 
         public NoopAllocationService(Settings settings) {
@@ -525,14 +535,12 @@ public class NodeJoinControllerTests extends ESTestCase {
         }
 
         @Override
-        public RoutingAllocation.Result applyStartedShards(ClusterState clusterState, List<? extends ShardRouting> startedShards,
-                                                           boolean withReroute) {
+        public RoutingAllocation.Result applyStartedShards(ClusterState clusterState, List<? extends ShardRouting> startedShards, boolean withReroute) {
             return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());
         }
 
         @Override
-        public RoutingAllocation.Result applyFailedShards(ClusterState clusterState,
-                                                          List<FailedRerouteAllocation.FailedShard> failedShards) {
+        public RoutingAllocation.Result applyFailedShards(ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards) {
             return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());
         }
 

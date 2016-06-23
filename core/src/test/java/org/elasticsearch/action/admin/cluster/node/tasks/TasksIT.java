@@ -70,7 +70,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -85,6 +84,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -437,8 +437,8 @@ public class TasksIT extends ESIntegTestCase {
     }
 
     public void testListTasksWaitForCompletion() throws Exception {
-        waitForCompletionTestCase(id -> {
-            return client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]")
+        waitForCompletionTestCase(randomBoolean(), id -> {
+            return client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME)
                     .setWaitForCompletion(true).execute();
         }, response -> {
             assertThat(response.getNodeFailures(), empty());
@@ -446,25 +446,39 @@ public class TasksIT extends ESIntegTestCase {
         });
     }
 
-    public void testGetTaskWaitForCompletion() throws Exception {
-        waitForCompletionTestCase(id -> {
+    public void testGetTaskWaitForCompletionNoPersist() throws Exception {
+        waitForCompletionTestCase(false, id -> {
             return client().admin().cluster().prepareGetTask(id).setWaitForCompletion(true).execute();
         }, response -> {
-            // Really we're just happy we didn't get any exceptions
             assertNotNull(response.getTask().getTask());
+            assertTrue(response.getTask().isCompleted());
+            // We didn't persist the result so it won't come back when we wait
+            assertNull(response.getTask().getResponse());
+        });
+    }
+
+    public void testGetTaskWaitForCompletionWithPersist() throws Exception {
+        waitForCompletionTestCase(true, id -> {
+            return client().admin().cluster().prepareGetTask(id).setWaitForCompletion(true).execute();
+        }, response -> {
+            assertNotNull(response.getTask().getTask());
+            assertTrue(response.getTask().isCompleted());
+            // We persisted the task so we should get its results
+            assertEquals(0, response.getTask().getResponseAsMap().get("failure_count"));
         });
     }
 
     /**
      * Test wait for completion.
+     * @param persist should the task persist its results
      * @param wait start waiting for a task. Accepts that id of the task to wait for and returns a future waiting for it.
      * @param validator validate the response and return the task ids that were found
      */
-    private <T> void waitForCompletionTestCase(Function<TaskId, ListenableActionFuture<T>> wait, Consumer<T> validator)
+    private <T> void waitForCompletionTestCase(boolean persist, Function<TaskId, ListenableActionFuture<T>> wait, Consumer<T> validator)
             throws Exception {
         // Start blocking test task
         ListenableActionFuture<TestTaskPlugin.NodesResponse> future = TestTaskPlugin.TestTaskAction.INSTANCE.newRequestBuilder(client())
-                .execute();
+                .setShouldPersistResult(persist).execute();
 
         ListenableActionFuture<T> waitResponseFuture;
         TaskId taskId;
@@ -513,7 +527,7 @@ public class TasksIT extends ESIntegTestCase {
     public void testListTasksWaitForTimeout() throws Exception {
         waitForTimeoutTestCase(id -> {
             ListTasksResponse response = client().admin().cluster().prepareListTasks()
-                    .setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").setWaitForCompletion(true).setTimeout(timeValueMillis(100))
+                    .setActions(TestTaskPlugin.TestTaskAction.NAME).setWaitForCompletion(true).setTimeout(timeValueMillis(100))
                     .get();
             assertThat(response.getNodeFailures(), not(empty()));
             return response.getNodeFailures();
@@ -539,6 +553,9 @@ public class TasksIT extends ESIntegTestCase {
         try {
             TaskId taskId = waitForTestTaskStartOnAllNodes();
 
+            // Wait for the task to start
+            assertBusy(() -> client().admin().cluster().prepareGetTask(taskId).get());
+
             // Spin up a request that should wait for those tasks to finish
             // It will timeout because we haven't unblocked the tasks
             Iterable<? extends Throwable> failures = wait.apply(taskId);
@@ -554,15 +571,18 @@ public class TasksIT extends ESIntegTestCase {
         future.get();
     }
 
+    /**
+     * Wait for the test task to be running on all nodes and return the TaskId of the primary task.
+     */
     private TaskId waitForTestTaskStartOnAllNodes() throws Exception {
-        AtomicReference<TaskId> result = new AtomicReference<>();
         assertBusy(() -> {
             List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]")
                     .get().getTasks();
             assertEquals(internalCluster().size(), tasks.size());
-            result.set(tasks.get(0).getTaskId());
         });
-        return result.get();
+        List<TaskInfo> task = client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME).get().getTasks();
+        assertThat(task, hasSize(1));
+        return task.get(0).getTaskId();
     }
 
     public void testTasksListWaitForNoTask() throws Exception {
@@ -626,7 +646,7 @@ public class TasksIT extends ESIntegTestCase {
         assertEquals(Long.toString(taskInfo.getId()), task.get("id").toString());
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> result = (Map<String, Object>) source.get("result");
+        Map<String, Object> result = (Map<String, Object>) source.get("response");
         assertEquals("0", result.get("failure_count").toString());
 
         assertNull(source.get("failure"));
@@ -647,7 +667,7 @@ public class TasksIT extends ESIntegTestCase {
         assertEquals(1L, searchResponse.getHits().totalHits());
 
         GetTaskResponse getResponse = expectFinishedTask(taskId);
-        assertEquals(result, getResponse.getTask().getResultAsMap());
+        assertEquals(result, getResponse.getTask().getResponseAsMap());
         assertNull(getResponse.getTask().getError());
     }
 
@@ -688,7 +708,7 @@ public class TasksIT extends ESIntegTestCase {
         assertNull(source.get("result"));
 
         GetTaskResponse getResponse = expectFinishedTask(failedTaskId);
-        assertNull(getResponse.getTask().getResult());
+        assertNull(getResponse.getTask().getResponse());
         assertEquals(error, getResponse.getTask().getErrorAsMap());
     }
 
@@ -728,7 +748,7 @@ public class TasksIT extends ESIntegTestCase {
         GetTaskResponse response = expectFinishedTask(new TaskId("fake:1"));
         assertEquals("test", response.getTask().getTask().getAction());
         assertNotNull(response.getTask().getError());
-        assertNull(response.getTask().getResult());
+        assertNull(response.getTask().getResponse());
     }
 
     @Override

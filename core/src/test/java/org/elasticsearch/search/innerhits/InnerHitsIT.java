@@ -156,7 +156,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.Avg).innerHit(
                         new InnerHitBuilder().setHighlightBuilder(new HighlightBuilder().field("comments.message"))
                                 .setExplain(true)
-                                .addFieldDataField("comments.message")
+                                .addDocValueField("comments.message")
                                 .addScriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()))
                                 .setSize(1)
                 )).get();
@@ -287,7 +287,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .setQuery(
                         hasChildQuery("comment", matchQuery("message", "fox"), ScoreMode.None).innerHit(
                                 new InnerHitBuilder()
-                                        .addFieldDataField("message")
+                                        .addDocValueField("message")
                                         .setHighlightBuilder(new HighlightBuilder().field("message"))
                                         .setExplain(true).setSize(1)
                                         .addScriptField("script", new Script("5", ScriptService.ScriptType.INLINE,

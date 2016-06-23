@@ -23,7 +23,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.maxmind.geoip2.DatabaseReader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.ingest.core.AbstractProcessorFactory;
+import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.junit.AfterClass;
@@ -54,8 +54,10 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Path configDir = createTempDir();
         Path geoIpConfigDir = configDir.resolve("ingest-geoip");
         Files.createDirectories(geoIpConfigDir);
-        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb.gz")), geoIpConfigDir.resolve("GeoLite2-City.mmdb.gz"));
-        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb.gz")), geoIpConfigDir.resolve("GeoLite2-Country.mmdb.gz"));
+        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb.gz")),
+                geoIpConfigDir.resolve("GeoLite2-City.mmdb.gz"));
+        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb.gz")),
+                geoIpConfigDir.resolve("GeoLite2-Country.mmdb.gz"));
         databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(geoIpConfigDir);
     }
 
@@ -136,7 +138,8 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             factory.create(config);
             fail("Exception expected");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[properties] illegal property value [" + cityProperty + "]. valid values are [IP, COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_NAME]"));
+            assertThat(e.getMessage(), equalTo("[properties] illegal property value [" + cityProperty +
+                    "]. valid values are [IP, COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_NAME]"));
         }
     }
 
@@ -183,7 +186,8 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             factory.create(config);
             fail("exception expected");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[properties] illegal property value [invalid]. valid values are [IP, COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_NAME, REGION_NAME, CITY_NAME, TIMEZONE, LOCATION]"));
+            assertThat(e.getMessage(), equalTo("[properties] illegal property value [invalid]. valid values are [IP, COUNTRY_ISO_CODE, " +
+                    "COUNTRY_NAME, CONTINENT_NAME, REGION_NAME, CITY_NAME, TIMEZONE, LOCATION]"));
         }
 
         config = new HashMap<>();

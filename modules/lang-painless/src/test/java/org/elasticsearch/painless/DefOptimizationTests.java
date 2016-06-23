@@ -456,4 +456,14 @@ public class DefOptimizationTests extends ScriptTestCase {
         assertBytecodeExists("def x = 1; double y = +x; return y", 
                              "INVOKEDYNAMIC plus(Ljava/lang/Object;)D");
     }
+    
+    public void testLambdaReturnType() {
+        assertBytecodeExists("List l = new ArrayList(); l.removeIf(x -> x < 10)",
+                             "synthetic lambda$0(Ljava/lang/Object;)Z");
+    }
+    
+    public void testLambdaArguments() {
+        assertBytecodeExists("List l = new ArrayList(); l.stream().mapToDouble(Double::valueOf).map(x -> x + 1)",
+                             "synthetic lambda$0(D)D");
+    }
 }

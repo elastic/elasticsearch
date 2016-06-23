@@ -19,11 +19,9 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.node.NodeModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.After;
 
 import java.io.Closeable;
 import java.io.IOException;

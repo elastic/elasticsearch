@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -118,5 +117,11 @@ public class BasicAPITests extends ScriptTestCase {
     public void testInterfacesHaveObject() {
         assertEquals("{}", exec("Map map = new HashMap(); return map.toString();"));
         assertEquals("{}", exec("def map = new HashMap(); return map.toString();"));
+    }
+    
+    public void testPrimitivesHaveMethods() {
+        assertEquals(5, exec("int x = 5; return x.intValue();"));
+        assertEquals("5", exec("int x = 5; return x.toString();"));
+        assertEquals(0, exec("int x = 5; return x.compareTo(5);"));
     }
 }

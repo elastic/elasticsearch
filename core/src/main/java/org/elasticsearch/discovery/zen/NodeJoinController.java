@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -58,7 +58,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class NodeJoinController extends AbstractComponent {
 
     private final ClusterService clusterService;
-    private final AllocationService allocationService;
+    private final RoutingService routingService;
     private final ElectMasterService electMaster;
     private final DiscoverySettings discoverySettings;
     private final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor();
@@ -68,11 +68,10 @@ public class NodeJoinController extends AbstractComponent {
     private ElectionContext electionContext = null;
 
 
-    public NodeJoinController(ClusterService clusterService, AllocationService allocationService, ElectMasterService electMaster,
-                              DiscoverySettings discoverySettings, Settings settings) {
+    public NodeJoinController(ClusterService clusterService, RoutingService routingService, ElectMasterService electMaster, DiscoverySettings discoverySettings, Settings settings) {
         super(settings);
         this.clusterService = clusterService;
-        this.allocationService = allocationService;
+        this.routingService = routingService;
         this.electMaster = electMaster;
         this.discoverySettings = discoverySettings;
     }
@@ -407,7 +406,21 @@ public class NodeJoinController extends AbstractComponent {
                 ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks())
                     .removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
                 newState.blocks(clusterBlocks);
+                newState.nodes(nodesBuilder);
                 nodesChanged = true;
+
+                // reroute now to remove any dead nodes (master may have stepped down when they left and didn't update the routing table)
+                // Note: also do it now to avoid assigning shards to these nodes. We will have another reroute after the cluster
+                // state is published.
+                // TODO: this publishing of a cluster state with no nodes assigned to joining nodes shouldn't be needed anymore. remove.
+
+                final ClusterState tmpState = newState.build();
+                RoutingAllocation.Result result = routingService.getAllocationService().reroute(tmpState, "nodes joined");
+                newState = ClusterState.builder(tmpState);
+                if (result.changed()) {
+                    newState.routingResult(result);
+                }
+                nodesBuilder = DiscoveryNodes.builder(tmpState.nodes());
             }
 
             if (nodesBuilder.isLocalNodeElectedMaster() == false) {
@@ -434,12 +447,6 @@ public class NodeJoinController extends AbstractComponent {
 
             if (nodesChanged) {
                 newState.nodes(nodesBuilder);
-                final ClusterState tmpState = newState.build();
-                RoutingAllocation.Result result = allocationService.reroute(tmpState, "node_join");
-                newState = ClusterState.builder(tmpState);
-                if (result.changed()) {
-                    newState.routingResult(result);
-                }
             }
 
             // we must return a new cluster state instance to force publishing. This is important
@@ -455,6 +462,13 @@ public class NodeJoinController extends AbstractComponent {
 
         @Override
         public void clusterStatePublished(ClusterChangedEvent event) {
+            if (event.nodesDelta().hasChanges()) {
+                // we reroute not in the same cluster state update since in certain areas we rely on
+                // the node to be in the cluster state (sampled from ClusterService#state) to be there, also
+                // shard transitions need to better be handled in such cases
+                routingService.reroute("post_node_add");
+            }
+
             NodeJoinController.this.electMaster.logMinimumMasterNodesWarningIfNecessary(event.previousState(), event.state());
         }
     }

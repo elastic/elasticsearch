@@ -95,11 +95,7 @@ final class LShortcut extends ALink {
     void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
-            writer.invokeInterface(getter.owner.type, getter.method);
-        } else {
-            writer.invokeVirtual(getter.owner.type, getter.method);
-        }
+        getter.write(writer);
 
         if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
             writer.checkCast(getter.rtn.type);
@@ -110,11 +106,7 @@ final class LShortcut extends ALink {
     void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {
-            writer.invokeInterface(setter.owner.type, setter.method);
-        } else {
-            writer.invokeVirtual(setter.owner.type, setter.method);
-        }
+        setter.write(writer);
 
         writer.writePop(setter.rtn.sort.size);
     }

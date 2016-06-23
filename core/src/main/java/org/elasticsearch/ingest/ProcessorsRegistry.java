@@ -21,8 +21,6 @@ package org.elasticsearch.ingest;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.ingest.core.Processor;
-import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.Closeable;

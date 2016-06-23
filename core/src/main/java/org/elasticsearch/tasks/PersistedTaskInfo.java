@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -45,56 +46,61 @@ import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 
 /**
  * Information about a persisted or running task. Running tasks just have a {@link #getTask()} while persisted tasks will have either a
- * {@link #getError()} or {@link #getResult()}.
+ * {@link #getError()} or {@link #getResponse()}.
  */
 public final class PersistedTaskInfo implements Writeable, ToXContent {
+    private final boolean completed;
     private final TaskInfo task;
     @Nullable
     private final BytesReference error;
     @Nullable
-    private final BytesReference result;
+    private final BytesReference response;
 
     /**
-     * Construct a {@linkplain PersistedTaskInfo} for a running task.
+     * Construct a {@linkplain PersistedTaskInfo} for a task for which we don't have a result or error. That usually means that the task
+     * is incomplete, but it could also mean that we waited for the task to complete but it didn't save any error information.
      */
-    public PersistedTaskInfo(TaskInfo task) {
-        this(task, null, null);
+    public PersistedTaskInfo(boolean completed, TaskInfo task) {
+        this(completed, task, null, null);
     }
 
     /**
      * Construct a {@linkplain PersistedTaskInfo} for a task that completed with an error.
      */
     public PersistedTaskInfo(TaskInfo task, Throwable error) throws IOException {
-        this(task, toXContent(error), null);
+        this(true, task, toXContent(error), null);
     }
 
     /**
      * Construct a {@linkplain PersistedTaskInfo} for a task that completed successfully.
      */
-    public PersistedTaskInfo(TaskInfo task, ToXContent result) throws IOException {
-        this(task, null, toXContent(result));
+    public PersistedTaskInfo(TaskInfo task, ToXContent response) throws IOException {
+        this(true, task, null, toXContent(response));
     }
 
-    private PersistedTaskInfo(TaskInfo task, @Nullable BytesReference error, @Nullable BytesReference result) {
+    private PersistedTaskInfo(boolean completed, TaskInfo task, @Nullable BytesReference error, @Nullable BytesReference result) {
+        this.completed = completed;
         this.task = requireNonNull(task, "task is required");
         this.error = error;
-        this.result = result;
+        this.response = result;
     }
 
     /**
      * Read from a stream.
      */
     public PersistedTaskInfo(StreamInput in) throws IOException {
+        completed = in.readBoolean();
         task = new TaskInfo(in);
         error = in.readOptionalBytesReference();
-        result = in.readOptionalBytesReference();
+        response = in.readOptionalBytesReference();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeBoolean(completed);
         task.writeTo(out);
         out.writeOptionalBytesReference(error);
-        out.writeOptionalBytesReference(result);
+        out.writeOptionalBytesReference(response);
     }
 
     /**
@@ -105,46 +111,45 @@ public final class PersistedTaskInfo implements Writeable, ToXContent {
     }
 
     /**
-     * Get the error that finished this task. Will return null if the task didn't finish with an error or it hasn't yet finished.
+     * Get the error that finished this task. Will return null if the task didn't finish with an error, it hasn't yet finished, or didn't
+     * persist its result.
      */
     public BytesReference getError() {
         return error;
     }
 
     /**
-     * Convert {@link #getError()} from XContent to a Map for easy processing. Will return null if the task didn't finish with an error or
-     * hasn't yet finished.
+     * Convert {@link #getError()} from XContent to a Map for easy processing. Will return an empty map if the task didn't finish with an
+     * error, hasn't yet finished, or didn't persist its result.
      */
     public Map<String, Object> getErrorAsMap() {
         if (error == null) {
-            return null;
+            return emptyMap();
         }
         return convertToMap(error, false).v2();
     }
 
     /**
-     * Get the result that this task finished with. Will return null if the task was finished by an error or it hasn't yet finished.
+     * Get the response that this task finished with. Will return null if the task was finished by an error, it hasn't yet finished, or
+     * didn't persist its result.
      */
-    public BytesReference getResult() {
-        return result;
+    public BytesReference getResponse() {
+        return response;
     }
 
     /**
-     * Convert {@link #getResult()} from XContent to a Map for easy processing. Will return null if the task was finished with an error or
-     * hasn't yet finished.
+     * Convert {@link #getResponse()} from XContent to a Map for easy processing. Will return an empty map if the task was finished with an
+     * error, hasn't yet finished, or didn't persist its result.
      */
-    public Map<String, Object> getResultAsMap() {
-        if (result == null) {
-            return null;
+    public Map<String, Object> getResponseAsMap() {
+        if (response == null) {
+            return emptyMap();
         }
-        return convertToMap(result, false).v2();
+        return convertToMap(response, false).v2();
     }
 
-    /**
-     * Was the task completed before returned?
-     */
     public boolean isCompleted() {
-        return error != null || result != null;
+        return completed;
     }
 
     @Override
@@ -155,22 +160,31 @@ public final class PersistedTaskInfo implements Writeable, ToXContent {
     }
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("completed", completed);
         builder.field("task", task);
         if (error != null) {
             XContentHelper.writeRawField("error", error, builder, params);
         }
-        if (result != null) {
-            XContentHelper.writeRawField("result", result, builder, params);
+        if (response != null) {
+            XContentHelper.writeRawField("response", response, builder, params);
         }
         return builder;
     }
 
     public static final ConstructingObjectParser<PersistedTaskInfo, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
-            "persisted_task_info", a -> new PersistedTaskInfo((TaskInfo) a[0], (BytesReference) a[1], (BytesReference) a[2]));
+            "persisted_task_info", a -> {
+                int i = 0;
+                boolean completed = (boolean) a[i++];
+                TaskInfo task = (TaskInfo) a[i++];
+                BytesReference error = (BytesReference) a[i++];
+                BytesReference response = (BytesReference) a[i++];
+                return new PersistedTaskInfo(completed, task, error, response);
+            });
     static {
+        PARSER.declareBoolean(constructorArg(), new ParseField("completed"));
         PARSER.declareObject(constructorArg(), TaskInfo.PARSER, new ParseField("task"));
         PARSER.declareRawObject(optionalConstructorArg(), new ParseField("error"));
-        PARSER.declareRawObject(optionalConstructorArg(), new ParseField("result"));
+        PARSER.declareRawObject(optionalConstructorArg(), new ParseField("response"));
     }
 
     @Override
@@ -189,9 +203,10 @@ public final class PersistedTaskInfo implements Writeable, ToXContent {
          * Equality of error and result is done by converting them to a map first. Not efficient but ignores field order and spacing
          * differences so perfect for testing.
          */
-        return Objects.equals(task, other.task)
+        return Objects.equals(completed, other.completed)
+                && Objects.equals(task, other.task)
                 && Objects.equals(getErrorAsMap(), other.getErrorAsMap())
-                && Objects.equals(getResultAsMap(), other.getResultAsMap());
+                && Objects.equals(getResponseAsMap(), other.getResponseAsMap());
     }
 
     @Override
@@ -200,7 +215,7 @@ public final class PersistedTaskInfo implements Writeable, ToXContent {
          * Hashing of error and result is done by converting them to a map first. Not efficient but ignores field order and spacing
          * differences so perfect for testing.
          */
-        return Objects.hash(task, getErrorAsMap(), getResultAsMap());
+        return Objects.hash(completed, task, getErrorAsMap(), getResponseAsMap());
     }
 
     private static BytesReference toXContent(ToXContent result) throws IOException {

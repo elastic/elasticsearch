@@ -25,16 +25,12 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.highlight.HighlightPhase;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 
 public class PercolatorPlugin extends Plugin {
 

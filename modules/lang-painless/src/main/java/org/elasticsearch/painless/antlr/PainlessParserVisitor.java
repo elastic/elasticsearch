@@ -264,6 +264,20 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitNull(PainlessParser.NullContext ctx);
   /**
+   * Visit a parse tree produced by the {@code listinit}
+   * labeled alternative in {@link PainlessParser#unary}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitListinit(PainlessParser.ListinitContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code mapinit}
+   * labeled alternative in {@link PainlessParser#unary}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMapinit(PainlessParser.MapinitContext ctx);
+  /**
    * Visit a parse tree produced by the {@code operator}
    * labeled alternative in {@link PainlessParser#unary}.
    * @param ctx the parse tree
@@ -428,4 +442,36 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitLocalFuncref(PainlessParser.LocalFuncrefContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code newstandardarray}
+   * labeled alternative in {@link PainlessParser#arrayinitializer}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitNewstandardarray(PainlessParser.NewstandardarrayContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code newinitializedarray}
+   * labeled alternative in {@link PainlessParser#arrayinitializer}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitNewinitializedarray(PainlessParser.NewinitializedarrayContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#listinitializer}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitListinitializer(PainlessParser.ListinitializerContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#mapinitializer}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMapinitializer(PainlessParser.MapinitializerContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#maptoken}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMaptoken(PainlessParser.MaptokenContext ctx);
 }

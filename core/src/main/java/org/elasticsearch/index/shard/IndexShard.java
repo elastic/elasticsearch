@@ -53,7 +53,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Callback;
-import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.SuspendableRefContainer;
 import org.elasticsearch.index.Index;
@@ -159,7 +158,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final TranslogConfig translogConfig;
     private final IndexEventListener indexEventListener;
     private final QueryCachingPolicy cachingPolicy;
-    private final CancellableThreads cancellableThreads;
 
 
     /**
@@ -267,7 +265,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
         refreshListeners = buildRefreshListeners();
         persistMetadata(shardRouting, null);
-        cancellableThreads = new CancellableThreads();
     }
 
     public Store store() {
@@ -846,7 +843,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } finally { // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                     IOUtils.close(engine);
                 }
-                cancellableThreads.cancel(reason);
             }
         }
     }
@@ -1285,11 +1281,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private void checkIndex() throws IOException {
         if (store.tryIncRef()) {
             try {
-                cancellableThreads.executeIO(this::doCheckIndex);
-            } catch (ClosedByInterruptException ex) {
-                assert cancellableThreads.isCancelled();
-                // that's fine we might run into this when we cancel the thread since Java NIO will close the channel on interrupt
-                // and on the next access we fail it.
+                doCheckIndex();
             } finally {
                 store.decRef();
             }

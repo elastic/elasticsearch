@@ -132,12 +132,13 @@ public class NodeService extends AbstractComponent implements Closeable {
                 transportService.info(),
                 httpServer == null ? null : httpServer.info(),
                 pluginService == null ? null : pluginService.info(),
-                ingestService == null ? null : ingestService.info()
+                ingestService == null ? null : ingestService.info(),
+                indicesService.getTotalIndexingBufferBytes()
         );
     }
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
-                         boolean transport, boolean http, boolean plugin, boolean ingest) {
+                boolean transport, boolean http, boolean plugin, boolean ingest, boolean indices) {
         return new NodeInfo(Version.CURRENT, Build.CURRENT, discovery.localNode(), serviceAttributes,
                 settings ? settingsFilter.filter(this.settings) : null,
                 os ? monitorService.osService().info() : null,
@@ -147,7 +148,8 @@ public class NodeService extends AbstractComponent implements Closeable {
                 transport ? transportService.info() : null,
                 http ? (httpServer == null ? null : httpServer.info()) : null,
                 plugin ? (pluginService == null ? null : pluginService.info()) : null,
-                ingest ? (ingestService == null ? null : ingestService.info()) : null
+                ingest ? (ingestService == null ? null : ingestService.info()) : null,
+                indices ? indicesService.getTotalIndexingBufferBytes() : null
         );
     }
 

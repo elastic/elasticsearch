@@ -731,7 +731,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                         if (isReferencedGeneration(generation) == false) {
                             logger.trace("delete translog file - not referenced and not current anymore {}", path);
                             IOUtils.deleteFilesIgnoringExceptions(path);
-                            IOUtils.deleteFilesIgnoringExceptions(path.resolveSibling(getCommitCheckpointFileName(channelReference.getGeneration())));
+                            IOUtils.deleteFilesIgnoringExceptions(path.resolveSibling(getCommitCheckpointFileName(generation)));
                         }
                     }
                 }

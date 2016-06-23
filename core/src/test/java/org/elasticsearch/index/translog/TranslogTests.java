@@ -2059,4 +2059,21 @@ public class TranslogTests extends ESTestCase {
             // all is well
         }
     }
+
+    public void testPendingDelete() throws IOException {
+        translog.add(new Translog.Create("test", "1", new byte[]{1}));
+        translog.prepareCommit();
+        Translog.TranslogGeneration generation = translog.getGeneration();
+        TranslogConfig config = translog.getConfig();
+        translog.close();
+        config.setTranslogGeneration(generation);
+        translog = new Translog(config);
+        translog.add(new Translog.Create("test", "2", new byte[]{2}));
+        translog.prepareCommit();
+        Translog.View view = translog.newView();
+        translog.add(new Translog.Create("test", "3", new byte[]{3}));
+        translog.close();
+        IOUtils.close(view);
+        translog = new Translog(config);
+    }
 }

@@ -40,8 +40,9 @@ List<String> availableBoxes = [
     'ubuntu-1504'
 ]
 
+String vagrantBoxes = getProperties().get('vagrant.boxes', 'sample')
 List<String> boxes = []
-for (String box : getProperties().get('vagrant.boxes', 'sample').split(',')) {
+for (String box : vagrantBoxes.split(',')) {
   if (box == 'sample') {
     boxes.add('centos-7')
     boxes.add('ubuntu-1404')
@@ -58,30 +59,8 @@ for (String box : getProperties().get('vagrant.boxes', 'sample').split(',')) {
 
 long seed
 String formattedSeed
-String upgradeFromVersions
+String[] upgradeFromVersions
 String upgradeFromVersion
-
-String maybeTestsSeed = System.getProperty("tests.seed", null);
-if (maybeTestsSeed != null) {
-  seed = new BigInteger(maybeTestsSeed, 16).longValue()
-  formattedSeed = maybeTestsSeed
-} else {
-  seed = new Random().nextLong()
-  formattedSeed = String.format("%016X", seed)
-}
-
-String maybeUpdradeFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
-if (maybeUpdradeFromVersions != null) {
-  upgradeFromVersions = maybeUpdradeFromVersions
-} else {
-  new URL('http://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
-    def xml = new XmlParser().parse(s)
-    def versions = xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /2\.\d\.\d/ }
-    upgradeFromVersions = versions.join(",")
-  }
-}
-String[] values = upgradeFromVersions.split(",")
-upgradeFromVersion = values[new Random(seed).nextInt(values.length)]
 
 configurations {
   test
@@ -92,6 +71,24 @@ repositories {
 }
 
 dependencies {
+  String maybeTestsSeed = System.getProperty("tests.seed", null);
+  if (maybeTestsSeed != null) {
+    seed = new BigInteger(maybeTestsSeed, 16).longValue()
+    formattedSeed = maybeTestsSeed
+  } else {
+    seed = new Random().nextLong()
+    formattedSeed = String.format("%016X", seed)
+  }
+
+  String maybeUpdradeFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
+  if (maybeUpdradeFromVersions != null) {
+    upgradeFromVersions = maybeUpdradeFromVersions.split(",")
+  } else {
+    upgradeFromVersions = new File(project.projectDir, 'src/main/resources/versions')
+  }
+
+  upgradeFromVersion = upgradeFromVersions[new Random(seed).nextInt(upgradeFromVersions.length)]
+
   test project(path: ':distribution:tar', configuration: 'archives')
   test project(path: ':distribution:rpm', configuration: 'archives')
   test project(path: ':distribution:deb', configuration: 'archives')
@@ -108,17 +105,6 @@ dependencies {
   test "org.elasticsearch.distribution.rpm:elasticsearch:$upgradeFromVersion@rpm"
 }
 
-BuildAdapter adapter = new BuildAdapter() {
-  @Override
-  void buildFinished(BuildResult result) {
-    if (result.failure) {
-      println "Reproduce with: gradle packagingTest -Pvagrant.boxes=${getProperty("vagrant.boxes")} -Dtests.seed=${formattedSeed} -Dtests.packaging.upgrade.from.versions=${upgradeFromVersions}"
-    }
-  }
-}
-
-gradle.addBuildListener adapter
-
 task clean(type: Delete) {
   group 'Build'
   delete buildDir
@@ -129,8 +115,34 @@ task stop {
   description 'Stop any tasks from tests that still may be running'
 }
 
+def getVersions() {
+  Node xml
+  new URL('http://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
+    xml = new XmlParser().parse(s)
+  }
+  Set<String> versions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /2\.\d\.\d/ })
+  return versions
+}
+
+task updatePackagingTestUpgradeFromVersions {
+  Set<String> versions = getVersions()
+  new File(project.projectDir, '/src/main/resources/versions').text = versions.join('\n') + '\n'
+}
+
+task verifyPackagingTestUpgradeFromVersions {
+  String maybeUpdateFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
+  if (maybeUpdateFromVersions == null) {
+    Set<String> versions = getVersions()
+    Set<String> actualVersions = new HashSet<>(Arrays.asList(upgradeFromVersions))
+    if (!versions.equals(actualVersions)) {
+      throw new GradleException("out-of-date versions [" + actualVersions + "], expected [" + versions + "]; run gradle updatePackagingTestUpgradeFromVersions")
+    }
+  }
+}
+
 File testRoot = new File("$buildDir/testroot")
 task createTestRoot {
+  dependsOn verifyPackagingTestUpgradeFromVersions
   outputs.dir testRoot
   doLast {
     testRoot.mkdirs()
@@ -181,6 +193,14 @@ task packagingTest {
               "    'sample' can be used to test a single yum and apt box. 'all' can be used to\n" +
               "    test all available boxes. The available boxes are: \n" +
               "    ${availableBoxes}"
+  gradle.addBuildListener new BuildAdapter() {
+    @Override
+    void buildFinished(BuildResult result) {
+      if (result.failure) {
+        println "Reproduce with: gradle packagingTest -Pvagrant.boxes=${vagrantBoxes} -Dtests.seed=${formattedSeed} -Dtests.packaging.upgrade.from.versions=${upgradeFromVersions.join(",")}"
+      }
+    }
+  }
 }
 
 // Each box gets it own set of tasks

@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class SpanishAnalyzerProvider extends AbstractIndexAnalyzerProvider<SpanishAnalyzer> {
+public class SpanishAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final SpanishAnalyzer analyzer;
 

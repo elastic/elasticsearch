@@ -20,6 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -28,8 +29,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -38,17 +43,34 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class AnalysisService extends AbstractIndexComponent implements Closeable {
 
+    private static NamedAnalyzer buildNamedAnalyzer(String name, AnalyzerProvider analyzerFactory,
+            Analyzer analyzerF, int overridePositionIncrementGap) {
+        if (analyzerF instanceof NamedAnalyzer) {
+            // if we got a named analyzer back, use it...
+            NamedAnalyzer analyzer = (NamedAnalyzer) analyzerF;
+            if (overridePositionIncrementGap >= 0 && analyzer.getPositionIncrementGap(analyzer.name()) != overridePositionIncrementGap) {
+                // unless the positionIncrementGap needs to be overridden
+                analyzer = new NamedAnalyzer(analyzer, overridePositionIncrementGap);
+            }
+            return analyzer;
+        } else {
+            return new NamedAnalyzer(name, analyzerFactory.scope(), analyzerF, overridePositionIncrementGap);
+        }
+    }
+
     private final Map<String, NamedAnalyzer> analyzers;
+    private final Map<String, NamedAnalyzer> multiTermAnalyzers;
     private final Map<String, TokenizerFactory> tokenizers;
     private final Map<String, CharFilterFactory> charFilters;
     private final Map<String, TokenFilterFactory> tokenFilters;
 
     private final NamedAnalyzer defaultIndexAnalyzer;
     private final NamedAnalyzer defaultSearchAnalyzer;
+    private final NamedAnalyzer defaultSearchMultiTermAnalyzer;
     private final NamedAnalyzer defaultSearchQuoteAnalyzer;
 
     public AnalysisService(IndexSettings indexSettings,
-                           Map<String, AnalyzerProvider> analyzerProviders,
+                           Map<String, AnalyzerProvider> analyzerFactories,
                            Map<String, TokenizerFactory> tokenizerFactoryFactories,
                            Map<String, CharFilterFactory> charFilterFactoryFactories,
                            Map<String, TokenFilterFactory> tokenFilterFactoryFactories) {
@@ -56,20 +78,21 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         this.tokenizers = unmodifiableMap(tokenizerFactoryFactories);
         this.charFilters = unmodifiableMap(charFilterFactoryFactories);
         this.tokenFilters = unmodifiableMap(tokenFilterFactoryFactories);
-        analyzerProviders = new HashMap<>(analyzerProviders);
+        analyzerFactories = new HashMap<>(analyzerFactories);
 
-        if (!analyzerProviders.containsKey("default")) {
-            analyzerProviders.put("default", new StandardAnalyzerProvider(indexSettings, null, "default", Settings.Builder.EMPTY_SETTINGS));
+        if (!analyzerFactories.containsKey("default")) {
+            analyzerFactories.put("default", new StandardAnalyzerProvider(indexSettings, null, "default", Settings.Builder.EMPTY_SETTINGS));
         }
-        if (!analyzerProviders.containsKey("default_search")) {
-            analyzerProviders.put("default_search", analyzerProviders.get("default"));
+        if (!analyzerFactories.containsKey("default_search")) {
+            analyzerFactories.put("default_search", analyzerFactories.get("default"));
         }
-        if (!analyzerProviders.containsKey("default_search_quoted")) {
-            analyzerProviders.put("default_search_quoted", analyzerProviders.get("default_search"));
+        if (!analyzerFactories.containsKey("default_search_quoted")) {
+            analyzerFactories.put("default_search_quoted", analyzerFactories.get("default_search"));
         }
 
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
-        for (Map.Entry<String, AnalyzerProvider> entry : analyzerProviders.entrySet()) {
+        Map<String, NamedAnalyzer> multiTermAnalyzers = new HashMap<>();
+        for (Map.Entry<String, AnalyzerProvider> entry : analyzerFactories.entrySet()) {
             AnalyzerProvider analyzerFactory = entry.getValue();
             String name = entry.getKey();
             /*
@@ -94,30 +117,25 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
             if (analyzerF == null) {
                 throw new IllegalArgumentException("analyzer [" + analyzerFactory.name() + "] created null analyzer");
             }
-            NamedAnalyzer analyzer;
-            if (analyzerF instanceof NamedAnalyzer) {
-                // if we got a named analyzer back, use it...
-                analyzer = (NamedAnalyzer) analyzerF;
-                if (overridePositionIncrementGap >= 0 && analyzer.getPositionIncrementGap(analyzer.name()) != overridePositionIncrementGap) {
-                    // unless the positionIncrementGap needs to be overridden
-                    analyzer = new NamedAnalyzer(analyzer, overridePositionIncrementGap);
-                }
-            } else {
-                analyzer = new NamedAnalyzer(name, analyzerFactory.scope(), analyzerF, overridePositionIncrementGap);
-            }
+            NamedAnalyzer analyzer = buildNamedAnalyzer(name, analyzerFactory, analyzerF, overridePositionIncrementGap);
+            Analyzer multiTermAnalyzerF = analyzerFactory.getMultiTerm();
+            NamedAnalyzer multiTermAnalyzer = buildNamedAnalyzer(name, analyzerFactory, multiTermAnalyzerF, overridePositionIncrementGap);
             if (analyzers.containsKey(name)) {
                 throw new IllegalStateException("already registered analyzer with name: " + name);
             }
             analyzers.put(name, analyzer);
+            multiTermAnalyzers.put(name, multiTermAnalyzer);
             String strAliases = this.indexSettings.getSettings().get("index.analysis.analyzer." + analyzerFactory.name() + ".alias");
             if (strAliases != null) {
                 for (String alias : Strings.commaDelimitedListToStringArray(strAliases)) {
                     analyzers.put(alias, analyzer);
+                    multiTermAnalyzers.put(alias, multiTermAnalyzer);
                 }
             }
             String[] aliases = this.indexSettings.getSettings().getAsArray("index.analysis.analyzer." + analyzerFactory.name() + ".alias");
             for (String alias : aliases) {
                 analyzers.put(alias, analyzer);
+                multiTermAnalyzers.put(alias, multiTermAnalyzer);
             }
         }
 
@@ -133,36 +151,52 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                 deprecationLogger.deprecated("setting [index.analysis.analyzer.default_index] is deprecated, use [index.analysis.analyzer.default] instead for index [{}]", index().getName());
             }
         }
-        defaultIndexAnalyzer = analyzers.containsKey("default_index") ? analyzers.get("default_index") : defaultAnalyzer;
-        defaultSearchAnalyzer = analyzers.containsKey("default_search") ? analyzers.get("default_search") : defaultAnalyzer;
-        defaultSearchQuoteAnalyzer = analyzers.containsKey("default_search_quote") ? analyzers.get("default_search_quote") : defaultSearchAnalyzer;
-
+        NamedAnalyzer defaultIndexAnalyzer = analyzers.get("default_index");
+        if (defaultIndexAnalyzer == null) {
+            defaultIndexAnalyzer = defaultAnalyzer;
+        }
+        NamedAnalyzer defaultSearchAnalyzer = analyzers.get("default_search");
+        if (defaultSearchAnalyzer == null) {
+            defaultSearchAnalyzer = defaultAnalyzer;
+        }
+        NamedAnalyzer defaultSearchQuoteAnalyzer = analyzers.get("default_search_quote");
+        if (defaultSearchQuoteAnalyzer == null) {
+            defaultSearchQuoteAnalyzer = defaultSearchAnalyzer;
+        }
+        NamedAnalyzer defaultSearchMultiTermAnalyzer = multiTermAnalyzers.get("default_search");
+        if (defaultSearchMultiTermAnalyzer == null) {
+            defaultSearchMultiTermAnalyzer = multiTermAnalyzers.get("default");
+        }
+        this.defaultIndexAnalyzer = defaultIndexAnalyzer;
+        this.defaultSearchAnalyzer = defaultSearchAnalyzer;
+        this.defaultSearchQuoteAnalyzer = defaultSearchQuoteAnalyzer;
+        this.defaultSearchMultiTermAnalyzer = defaultSearchMultiTermAnalyzer;
         for (Map.Entry<String, NamedAnalyzer> analyzer : analyzers.entrySet()) {
             if (analyzer.getKey().startsWith("_")) {
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
+        assert analyzers.keySet().equals(multiTermAnalyzers.keySet());
         this.analyzers = unmodifiableMap(analyzers);
+        this.multiTermAnalyzers = unmodifiableMap(multiTermAnalyzers);
     }
 
     @Override
-    public void close() {
-        for (NamedAnalyzer analyzer : analyzers.values()) {
-            if (analyzer.scope() == AnalyzerScope.INDEX) {
-                try {
-                    analyzer.close();
-                } catch (NullPointerException e) {
-                    // because analyzers are aliased, they might be closed several times
-                    // an NPE is thrown in this case, so ignore....
-                } catch (Exception e) {
-                    logger.debug("failed to close analyzer {}", analyzer);
-                }
-            }
-        }
+    public void close() throws IOException {
+        List<NamedAnalyzer> indexAnalyzers = Stream.concat(
+                analyzers.values().stream(),
+                multiTermAnalyzers.values().stream())
+                .filter(analyzer -> analyzer.scope() == AnalyzerScope.INDEX)
+                .collect(Collectors.toList());
+        IOUtils.close(indexAnalyzers);
     }
 
     public NamedAnalyzer analyzer(String name) {
         return analyzers.get(name);
+    }
+
+    public NamedAnalyzer multiTermAnalyzer(String name) {
+        return multiTermAnalyzers.get(name);
     }
 
     public NamedAnalyzer defaultIndexAnalyzer() {
@@ -171,6 +205,10 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
     public NamedAnalyzer defaultSearchAnalyzer() {
         return defaultSearchAnalyzer;
+    }
+
+    public NamedAnalyzer defaultSearchMultiTermAnalyzer() {
+        return defaultSearchMultiTermAnalyzer;
     }
 
     public NamedAnalyzer defaultSearchQuoteAnalyzer() {

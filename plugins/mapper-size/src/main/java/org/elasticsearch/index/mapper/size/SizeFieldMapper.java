@@ -55,15 +55,13 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         static {
             SIZE_FIELD_TYPE.setStored(true);
             SIZE_FIELD_TYPE.setName(NAME);
-            SIZE_FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            SIZE_FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             SIZE_FIELD_TYPE.freeze();
 
             LEGACY_SIZE_FIELD_TYPE.setStored(true);
             LEGACY_SIZE_FIELD_TYPE.setNumericPrecisionStep(LegacyIntegerFieldMapper.Defaults.PRECISION_STEP_32_BIT);
             LEGACY_SIZE_FIELD_TYPE.setName(NAME);
             LEGACY_SIZE_FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            LEGACY_SIZE_FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            LEGACY_SIZE_FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
             LEGACY_SIZE_FIELD_TYPE.freeze();
         }
     }

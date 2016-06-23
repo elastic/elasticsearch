@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  * Provider for {@link SoraniAnalyzer}
  */
-public class SoraniAnalyzerProvider extends AbstractIndexAnalyzerProvider<SoraniAnalyzer> {
+public class SoraniAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final SoraniAnalyzer analyzer;
 

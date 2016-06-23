@@ -36,8 +36,8 @@ public class PreBuiltAnalyzerProviderFactory implements AnalysisModule.AnalysisP
 
     private final PreBuiltAnalyzerProvider analyzerProvider;
 
-    public PreBuiltAnalyzerProviderFactory(String name, AnalyzerScope scope, Analyzer analyzer) {
-        analyzerProvider = new PreBuiltAnalyzerProvider(name, scope, analyzer);
+    public PreBuiltAnalyzerProviderFactory(String name, AnalyzerScope scope, Analyzer analyzer, Analyzer multiTermAnalyzer) {
+        analyzerProvider = new PreBuiltAnalyzerProvider(name, scope, analyzer, multiTermAnalyzer);
     }
 
     public AnalyzerProvider create(String name, Settings settings) {
@@ -46,7 +46,8 @@ public class PreBuiltAnalyzerProviderFactory implements AnalysisModule.AnalysisP
             PreBuiltAnalyzers preBuiltAnalyzers = PreBuiltAnalyzers.getOrDefault(name, null);
             if (preBuiltAnalyzers != null) {
                 Analyzer analyzer = preBuiltAnalyzers.getAnalyzer(indexVersion);
-                return new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer);
+                Analyzer multiTermAnalyzer = preBuiltAnalyzers.getMultiTermAnalyzer(indexVersion);
+                return new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer, multiTermAnalyzer);
             }
         }
 

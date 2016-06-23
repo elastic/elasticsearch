@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class CjkAnalyzerProvider extends AbstractIndexAnalyzerProvider<CJKAnalyzer> {
+public class CjkAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final CJKAnalyzer analyzer;
 

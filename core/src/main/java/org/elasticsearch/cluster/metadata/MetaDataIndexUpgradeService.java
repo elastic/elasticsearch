@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
+import java.io.IOException;
 import java.util.Collections;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
@@ -167,9 +168,12 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         }
 
         @Override
-        public void close() {
-            fakeAnalyzer.close();
-            super.close();
+        public void close() throws IOException {
+            try {
+                fakeAnalyzer.close();
+            } finally {
+                super.close();
+            }
         }
     }
 

@@ -62,7 +62,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
 

@@ -26,7 +26,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
@@ -190,28 +189,6 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public ObjectMapper getObjectMapper(String name) {
         return mapperService.getObjectMapper(name);
-    }
-
-    /**
-     * Gets the search analyzer for the given field, or the default if there is none present for the field
-     * TODO: remove this by moving defaults into mappers themselves
-     */
-    public Analyzer getSearchAnalyzer(MappedFieldType fieldType) {
-        if (fieldType.searchAnalyzer() != null) {
-            return fieldType.searchAnalyzer();
-        }
-        return getMapperService().searchAnalyzer();
-    }
-
-    /**
-     * Gets the search quote analyzer for the given field, or the default if there is none present for the field
-     * TODO: remove this by moving defaults into mappers themselves
-     */
-    public Analyzer getSearchQuoteAnalyzer(MappedFieldType fieldType) {
-        if (fieldType.searchQuoteAnalyzer() != null) {
-            return fieldType.searchQuoteAnalyzer();
-        }
-        return getMapperService().searchQuoteAnalyzer();
     }
 
     public void setAllowUnmappedFields(boolean allowUnmappedFields) {

@@ -27,7 +27,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<ThaiAnalyzer> {
+public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final ThaiAnalyzer analyzer;
 

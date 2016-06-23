@@ -120,8 +120,6 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         public TextFieldMapper build(BuilderContext context) {
             if (positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
                 fieldType.setIndexAnalyzer(new NamedAnalyzer(fieldType.indexAnalyzer(), positionIncrementGap));
-                fieldType.setSearchAnalyzer(new NamedAnalyzer(fieldType.searchAnalyzer(), positionIncrementGap));
-                fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionIncrementGap));
             }
             setupFieldType(context);
             TextFieldMapper fieldMapper = new TextFieldMapper(
@@ -136,7 +134,9 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(fieldName);
             builder.fieldType().setIndexAnalyzer(parserContext.analysisService().defaultIndexAnalyzer());
-            builder.fieldType().setSearchAnalyzer(parserContext.analysisService().defaultSearchAnalyzer());
+            builder.fieldType().setSearchAnalyzer(
+                    parserContext.analysisService().defaultSearchAnalyzer(),
+                    parserContext.analysisService().defaultSearchMultiTermAnalyzer());
             builder.fieldType().setSearchQuoteAnalyzer(parserContext.analysisService().defaultSearchQuoteAnalyzer());
             parseTextField(builder, fieldName, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {

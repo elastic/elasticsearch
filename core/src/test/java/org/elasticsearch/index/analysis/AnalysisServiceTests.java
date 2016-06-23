@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -47,7 +48,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class AnalysisServiceTests extends ESTestCase {
 
     private static AnalyzerProvider analyzerProvider(final String name) {
-        return new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDEX, new EnglishAnalyzer());
+        return new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDEX, new EnglishAnalyzer(), new KeywordAnalyzer());
     }
 
     public void testDefaultAnalyzers() throws IOException {
@@ -80,7 +81,8 @@ public class AnalysisServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         try {
             AnalysisService analysisService = new AnalysisService(IndexSettingsModule.newIndexSettings("index", settings),
-                    Collections.singletonMap("default_index", new PreBuiltAnalyzerProvider("default_index", AnalyzerScope.INDEX, new EnglishAnalyzer())),
+                    Collections.singletonMap("default_index", new PreBuiltAnalyzerProvider("default_index", AnalyzerScope.INDEX,
+                            new EnglishAnalyzer(), new KeywordAnalyzer())),
                     Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
             fail("Expected ISE");
         } catch (IllegalArgumentException e) {

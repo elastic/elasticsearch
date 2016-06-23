@@ -25,12 +25,12 @@ import org.elasticsearch.common.inject.Provider;
 /**
  *
  */
-public interface AnalyzerProvider<T extends Analyzer> extends Provider<T> {
+public interface AnalyzerProvider extends Provider<Analyzer> {
 
     String name();
 
     AnalyzerScope scope();
 
-    @Override
-    T get();
+    /** Get the analyzer that should be used for multi-term queries. */
+    Analyzer getMultiTerm();
 }

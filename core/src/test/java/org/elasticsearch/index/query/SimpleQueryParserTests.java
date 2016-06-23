@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
@@ -28,17 +29,22 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BooleanClause;
+import org.elasticsearch.Version;
+import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class SimpleQueryParserTests extends ESTestCase {
+
     private static class MockSimpleQueryParser extends SimpleQueryParser {
-        public MockSimpleQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags, Settings settings) {
-            super(analyzer, weights, flags, settings, null);
+        public MockSimpleQueryParser(Analyzer analyzer, Analyzer multiTermAnalyzer,
+                Map<String, Float> weights, int flags, Settings settings) {
+            super(analyzer, multiTermAnalyzer, weights, flags, settings, null);
         }
 
         @Override
@@ -47,12 +53,20 @@ public class SimpleQueryParserTests extends ESTestCase {
         }
     }
 
+    public void testPrefixQuery() {
+        SimpleQueryParser parser = new MockSimpleQueryParser(
+                PreBuiltAnalyzers.ENGLISH.getAnalyzer(Version.CURRENT),
+                PreBuiltAnalyzers.ENGLISH.getMultiTermAnalyzer(Version.CURRENT),
+                Collections.singletonMap("field", 1f), -1, new SimpleQueryParser.Settings());
+        assertEquals(new PrefixQuery(new Term("field", "tables")), parser.parse("Tables*"));
+    }
+
     public void testAnalyzeWildcard() {
         SimpleQueryParser.Settings settings = new SimpleQueryParser.Settings();
         settings.analyzeWildcard(true);
         Map<String, Float> weights = new HashMap<>();
         weights.put("field1", 1.0f);
-        SimpleQueryParser parser = new MockSimpleQueryParser(new StandardAnalyzer(), weights, -1, settings);
+        SimpleQueryParser parser = new MockSimpleQueryParser(new StandardAnalyzer(), new KeywordAnalyzer(), weights, -1, settings);
         for (Operator op : Operator.values()) {
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             parser.setDefaultOperator(defaultOp);
@@ -76,7 +90,8 @@ public class SimpleQueryParserTests extends ESTestCase {
         settings.analyzeWildcard(true);
         Map<String, Float> weights = new HashMap<>();
         weights.put("field1", 1.0f);
-        SimpleQueryParser parser = new MockSimpleQueryParser(new MockRepeatAnalyzer(), weights, -1, settings);
+        SimpleQueryParser parser = new MockSimpleQueryParser(new MockRepeatAnalyzer(), new MockRepeatAnalyzer(),
+                weights, -1, settings);
 
         for (Operator op : Operator.values()) {
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();

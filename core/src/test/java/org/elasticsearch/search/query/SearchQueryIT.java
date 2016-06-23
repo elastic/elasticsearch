@@ -496,24 +496,111 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
     }
 
-    public void testLowercaseExpandedTerms() {
-        createIndex("test");
+    public void testExpandedTerms() throws IOException {
+        Settings indexSettings = Settings.builder()
+                .put("index.analysis.analyzer.uppercase.type", "custom")
+                .put("index.analysis.analyzer.uppercase.tokenizer", "standard")
+                .put("index.analysis.analyzer.uppercase.filter", "uppercase")
+                .build();
+        String mapping = jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "text")
+                        .startObject("fields")
+                            .startObject("upper")
+                                .field("type", "text")
+                                .field("analyzer", "uppercase")
+                            .endObject()
+                            .startObject("keyword_text")
+                                .field("type", "text")
+                                .field("analyzer", "keyword")
+                            .endObject()
+                            .startObject("keyword")
+                                .field("type", "keyword")
+                            .endObject()
+                       .endObject()
+                    .endObject()
+                .endObject().endObject().endObject().string();
+        assertAcked(prepareCreate("test").setSettings(indexSettings).addMapping("type", mapping));
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").get();
+        client().prepareIndex("test", "type", "1").setSource("field", "value_1").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("VALUE_3~1").lowercaseExpandedTerms(true)).get();
+        // fuzzy
+        SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("value_3~1").field("field")).get();
         assertHitCount(searchResponse, 1L);
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("VALUE_3~1").lowercaseExpandedTerms(false)).get();
-        assertHitCount(searchResponse, 0L);
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("ValUE_*").lowercaseExpandedTerms(true)).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("value_3~1").field("field.upper")).get();
         assertHitCount(searchResponse, 1L);
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("vAl*E_1")).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("value_3~1").field("field.keyword_text")).get();
         assertHitCount(searchResponse, 1L);
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("[VALUE_1 TO VALUE_3]")).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("value_3~1").field("field.keyword")).get();
         assertHitCount(searchResponse, 1L);
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("[VALUE_1 TO VALUE_3]").lowercaseExpandedTerms(false)).get();
-        assertHitCount(searchResponse, 0L);
+
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("VALUE_3~1").field("field")).get();
+        assertHitCount(searchResponse, 1L);
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("VALUE_3~1").field("field.upper")).get();
+        assertHitCount(searchResponse, 1L);
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("VALUE_3~1").field("field.keyword_text")).get();
+        assertHitCount(searchResponse, 0L); // does not match case
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("VALUE_3~1").field("field.keyword")).get();
+        assertHitCount(searchResponse, 0L); // does not match case
+
+        // prefix
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("value_*").field("field")).get();
+        assertHitCount(searchResponse, 1L);
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("value_*").field("field.upper")).get();
+        assertHitCount(searchResponse, 1L);
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("value_*").field("field.keyword_text")).get();
+        assertHitCount(searchResponse, 1L);
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("value_*").field("field.keyword")).get();
+        assertHitCount(searchResponse, 1L);
+
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("VaLuE_*").field("field")).get();
+        assertHitCount(searchResponse, 1L);
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("VaLuE_*").field("field.upper")).get();
+        assertHitCount(searchResponse, 1L);
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("VaLuE_*").field("field.keyword_text")).get();
+        assertHitCount(searchResponse, 0L); // does not match case
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("VaLuE_*").field("field.keyword")).get();
+        assertHitCount(searchResponse, 0L); // does not match case
+
+        // wildcard
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("va*ue_*").field("field")).get();
+        assertHitCount(searchResponse, 1L);
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("va*ue_*").field("field.upper")).get();
+        assertHitCount(searchResponse, 1L);
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("va*ue_*").field("field.keyword_text")).get();
+        assertHitCount(searchResponse, 1L);
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("va*ue_*").field("field.keyword")).get();
+        assertHitCount(searchResponse, 1L);
+
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("Va*uE_*").field("field")).get();
+        assertHitCount(searchResponse, 1L);
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("Va*uE_*").field("field.upper")).get();
+        assertHitCount(searchResponse, 1L);
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("Va*uE_*").field("field.keyword_text")).get();
+        assertHitCount(searchResponse, 0L); // does not match case
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("Va*uE_*").field("field.keyword")).get();
+        assertHitCount(searchResponse, 0L); // does not match case
+
+        // range
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("[value_1 TO value_3]").field("field")).get();
+        assertHitCount(searchResponse, 1L);
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("[value_1 TO value_3]").field("field.upper")).get();
+        assertHitCount(searchResponse, 1L);
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("[value_1 TO value_3]").field("field.keyword_text")).get();
+        assertHitCount(searchResponse, 1L);
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("[value_1 TO value_3]").field("field.keyword")).get();
+        assertHitCount(searchResponse, 1L);
+
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("[vaLue_1 TO vaLue_3]").field("field")).get();
+        assertHitCount(searchResponse, 1L);
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("[vaLue_1 TO vaLue_3]").field("field.upper")).get();
+        assertHitCount(searchResponse, 1L);
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("[vaLue_1 TO vaLue_3]").field("field.keyword_text")).get();
+        assertHitCount(searchResponse, 0L); // does not match case
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("[vaLue_1 TO vaLue_3]").field("field.keyword")).get();
+        assertHitCount(searchResponse, 0L); // does not match case
     }
 
     // Issue #3540

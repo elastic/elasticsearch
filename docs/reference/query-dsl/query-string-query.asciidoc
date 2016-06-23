@@ -40,10 +40,6 @@ with default operator of `AND`, the same query is translated to
 |`allow_leading_wildcard` |When set, `*` or `?` are allowed as the first
 character. Defaults to `true`.
 
-|`lowercase_expanded_terms` |Whether terms of wildcard, prefix, fuzzy,
-and range queries are to be automatically lower-cased or not (since they
-are not analyzed). Default it `true`.
-
 |`enable_position_increments` |Set to `true` to enable position
 increments in result queries. Defaults to `true`.
 
@@ -61,9 +57,9 @@ phrase matches are required. Default value is `0`.
 
 |`boost` |Sets the boost value of the query. Defaults to `1.0`.
 
-|`analyze_wildcard` |By default, wildcards terms in a query string are
-not analyzed. By setting this value to `true`, a best effort will be
-made to analyze those as well.
+|`analyze_wildcard` |By default, only the char filters and token filters that
+make sense ape applied to wildcarded terms (eg. `lowercase` but not stemmers).
+By setting this value to `true`, the whole analysis chain will be applied.
 
 |`auto_generate_phrase_queries` |Defaults to `false`.
 
@@ -79,9 +75,6 @@ both>>.
 
 |`lenient` |If set to `true` will cause format based failures (like
 providing text to a numeric field) to be ignored.
-
-|`locale` | Locale that should be used for string conversions.
-Defaults to `ROOT`.
 
 |`time_zone` | Time Zone to be applied to any range query related to dates. See also
 http://www.joda.org/joda-time/apidocs/org/joda/time/DateTimeZone.html[JODA timezone].

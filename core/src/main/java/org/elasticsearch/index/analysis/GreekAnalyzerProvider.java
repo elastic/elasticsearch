@@ -27,7 +27,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class GreekAnalyzerProvider extends AbstractIndexAnalyzerProvider<GreekAnalyzer> {
+public class GreekAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final GreekAnalyzer analyzer;
 

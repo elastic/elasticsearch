@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class IndonesianAnalyzerProvider extends AbstractIndexAnalyzerProvider<IndonesianAnalyzer> {
+public class IndonesianAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final IndonesianAnalyzer analyzer;
 

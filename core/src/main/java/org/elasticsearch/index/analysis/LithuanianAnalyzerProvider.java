@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  * Provider for {@link LithuanianAnalyzer}
  */
-public class LithuanianAnalyzerProvider extends AbstractIndexAnalyzerProvider<LithuanianAnalyzer> {
+public class LithuanianAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final LithuanianAnalyzer analyzer;
 

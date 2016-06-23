@@ -35,7 +35,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
@@ -121,6 +120,7 @@ public class MapperService extends AbstractIndexComponent {
 
     private final MapperAnalyzerWrapper indexAnalyzer;
     private final MapperAnalyzerWrapper searchAnalyzer;
+    private final MapperAnalyzerWrapper searchMultiTermAnalyzer;
     private final MapperAnalyzerWrapper searchQuoteAnalyzer;
 
     private volatile Map<String, MappedFieldType> unmappedFieldTypes = emptyMap();
@@ -138,6 +138,7 @@ public class MapperService extends AbstractIndexComponent {
         this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityService, mapperRegistry, queryShardContextSupplier);
         this.indexAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultIndexAnalyzer(), p -> p.indexAnalyzer());
         this.searchAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchAnalyzer(), p -> p.searchAnalyzer());
+        this.searchMultiTermAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchMultiTermAnalyzer(), p -> p.searchMultiTermAnalyzer());
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
         this.mapperRegistry = mapperRegistry;
 
@@ -606,6 +607,10 @@ public class MapperService extends AbstractIndexComponent {
 
     public Analyzer searchAnalyzer() {
         return this.searchAnalyzer;
+    }
+
+    public Analyzer searchMultiTermAnalyzer() {
+        return searchMultiTermAnalyzer;
     }
 
     public Analyzer searchQuoteAnalyzer() {

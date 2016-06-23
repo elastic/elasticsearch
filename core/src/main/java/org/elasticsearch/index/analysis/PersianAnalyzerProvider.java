@@ -27,7 +27,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class PersianAnalyzerProvider extends AbstractIndexAnalyzerProvider<PersianAnalyzer> {
+public class PersianAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final PersianAnalyzer analyzer;
 

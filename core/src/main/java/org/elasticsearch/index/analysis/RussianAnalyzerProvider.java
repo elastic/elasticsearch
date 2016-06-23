@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class RussianAnalyzerProvider extends AbstractIndexAnalyzerProvider<RussianAnalyzer> {
+public class RussianAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final RussianAnalyzer analyzer;
 

@@ -23,7 +23,6 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -396,7 +395,9 @@ public final class AnalysisRegistry implements Closeable {
             // Analyzers
             for (PreBuiltAnalyzers preBuiltAnalyzerEnum : PreBuiltAnalyzers.values()) {
                 String name = preBuiltAnalyzerEnum.name().toLowerCase(Locale.ROOT);
-                analyzerProviderFactories.put(name, new PreBuiltAnalyzerProviderFactory(name, AnalyzerScope.INDICES, preBuiltAnalyzerEnum.getAnalyzer(Version.CURRENT)));
+                analyzerProviderFactories.put(name, new PreBuiltAnalyzerProviderFactory(name, AnalyzerScope.INDICES,
+                        preBuiltAnalyzerEnum.getAnalyzer(Version.CURRENT),
+                        preBuiltAnalyzerEnum.getMultiTermAnalyzer(Version.CURRENT)));
             }
 
             // Tokenizers

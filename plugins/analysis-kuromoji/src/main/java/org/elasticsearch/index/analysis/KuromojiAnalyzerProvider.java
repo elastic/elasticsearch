@@ -31,7 +31,7 @@ import java.util.Set;
 
 /**
  */
-public class KuromojiAnalyzerProvider extends AbstractIndexAnalyzerProvider<JapaneseAnalyzer> {
+public class KuromojiAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final JapaneseAnalyzer analyzer;
 

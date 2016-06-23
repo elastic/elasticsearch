@@ -33,7 +33,7 @@ import java.util.regex.Pattern;
 /**
  *
  */
-public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
+public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final PatternAnalyzer analyzer;
 

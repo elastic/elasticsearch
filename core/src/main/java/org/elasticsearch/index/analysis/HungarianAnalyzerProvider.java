@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class HungarianAnalyzerProvider extends AbstractIndexAnalyzerProvider<HungarianAnalyzer> {
+public class HungarianAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final HungarianAnalyzer analyzer;
 

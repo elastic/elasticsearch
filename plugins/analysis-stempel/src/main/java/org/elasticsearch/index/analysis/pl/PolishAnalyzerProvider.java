@@ -27,7 +27,7 @@ import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
 
 /**
  */
-public class PolishAnalyzerProvider extends AbstractIndexAnalyzerProvider<PolishAnalyzer> {
+public class PolishAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final PolishAnalyzer analyzer;
 

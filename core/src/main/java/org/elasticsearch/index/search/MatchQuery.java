@@ -199,8 +199,8 @@ public class MatchQuery {
 
     protected Analyzer getAnalyzer(MappedFieldType fieldType) {
         if (this.analyzer == null) {
-            if (fieldType != null) {
-                return context.getSearchAnalyzer(fieldType);
+            if (fieldType != null && fieldType.searchAnalyzer() != null) {
+                return fieldType.searchAnalyzer();
             }
             return context.getMapperService().searchAnalyzer();
         } else {

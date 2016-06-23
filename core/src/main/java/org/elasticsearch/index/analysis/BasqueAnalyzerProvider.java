@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class BasqueAnalyzerProvider extends AbstractIndexAnalyzerProvider<BasqueAnalyzer> {
+public class BasqueAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final BasqueAnalyzer analyzer;
 

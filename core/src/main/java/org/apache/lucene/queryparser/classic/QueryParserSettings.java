@@ -20,11 +20,13 @@
 package org.apache.lucene.queryparser.classic;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.joda.time.DateTimeZone;
 
-import java.util.Locale;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -32,18 +34,15 @@ import java.util.Map;
  */
 public class QueryParserSettings {
 
-    private final String queryString;
-
     private String defaultField;
 
-    private Map<String, Float> fieldsAndWeights;
+    private Map<String, Float> fieldsAndWeights = Collections.emptyMap();
 
     private QueryParser.Operator defaultOperator;
 
     private Analyzer analyzer;
-    private boolean forceAnalyzer;
+    private Analyzer multiTermAnalyzer;
     private Analyzer quoteAnalyzer;
-    private boolean forceQuoteAnalyzer;
 
     private String quoteFieldSuffix;
 
@@ -53,15 +52,11 @@ public class QueryParserSettings {
 
     private boolean analyzeWildcard;
 
-    private boolean lowercaseExpandedTerms;
-
     private boolean enablePositionIncrements;
 
-    private Locale locale;
-
-    private Fuzziness fuzziness;
-    private int fuzzyPrefixLength;
-    private int fuzzyMaxExpansions;
+    private Fuzziness fuzziness = Fuzziness.AUTO;
+    private int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
+    private int fuzzyMaxExpansions = FuzzyQuery.defaultMaxExpansions;
     private MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
 
     private int phraseSlop;
@@ -77,15 +72,7 @@ public class QueryParserSettings {
     private DateTimeZone timeZone;
 
     /** To limit effort spent determinizing regexp queries. */
-    private int maxDeterminizedStates;
-
-    public QueryParserSettings(String queryString) {
-        this.queryString = queryString;
-    }
-
-    public String queryString() {
-        return queryString;
-    }
+    private int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
 
     public String defaultField() {
         return defaultField;
@@ -135,14 +122,6 @@ public class QueryParserSettings {
         this.allowLeadingWildcard = allowLeadingWildcard;
     }
 
-    public boolean lowercaseExpandedTerms() {
-        return lowercaseExpandedTerms;
-    }
-
-    public void lowercaseExpandedTerms(boolean lowercaseExpandedTerms) {
-        this.lowercaseExpandedTerms = lowercaseExpandedTerms;
-    }
-
     public boolean enablePositionIncrements() {
         return enablePositionIncrements;
     }
@@ -183,40 +162,25 @@ public class QueryParserSettings {
         this.fuzzyRewriteMethod = fuzzyRewriteMethod;
     }
 
-    public void defaultAnalyzer(Analyzer analyzer) {
+    public void analyzer(Analyzer analyzer, Analyzer multiTermAnalyzer) {
         this.analyzer = analyzer;
-        this.forceAnalyzer = false;
-    }
-
-    public void forceAnalyzer(Analyzer analyzer) {
-        this.analyzer = analyzer;
-        this.forceAnalyzer = true;
+        this.multiTermAnalyzer = multiTermAnalyzer;
     }
 
     public Analyzer analyzer() {
         return analyzer;
     }
 
-    public boolean forceAnalyzer() {
-        return forceAnalyzer;
+    public Analyzer multiTermAnalyzer() {
+        return multiTermAnalyzer;
     }
 
-    public void defaultQuoteAnalyzer(Analyzer quoteAnalyzer) {
+    public void quoteAnalyzer(Analyzer quoteAnalyzer) {
         this.quoteAnalyzer = quoteAnalyzer;
-        this.forceQuoteAnalyzer = false;
-    }
-
-    public void forceQuoteAnalyzer(Analyzer quoteAnalyzer) {
-        this.quoteAnalyzer = quoteAnalyzer;
-        this.forceQuoteAnalyzer = true;
     }
 
     public Analyzer quoteAnalyzer() {
         return quoteAnalyzer;
-    }
-
-    public boolean forceQuoteAnalyzer() {
-        return forceQuoteAnalyzer;
     }
 
     public boolean analyzeWildcard() {
@@ -265,14 +229,6 @@ public class QueryParserSettings {
 
     public void useDisMax(boolean useDisMax) {
         this.useDisMax = useDisMax;
-    }
-
-    public void locale(Locale locale) {
-        this.locale = locale;
-    }
-
-    public Locale locale() {
-        return this.locale;
     }
 
     public void timeZone(DateTimeZone timeZone) {

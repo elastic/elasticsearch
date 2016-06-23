@@ -126,6 +126,8 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             CompletionFieldMapper.Builder builder = new CompletionFieldMapper.Builder(name);
             NamedAnalyzer indexAnalyzer = null;
             NamedAnalyzer searchAnalyzer = null;
+            NamedAnalyzer searchMultiTermAnalyzer = null;
+            
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -138,6 +140,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                     iterator.remove();
                 } else if (parserContext.parseFieldMatcher().match(fieldName, Fields.SEARCH_ANALYZER)) {
                     searchAnalyzer = getNamedAnalyzer(parserContext, fieldNode.toString());
+                    searchMultiTermAnalyzer = parserContext.analysisService().multiTermAnalyzer(name);
                     iterator.remove();
                 } else if (parserContext.parseFieldMatcher().match(fieldName, Fields.PRESERVE_SEPARATORS)) {
                     builder.preserveSeparators(Boolean.parseBoolean(fieldNode.toString()));
@@ -166,7 +169,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             }
 
             builder.indexAnalyzer(indexAnalyzer);
-            builder.searchAnalyzer(searchAnalyzer);
+            builder.searchAnalyzer(searchAnalyzer, searchMultiTermAnalyzer);
             return builder;
         }
 

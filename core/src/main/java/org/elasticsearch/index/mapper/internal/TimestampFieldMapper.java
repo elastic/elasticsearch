@@ -67,7 +67,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setName(NAME);
             FIELD_TYPE.setDateTimeFormatter(DATE_TIME_FORMATTER);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.freeze();
         }

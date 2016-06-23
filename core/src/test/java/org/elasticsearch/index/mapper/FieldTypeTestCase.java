@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -84,17 +85,23 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         new Modifier("search_analyzer", true) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setSearchAnalyzer(new NamedAnalyzer("bar", new StandardAnalyzer()));
+                ft.setSearchAnalyzer(
+                        new NamedAnalyzer("bar", new StandardAnalyzer()),
+                        new NamedAnalyzer("bar", new KeywordAnalyzer()));
             }
         },
         new Modifier("search_analyzer", true) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setSearchAnalyzer(new NamedAnalyzer("bar", new StandardAnalyzer()));
+                ft.setSearchAnalyzer(
+                        new NamedAnalyzer("bar", new StandardAnalyzer()),
+                        new NamedAnalyzer("bar", new KeywordAnalyzer()));
             }
             @Override
             public void normalizeOther(MappedFieldType other) {
-                other.setSearchAnalyzer(new NamedAnalyzer("foo", new StandardAnalyzer()));
+                other.setSearchAnalyzer(
+                        new NamedAnalyzer("foo", new StandardAnalyzer()),
+                        new NamedAnalyzer("foo", new KeywordAnalyzer()));
             }
         },
         new Modifier("search_quote_analyzer", true) {

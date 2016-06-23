@@ -19,6 +19,8 @@
 package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
@@ -26,12 +28,15 @@ import org.apache.lucene.analysis.ca.CatalanAnalyzer;
 import org.apache.lucene.analysis.cjk.CJKAnalyzer;
 import org.apache.lucene.analysis.ckb.SoraniAnalyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.analysis.core.KeywordTokenizer;
+import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.cz.CzechAnalyzer;
 import org.apache.lucene.analysis.da.DanishAnalyzer;
 import org.apache.lucene.analysis.de.GermanAnalyzer;
+import org.apache.lucene.analysis.de.GermanNormalizationFilter;
 import org.apache.lucene.analysis.el.GreekAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.es.SpanishAnalyzer;
@@ -55,10 +60,12 @@ import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.standard.ClassicAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.StandardFilter;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
+import org.apache.lucene.analysis.util.ElisionFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.analysis.PatternAnalyzer;
@@ -80,13 +87,23 @@ public enum PreBuiltAnalyzers {
             a.setVersion(version.luceneVersion);
             return a;
         }
+        @Override
+        protected Analyzer createMultiTerm(Version version) {
+            return new Analyzer() {
+                @Override
+                protected TokenStreamComponents createComponents(String fieldName) {
+                    final Tokenizer source = new KeywordTokenizer();
+                    TokenStream result = new StandardFilter(source);
+                    result = new LowerCaseFilter(result);
+                    return new TokenStreamComponents(source, result);
+                }
+            };
+        }
     },
 
     DEFAULT(CachingStrategy.ELASTICSEARCH){
         @Override
         protected Analyzer create(Version version) {
-            // by calling get analyzer we are ensuring reuse of the same STANDARD analyzer for DEFAULT!
-            // this call does not create a new instance
             return STANDARD.getAnalyzer(version);
         }
     },
@@ -95,6 +112,10 @@ public enum PreBuiltAnalyzers {
         @Override
         protected Analyzer create(Version version) {
             return new KeywordAnalyzer();
+        }
+        @Override
+        protected Analyzer createMultiTerm(Version version) {
+            return create(version);
         }
     },
 
@@ -113,6 +134,10 @@ public enum PreBuiltAnalyzers {
             Analyzer a = new WhitespaceAnalyzer();
             a.setVersion(version.luceneVersion);
             return a;
+        }
+        @Override
+        protected Analyzer createMultiTerm(Version version) {
+            return KEYWORD.createMultiTerm(version);
         }
     },
 
@@ -283,6 +308,19 @@ public enum PreBuiltAnalyzers {
             a.setVersion(version.luceneVersion);
             return a;
         }
+        @Override
+        protected Analyzer createMultiTerm(Version version) {
+            return new Analyzer() {
+                @Override
+                protected TokenStreamComponents createComponents(String fieldName) {
+                    final Tokenizer source = new KeywordTokenizer();
+                    TokenStream result = new StandardFilter(source);
+                    result = new ElisionFilter(result, FrenchAnalyzer.DEFAULT_ARTICLES);
+                    result = new LowerCaseFilter(result);
+                    return new TokenStreamComponents(source, result);
+                }
+            };
+        }
     },
 
     GALICIAN {
@@ -300,6 +338,19 @@ public enum PreBuiltAnalyzers {
             Analyzer a = new GermanAnalyzer();
             a.setVersion(version.luceneVersion);
             return a;
+        }
+        @Override
+        protected Analyzer createMultiTerm(Version version) {
+            return new Analyzer() {
+                @Override
+                protected TokenStreamComponents createComponents(String fieldName) {
+                    final Tokenizer source = new KeywordTokenizer();
+                    TokenStream result = new StandardFilter(source);
+                    result = new LowerCaseFilter(result);
+                    result = new GermanNormalizationFilter(result);
+                    return new TokenStreamComponents(source, result);
+                }
+            };
         }
     },
 
@@ -467,7 +518,13 @@ public enum PreBuiltAnalyzers {
 
     abstract protected Analyzer create(Version version);
 
+    protected Analyzer createMultiTerm(Version version) {
+        // default impl, should work fine for standard and most european languages
+        return STANDARD.createMultiTerm(version);
+    }
+
     protected final PreBuiltCacheFactory.PreBuiltCache<Analyzer> cache;
+    protected final PreBuiltCacheFactory.PreBuiltCache<Analyzer> multiTermCache;
 
     PreBuiltAnalyzers() {
         this(PreBuiltCacheFactory.CachingStrategy.LUCENE);
@@ -475,6 +532,7 @@ public enum PreBuiltAnalyzers {
 
     PreBuiltAnalyzers(PreBuiltCacheFactory.CachingStrategy cachingStrategy) {
         cache = PreBuiltCacheFactory.getCache(cachingStrategy);
+        multiTermCache = PreBuiltCacheFactory.getCache(cachingStrategy);
     }
 
     PreBuiltCacheFactory.PreBuiltCache<Analyzer> getCache() {
@@ -486,6 +544,16 @@ public enum PreBuiltAnalyzers {
         if (analyzer == null) {
             analyzer = this.create(version);
             cache.put(version, analyzer);
+        }
+
+        return analyzer;
+    }
+
+    public synchronized Analyzer getMultiTermAnalyzer(Version version) {
+        Analyzer analyzer = multiTermCache.get(version);
+        if (analyzer == null) {
+            analyzer = this.createMultiTerm(version);
+            multiTermCache.put(version, analyzer);
         }
 
         return analyzer;

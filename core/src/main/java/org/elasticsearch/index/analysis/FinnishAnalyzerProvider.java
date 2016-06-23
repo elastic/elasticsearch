@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class FinnishAnalyzerProvider extends AbstractIndexAnalyzerProvider<FinnishAnalyzer> {
+public class FinnishAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final FinnishAnalyzer analyzer;
 

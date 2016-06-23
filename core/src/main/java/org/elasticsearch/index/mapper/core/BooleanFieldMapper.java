@@ -65,8 +65,6 @@ public class BooleanFieldMapper extends FieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.freeze();
         }
     }

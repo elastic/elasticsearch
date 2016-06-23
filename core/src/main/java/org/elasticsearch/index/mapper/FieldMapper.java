@@ -173,8 +173,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return builder;
         }
 
-        public T searchAnalyzer(NamedAnalyzer searchAnalyzer) {
-            this.fieldType.setSearchAnalyzer(searchAnalyzer);
+        public T searchAnalyzer(NamedAnalyzer searchAnalyzer, NamedAnalyzer searchMultiTermAnalyzer) {
+            this.fieldType.setSearchAnalyzer(searchAnalyzer, searchMultiTermAnalyzer);
             return builder;
         }
 
@@ -228,7 +228,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             }
             if (fieldType.indexAnalyzer() == null && fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE) {
                 fieldType.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-                fieldType.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+                fieldType.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
             }
             boolean defaultDocValues = defaultDocValues(context.indexCreatedVersion());
             defaultFieldType.setHasDocValues(defaultDocValues);

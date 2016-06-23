@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class ArmenianAnalyzerProvider extends AbstractIndexAnalyzerProvider<ArmenianAnalyzer> {
+public class ArmenianAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final ArmenianAnalyzer analyzer;
 

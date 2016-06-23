@@ -20,6 +20,11 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.KeywordTokenizer;
+import org.apache.lucene.analysis.core.LowerCaseFilter;
+import org.apache.lucene.analysis.standard.StandardFilter;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -28,7 +33,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends AbstractIndexComponent implements AnalyzerProvider<T> {
+public abstract class AbstractIndexAnalyzerProvider extends AbstractIndexComponent implements AnalyzerProvider {
 
     private final String name;
 
@@ -58,4 +63,26 @@ public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends 
     public final AnalyzerScope scope() {
         return AnalyzerScope.INDEX;
     }
+
+    private Analyzer multiTermAnalyzer = null;
+
+    @Override
+    public synchronized Analyzer getMultiTerm() {
+        if (multiTermAnalyzer == null) {
+            // default impl that should work at least for most european
+            // languages. Eg. this should work with the standard and english
+            // analyzers
+            multiTermAnalyzer = new Analyzer() {
+                @Override
+                protected TokenStreamComponents createComponents(String fieldName) {
+                    final Tokenizer source = new KeywordTokenizer();
+                    TokenStream result = new StandardFilter(source);
+                    result = new LowerCaseFilter(result);
+                    return new TokenStreamComponents(source, result);
+                }
+            };
+        }
+        return multiTermAnalyzer;
+    }
+
 }

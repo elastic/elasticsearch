@@ -33,7 +33,6 @@ import org.apache.lucene.search.SynonymQuery;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.List;
@@ -46,12 +45,14 @@ import java.util.ArrayList;
 public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.SimpleQueryParser {
 
     private final Settings settings;
+    private final Analyzer multiTermAnalyzer;
     private QueryShardContext context;
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
-    public SimpleQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags,
+    public SimpleQueryParser(Analyzer analyzer, Analyzer multiTermAnalyzer, Map<String, Float> weights, int flags,
                              Settings settings, QueryShardContext context) {
         super(analyzer, weights, flags);
+        this.multiTermAnalyzer = multiTermAnalyzer;
         this.settings = settings;
         this.context = context;
     }
@@ -93,25 +94,48 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
     }
 
     /**
-     * Dispatches to Lucene's SimpleQueryParser's newFuzzyQuery, optionally
-     * lowercasing the term first
+     * Dispatches to Lucene's SimpleQueryParser's newFuzzyQuery.
      */
     @Override
     public Query newFuzzyQuery(String text, int fuzziness) {
-        if (settings.lowercaseExpandedTerms()) {
-            text = text.toLowerCase(settings.locale());
-        }
-        BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        bq.setDisableCoord(true);
-        for (Map.Entry<String,Float> entry : weights.entrySet()) {
-            try {
-                Query query = new FuzzyQuery(new Term(entry.getKey(), text), fuzziness);
-                bq.add(wrapWithBoost(query, entry.getValue()), BooleanClause.Occur.SHOULD);
-            } catch (RuntimeException e) {
-                rethrowUnlessLenient(e);
+        final Analyzer oldAnalyzer = getAnalyzer();
+        try {
+            setAnalyzer(multiTermAnalyzer);
+            BooleanQuery.Builder bq = new BooleanQuery.Builder();
+            bq.setDisableCoord(true);
+            for (Map.Entry<String,Float> entry : weights.entrySet()) {
+                final String field = entry.getKey();
+                try {
+                    String analyzedText = analyzeSingleToken(field, text);
+                    Query query = new FuzzyQuery(new Term(field, analyzedText), fuzziness);
+                    bq.add(wrapWithBoost(query, entry.getValue()), BooleanClause.Occur.SHOULD);
+                } catch (RuntimeException e) {
+                    rethrowUnlessLenient(e);
+                }
             }
+            return super.simplify(bq.build());
+        } finally {
+            setAnalyzer(oldAnalyzer);
         }
-        return super.simplify(bq.build());
+    }
+
+    private String analyzeSingleToken(String field, String value) {
+        try (TokenStream tk = getAnalyzer().tokenStream(field, value)) {
+            CharTermAttribute termAtt = tk.addAttribute(CharTermAttribute.class);
+            tk.reset();
+            final String term;
+            if (tk.incrementToken()) {
+                term = termAtt.toString();
+            } else {
+                throw new IllegalStateException("Expected 1 token but got 0");
+            }
+            if (tk.incrementToken()) {
+                throw new IllegalStateException("Expected 1 token but got 2 or more");
+            }
+            return term;
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot happen", e);
+        }
     }
 
     @Override
@@ -133,31 +157,28 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
 
     /**
      * Dispatches to Lucene's SimpleQueryParser's newPrefixQuery, optionally
-     * lowercasing the term first or trying to analyze terms
+     * trying to analyze terms.
      */
     @Override
     public Query newPrefixQuery(String text) {
-        if (settings.lowercaseExpandedTerms()) {
-            text = text.toLowerCase(settings.locale());
-        }
-        BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        bq.setDisableCoord(true);
-        for (Map.Entry<String,Float> entry : weights.entrySet()) {
-            try {
-                if (settings.analyzeWildcard()) {
+        final Analyzer oldAnalyzer = getAnalyzer();
+        try {
+            BooleanQuery.Builder bq = new BooleanQuery.Builder();
+            bq.setDisableCoord(true);
+            for (Map.Entry<String,Float> entry : weights.entrySet()) {
+                try {
                     Query analyzedQuery = newPossiblyAnalyzedQuery(entry.getKey(), text);
                     if (analyzedQuery != null) {
                         bq.add(wrapWithBoost(analyzedQuery, entry.getValue()), BooleanClause.Occur.SHOULD);
                     }
-                } else {
-                    Query query = new PrefixQuery(new Term(entry.getKey(), text));
-                    bq.add(wrapWithBoost(query, entry.getValue()), BooleanClause.Occur.SHOULD);
+                } catch (RuntimeException e) {
+                    return rethrowUnlessLenient(e);
                 }
-            } catch (RuntimeException e) {
-                return rethrowUnlessLenient(e);
             }
+            return super.simplify(bq.build());
+        } finally {
+            setAnalyzer(oldAnalyzer);
         }
-        return super.simplify(bq.build());
     }
 
     private static Query wrapWithBoost(Query query, float boost) {
@@ -173,6 +194,9 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      * of {@code TermQuery}s and {@code PrefixQuery}s
      */
     private Query newPossiblyAnalyzedQuery(String field, String termStr) {
+        if (settings.analyzeWildcard() == false) {
+            setAnalyzer(multiTermAnalyzer);
+        }
         List<List<String>> tlist = new ArrayList<> ();
         // get Analyzer from superclass and tokenize the term
         try (TokenStream source = getAnalyzer().tokenStream(field, termStr)) {
@@ -248,10 +272,6 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      * their default values
      */
     static class Settings {
-        /** Locale to use for parsing. */
-        private Locale locale = SimpleQueryStringBuilder.DEFAULT_LOCALE;
-        /** Specifies whether parsed terms should be lowercased. */
-        private boolean lowercaseExpandedTerms = SimpleQueryStringBuilder.DEFAULT_LOWERCASE_EXPANDED_TERMS;
         /** Specifies whether lenient query parsing should be used. */
         private boolean lenient = SimpleQueryStringBuilder.DEFAULT_LENIENT;
         /** Specifies whether wildcards should be analyzed. */
@@ -264,34 +284,9 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         public Settings() {
         }
 
-        public Settings(Locale locale, Boolean lowercaseExpandedTerms, Boolean lenient, Boolean analyzeWildcard) {
-            this.locale = locale;
-            this.lowercaseExpandedTerms = lowercaseExpandedTerms;
+        public Settings(Boolean lenient, Boolean analyzeWildcard) {
             this.lenient = lenient;
             this.analyzeWildcard = analyzeWildcard;
-        }
-
-        /** Specifies the locale to use for parsing, Locale.ROOT by default. */
-        public void locale(Locale locale) {
-            this.locale = (locale != null) ? locale : SimpleQueryStringBuilder.DEFAULT_LOCALE;
-        }
-
-        /** Returns the locale to use for parsing. */
-        public Locale locale() {
-            return this.locale;
-        }
-
-        /**
-         * Specifies whether to lowercase parse terms, defaults to true if
-         * unset.
-         */
-        public void lowercaseExpandedTerms(boolean lowercaseExpandedTerms) {
-            this.lowercaseExpandedTerms = lowercaseExpandedTerms;
-        }
-
-        /** Returns whether to lowercase parse terms. */
-        public boolean lowercaseExpandedTerms() {
-            return this.lowercaseExpandedTerms;
         }
 
         /** Specifies whether to use lenient parsing, defaults to false. */
@@ -316,10 +311,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
 
         @Override
         public int hashCode() {
-            // checking the return value of toLanguageTag() for locales only.
-            // For further reasoning see
-            // https://issues.apache.org/jira/browse/LUCENE-4021
-            return Objects.hash(locale.toLanguageTag(), lowercaseExpandedTerms, lenient, analyzeWildcard);
+            return Objects.hash(lenient, analyzeWildcard);
         }
 
         @Override
@@ -332,13 +324,8 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             }
             Settings other = (Settings) obj;
 
-            // checking the return value of toLanguageTag() for locales only.
-            // For further reasoning see
-            // https://issues.apache.org/jira/browse/LUCENE-4021
-            return (Objects.equals(locale.toLanguageTag(), other.locale.toLanguageTag())
-                    && Objects.equals(lowercaseExpandedTerms, other.lowercaseExpandedTerms)
-                    && Objects.equals(lenient, other.lenient)
-                    && Objects.equals(analyzeWildcard, other.analyzeWildcard));
+            return Objects.equals(lenient, other.lenient)
+                    && Objects.equals(analyzeWildcard, other.analyzeWildcard);
         }
     }
 }

@@ -382,11 +382,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
 
         Analyzer analyzerObj;
         if (analyzer == null) {
-            if (fieldType != null) {
-                analyzerObj = context.getSearchAnalyzer(fieldType);
-            } else {
-                analyzerObj = context.getMapperService().searchAnalyzer();
-            }
+            analyzerObj = context.getMapperService().searchAnalyzer();
         } else {
             analyzerObj = context.getMapperService().analysisService().analyzer(analyzer);
             if (analyzerObj == null) {

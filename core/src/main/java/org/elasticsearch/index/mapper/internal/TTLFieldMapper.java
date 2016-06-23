@@ -63,7 +63,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
             TTL_FIELD_TYPE.setNumericPrecisionStep(Defaults.PRECISION_STEP_64_BIT);
             TTL_FIELD_TYPE.setName(NAME);
             TTL_FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            TTL_FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            TTL_FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
             TTL_FIELD_TYPE.freeze();
         }
 

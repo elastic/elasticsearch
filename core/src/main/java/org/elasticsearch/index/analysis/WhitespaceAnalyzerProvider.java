@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -27,18 +29,26 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class WhitespaceAnalyzerProvider extends AbstractIndexAnalyzerProvider<WhitespaceAnalyzer> {
+public class WhitespaceAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final WhitespaceAnalyzer analyzer;
+    private final KeywordAnalyzer multiTermAnalyzer;
 
     public WhitespaceAnalyzerProvider(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.analyzer = new WhitespaceAnalyzer();
         this.analyzer.setVersion(version);
+        this.multiTermAnalyzer = new KeywordAnalyzer();
+        this.multiTermAnalyzer.setVersion(version);
     }
 
     @Override
     public WhitespaceAnalyzer get() {
         return this.analyzer;
+    }
+
+    @Override
+    public synchronized Analyzer getMultiTerm() {
+        return multiTermAnalyzer;
     }
 }

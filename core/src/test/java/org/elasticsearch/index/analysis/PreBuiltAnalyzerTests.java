@@ -81,7 +81,8 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
         Version randomVersion = randomVersion(random());
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion).build();
 
-        NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(analyzerName, AnalyzerScope.INDEX, randomPreBuiltAnalyzer.getAnalyzer(randomVersion)).get();
+        NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(analyzerName, AnalyzerScope.INDEX,
+                randomPreBuiltAnalyzer.getAnalyzer(randomVersion), randomPreBuiltAnalyzer.getAnalyzer(randomVersion)).get();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "text").field("analyzer", analyzerName).endObject().endObject()

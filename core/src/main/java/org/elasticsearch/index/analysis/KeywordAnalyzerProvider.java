@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -27,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class KeywordAnalyzerProvider extends AbstractIndexAnalyzerProvider<KeywordAnalyzer> {
+public class KeywordAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final KeywordAnalyzer keywordAnalyzer;
 
@@ -39,5 +40,10 @@ public class KeywordAnalyzerProvider extends AbstractIndexAnalyzerProvider<Keywo
     @Override
     public KeywordAnalyzer get() {
         return this.keywordAnalyzer;
+    }
+
+    @Override
+    public Analyzer getMultiTerm() {
+        return get();
     }
 }

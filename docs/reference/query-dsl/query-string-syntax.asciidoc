@@ -65,12 +65,10 @@ they match.  Leading wildcards can be disabled by setting
 `allow_leading_wildcard` to `false`.
 =======
 
-Wildcarded terms are not analyzed by default -- they are lowercased
-(`lowercase_expanded_terms` defaults to `true`) but no further analysis
-is done, mainly because it is impossible to accurately analyze a word that
-is missing some of its letters.  However, by setting `analyze_wildcard` to
-`true`, an attempt will be made to analyze wildcarded words before searching
-the term list for matching terms.
+By default, only the char filters and token filters that make sense are
+applied to wildcarded terms (eg. `lowercase` but not stemmers). It is
+possible to apply the whole analysis chain by setting `analyze_wildcard` to
+`true`.
 
 ===== Regular expressions
 

@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class GalicianAnalyzerProvider extends AbstractIndexAnalyzerProvider<GalicianAnalyzer> {
+public class GalicianAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final GalicianAnalyzer analyzer;
 

@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class HindiAnalyzerProvider extends AbstractIndexAnalyzerProvider<HindiAnalyzer> {
+public class HindiAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final HindiAnalyzer analyzer;
 

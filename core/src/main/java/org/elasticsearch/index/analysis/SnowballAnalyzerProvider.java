@@ -45,7 +45,7 @@ import static java.util.Collections.unmodifiableMap;
  *
  *
  */
-public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<SnowballAnalyzer> {
+public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider {
     private static final Map<String, CharArraySet> DEFAULT_LANGUAGE_STOPWORDS;
 
     static {

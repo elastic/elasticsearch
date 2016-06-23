@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -31,11 +34,12 @@ import java.util.List;
  * A custom analyzer that is built out of a single {@link org.apache.lucene.analysis.Tokenizer} and a list
  * of {@link org.apache.lucene.analysis.TokenFilter}s.
  */
-public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<CustomAnalyzer> {
+public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final Settings analyzerSettings;
 
     private CustomAnalyzer customAnalyzer;
+    private CustomAnalyzer customMultiTermAnalyzer;
 
     public CustomAnalyzerProvider(IndexSettings indexSettings,
                                   String name, Settings settings) {
@@ -98,10 +102,41 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
                 positionIncrementGap,
                 offsetGap
         );
+
+        TokenizerFactory multiTermTokenizer = tokenizer;
+        if (multiTermTokenizer instanceof MultiTermAwareComponent) {
+            multiTermTokenizer = (TokenizerFactory) ((MultiTermAwareComponent) multiTermTokenizer).getMultiTermComponent();
+        } else {
+            multiTermTokenizer = new TokenizerFactory() {
+                @Override
+                public String name() {
+                    return "keyword";
+                }
+                @Override
+                public Tokenizer create() {
+                    return new KeywordTokenizer();
+                }
+            };
+        }
+        CharFilterFactory[] multiTermCharFilters = charFilters.stream()
+                .filter(charFilterFactory -> charFilterFactory instanceof MultiTermAwareComponent)
+                .map(charFilterFactory -> (CharFilterFactory) ((MultiTermAwareComponent) charFilterFactory).getMultiTermComponent())
+                .toArray(size -> new CharFilterFactory[size]);
+        TokenFilterFactory[] multiTermTokenFilters = tokenFilters.stream()
+                .filter(tokenFilterFactory -> tokenFilterFactory instanceof MultiTermAwareComponent)
+                .map(tokenFilterFactory -> (TokenFilterFactory) ((MultiTermAwareComponent) tokenFilterFactory).getMultiTermComponent())
+                .toArray(size -> new TokenFilterFactory[size]);
+        this.customMultiTermAnalyzer = new CustomAnalyzer(multiTermTokenizer, multiTermCharFilters, multiTermTokenFilters,
+                positionIncrementGap, offsetGap);
     }
 
     @Override
     public CustomAnalyzer get() {
         return this.customAnalyzer;
+    }
+
+    @Override
+    public Analyzer getMultiTerm() {
+        return customMultiTermAnalyzer;
     }
 }

@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class DutchAnalyzerProvider extends AbstractIndexAnalyzerProvider<DutchAnalyzer> {
+public class DutchAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final DutchAnalyzer analyzer;
 

@@ -118,10 +118,6 @@ public class AllFieldMapper extends MetadataFieldMapper {
             } else {
                 fieldType.setIndexAnalyzer(new NamedAnalyzer(fieldType.indexAnalyzer(),
                     Defaults.POSITION_INCREMENT_GAP));
-                fieldType.setSearchAnalyzer(new NamedAnalyzer(fieldType.searchAnalyzer(),
-                    Defaults.POSITION_INCREMENT_GAP));
-                fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(),
-                    Defaults.POSITION_INCREMENT_GAP));
             }
             fieldType.setTokenized(true);
 
@@ -135,7 +131,9 @@ public class AllFieldMapper extends MetadataFieldMapper {
                                                  ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             builder.fieldType().setIndexAnalyzer(parserContext.analysisService().defaultIndexAnalyzer());
-            builder.fieldType().setSearchAnalyzer(parserContext.analysisService().defaultSearchAnalyzer());
+            builder.fieldType().setSearchAnalyzer(
+                    parserContext.analysisService().defaultSearchAnalyzer(),
+                    parserContext.analysisService().defaultSearchMultiTermAnalyzer());
             builder.fieldType().setSearchQuoteAnalyzer(parserContext.analysisService().defaultSearchQuoteAnalyzer());
 
             // parseField below will happily parse the doc_values setting, but it is then never passed to

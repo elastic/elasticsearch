@@ -111,7 +111,9 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         FakeFieldType fieldType1 = new FakeFieldType();
         fieldType1.setName("field1");
         fieldType1.setIndexAnalyzer(new NamedAnalyzer("foo", new FakeAnalyzer("index")));
-        fieldType1.setSearchAnalyzer(new NamedAnalyzer("bar", new FakeAnalyzer("search")));
+        fieldType1.setSearchAnalyzer(
+                new NamedAnalyzer("bar", new FakeAnalyzer("search")),
+                new NamedAnalyzer("bar", new FakeAnalyzer("search")));
         fieldType1.setSearchQuoteAnalyzer(new NamedAnalyzer("baz", new FakeAnalyzer("search_quote")));
         FieldMapper fieldMapper1 = new FakeFieldMapper("field1", fieldType1);
 

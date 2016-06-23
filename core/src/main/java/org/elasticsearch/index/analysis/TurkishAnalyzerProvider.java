@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class TurkishAnalyzerProvider extends AbstractIndexAnalyzerProvider<TurkishAnalyzer> {
+public class TurkishAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final TurkishAnalyzer analyzer;
 

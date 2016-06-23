@@ -102,9 +102,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryStringQueryBuilder.maxDeterminizedStates(randomIntBetween(1, 100));
         }
         if (randomBoolean()) {
-            queryStringQueryBuilder.lowercaseExpandedTerms(randomBoolean());
-        }
-        if (randomBoolean()) {
             queryStringQueryBuilder.autoGeneratePhraseQueries(randomBoolean());
         }
         if (randomBoolean()) {
@@ -142,9 +139,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         if (randomBoolean()) {
             queryStringQueryBuilder.useDisMax(randomBoolean());
-        }
-        if (randomBoolean()) {
-            queryStringQueryBuilder.locale(randomLocale(random()));
         }
         if (randomBoolean()) {
             queryStringQueryBuilder.timeZone(randomDateTimeZone().getID());
@@ -308,7 +302,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         for (Operator op : Operator.values()) {
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             MapperQueryParser queryParser = new MapperQueryParser(createShardContext());
-            QueryParserSettings settings = new QueryParserSettings("first foo-bar-foobar* last");
+            QueryParserSettings settings = new QueryParserSettings();
             settings.defaultField(STRING_FIELD_NAME);
             settings.fieldsAndWeights(Collections.emptyMap());
             settings.analyzeWildcard(true);
@@ -336,14 +330,14 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         for (Operator op : Operator.values()) {
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             MapperQueryParser queryParser = new MapperQueryParser(createShardContext());
-            QueryParserSettings settings = new QueryParserSettings("first foo-bar-foobar* last");
+            QueryParserSettings settings = new QueryParserSettings();
             settings.defaultField(STRING_FIELD_NAME);
             settings.fieldsAndWeights(Collections.emptyMap());
             settings.analyzeWildcard(true);
             settings.fuzziness(Fuzziness.AUTO);
             settings.rewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
             settings.defaultOperator(op.toQueryParserOperator());
-            settings.forceAnalyzer(new MockRepeatAnalyzer());
+            settings.analyzer(new MockRepeatAnalyzer(), new MockRepeatAnalyzer());
             queryParser.reset(settings);
             Query query = queryParser.parse("first foo-bar-foobar* last");
 
@@ -522,13 +516,11 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "    \"default_operator\" : \"or\",\n" +
                 "    \"auto_generated_phrase_queries\" : false,\n" +
                 "    \"max_determined_states\" : 10000,\n" +
-                "    \"lowercase_expanded_terms\" : true,\n" +
                 "    \"enable_position_increment\" : true,\n" +
                 "    \"fuzziness\" : \"AUTO\",\n" +
                 "    \"fuzzy_prefix_length\" : 0,\n" +
                 "    \"fuzzy_max_expansions\" : 50,\n" +
                 "    \"phrase_slop\" : 0,\n" +
-                "    \"locale\" : \"und\",\n" +
                 "    \"escape\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +

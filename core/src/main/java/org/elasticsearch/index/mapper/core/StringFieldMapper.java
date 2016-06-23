@@ -22,13 +22,9 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -47,7 +43,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -120,12 +115,6 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             return (StringFieldType) super.fieldType();
         }
 
-        @Override
-        public Builder searchAnalyzer(NamedAnalyzer searchAnalyzer) {
-            super.searchAnalyzer(searchAnalyzer);
-            return this;
-        }
-
         public Builder positionIncrementGap(int positionIncrementGap) {
             this.positionIncrementGap = positionIncrementGap;
             return this;
@@ -165,8 +154,6 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         public StringFieldMapper build(BuilderContext context) {
             if (positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
                 fieldType.setIndexAnalyzer(new NamedAnalyzer(fieldType.indexAnalyzer(), positionIncrementGap));
-                fieldType.setSearchAnalyzer(new NamedAnalyzer(fieldType.searchAnalyzer(), positionIncrementGap));
-                fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionIncrementGap));
             }
             // if the field is not analyzed, then by default, we should omit norms and have docs only
             // index options, as probably what the user really wants
@@ -326,7 +313,9 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                         builder.fieldType().setIndexAnalyzer(parserContext.analysisService().defaultIndexAnalyzer());
                     }
                     if (builder.fieldType().searchAnalyzer() == null) {
-                        builder.fieldType().setSearchAnalyzer(parserContext.analysisService().defaultSearchAnalyzer());
+                        builder.fieldType().setSearchAnalyzer(
+                                parserContext.analysisService().defaultSearchAnalyzer(),
+                                parserContext.analysisService().defaultSearchMultiTermAnalyzer());
                     }
                     if (builder.fieldType().searchQuoteAnalyzer() == null) {
                         builder.fieldType().setSearchQuoteAnalyzer(parserContext.analysisService().defaultSearchQuoteAnalyzer());

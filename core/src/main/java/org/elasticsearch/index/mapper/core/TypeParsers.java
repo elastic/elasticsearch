@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -36,7 +35,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.index.similarity.SimilarityService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -110,6 +108,7 @@ public class TypeParsers {
     private static void parseAnalyzersAndTermVectors(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
         NamedAnalyzer indexAnalyzer = null;
         NamedAnalyzer searchAnalyzer = null;
+        NamedAnalyzer searchMultiTermAnalyzer = null;
         NamedAnalyzer searchQuoteAnalyzer = null;
 
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
@@ -137,6 +136,9 @@ public class TypeParsers {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
                 indexAnalyzer = analyzer;
+                if (searchMultiTermAnalyzer == null) { // give precedence to search_analyzer
+                    searchMultiTermAnalyzer = parserContext.analysisService().multiTermAnalyzer(propNode.toString());
+                }
                 iterator.remove();
             } else if (propName.equals("search_analyzer")) {
                 NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
@@ -144,6 +146,7 @@ public class TypeParsers {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
                 searchAnalyzer = analyzer;
+                searchMultiTermAnalyzer = parserContext.analysisService().multiTermAnalyzer(propNode.toString());
                 iterator.remove();
             } else if (propName.equals("search_quote_analyzer")) {
                 NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
@@ -175,7 +178,7 @@ public class TypeParsers {
             builder.indexAnalyzer(indexAnalyzer);
         }
         if (searchAnalyzer != null) {
-            builder.searchAnalyzer(searchAnalyzer);
+            builder.searchAnalyzer(searchAnalyzer, searchMultiTermAnalyzer);
         }
         if (searchQuoteAnalyzer != null) {
             builder.searchQuoteAnalyzer(searchQuoteAnalyzer);

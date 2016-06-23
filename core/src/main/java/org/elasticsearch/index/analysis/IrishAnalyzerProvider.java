@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  * Provider for {@link IrishAnalyzer}
  */
-public class IrishAnalyzerProvider extends AbstractIndexAnalyzerProvider<IrishAnalyzer> {
+public class IrishAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final IrishAnalyzer analyzer;
 

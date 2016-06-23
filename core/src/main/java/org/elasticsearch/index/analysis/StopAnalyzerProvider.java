@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class StopAnalyzerProvider extends AbstractIndexAnalyzerProvider<StopAnalyzer> {
+public class StopAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final StopAnalyzer stopAnalyzer;
 

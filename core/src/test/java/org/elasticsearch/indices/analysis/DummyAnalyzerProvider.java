@@ -19,10 +19,11 @@
 
 package org.elasticsearch.indices.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 
-public class DummyAnalyzerProvider implements AnalyzerProvider<DummyAnalyzer> {
+public class DummyAnalyzerProvider implements AnalyzerProvider {
     @Override
     public String name() {
         return "dummy";
@@ -36,5 +37,10 @@ public class DummyAnalyzerProvider implements AnalyzerProvider<DummyAnalyzer> {
     @Override
     public DummyAnalyzer get() {
         return new DummyAnalyzer();
+    }
+
+    @Override
+    public Analyzer getMultiTerm() {
+        return get();
     }
 }

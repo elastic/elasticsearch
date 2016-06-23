@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class LatvianAnalyzerProvider extends AbstractIndexAnalyzerProvider<LatvianAnalyzer> {
+public class LatvianAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final LatvianAnalyzer analyzer;
 

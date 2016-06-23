@@ -26,7 +26,7 @@ import org.elasticsearch.index.IndexSettings;
 
 /**
  */
-public class SmartChineseAnalyzerProvider extends AbstractIndexAnalyzerProvider<SmartChineseAnalyzer> {
+public class SmartChineseAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final SmartChineseAnalyzer analyzer;
 

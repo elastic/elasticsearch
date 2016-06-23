@@ -173,6 +173,7 @@ public class CompletionFieldMapper2x extends FieldMapper {
             CompletionFieldMapper2x.Builder builder = new Builder(name);
             NamedAnalyzer indexAnalyzer = null;
             NamedAnalyzer searchAnalyzer = null;
+            NamedAnalyzer searchMultiTermAnalyzer = null;
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext(); ) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -187,6 +188,7 @@ public class CompletionFieldMapper2x extends FieldMapper {
                     iterator.remove();
                 } else if (parserContext.parseFieldMatcher().match(fieldName, Fields.SEARCH_ANALYZER)) {
                     searchAnalyzer = getNamedAnalyzer(parserContext, fieldNode.toString());
+                    searchMultiTermAnalyzer = parserContext.analysisService().multiTermAnalyzer(name);
                     iterator.remove();
                 } else if (fieldName.equals(Fields.PAYLOADS)) {
                     builder.payloads(Boolean.parseBoolean(fieldNode.toString()));
@@ -218,7 +220,7 @@ public class CompletionFieldMapper2x extends FieldMapper {
                 searchAnalyzer = indexAnalyzer;
             }
             builder.indexAnalyzer(indexAnalyzer);
-            builder.searchAnalyzer(searchAnalyzer);
+            builder.searchAnalyzer(searchAnalyzer, searchMultiTermAnalyzer);
 
             return builder;
         }

@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class CzechAnalyzerProvider extends AbstractIndexAnalyzerProvider<CzechAnalyzer> {
+public class CzechAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final CzechAnalyzer analyzer;
 

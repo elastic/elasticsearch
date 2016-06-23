@@ -27,7 +27,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class SimpleAnalyzerProvider extends AbstractIndexAnalyzerProvider<SimpleAnalyzer> {
+public class SimpleAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final SimpleAnalyzer simpleAnalyzer;
 

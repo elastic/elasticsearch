@@ -56,12 +56,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             result.lenient(randomBoolean());
         }
         if (randomBoolean()) {
-            result.lowercaseExpandedTerms(randomBoolean());
-        }
-        if (randomBoolean()) {
-            result.locale(randomLocale(random()));
-        }
-        if (randomBoolean()) {
             result.minimumShouldMatch(randomMinimumShouldMatch());
         }
         if (randomBoolean()) {
@@ -109,26 +103,22 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals("Wrong default default operator field.", Operator.OR, SimpleQueryStringBuilder.DEFAULT_OPERATOR);
 
         assertEquals("Wrong default default locale.", Locale.ROOT, qb.locale());
-        assertEquals("Wrong default default locale field.", Locale.ROOT, SimpleQueryStringBuilder.DEFAULT_LOCALE);
 
         assertEquals("Wrong default default analyze_wildcard.", false, qb.analyzeWildcard());
         assertEquals("Wrong default default analyze_wildcard field.", false, SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD);
 
         assertEquals("Wrong default default lowercase_expanded_terms.", true, qb.lowercaseExpandedTerms());
-        assertEquals("Wrong default default lowercase_expanded_terms field.", true,
-                SimpleQueryStringBuilder.DEFAULT_LOWERCASE_EXPANDED_TERMS);
 
         assertEquals("Wrong default default lenient.", false, qb.lenient());
         assertEquals("Wrong default default lenient field.", false, SimpleQueryStringBuilder.DEFAULT_LENIENT);
 
         assertEquals("Wrong default default locale.", Locale.ROOT, qb.locale());
-        assertEquals("Wrong default default locale field.", Locale.ROOT, SimpleQueryStringBuilder.DEFAULT_LOCALE);
     }
 
     public void testDefaultNullLocale() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
         qb.locale(null);
-        assertEquals("Setting locale to null should result in returning to default value.", SimpleQueryStringBuilder.DEFAULT_LOCALE,
+        assertEquals("Setting locale to null should result in returning to default value.", Locale.ROOT,
                 qb.locale());
     }
 
@@ -349,10 +339,8 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 "    \"analyzer\" : \"snowball\",\n" +
                 "    \"flags\" : -1,\n" +
                 "    \"default_operator\" : \"and\",\n" +
-                "    \"lowercase_expanded_terms\" : true,\n" +
                 "    \"lenient\" : false,\n" +
                 "    \"analyze_wildcard\" : false,\n" +
-                "    \"locale\" : \"und\",\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";

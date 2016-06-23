@@ -31,7 +31,7 @@ import org.elasticsearch.index.IndexSettings;
  * Builds an OpenRefine Fingerprint analyzer.  Uses the default settings from the various components
  * (Standard Tokenizer and lowercase + stop + fingerprint + ascii-folding filters)
  */
-public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
+public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     public static ParseField MAX_OUTPUT_SIZE = FingerprintTokenFilterFactory.MAX_OUTPUT_SIZE;
 

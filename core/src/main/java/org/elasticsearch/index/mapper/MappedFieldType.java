@@ -59,6 +59,7 @@ public abstract class MappedFieldType extends FieldType {
     private boolean docValues;
     private NamedAnalyzer indexAnalyzer;
     private NamedAnalyzer searchAnalyzer;
+    private NamedAnalyzer searchMultiTermAnalyzer;
     private NamedAnalyzer searchQuoteAnalyzer;
     private SimilarityProvider similarity;
     private Object nullValue;
@@ -72,6 +73,7 @@ public abstract class MappedFieldType extends FieldType {
         this.docValues = ref.hasDocValues();
         this.indexAnalyzer = ref.indexAnalyzer();
         this.searchAnalyzer = ref.searchAnalyzer();
+        this.searchMultiTermAnalyzer = ref.searchMultiTermAnalyzer;
         this.searchQuoteAnalyzer = ref.searchQuoteAnalyzer();
         this.similarity = ref.similarity();
         this.nullValue = ref.nullValue();
@@ -121,6 +123,7 @@ public abstract class MappedFieldType extends FieldType {
             Objects.equals(name, fieldType.name) &&
             Objects.equals(indexAnalyzer, fieldType.indexAnalyzer) &&
             Objects.equals(searchAnalyzer, fieldType.searchAnalyzer) &&
+            Objects.equals(searchMultiTermAnalyzer, fieldType.searchMultiTermAnalyzer) &&
             Objects.equals(searchQuoteAnalyzer(), fieldType.searchQuoteAnalyzer()) &&
             Objects.equals(eagerGlobalOrdinals, fieldType.eagerGlobalOrdinals) &&
             Objects.equals(nullValue, fieldType.nullValue) &&
@@ -130,7 +133,7 @@ public abstract class MappedFieldType extends FieldType {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
-            eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString);
+            searchMultiTermAnalyzer, eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString);
     }
 
     // norelease: we need to override freeze() and add safety checks that all settings are actually set
@@ -260,9 +263,14 @@ public abstract class MappedFieldType extends FieldType {
         return searchAnalyzer;
     }
 
-    public void setSearchAnalyzer(NamedAnalyzer analyzer) {
+    public void setSearchAnalyzer(NamedAnalyzer analyzer, NamedAnalyzer multiTermAnalyzer) {
         checkIfFrozen();
         this.searchAnalyzer = analyzer;
+        this.searchMultiTermAnalyzer = multiTermAnalyzer;
+    }
+
+    public NamedAnalyzer searchMultiTermAnalyzer() {
+        return searchMultiTermAnalyzer;
     }
 
     public NamedAnalyzer searchQuoteAnalyzer() {

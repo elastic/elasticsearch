@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -29,7 +27,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardHtmlStripAnalyzer> {
+public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProvider {
 
     private final StandardHtmlStripAnalyzer analyzer;
 

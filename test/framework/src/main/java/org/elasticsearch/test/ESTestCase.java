@@ -36,7 +36,6 @@ import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,6 +46,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -57,6 +57,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
@@ -67,6 +70,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
+import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 
 import java.io.IOException;
@@ -90,6 +94,8 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -134,13 +140,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         @Override
         protected void afterAlways(List<Throwable> errors) throws Throwable {
             if (errors != null && errors.isEmpty() == false) {
-                ESTestCase.this.afterIfFailed(errors);
+                boolean allAssumption = true;
+                for (Throwable error : errors) {
+                    if (false == error instanceof AssumptionViolatedException) {
+                        allAssumption = false;
+                        break;
+                    }
+                }
+                if (false == allAssumption) {
+                    ESTestCase.this.afterIfFailed(errors);
+                }
             }
             super.afterAlways(errors);
         }
     });
 
-    /** called when a test fails, supplying the errors it generated */
+    /**
+     * Called when a test fails, supplying the errors it generated. Not called when the test fails because assumptions are violated.
+     */
     protected void afterIfFailed(List<Throwable> errors) {
     }
 
@@ -326,6 +343,11 @@ public abstract class ESTestCase extends LuceneTestCase {
     /** Pick a random object from the given list. */
     public static <T> T randomFrom(List<T> list) {
         return RandomPicks.randomFrom(random(), list);
+    }
+
+    /** Pick a random object from the given collection. */
+    public static <T> T randomFrom(Collection<T> collection) {
+        return RandomPicks.randomFrom(random(), collection);
     }
 
     public static String randomAsciiOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
@@ -767,9 +789,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         for (Consumer<AnalysisModule> consumer : moduleConsumers) {
             consumer.accept(analysisModule);
         }
-        SettingsModule settingsModule = new SettingsModule(nodeSettings);
-        settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
+        SettingsModule settingsModule = new SettingsModule(nodeSettings, InternalSettingsPlugin.VERSION_CREATED);
         final AnalysisService analysisService = analysisModule.buildRegistry().build(IndexSettingsModule.newIndexSettings(index, indexSettings));
         return analysisService;
+    }
+
+    public static ScriptModule newTestScriptModule() {
+        Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                // no file watching, so we don't need a ResourceWatcherService
+                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
+                .build();
+        Environment environment = new Environment(settings);
+        return new ScriptModule(settings, environment, null, singletonList(new MockScriptEngine()), emptyList());
     }
 }

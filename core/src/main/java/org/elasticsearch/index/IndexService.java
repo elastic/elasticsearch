@@ -67,6 +67,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -94,7 +95,7 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 /**
  *
  */
-public final class IndexService extends AbstractIndexComponent implements IndexComponent, Iterable<IndexShard> {
+public class IndexService extends AbstractIndexComponent implements IndicesClusterStateService.AllocatedIndex<IndexShard> {
 
     private final IndexEventListener eventListener;
     private final AnalysisService analysisService;
@@ -190,8 +191,8 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     /**
      * Return the shard with the provided id, or null if there is no such shard.
      */
-    @Nullable
-    public IndexShard getShardOrNull(int shardId) {
+    @Override
+    public @Nullable IndexShard getShardOrNull(int shardId) {
         return shards.get(shardId);
     }
 
@@ -366,6 +367,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         return primary == false && IndexMetaData.isIndexUsingShadowReplicas(indexSettings);
     }
 
+    @Override
     public synchronized void removeShard(int shardId, String reason) {
         final ShardId sId = new ShardId(index(), shardId);
         final IndexShard indexShard;
@@ -475,6 +477,11 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
 
     List<SearchOperationListener> getSearchOperationListener() { // pkg private for testing
         return searchOperationListeners;
+    }
+
+    @Override
+    public boolean updateMapping(IndexMetaData indexMetaData) throws IOException {
+        return mapperService().updateMapping(indexMetaData);
     }
 
     private class StoreCloseListener implements Store.OnClose {
@@ -624,6 +631,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         return indexSettings.getIndexMetaData();
     }
 
+    @Override
     public synchronized void updateMetaData(final IndexMetaData metadata) {
         final Translog.Durability oldTranslogDurability = indexSettings.getTranslogDurability();
         if (indexSettings.updateIndexMetaData(metadata)) {

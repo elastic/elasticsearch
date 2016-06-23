@@ -75,9 +75,9 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     private volatile ClusterState lastProcessedClusterState;
 
     @Inject
-    public LocalDiscovery(Settings settings, ClusterName clusterName, ClusterService clusterService, ClusterSettings clusterSettings) {
+    public LocalDiscovery(Settings settings, ClusterService clusterService, ClusterSettings clusterSettings) {
         super(settings);
-        this.clusterName = clusterName;
+        this.clusterName = clusterService.getClusterName();
         this.clusterService = clusterService;
         this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
     }

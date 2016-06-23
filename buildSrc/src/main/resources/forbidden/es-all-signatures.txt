@@ -32,4 +32,7 @@ org.apache.lucene.index.IndexReader#getCombinedCoreAndDeletesKey()
 @defaultMessage Soon to be removed
 org.apache.lucene.document.FieldType#numericType()
 
-org.apache.lucene.document.InetAddressPoint#newPrefixQuery(java.lang.String, java.net.InetAddress, int) @LUCENE-7232
+@defaultMessage Don't use MethodHandles in slow ways, don't be lenient in tests.
+java.lang.invoke.MethodHandle#invoke(java.lang.Object[])
+java.lang.invoke.MethodHandle#invokeWithArguments(java.lang.Object[])
+java.lang.invoke.MethodHandle#invokeWithArguments(java.util.List)

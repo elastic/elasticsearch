@@ -20,8 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition.Cast;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -39,19 +44,23 @@ final class ECast extends AExpression {
         super(location);
 
         this.type = null;
-        this.child = child;
-
-        this.cast = cast;
+        this.child = Objects.requireNonNull(child);
+        this.cast = Objects.requireNonNull(cast);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        child.extractVariables(variables);
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override
-    void write(MethodWriter writer) {
-        child.write(writer);
+    void write(MethodWriter writer, Globals globals) {
+        child.write(writer, globals);
         writer.writeDebugInfo(location);
         writer.writeCast(cast);
         writer.writeBranch(tru, fals);

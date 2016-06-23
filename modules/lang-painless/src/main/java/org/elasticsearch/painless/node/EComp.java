@@ -20,23 +20,23 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.MethodWriter;
 
-import static org.elasticsearch.painless.WriterConstants.CHECKEQUALS;
-import static org.elasticsearch.painless.WriterConstants.DEF_EQ_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_GTE_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_GT_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_LTE_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_LT_CALL;
-import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
-import static org.elasticsearch.painless.WriterConstants.UTILITY_TYPE;
+import static org.elasticsearch.painless.WriterConstants.OBJECTS_TYPE;
+import static org.elasticsearch.painless.WriterConstants.EQUALS;
 
 /**
  * Represents a comparison expression.
@@ -46,51 +46,63 @@ public final class EComp extends AExpression {
     final Operation operation;
     AExpression left;
     AExpression right;
+    Type promotedType;
 
     public EComp(Location location, Operation operation, AExpression left, AExpression right) {
         super(location);
 
-        this.operation = operation;
-        this.left = left;
-        this.right = right;
+        this.operation = Objects.requireNonNull(operation);
+        this.left = Objects.requireNonNull(left);
+        this.right = Objects.requireNonNull(right);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        left.extractVariables(variables);
+        right.extractVariables(variables);
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         if (operation == Operation.EQ) {
-            analyzeEq(variables);
+            analyzeEq(locals);
         } else if (operation == Operation.EQR) {
-            analyzeEqR(variables);
+            analyzeEqR(locals);
         } else if (operation == Operation.NE) {
-            analyzeNE(variables);
+            analyzeNE(locals);
         } else if (operation == Operation.NER) {
-            analyzeNER(variables);
+            analyzeNER(locals);
         } else if (operation == Operation.GTE) {
-            analyzeGTE(variables);
+            analyzeGTE(locals);
         } else if (operation == Operation.GT) {
-            analyzeGT(variables);
+            analyzeGT(locals);
         } else if (operation == Operation.LTE) {
-            analyzeLTE(variables);
+            analyzeLTE(locals);
         } else if (operation == Operation.LT) {
-            analyzeLT(variables);
+            analyzeLT(locals);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
-    private void analyzeEq(Variables variables) {
+    private void analyzeEq(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteEquality(left.actual, right.actual);
+        promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
-        if (promote == null) {
+        if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply equals [==] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        if (promotedType.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+        } else {
+            left.expected = promotedType;
+            right.expected = promotedType;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
@@ -100,7 +112,7 @@ public final class EComp extends AExpression {
         }
 
         if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
-            Sort sort = promote.sort;
+            Sort sort = promotedType.sort;
 
             if (sort == Sort.BOOL) {
                 constant = (boolean)left.constant == (boolean)right.constant;
@@ -124,19 +136,24 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeEqR(Variables variables) {
+    private void analyzeEqR(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteEquality(left.actual, right.actual);
+        promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
-        if (promote == null) {
+        if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply reference equals [===] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        if (promotedType.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+        } else {
+            left.expected = promotedType;
+            right.expected = promotedType;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
@@ -146,7 +163,7 @@ public final class EComp extends AExpression {
         }
 
         if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
-            Sort sort = promote.sort;
+            Sort sort = promotedType.sort;
 
             if (sort == Sort.BOOL) {
                 constant = (boolean)left.constant == (boolean)right.constant;
@@ -166,19 +183,24 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeNE(Variables variables) {
+    private void analyzeNE(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteEquality(left.actual, right.actual);
+        promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
-        if (promote == null) {
+        if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply not equals [!=] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        if (promotedType.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+        } else {
+            left.expected = promotedType;
+            right.expected = promotedType;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
@@ -188,7 +210,7 @@ public final class EComp extends AExpression {
         }
 
         if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
-            Sort sort = promote.sort;
+            Sort sort = promotedType.sort;
 
             if (sort == Sort.BOOL) {
                 constant = (boolean)left.constant != (boolean)right.constant;
@@ -212,19 +234,24 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeNER(Variables variables) {
+    private void analyzeNER(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteEquality(left.actual, right.actual);
+        promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
-        if (promote == null) {
+        if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply reference not equals [!==] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        if (promotedType.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+        } else {
+            left.expected = promotedType;
+            right.expected = promotedType;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
@@ -234,7 +261,7 @@ public final class EComp extends AExpression {
         }
 
         if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
-            Sort sort = promote.sort;
+            Sort sort = promotedType.sort;
 
             if (sort == Sort.BOOL) {
                 constant = (boolean)left.constant != (boolean)right.constant;
@@ -254,25 +281,30 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeGTE(Variables variables) {
+    private void analyzeGTE(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
-        if (promote == null) {
+        if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply greater than or equals [>=] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        if (promotedType.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+        } else {
+            left.expected = promotedType;
+            right.expected = promotedType;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = promote.sort;
+            Sort sort = promotedType.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant >= (int)right.constant;
@@ -290,25 +322,30 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeGT(Variables variables) {
+    private void analyzeGT(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
-        if (promote == null) {
+        if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply greater than [>] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        if (promotedType.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+        } else {
+            left.expected = promotedType;
+            right.expected = promotedType;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = promote.sort;
+            Sort sort = promotedType.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant > (int)right.constant;
@@ -326,25 +363,30 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeLTE(Variables variables) {
+    private void analyzeLTE(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
-        if (promote == null) {
+        if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply less than or equals [<=] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        if (promotedType.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+        } else {
+            left.expected = promotedType;
+            right.expected = promotedType;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = promote.sort;
+            Sort sort = promotedType.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant <= (int)right.constant;
@@ -362,25 +404,30 @@ public final class EComp extends AExpression {
         actual = Definition.BOOLEAN_TYPE;
     }
 
-    private void analyzeLT(Variables variables) {
+    private void analyzeLT(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
-        if (promote == null) {
+        if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply less than [>=] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        if (promotedType.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+        } else {
+            left.expected = promotedType;
+            right.expected = promotedType;
+        }
 
         left = left.cast(variables);
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Sort sort = promote.sort;
+            Sort sort = promotedType.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant < (int)right.constant;
@@ -399,17 +446,15 @@ public final class EComp extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         boolean branch = tru != null || fals != null;
-        org.objectweb.asm.Type rtype = right.actual.type;
-        Sort rsort = right.actual.sort;
 
-        left.write(writer);
+        left.write(writer, globals);
 
         if (!right.isNull) {
-            right.write(writer);
+            right.write(writer, globals);
         }
 
         Label jump = tru != null ? tru : fals != null ? fals : new Label();
@@ -426,7 +471,7 @@ public final class EComp extends AExpression {
 
         boolean writejump = true;
 
-        switch (rsort) {
+        switch (promotedType.sort) {
             case VOID:
             case BYTE:
             case SHORT:
@@ -444,47 +489,49 @@ public final class EComp extends AExpression {
             case LONG:
             case FLOAT:
             case DOUBLE:
-                if      (eq)  writer.ifCmp(rtype, MethodWriter.EQ, jump);
-                else if (ne)  writer.ifCmp(rtype, MethodWriter.NE, jump);
-                else if (lt)  writer.ifCmp(rtype, MethodWriter.LT, jump);
-                else if (lte) writer.ifCmp(rtype, MethodWriter.LE, jump);
-                else if (gt)  writer.ifCmp(rtype, MethodWriter.GT, jump);
-                else if (gte) writer.ifCmp(rtype, MethodWriter.GE, jump);
+                if      (eq)  writer.ifCmp(promotedType.type, MethodWriter.EQ, jump);
+                else if (ne)  writer.ifCmp(promotedType.type, MethodWriter.NE, jump);
+                else if (lt)  writer.ifCmp(promotedType.type, MethodWriter.LT, jump);
+                else if (lte) writer.ifCmp(promotedType.type, MethodWriter.LE, jump);
+                else if (gt)  writer.ifCmp(promotedType.type, MethodWriter.GT, jump);
+                else if (gte) writer.ifCmp(promotedType.type, MethodWriter.GE, jump);
                 else {
                     throw createError(new IllegalStateException("Illegal tree structure."));
                 }
 
                 break;
             case DEF:
+                org.objectweb.asm.Type booleanType = org.objectweb.asm.Type.getType(boolean.class);
+                org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(booleanType, left.actual.type, right.actual.type);
                 if (eq) {
                     if (right.isNull) {
                         writer.ifNull(jump);
                     } else if (!left.isNull && (operation == Operation.EQ || operation == Operation.NE)) {
-                        writer.invokeStatic(DEF_UTIL_TYPE, DEF_EQ_CALL);
+                        writer.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                         writejump = false;
                     } else {
-                        writer.ifCmp(rtype, MethodWriter.EQ, jump);
+                        writer.ifCmp(promotedType.type, MethodWriter.EQ, jump);
                     }
                 } else if (ne) {
                     if (right.isNull) {
                         writer.ifNonNull(jump);
                     } else if (!left.isNull && (operation == Operation.EQ || operation == Operation.NE)) {
-                        writer.invokeStatic(DEF_UTIL_TYPE, DEF_EQ_CALL);
+                        writer.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                         writer.ifZCmp(MethodWriter.EQ, jump);
                     } else {
-                        writer.ifCmp(rtype, MethodWriter.NE, jump);
+                        writer.ifCmp(promotedType.type, MethodWriter.NE, jump);
                     }
                 } else if (lt) {
-                    writer.invokeStatic(DEF_UTIL_TYPE, DEF_LT_CALL);
+                    writer.invokeDefCall("lt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
                     writejump = false;
                 } else if (lte) {
-                    writer.invokeStatic(DEF_UTIL_TYPE, DEF_LTE_CALL);
+                    writer.invokeDefCall("lte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
                     writejump = false;
                 } else if (gt) {
-                    writer.invokeStatic(DEF_UTIL_TYPE, DEF_GT_CALL);
+                    writer.invokeDefCall("gt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
                     writejump = false;
                 } else if (gte) {
-                    writer.invokeStatic(DEF_UTIL_TYPE, DEF_GTE_CALL);
+                    writer.invokeDefCall("gte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
                     writejump = false;
                 } else {
                     throw createError(new IllegalStateException("Illegal tree structure."));
@@ -500,7 +547,7 @@ public final class EComp extends AExpression {
                     if (right.isNull) {
                         writer.ifNull(jump);
                     } else if (operation == Operation.EQ || operation == Operation.NE) {
-                        writer.invokeStatic(UTILITY_TYPE, CHECKEQUALS);
+                        writer.invokeStatic(OBJECTS_TYPE, EQUALS);
 
                         if (branch) {
                             writer.ifZCmp(MethodWriter.NE, jump);
@@ -508,16 +555,16 @@ public final class EComp extends AExpression {
 
                         writejump = false;
                     } else {
-                        writer.ifCmp(rtype, MethodWriter.EQ, jump);
+                        writer.ifCmp(promotedType.type, MethodWriter.EQ, jump);
                     }
                 } else if (ne) {
                     if (right.isNull) {
                         writer.ifNonNull(jump);
                     } else if (operation == Operation.EQ || operation == Operation.NE) {
-                        writer.invokeStatic(UTILITY_TYPE, CHECKEQUALS);
+                        writer.invokeStatic(OBJECTS_TYPE, EQUALS);
                         writer.ifZCmp(MethodWriter.EQ, jump);
                     } else {
-                        writer.ifCmp(rtype, MethodWriter.NE, jump);
+                        writer.ifCmp(promotedType.type, MethodWriter.NE, jump);
                     }
                 } else {
                     throw createError(new IllegalStateException("Illegal tree structure."));

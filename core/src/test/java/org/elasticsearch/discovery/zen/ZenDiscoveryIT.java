@@ -320,7 +320,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
     }
 
     public void testJoinElectedMaster_incompatibleMinVersion() {
-        ElectMasterService electMasterService = new ElectMasterService(Settings.EMPTY, Version.CURRENT);
+        ElectMasterService electMasterService = new ElectMasterService(Settings.EMPTY);
 
         DiscoveryNode node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), emptyMap(),
                 Collections.singleton(DiscoveryNode.Role.MASTER), Version.CURRENT);

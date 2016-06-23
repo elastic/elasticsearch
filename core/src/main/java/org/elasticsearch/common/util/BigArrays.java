@@ -373,12 +373,11 @@ public class BigArrays implements Releasable {
     final boolean checkBreaker;
     private final BigArrays circuitBreakingInstance;
 
-    @Inject
     public BigArrays(Settings settings, @Nullable final CircuitBreakerService breakerService) {
         // Checking the breaker is disabled if not specified
         this(new PageCacheRecycler(settings), breakerService, false);
     }
-
+    // public for tests
     public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, boolean checkBreaker) {
         this.checkBreaker = checkBreaker;
         this.recycler = recycler;

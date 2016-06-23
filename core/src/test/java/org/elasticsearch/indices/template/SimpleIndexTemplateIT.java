@@ -45,6 +45,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -110,12 +111,12 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
 
         // index something into test_index, will match on both templates
-        client().prepareIndex("test_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
         SearchResponse searchResponse = client().prepareSearch("test_index")
                 .setQuery(termQuery("field1", "value1"))
-                .addField("field1").addField("field2")
+                .addStoredField("field1").addStoredField("field2")
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 1);
@@ -123,13 +124,13 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         // field2 is not stored.
         assertThat(searchResponse.getHits().getAt(0).field("field2"), nullValue());
 
-        client().prepareIndex("text_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefresh(true).execute().actionGet();
+        client().prepareIndex("text_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
         // now only match on one template (template_1)
         searchResponse = client().prepareSearch("text_index")
                 .setQuery(termQuery("field1", "value1"))
-                .addField("field1").addField("field2")
+                .addStoredField("field1").addStoredField("field2")
                 .execute().actionGet();
         if (searchResponse.getFailedShards() > 0) {
             logger.warn("failed search {}", Arrays.toString(searchResponse.getShardFailures()));
@@ -321,7 +322,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setTemplate("te*")
                 .setSettings(Settings.builder().put("does_not_exist", "test"))
                 .get());
-        assertEquals("unknown setting [index.does_not_exist]", e.getMessage());
+        assertEquals("unknown setting [index.does_not_exist] please check that any required plugins are" +
+            " installed, or check the breaking changes documentation for removed settings", e.getMessage());
 
         response = client().admin().indices().prepareGetTemplates().get();
         assertEquals(0, response.getIndexTemplates().size());

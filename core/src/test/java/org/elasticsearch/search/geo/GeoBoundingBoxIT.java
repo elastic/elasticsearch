@@ -34,6 +34,7 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collection;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
@@ -125,113 +126,6 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
         }
     }
 
-    public void testLimitsBoundingBox() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location").field("type", "geo_point");
-        if (version.before(Version.V_2_2_0)) {
-            xContentBuilder.field("lat_lon", true);
-        }
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
-        ensureGreen();
-
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
-                .startObject("location").field("lat", 40).field("lon", -20).endObject()
-                .endObject()).execute().actionGet();
-
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
-                .startObject("location").field("lat", 40).field("lon", -10).endObject()
-                .endObject()).execute().actionGet();
-
-        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
-                .startObject("location").field("lat", 40).field("lon", 10).endObject()
-                .endObject()).execute().actionGet();
-
-        client().prepareIndex("test", "type1", "4").setSource(jsonBuilder().startObject()
-                .startObject("location").field("lat", 40).field("lon", 20).endObject()
-                .endObject()).execute().actionGet();
-
-        client().prepareIndex("test", "type1", "5").setSource(jsonBuilder().startObject()
-                .startObject("location").field("lat", 10).field("lon", -170).endObject()
-                .endObject()).execute().actionGet();
-
-        client().prepareIndex("test", "type1", "6").setSource(jsonBuilder().startObject()
-                .startObject("location").field("lat", 0).field("lon", -170).endObject()
-                .endObject()).execute().actionGet();
-
-        client().prepareIndex("test", "type1", "7").setSource(jsonBuilder().startObject()
-                .startObject("location").field("lat", -10).field("lon", -170).endObject()
-                .endObject()).execute().actionGet();
-
-        client().prepareIndex("test", "type1", "8").setSource(jsonBuilder().startObject()
-                .startObject("location").field("lat", 10).field("lon", 170).endObject()
-                .endObject()).execute().actionGet();
-
-        client().prepareIndex("test", "type1", "9").setSource(jsonBuilder().startObject()
-                .startObject("location").field("lat", 0).field("lon", 170).endObject()
-                .endObject()).execute().actionGet();
-
-        client().prepareIndex("test", "type1", "10").setSource(jsonBuilder().startObject()
-                .startObject("location").field("lat", -10).field("lon", 170).endObject()
-                .endObject()).execute().actionGet();
-
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(geoBoundingBoxQuery("location").setCorners(41, -11, 40, 9))
-                .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("2"));
-        searchResponse = client().prepareSearch()
-                .setQuery(geoBoundingBoxQuery("location").setCorners(41, -11, 40, 9).type("indexed"))
-                .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("2"));
-
-        searchResponse = client().prepareSearch()
-                .setQuery(geoBoundingBoxQuery("location").setCorners(41, -9, 40, 11))
-                .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("3"));
-        searchResponse = client().prepareSearch()
-                .setQuery(geoBoundingBoxQuery("location").setCorners(41, -9, 40, 11).type("indexed"))
-                .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("3"));
-
-        searchResponse = client().prepareSearch()
-                .setQuery(geoBoundingBoxQuery("location").setCorners(11, 171, 1, -169))
-                .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("5"));
-        searchResponse = client().prepareSearch()
-                .setQuery(geoBoundingBoxQuery("location").setCorners(11, 171, 1, -169).type("indexed"))
-                .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("5"));
-
-        searchResponse = client().prepareSearch()
-                .setQuery(geoBoundingBoxQuery("location").setCorners(9, 169, -1, -171))
-                .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("9"));
-        searchResponse = client().prepareSearch()
-                .setQuery(geoBoundingBoxQuery("location").setCorners(9, 169, -1, -171).type("indexed"))
-                .execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("9"));
-    }
-
     public void testLimit2BoundingBox() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
@@ -249,16 +143,16 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
                 .field("title", "Place in Stockholm")
                 .startObject("location").field("lat", 59.328355000000002).field("lon", 18.036842).endObject()
                 .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
 
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
                 .field("userid", 534)
                 .field("title", "Place in Montreal")
                 .startObject("location").field("lat", 45.509526999999999).field("lon", -73.570986000000005).endObject()
                 .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(
@@ -304,16 +198,16 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
                 .field("title", "Place in Stockholm")
                 .startObject("location").field("lat", 59.328355000000002).field("lon", 18.036842).endObject()
                 .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
 
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
                 .field("userid", 534)
                 .field("title", "Place in Montreal")
                 .startObject("location").field("lat", 45.509526999999999).field("lon", -73.570986000000005).endObject()
                 .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(

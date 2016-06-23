@@ -23,7 +23,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.junit.Assert;
 
-import static org.hamcrest.Matchers.greaterThan;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertVersionSerializable;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.formatShardStatus;
 

@@ -86,7 +86,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
             assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));
             assertThat(hit.explanation().toString(),
                     containsString(Double.toString(idCounter) + " = This script returned " + Double.toString(idCounter)));
-            assertThat(hit.explanation().toString(), containsString("1.0 = tf(freq=1.0), with freq of"));
+            assertThat(hit.explanation().toString(), containsString("freq=1.0 = termFreq=1.0"));
             assertThat(hit.explanation().getDetails().length, equalTo(2));
             idCounter--;
         }
@@ -100,6 +100,11 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         @Override
         public boolean needsScores() {
             return true;
+        }
+
+        @Override
+        public String getName() {
+            return "native_explainable_script";
         }
     }
 

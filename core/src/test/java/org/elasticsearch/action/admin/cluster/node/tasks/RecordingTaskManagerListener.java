@@ -19,11 +19,11 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
-import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.tasks.MockTaskManagerListener;
 
 import java.util.ArrayList;
@@ -58,6 +58,10 @@ public class RecordingTaskManagerListener implements MockTaskManagerListener {
         if (Regex.simpleMatch(actionMasks, task.getAction())) {
             events.add(new Tuple<>(false, task.taskInfo(localNode, true)));
         }
+    }
+
+    @Override
+    public void waitForTaskCompletion(Task task) {
     }
 
     public synchronized List<Tuple<Boolean, TaskInfo>> getEvents() {

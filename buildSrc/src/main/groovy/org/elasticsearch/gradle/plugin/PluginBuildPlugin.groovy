@@ -19,7 +19,6 @@
 package org.elasticsearch.gradle.plugin
 
 import nebula.plugin.publishing.maven.MavenBasePublishPlugin
-import nebula.plugin.publishing.maven.MavenManifestPlugin
 import nebula.plugin.publishing.maven.MavenScmPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.test.RestIntegTestTask
@@ -27,7 +26,6 @@ import org.elasticsearch.gradle.test.RunTask
 import org.gradle.api.Project
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Zip
-
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
  */
@@ -56,7 +54,7 @@ public class PluginBuildPlugin extends BuildPlugin {
             }
 
             project.namingConventions {
-                // Plugins decalare extensions of ESIntegTestCase as "Tests" instead of IT.
+                // Plugins declare integration tests as "Tests" instead of IT.
                 skipIntegTestInDisguise = true
             }
         }

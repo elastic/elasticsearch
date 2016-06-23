@@ -93,10 +93,22 @@
   - is_false: deleted
 
   - do:
-      tasks.list:
+      task.get:
         wait_for_completion: true
         task_id: $task
   - is_false: node_failures
+  # The task will be in the response even if it finished before we got here
+  # because of task persistence.
+  - is_true: task
+  - match: {response.created: 1}
+  - match: {response.updated: 0}
+  - match: {response.version_conflicts: 0}
+  - match: {response.batches: 1}
+  - match: {response.failures: []}
+  - match: {response.throttled_millis: 0}
+  - gte: { response.took: 0 }
+  - is_false: response.task
+  - is_false: response.deleted
 
 ---
 "Response format for version conflict":

@@ -41,7 +41,6 @@ import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -66,12 +65,12 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 import static java.util.Collections.unmodifiableMap;
@@ -91,7 +90,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     private final String defaultLang;
 
-    private final Set<ScriptEngineService> scriptEngines;
+    private final Collection<ScriptEngineService> scriptEngines;
     private final Map<String, ScriptEngineService> scriptEnginesByLang;
     private final Map<String, ScriptEngineService> scriptEnginesByExt;
 
@@ -131,8 +130,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     @Deprecated
     public static final ParseField SCRIPT_INLINE = new ParseField("script");
 
-    @Inject
-    public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines,
+    public ScriptService(Settings settings, Environment env,
                          ResourceWatcherService resourceWatcherService, ScriptEngineRegistry scriptEngineRegistry,
                          ScriptContextRegistry scriptContextRegistry, ScriptSettings scriptSettings) throws IOException {
         super(settings);
@@ -145,7 +143,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     "Dynamic scripts can be enabled for all languages and all operations by replacing `script.disable_dynamic: false` with `script.inline: true` and `script.stored: true` in elasticsearch.yml");
         }
 
-        this.scriptEngines = scriptEngines;
+        this.scriptEngines = scriptEngineRegistry.getRegisteredLanguages().values();
         this.scriptContextRegistry = scriptContextRegistry;
         int cacheMaxSize = SCRIPT_CACHE_SIZE_SETTING.get(settings);
 
@@ -506,16 +504,10 @@ public class ScriptService extends AbstractComponent implements Closeable {
     private class ScriptCacheRemovalListener implements RemovalListener<CacheKey, CompiledScript> {
         @Override
         public void onRemoval(RemovalNotification<CacheKey, CompiledScript> notification) {
-            scriptMetrics.onCacheEviction();
-            for (ScriptEngineService service : scriptEngines) {
-                try {
-                    service.scriptRemoved(notification.getValue());
-                } catch (Exception e) {
-                    logger.warn("exception calling script removal listener for script service", e);
-                    // We don't rethrow because Guava would just catch the
-                    // exception and log it, which we have already done
-                }
+            if (logger.isDebugEnabled()) {
+                logger.debug("removed {} from cache, reason: {}", notification.getValue(), notification.getRemovalReason());
             }
+            scriptMetrics.onCacheEviction();
         }
     }
 

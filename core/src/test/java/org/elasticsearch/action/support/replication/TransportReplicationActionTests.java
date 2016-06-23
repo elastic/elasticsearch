@@ -120,7 +120,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = new TransportService(transport, threadPool, clusterService.state().getClusterName());
+        transportService = new TransportService(clusterService.getSettings(), transport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
         action = new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool);

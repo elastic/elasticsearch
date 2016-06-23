@@ -23,30 +23,25 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
+
+import java.util.Arrays;
+import java.util.List;
 
 public class PercolatorPlugin extends Plugin {
 
     public static final String NAME = "percolator";
 
     private final boolean transportClientMode;
+    private final Settings settings;
 
     public PercolatorPlugin(Settings settings) {
         this.transportClientMode = transportClientMode(settings);
-    }
-
-    @Override
-    public String name() {
-        return NAME;
-    }
-
-    @Override
-    public String description() {
-        return "Percolator module adds capability to index queries and query these queries by specifying documents";
+        this.settings = settings;
     }
 
     public void onModule(ActionModule module) {
@@ -67,11 +62,12 @@ public class PercolatorPlugin extends Plugin {
 
     public void onModule(SearchModule module) {
         module.registerQuery(PercolateQueryBuilder::new, PercolateQueryBuilder::fromXContent, PercolateQueryBuilder.QUERY_NAME_FIELD);
-        module.registerFetchSubPhase(PercolatorHighlightSubFetchPhase.class);
+        module.registerFetchSubPhase(new PercolatorHighlightSubFetchPhase(settings, module.getHighlighters()));
     }
 
-    public void onModule(SettingsModule module) {
-        module.registerSetting(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
     }
 
     static boolean transportClientMode(Settings settings) {

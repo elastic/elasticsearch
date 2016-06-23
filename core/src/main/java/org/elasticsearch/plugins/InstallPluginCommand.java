@@ -45,11 +45,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
@@ -57,6 +60,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.SettingCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserError;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -237,8 +241,31 @@ class InstallPluginCommand extends SettingCommand {
         }
 
         // fall back to plain old URL
+        if (pluginId.contains(":/") == false) {
+            // definitely not a valid url, so assume it is a plugin name
+            List<String> plugins = checkMisspelledPlugin(pluginId);
+            String msg = "Unknown plugin " + pluginId;
+            if (plugins.isEmpty() == false) {
+                msg += ", did you mean " + (plugins.size() == 1 ? "[" + plugins.get(0) + "]": "any of " + plugins.toString()) + "?";
+            }
+            throw new UserError(ExitCodes.USAGE, msg);
+        }
         terminal.println("-> Downloading " + URLDecoder.decode(pluginId, "UTF-8"));
         return downloadZip(terminal, pluginId, tmpDir);
+    }
+
+    /** Returns all the official plugin names that look similar to pluginId. **/
+    private List<String> checkMisspelledPlugin(String pluginId) {
+        LevensteinDistance ld = new LevensteinDistance();
+        List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
+        for (String officialPlugin : OFFICIAL_PLUGINS) {
+            float distance = ld.getDistance(pluginId, officialPlugin);
+            if (distance > 0.7f) {
+                scoredKeys.add(new Tuple<>(distance, officialPlugin));
+            }
+        }
+        CollectionUtil.timSort(scoredKeys, (a, b) -> b.v1().compareTo(a.v1()));
+        return scoredKeys.stream().map((a) -> a.v2()).collect(Collectors.toList());
     }
 
     /** Downloads a zip from the url, into a temp file under the given temp dir. */

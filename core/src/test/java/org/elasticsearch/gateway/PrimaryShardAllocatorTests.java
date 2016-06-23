@@ -344,7 +344,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder()
             .addAsRestore(metaData.index(shardId.getIndex()), new RestoreSource(snapshot, version, shardId.getIndexName()))
             .build();
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
+        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metaData(metaData)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
@@ -423,7 +423,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder()
             .addAsRestore(metaData.index(shardId.getIndex()), new RestoreSource(new Snapshot("test", new SnapshotId("test", UUIDs.randomBase64UUID())), Version.CURRENT, shardId.getIndexName()))
             .build();
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
+        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metaData(metaData)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
@@ -441,7 +441,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsRecovery(metaData.index(shardId.getIndex()))
                 .build();
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
+        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metaData(metaData)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
@@ -482,7 +482,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsRecovery(metaData.index(shardId.getIndex()))
                 .build();
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
+        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metaData(metaData)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
@@ -523,7 +523,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         } else {
             routingTableBuilder.addAsRecovery(metaData.index(shardId.getIndex()));
         }
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT)
+        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metaData(metaData)
                 .routingTable(routingTableBuilder.build())
                 .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();

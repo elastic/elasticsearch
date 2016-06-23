@@ -857,6 +857,10 @@ public abstract class Engine implements Closeable {
         public long endTime() {
             return this.endTime;
         }
+
+        abstract String type();
+
+        abstract String id();
     }
 
     public static class Index extends Operation {
@@ -880,10 +884,12 @@ public abstract class Engine implements Closeable {
             return this.doc;
         }
 
+        @Override
         public String type() {
             return this.doc.type();
         }
 
+        @Override
         public String id() {
             return this.doc.id();
         }
@@ -948,10 +954,12 @@ public abstract class Engine implements Closeable {
             this(type, id, uid, SequenceNumbersService.UNASSIGNED_SEQ_NO, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime(), false);
         }
 
+        @Override
         public String type() {
             return this.type;
         }
 
+        @Override
         public String id() {
             return this.id;
         }

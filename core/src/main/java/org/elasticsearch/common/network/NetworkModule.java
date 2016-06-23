@@ -49,6 +49,7 @@ import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotT
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.node.stats.RestNodesStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestCancelTasksAction;
+import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestGetTaskAction;
 import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestListTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.delete.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepositoriesAction;
@@ -65,13 +66,11 @@ import org.elasticsearch.rest.action.admin.cluster.snapshots.restore.RestRestore
 import org.elasticsearch.rest.action.admin.cluster.snapshots.status.RestSnapshotsStatusAction;
 import org.elasticsearch.rest.action.admin.cluster.state.RestClusterStateAction;
 import org.elasticsearch.rest.action.admin.cluster.stats.RestClusterStatsAction;
-import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestDeleteSearchTemplateAction;
 import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestDeleteStoredScriptAction;
-import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestGetSearchTemplateAction;
 import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestGetStoredScriptAction;
-import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestPutSearchTemplateAction;
 import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestPutStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.tasks.RestPendingClusterTasksAction;
+import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestShrinkIndexAction;
 import org.elasticsearch.rest.action.admin.indices.alias.RestIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.delete.RestIndexDeleteAliasesAction;
@@ -106,7 +105,6 @@ import org.elasticsearch.rest.action.admin.indices.template.head.RestHeadIndexTe
 import org.elasticsearch.rest.action.admin.indices.template.put.RestPutIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.upgrade.RestUpgradeAction;
 import org.elasticsearch.rest.action.admin.indices.validate.query.RestValidateQueryAction;
-import org.elasticsearch.rest.action.admin.indices.validate.template.RestRenderSearchTemplateAction;
 import org.elasticsearch.rest.action.bulk.RestBulkAction;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestAliasAction;
@@ -146,6 +144,7 @@ import org.elasticsearch.rest.action.suggest.RestSuggestAction;
 import org.elasticsearch.rest.action.termvectors.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.termvectors.RestTermVectorsAction;
 import org.elasticsearch.rest.action.update.RestUpdateAction;
+import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -166,11 +165,11 @@ public class NetworkModule extends AbstractModule {
     public static final String LOCAL_TRANSPORT = "local";
     public static final String NETTY_TRANSPORT = "netty";
 
-    public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString("http.type", Property.NodeScope);
+    public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_KEY, Property.NodeScope);
     public static final Setting<Boolean> HTTP_ENABLED = Setting.boolSetting("http.enabled", true, Property.NodeScope);
     public static final Setting<String> TRANSPORT_SERVICE_TYPE_SETTING =
-        Setting.simpleString("transport.service.type", Property.NodeScope);
-    public static final Setting<String> TRANSPORT_TYPE_SETTING = Setting.simpleString("transport.type", Property.NodeScope);
+        Setting.simpleString(TRANSPORT_SERVICE_TYPE_KEY, Property.NodeScope);
+    public static final Setting<String> TRANSPORT_TYPE_SETTING = Setting.simpleString(TRANSPORT_TYPE_KEY, Property.NodeScope);
 
 
 
@@ -211,6 +210,7 @@ public class NetworkModule extends AbstractModule {
         RestIndicesAliasesAction.class,
         RestCreateIndexAction.class,
         RestShrinkIndexAction.class,
+        RestRolloverIndexAction.class,
         RestDeleteIndexAction.class,
         RestCloseIndexAction.class,
         RestOpenIndexAction.class,
@@ -252,18 +252,12 @@ public class NetworkModule extends AbstractModule {
         RestSearchScrollAction.class,
         RestClearScrollAction.class,
         RestMultiSearchAction.class,
-        RestRenderSearchTemplateAction.class,
 
         RestValidateQueryAction.class,
 
         RestExplainAction.class,
 
         RestRecoveryAction.class,
-
-        // Templates API
-        RestGetSearchTemplateAction.class,
-        RestPutSearchTemplateAction.class,
-        RestDeleteSearchTemplateAction.class,
 
         // Scripts API
         RestGetStoredScriptAction.class,
@@ -277,6 +271,7 @@ public class NetworkModule extends AbstractModule {
 
         // Tasks API
         RestListTasksAction.class,
+        RestGetTaskAction.class,
         RestCancelTasksAction.class,
 
         // Ingest API
@@ -339,6 +334,7 @@ public class NetworkModule extends AbstractModule {
         registerTransport(LOCAL_TRANSPORT, LocalTransport.class);
         registerTransport(NETTY_TRANSPORT, NettyTransport.class);
         registerTaskStatus(ReplicationTask.Status.NAME, ReplicationTask.Status::new);
+        registerTaskStatus(RawTaskStatus.NAME, RawTaskStatus::new);
         registerBuiltinAllocationCommands();
 
         if (transportClient == false) {
@@ -351,6 +347,10 @@ public class NetworkModule extends AbstractModule {
                 restHandlers.registerExtension(restAction);
             }
         }
+    }
+
+    public boolean isTransportClient() {
+        return transportClient;
     }
 
     /** Adds a transport service implementation that can be selected by setting {@link #TRANSPORT_SERVICE_TYPE_KEY}. */

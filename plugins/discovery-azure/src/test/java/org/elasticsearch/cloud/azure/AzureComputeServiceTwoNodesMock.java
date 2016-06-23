@@ -42,14 +42,6 @@ import static org.elasticsearch.common.util.CollectionUtils.newSingletonArrayLis
  */
 public class AzureComputeServiceTwoNodesMock extends AzureComputeServiceAbstractMock {
     public static class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "mock-compute-service";
-        }
-        @Override
-        public String description() {
-            return "plugs in a mock compute service for testing";
-        }
         public void onModule(AzureDiscoveryModule azureDiscoveryModule) {
             azureDiscoveryModule.computeServiceImpl = AzureComputeServiceTwoNodesMock.class;
         }

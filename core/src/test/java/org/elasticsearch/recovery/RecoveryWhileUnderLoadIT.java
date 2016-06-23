@@ -296,7 +296,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                     if (docShard.id() == shard) {
                         for (ShardRouting shardRouting : state.routingTable().shardRoutingTable("test", shard)) {
                             GetResponse response = client().prepareGet("test", "type", Long.toString(id))
-                                    .setPreference("_only_node:" + shardRouting.currentNodeId()).get();
+                                    .setPreference("_only_nodes:" + shardRouting.currentNodeId()).get();
                             if (response.isExists()) {
                                 logger.info("missing id [{}] on shard {}", id, shardRouting);
                             }

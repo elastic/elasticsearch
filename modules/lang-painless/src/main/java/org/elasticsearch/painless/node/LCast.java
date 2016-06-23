@@ -20,10 +20,14 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Cast;
+
+import java.util.Set;
+
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -40,9 +44,12 @@ public final class LCast extends ALink {
 
         this.type = type;
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
         if (before == null) {
             throw createError(new IllegalStateException("Illegal cast without a target."));
         } else if (store) {
@@ -61,18 +68,18 @@ public final class LCast extends ALink {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
         writer.writeCast(cast);
     }
 
     @Override
-    void load(MethodWriter writer) {
+    void load(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 
     @Override
-    void store(MethodWriter writer) {
+    void store(MethodWriter writer, Globals globals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

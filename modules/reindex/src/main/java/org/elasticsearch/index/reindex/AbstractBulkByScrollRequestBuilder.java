@@ -131,4 +131,12 @@ public abstract class AbstractBulkByScrollRequestBuilder<
         request.setRequestsPerSecond(requestsPerSecond);
         return self();
     }
+
+    /**
+     * Should this task persist its result after it has finished?
+     */
+    public Self setShouldPersistResult(boolean shouldPersistResult) {
+        request.setShouldPersistResult(shouldPersistResult);
+        return self();
+    }
 }

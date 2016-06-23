@@ -439,8 +439,8 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .setQuery(randomizeType(multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .operator(Operator.OR))).get();
-        assertFirstHit(searchResponse, hasId("theone"));
-        assertSecondHit(searchResponse, hasId("theother"));
+        assertFirstHit(searchResponse, hasId("theother"));
+        assertSecondHit(searchResponse, hasId("theone"));
         assertThat(searchResponse.getHits().hits()[0].getScore(), greaterThan(searchResponse.getHits().hits()[1].getScore()));
 
         searchResponse = client().prepareSearch("test")

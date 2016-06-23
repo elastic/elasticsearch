@@ -28,20 +28,7 @@ import org.elasticsearch.index.analysis.IcuTransformTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.Plugin;
 
-/**
- *
- */
 public class AnalysisICUPlugin extends Plugin {
-
-    @Override
-    public String name() {
-        return "analysis-icu";
-    }
-
-    @Override
-    public String description() {
-        return "UTF related ICU analysis support";
-    }
 
     /**
      * Automatically called with the analysis module.

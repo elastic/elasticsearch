@@ -26,18 +26,8 @@ import java.io.IOException;
 
 public class IngestAttachmentPlugin extends Plugin {
 
-    @Override
-    public String name() {
-        return "ingest-attachment";
-    }
-
-    @Override
-    public String description() {
-        return "Ingest processor that adds uses Tika to extract binary data";
-    }
-
     public void onModule(NodeModule nodeModule) throws IOException {
         nodeModule.registerProcessor(AttachmentProcessor.TYPE,
-            (templateService, registry) -> new AttachmentProcessor.Factory());
+            (registry) -> new AttachmentProcessor.Factory());
     }
 }

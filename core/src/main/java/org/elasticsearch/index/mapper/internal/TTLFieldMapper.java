@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -100,6 +101,9 @@ public class TTLFieldMapper extends MetadataFieldMapper {
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
         public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0_alpha4)) {
+                throw new IllegalArgumentException("[_ttl] is removed in 5.0. As a replacement, you should use time based indexes or cron a delete-by-query with a range query on a timestamp field.");
+            }
             Builder builder = new Builder();
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -165,6 +169,9 @@ public class TTLFieldMapper extends MetadataFieldMapper {
     private TTLFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabled, long defaultTTL,
                              Settings indexSettings) {
         super(NAME, fieldType, Defaults.TTL_FIELD_TYPE, indexSettings);
+        if (enabled.enabled && Version.indexCreated(indexSettings).onOrAfter(Version.V_5_0_0_alpha4)) {
+            throw new IllegalArgumentException("[_ttl] is removed in 5.0. As a replacement, you should use time based indexes or cron a delete-by-query with a range query on a timestamp field.");
+        }
         this.enabledState = enabled;
         this.defaultTTL = defaultTTL;
     }

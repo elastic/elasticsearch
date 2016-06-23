@@ -19,12 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Represents a series of declarations.
@@ -38,20 +40,27 @@ public final class SDeclBlock extends AStatement {
 
         this.declarations = Collections.unmodifiableList(declarations);
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        for (SDeclaration declaration : declarations) {
+            declaration.extractVariables(variables);
+        }
+    }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         for (SDeclaration declaration : declarations) {
-            declaration.analyze(variables);
+            declaration.analyze(locals);
         }
 
         statementCount = declarations.size();
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         for (AStatement declaration : declarations) {
-            declaration.write(writer);
+            declaration.write(writer, globals);
         }
     }
 }

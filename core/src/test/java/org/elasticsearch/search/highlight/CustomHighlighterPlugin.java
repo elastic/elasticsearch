@@ -24,17 +24,7 @@ import org.elasticsearch.search.SearchModule;
 
 public class CustomHighlighterPlugin extends Plugin {
 
-    @Override
-    public String name() {
-        return "test-plugin-custom-highlighter";
-    }
-
-    @Override
-    public String description() {
-        return "Custom highlighter to test pluggable implementation";
-    }
-
     public void onModule(SearchModule highlightModule) {
-        highlightModule.registerHighlighter("test-custom", CustomHighlighter.class);
+        highlightModule.registerHighlighter("test-custom", new CustomHighlighter());
     }
 }

@@ -28,6 +28,8 @@ import org.joda.time.PeriodType;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -123,20 +125,22 @@ public class TimeValueTests extends ESTestCase {
                      TimeValue.parseTimeValue("10W", null, "test"));
     }
 
-    private void assertEqualityAfterSerialize(TimeValue value) throws IOException {
+    private void assertEqualityAfterSerialize(TimeValue value, int expectedSize) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         value.writeTo(out);
+        assertEquals(expectedSize, out.size());
 
         StreamInput in = StreamInput.wrap(out.bytes());
-        TimeValue inValue = TimeValue.readTimeValue(in);
+        TimeValue inValue = new TimeValue(in);
 
         assertThat(inValue, equalTo(value));
     }
 
     public void testSerialize() throws Exception {
-        assertEqualityAfterSerialize(new TimeValue(100, TimeUnit.DAYS));
-        assertEqualityAfterSerialize(new TimeValue(-1));
-        assertEqualityAfterSerialize(new TimeValue(1, TimeUnit.NANOSECONDS));
+        assertEqualityAfterSerialize(new TimeValue(100, TimeUnit.DAYS), 8);
+        assertEqualityAfterSerialize(timeValueNanos(-1), 1);
+        assertEqualityAfterSerialize(timeValueNanos(1), 1);
+        assertEqualityAfterSerialize(timeValueSeconds(30), 6);
     }
 
     public void testFailOnUnknownUnits() {

@@ -18,12 +18,17 @@
  */
 package org.elasticsearch.percolator;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -32,6 +37,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
@@ -42,10 +48,9 @@ import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.hamcrest.Matchers.equalTo;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.startsWith;
 
 public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
 
@@ -380,6 +385,55 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
         });
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause().getMessage(), equalTo("a document can only contain one percolator query"));
+    }
+
+    public void testPercolateQueryWithNestedDocuments() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject().startObject("properties").startObject("companyname").field("type", "text").endObject()
+                .startObject("employee").field("type", "nested").startObject("properties")
+                .startObject("name").field("type", "text").endObject().endObject().endObject().endObject()
+                .endObject();
+        createIndex("test", client().admin().indices().prepareCreate("test")
+                .addMapping("employee", mapping)
+                .addMapping("queries", "query", "type=percolator")
+        );
+        client().prepareIndex("test", "queries", "q").setSource(jsonBuilder().startObject()
+                .field("query", QueryBuilders.nestedQuery("employee",
+                        QueryBuilders.matchQuery("employee.name", "virginia potts").operator(Operator.AND), ScoreMode.Avg)
+                ).endObject())
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
+
+        SearchResponse response = client().prepareSearch()
+                .setQuery(new PercolateQueryBuilder("query", "employee",
+                        XContentFactory.jsonBuilder()
+                            .startObject().field("companyname", "stark")
+                                .startArray("employee")
+                                    .startObject().field("name", "virginia potts").endObject()
+                                    .startObject().field("name", "tony stark").endObject()
+                                .endArray()
+                            .endObject().bytes()))
+                .get();
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getAt(0).getId(), equalTo("q"));
+
+        response = client().prepareSearch()
+                .setQuery(new PercolateQueryBuilder("query", "employee",
+                        XContentFactory.jsonBuilder()
+                            .startObject().field("companyname", "notstark")
+                                .startArray("employee")
+                                    .startObject().field("name", "virginia stark").endObject()
+                                    .startObject().field("name", "tony stark").endObject()
+                                .endArray()
+                            .endObject().bytes()))
+                .get();
+        assertHitCount(response, 0);
+
+        response = client().prepareSearch()
+                .setQuery(new PercolateQueryBuilder("query", "employee",
+                        XContentFactory.jsonBuilder().startObject().field("companyname", "notstark").endObject().bytes()))
+                .get();
+        assertHitCount(response, 0);
     }
 
 }

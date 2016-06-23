@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.action.shard;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
@@ -312,8 +313,8 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         @Override
-        public void clusterStatePublished(ClusterState newClusterState) {
-            int numberOfUnassignedShards = newClusterState.getRoutingNodes().unassigned().size();
+        public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+            int numberOfUnassignedShards = clusterChangedEvent.state().getRoutingNodes().unassigned().size();
             if (numberOfUnassignedShards > 0) {
                 String reason = String.format(Locale.ROOT, "[%d] unassigned shards after failing shards", numberOfUnassignedShards);
                 if (logger.isTraceEnabled()) {

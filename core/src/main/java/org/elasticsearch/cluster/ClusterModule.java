@@ -63,7 +63,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.gateway.GatewayAllocator;
-import org.elasticsearch.tasks.TaskResultsService;
+import org.elasticsearch.tasks.TaskPersistenceService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -100,17 +100,19 @@ public class ClusterModule extends AbstractModule {
     private final ExtensionPoint.SelectedType<ShardsAllocator> shardsAllocators = new ExtensionPoint.SelectedType<>("shards_allocator", ShardsAllocator.class);
     private final ExtensionPoint.ClassSet<AllocationDecider> allocationDeciders = new ExtensionPoint.ClassSet<>("allocation_decider", AllocationDecider.class, AllocationDeciders.class);
     private final ExtensionPoint.ClassSet<IndexTemplateFilter> indexTemplateFilters = new ExtensionPoint.ClassSet<>("index_template_filter", IndexTemplateFilter.class);
+    private final ClusterService clusterService;
 
     // pkg private so tests can mock
     Class<? extends ClusterInfoService> clusterInfoServiceImpl = InternalClusterInfoService.class;
 
-    public ClusterModule(Settings settings) {
+    public ClusterModule(Settings settings, ClusterService clusterService) {
         this.settings = settings;
         for (Class<? extends AllocationDecider> decider : ClusterModule.DEFAULT_ALLOCATION_DECIDERS) {
             registerAllocationDecider(decider);
         }
         registerShardsAllocator(ClusterModule.BALANCED_ALLOCATOR, BalancedShardsAllocator.class);
         registerShardsAllocator(ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR, BalancedShardsAllocator.class);
+        this.clusterService = clusterService;
     }
 
     public void registerAllocationDecider(Class<? extends AllocationDecider> allocationDecider) {
@@ -140,9 +142,8 @@ public class ClusterModule extends AbstractModule {
         bind(GatewayAllocator.class).asEagerSingleton();
         bind(AllocationService.class).asEagerSingleton();
         bind(DiscoveryNodeService.class).asEagerSingleton();
-        bind(ClusterService.class).asEagerSingleton();
+        bind(ClusterService.class).toInstance(clusterService);
         bind(NodeConnectionsService.class).asEagerSingleton();
-        bind(OperationRouting.class).asEagerSingleton();
         bind(MetaDataCreateIndexService.class).asEagerSingleton();
         bind(MetaDataDeleteIndexService.class).asEagerSingleton();
         bind(MetaDataIndexStateService.class).asEagerSingleton();
@@ -156,6 +157,6 @@ public class ClusterModule extends AbstractModule {
         bind(ShardStateAction.class).asEagerSingleton();
         bind(NodeMappingRefreshAction.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
-        bind(TaskResultsService.class).asEagerSingleton();
+        bind(TaskPersistenceService.class).asEagerSingleton();
     }
 }

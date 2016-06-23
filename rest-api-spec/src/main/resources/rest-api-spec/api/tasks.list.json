@@ -5,12 +5,7 @@
     "url": {
       "path": "/_tasks",
       "paths": ["/_tasks", "/_tasks/{task_id}"],
-      "parts": {
-        "task_id": {
-          "type": "string",
-          "description": "Return the task with specified id (node_id:task_number)"
-        }
-      },
+      "parts": {},
       "params": {
         "node_id": {
           "type": "list",

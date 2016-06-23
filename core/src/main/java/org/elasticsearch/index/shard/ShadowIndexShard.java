@@ -61,16 +61,16 @@ public final class ShadowIndexShard extends IndexShard {
 
     /**
      * In addition to the regular accounting done in
-     * {@link IndexShard#updateRoutingEntry(ShardRouting, boolean)},
+     * {@link IndexShard#updateRoutingEntry(ShardRouting)},
      * if this shadow replica needs to be promoted to a primary, the shard is
      * failed in order to allow a new primary to be re-allocated.
      */
     @Override
-    public void updateRoutingEntry(ShardRouting newRouting, boolean persistState) throws IOException {
+    public void updateRoutingEntry(ShardRouting newRouting) throws IOException {
         if (newRouting.primary() == true) {// becoming a primary
             throw new IllegalStateException("can't promote shard to primary");
         }
-        super.updateRoutingEntry(newRouting, persistState);
+        super.updateRoutingEntry(newRouting);
     }
 
     @Override

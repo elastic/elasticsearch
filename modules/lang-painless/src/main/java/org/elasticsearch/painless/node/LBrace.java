@@ -20,13 +20,16 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents an array load/store or defers to possible shortcuts.
@@ -38,11 +41,16 @@ public final class LBrace extends ALink {
     public LBrace(Location location, AExpression index) {
         super(location, 2);
 
-        this.index = index;
+        this.index = Objects.requireNonNull(index);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        index.extractVariables(variables);
     }
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
         if (before == null) {
             throw createError(new IllegalArgumentException("Illegal array access made without target."));
         }
@@ -51,36 +59,36 @@ public final class LBrace extends ALink {
 
         if (sort == Sort.ARRAY) {
             index.expected = Definition.INT_TYPE;
-            index.analyze(variables);
-            index = index.cast(variables);
+            index.analyze(locals);
+            index = index.cast(locals);
 
             after = Definition.getType(before.struct, before.dimensions - 1);
 
             return this;
         } else if (sort == Sort.DEF) {
-            return new LDefArray(location, index).copy(this).analyze(variables);
+            return new LDefArray(location, index).copy(this).analyze(locals);
         } else if (Map.class.isAssignableFrom(before.clazz)) {
-            return new LMapShortcut(location, index).copy(this).analyze(variables);
+            return new LMapShortcut(location, index).copy(this).analyze(locals);
         } else if (List.class.isAssignableFrom(before.clazz)) {
-            return new LListShortcut(location, index).copy(this).analyze(variables);
+            return new LListShortcut(location, index).copy(this).analyze(locals);
         }
 
         throw createError(new IllegalArgumentException("Illegal array access on type [" + before.name + "]."));
     }
 
     @Override
-    void write(MethodWriter writer) {
-        index.write(writer);
+    void write(MethodWriter writer, Globals globals) {
+        index.write(writer, globals);
     }
 
     @Override
-    void load(MethodWriter writer) {
+    void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
         writer.arrayLoad(after.type);
     }
 
     @Override
-    void store(MethodWriter writer) {
+    void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
         writer.arrayStore(after.type);
     }

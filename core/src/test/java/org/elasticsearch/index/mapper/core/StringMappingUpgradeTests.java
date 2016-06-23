@@ -198,6 +198,32 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         assertEquals("keyword", field.fieldType().searchQuoteAnalyzer().name());
     }
 
+    public void testUpgradeTextIncludeInAll() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string")
+                .field("include_in_all", false).endObject().endObject()
+                .endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        FieldMapper field = mapper.mappers().getMapper("field");
+        assertThat(field, instanceOf(TextFieldMapper.class));
+        assertFalse(((TextFieldMapper) field).includeInAll());
+    }
+
+    public void testUpgradeKeywordIncludeInAll() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string")
+                .field("index", "not_analyzed").field("include_in_all", true).endObject().endObject()
+                .endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        FieldMapper field = mapper.mappers().getMapper("field");
+        assertThat(field, instanceOf(KeywordFieldMapper.class));
+        assertTrue(((KeywordFieldMapper) field).includeInAll());
+    }
+
     public void testUpgradeRandomMapping() throws IOException {
         final int iters = 20;
         for (int i = 0; i < iters; ++i) {

@@ -20,14 +20,17 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents and object instantiation.
@@ -42,12 +45,19 @@ public final class LNewObj extends ALink {
     public LNewObj(Location location, String type, List<AExpression> arguments) {
         super(location, -1);
 
-        this.type = type;
-        this.arguments = arguments;
+        this.type = Objects.requireNonNull(type);
+        this.arguments = Objects.requireNonNull(arguments);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        for (AExpression argument : arguments) {
+            argument.extractVariables(variables);
+        }
     }
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
         if (before != null) {
             throw createError(new IllegalArgumentException("Illegal new call with a target already defined."));
         } else if (store) {
@@ -79,8 +89,8 @@ public final class LNewObj extends ALink {
 
                 expression.expected = types[argument];
                 expression.internal = true;
-                expression.analyze(variables);
-                arguments.set(argument, expression.cast(variables));
+                expression.analyze(locals);
+                arguments.set(argument, expression.cast(locals));
             }
 
             statement = true;
@@ -93,12 +103,12 @@ public final class LNewObj extends ALink {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter writer) {
+    void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
         writer.newInstance(after.type);
 
@@ -107,14 +117,14 @@ public final class LNewObj extends ALink {
         }
 
         for (AExpression argument : arguments) {
-            argument.write(writer);
+            argument.write(writer, globals);
         }
 
         writer.invokeConstructor(constructor.owner.type, constructor.method);
     }
 
     @Override
-    void store(MethodWriter writer) {
+    void store(MethodWriter writer, Globals globals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

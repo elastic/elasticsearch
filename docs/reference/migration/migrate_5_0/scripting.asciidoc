@@ -3,7 +3,7 @@
 
 ==== Indexed scripts and templates
 
-Indexed scrips and templates have been replaced by <<modules-scripting-stored-scripts,stored scripts>>
+Indexed scripts and templates have been replaced by <<modules-scripting-stored-scripts,stored scripts>>
 which stores the scripts and templates in the cluster state instead of a dedicate `.scripts` index.
 
 For the size of stored scripts there is a soft limit of 65535 bytes. If scripts exceed that size then

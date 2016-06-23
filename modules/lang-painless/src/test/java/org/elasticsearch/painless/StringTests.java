@@ -182,4 +182,47 @@ public class StringTests extends ScriptTestCase {
         });
         assertTrue(expected.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
     }
+    
+    public void testDefConcat() {
+        assertEquals("a" + (byte)2, exec("def x = 'a'; def y = (byte)2; return x + y"));
+        assertEquals("a" + (short)2, exec("def x = 'a'; def y = (short)2; return x + y"));
+        assertEquals("a" + (char)2, exec("def x = 'a'; def y = (char)2; return x + y"));
+        assertEquals("a" + 2, exec("def x = 'a'; def y = (int)2; return x + y"));
+        assertEquals("a" + 2L, exec("def x = 'a'; def y = (long)2; return x + y"));
+        assertEquals("a" + 2F, exec("def x = 'a'; def y = (float)2; return x + y"));
+        assertEquals("a" + 2D, exec("def x = 'a'; def y = (double)2; return x + y"));
+        assertEquals("ab", exec("def x = 'a'; def y = 'b'; return x + y"));
+        assertEquals((byte)2 + "a", exec("def x = 'a'; def y = (byte)2; return y + x"));
+        assertEquals((short)2 + "a", exec("def x = 'a'; def y = (short)2; return y + x"));
+        assertEquals((char)2 + "a", exec("def x = 'a'; def y = (char)2; return y + x"));
+        assertEquals(2 + "a", exec("def x = 'a'; def y = (int)2; return y + x"));
+        assertEquals(2L + "a", exec("def x = 'a'; def y = (long)2; return y + x"));
+        assertEquals(2F + "a", exec("def x = 'a'; def y = (float)2; return y + x"));
+        assertEquals(2D + "a", exec("def x = 'a'; def y = (double)2; return y + x"));
+        assertEquals("anull", exec("def x = 'a'; def y = null; return x + y"));
+        assertEquals("nullb", exec("def x = null; def y = 'b'; return x + y"));
+        expectScriptThrows(NullPointerException.class, () -> {
+            exec("def x = null; def y = null; return x + y");
+        });
+    }
+    
+    public void testDefCompoundAssignment() {
+        assertEquals("a" + (byte)2, exec("def x = 'a'; x += (byte)2; return x"));
+        assertEquals("a" + (short)2, exec("def x = 'a'; x  += (short)2; return x"));
+        assertEquals("a" + (char)2, exec("def x = 'a'; x += (char)2; return x"));
+        assertEquals("a" + 2, exec("def x = 'a'; x += (int)2; return x"));
+        assertEquals("a" + 2L, exec("def x = 'a'; x += (long)2; return x"));
+        assertEquals("a" + 2F, exec("def x = 'a'; x += (float)2; return x"));
+        assertEquals("a" + 2D, exec("def x = 'a'; x += (double)2; return x"));
+        assertEquals("ab", exec("def x = 'a'; def y = 'b'; x += y; return x"));
+        assertEquals("anull", exec("def x = 'a'; x += null; return x"));
+        assertEquals("nullb", exec("def x = null; x += 'b'; return x"));
+        expectScriptThrows(NullPointerException.class, () -> {
+            exec("def x = null; def y = null; x += y");
+        });
+    }
+
+    public void testAppendStringIntoMap() {
+        assertEquals("nullcat", exec("def a = new HashMap(); a.cat += 'cat'"));
+    }
 }

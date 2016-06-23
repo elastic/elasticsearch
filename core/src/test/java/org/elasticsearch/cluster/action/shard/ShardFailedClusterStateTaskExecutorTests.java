@@ -84,7 +84,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         routingTable = RoutingTable.builder()
             .addAsNew(metaData.index(INDEX))
             .build();
-        clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
         executor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger);
     }
 

@@ -28,14 +28,11 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
-import org.elasticsearch.ingest.core.IngestDocument;
-import org.elasticsearch.ingest.core.IngestInfo;
-import org.elasticsearch.ingest.core.Pipeline;
-import org.elasticsearch.ingest.core.Processor;
-import org.elasticsearch.ingest.core.ProcessorInfo;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -51,6 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class PipelineStoreTests extends ESTestCase {
 
@@ -60,7 +58,7 @@ public class PipelineStoreTests extends ESTestCase {
     public void init() throws Exception {
         store = new PipelineStore(Settings.EMPTY);
         ProcessorsRegistry.Builder registryBuilder = new ProcessorsRegistry.Builder();
-        registryBuilder.registerProcessor("set", (templateService, registry) -> config -> {
+        registryBuilder.registerProcessor("set", (registry) -> config -> {
             String field = (String) config.remove("field");
             String value = (String) config.remove("value");
             return new Processor() {
@@ -80,7 +78,7 @@ public class PipelineStoreTests extends ESTestCase {
                 }
             };
         });
-        registryBuilder.registerProcessor("remove", (templateService, registry) -> config -> {
+        registryBuilder.registerProcessor("remove", (registry) -> config -> {
             String field = (String) config.remove("field");
             return new Processor() {
                 @Override
@@ -99,7 +97,7 @@ public class PipelineStoreTests extends ESTestCase {
                 }
             };
         });
-        store.buildProcessorFactoryRegistry(registryBuilder, null);
+        store.buildProcessorFactoryRegistry(registryBuilder, mock(ScriptService.class), mock(ClusterService.class));
     }
 
     public void testUpdatePipelines() {

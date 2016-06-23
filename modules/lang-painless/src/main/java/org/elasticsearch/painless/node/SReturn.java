@@ -19,10 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
+
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a return statement.
@@ -34,15 +37,20 @@ public final class SReturn extends AStatement {
     public SReturn(Location location, AExpression expression) {
         super(location);
 
-        this.expression = expression;
+        this.expression = Objects.requireNonNull(expression);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        expression.extractVariables(variables);
     }
 
     @Override
-    void analyze(Variables variables) {
-        expression.expected = Definition.OBJECT_TYPE;
+    void analyze(Locals locals) {
+        expression.expected = locals.getReturnType();
         expression.internal = true;
-        expression.analyze(variables);
-        expression = expression.cast(variables);
+        expression.analyze(locals);
+        expression = expression.cast(locals);
 
         methodEscape = true;
         loopEscape = true;
@@ -52,9 +60,9 @@ public final class SReturn extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeStatementOffset(location);
-        expression.write(writer);
+        expression.write(writer, globals);
         writer.returnValue();
     }
 }

@@ -25,7 +25,6 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
@@ -75,7 +74,7 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
      * Reads the timeout value
      */
     protected void readTimeout(StreamInput in) throws IOException {
-        timeout = readTimeValue(in);
+        timeout = new TimeValue(in);
     }
 
     /**

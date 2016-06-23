@@ -48,7 +48,9 @@ import java.nio.file.FileSystemException;
 import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -401,100 +403,152 @@ public abstract class StreamOutput extends OutputStream {
         writeGenericValue(map);
     }
 
+    @FunctionalInterface
+    interface Writer {
+        void write(StreamOutput o, Object value) throws IOException;
+    }
+
+    private final static Map<Class<?>, Writer> WRITERS;
+
+    static {
+        Map<Class<?>, Writer> writers = new HashMap<>();
+        writers.put(String.class, (o, v) -> {
+            o.writeByte((byte) 0);
+            o.writeString((String) v);
+        });
+        writers.put(Integer.class, (o, v) -> {
+            o.writeByte((byte) 1);
+            o.writeInt((Integer) v);
+        });
+        writers.put(Long.class, (o, v) -> {
+            o.writeByte((byte) 2);
+            o.writeLong((Long) v);
+        });
+        writers.put(Float.class, (o, v) -> {
+            o.writeByte((byte) 3);
+            o.writeFloat((float) v);
+        });
+        writers.put(Double.class, (o, v) -> {
+            o.writeByte((byte) 4);
+            o.writeDouble((double) v);
+        });
+        writers.put(Boolean.class, (o, v) -> {
+            o.writeByte((byte) 5);
+            o.writeBoolean((boolean) v);
+        });
+        writers.put(byte[].class, (o, v) -> {
+            o.writeByte((byte) 6);
+            final byte[] bytes = (byte[]) v;
+            o.writeVInt(bytes.length);
+            o.writeBytes(bytes);
+        });
+        writers.put(List.class, (o, v) -> {
+            o.writeByte((byte) 7);
+            final List list = (List) v;
+            o.writeVInt(list.size());
+            for (Object item : list) {
+                o.writeGenericValue(item);
+            }
+        });
+        writers.put(Object[].class, (o, v) -> {
+            o.writeByte((byte) 8);
+            final Object[] list = (Object[]) v;
+            o.writeVInt(list.length);
+            for (Object item : list) {
+                o.writeGenericValue(item);
+            }
+        });
+        writers.put(Map.class, (o, v) -> {
+            if (v instanceof LinkedHashMap) {
+                o.writeByte((byte) 9);
+            } else {
+                o.writeByte((byte) 10);
+            }
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> map = (Map<String, Object>) v;
+            o.writeVInt(map.size());
+            for (Map.Entry<String, Object> entry : map.entrySet()) {
+                o.writeString(entry.getKey());
+                o.writeGenericValue(entry.getValue());
+            }
+        });
+        writers.put(Byte.class, (o, v) -> {
+            o.writeByte((byte) 11);
+            o.writeByte((Byte) v);
+        });
+        writers.put(Date.class, (o, v) -> {
+            o.writeByte((byte) 12);
+            o.writeLong(((Date) v).getTime());
+        });
+        writers.put(ReadableInstant.class, (o, v) -> {
+            o.writeByte((byte) 13);
+            final ReadableInstant instant = (ReadableInstant) v;
+            o.writeString(instant.getZone().getID());
+            o.writeLong(instant.getMillis());
+        });
+        writers.put(BytesReference.class, (o, v) -> {
+            o.writeByte((byte) 14);
+            o.writeBytesReference((BytesReference) v);
+        });
+        writers.put(Text.class, (o, v) -> {
+            o.writeByte((byte) 15);
+            o.writeText((Text) v);
+        });
+        writers.put(Short.class, (o, v) -> {
+            o.writeByte((byte) 16);
+            o.writeShort((Short) v);
+        });
+        writers.put(int[].class, (o, v) -> {
+            o.writeByte((byte) 17);
+            o.writeIntArray((int[]) v);
+        });
+        writers.put(long[].class, (o, v) -> {
+            o.writeByte((byte) 18);
+            o.writeLongArray((long[]) v);
+        });
+        writers.put(float[].class, (o, v) -> {
+            o.writeByte((byte) 19);
+            o.writeFloatArray((float[]) v);
+        });
+        writers.put(double[].class, (o, v) -> {
+            o.writeByte((byte) 20);
+            o.writeDoubleArray((double[]) v);
+        });
+        writers.put(BytesRef.class, (o, v) -> {
+            o.writeByte((byte) 21);
+            o.writeBytesRef((BytesRef) v);
+        });
+        writers.put(GeoPoint.class, (o, v) -> {
+            o.writeByte((byte) 22);
+            o.writeGeoPoint((GeoPoint) v);
+        });
+        WRITERS = Collections.unmodifiableMap(writers);
+    }
+
     public void writeGenericValue(@Nullable Object value) throws IOException {
         if (value == null) {
             writeByte((byte) -1);
             return;
         }
-        Class type = value.getClass();
-        if (type == String.class) {
-            writeByte((byte) 0);
-            writeString((String) value);
-        } else if (type == Integer.class) {
-            writeByte((byte) 1);
-            writeInt((Integer) value);
-        } else if (type == Long.class) {
-            writeByte((byte) 2);
-            writeLong((Long) value);
-        } else if (type == Float.class) {
-            writeByte((byte) 3);
-            writeFloat((Float) value);
-        } else if (type == Double.class) {
-            writeByte((byte) 4);
-            writeDouble((Double) value);
-        } else if (type == Boolean.class) {
-            writeByte((byte) 5);
-            writeBoolean((Boolean) value);
-        } else if (type == byte[].class) {
-            writeByte((byte) 6);
-            writeVInt(((byte[]) value).length);
-            writeBytes(((byte[]) value));
-        } else if (value instanceof List) {
-            writeByte((byte) 7);
-            List list = (List) value;
-            writeVInt(list.size());
-            for (Object o : list) {
-                writeGenericValue(o);
-            }
+        final Class type;
+        if (value instanceof List) {
+            type = List.class;
         } else if (value instanceof Object[]) {
-            writeByte((byte) 8);
-            Object[] list = (Object[]) value;
-            writeVInt(list.length);
-            for (Object o : list) {
-                writeGenericValue(o);
-            }
+            type = Object[].class;
         } else if (value instanceof Map) {
-            if (value instanceof LinkedHashMap) {
-                writeByte((byte) 9);
-            } else {
-                writeByte((byte) 10);
-            }
-            @SuppressWarnings("unchecked")
-            Map<String, Object> map = (Map<String, Object>) value;
-            writeVInt(map.size());
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                writeString(entry.getKey());
-                writeGenericValue(entry.getValue());
-            }
-        } else if (type == Byte.class) {
-            writeByte((byte) 11);
-            writeByte((Byte) value);
-        } else if (type == Date.class) {
-            writeByte((byte) 12);
-            writeLong(((Date) value).getTime());
+            type = Map.class;
         } else if (value instanceof ReadableInstant) {
-            writeByte((byte) 13);
-            writeString(((ReadableInstant) value).getZone().getID());
-            writeLong(((ReadableInstant) value).getMillis());
+            type = ReadableInstant.class;
         } else if (value instanceof BytesReference) {
-            writeByte((byte) 14);
-            writeBytesReference((BytesReference) value);
-        } else if (value instanceof Text) {
-            writeByte((byte) 15);
-            writeText((Text) value);
-        } else if (type == Short.class) {
-            writeByte((byte) 16);
-            writeShort((Short) value);
-        } else if (type == int[].class) {
-            writeByte((byte) 17);
-            writeIntArray((int[]) value);
-        } else if (type == long[].class) {
-            writeByte((byte) 18);
-            writeLongArray((long[]) value);
-        } else if (type == float[].class) {
-            writeByte((byte) 19);
-            writeFloatArray((float[]) value);
-        } else if (type == double[].class) {
-            writeByte((byte) 20);
-            writeDoubleArray((double[]) value);
-        } else if (value instanceof BytesRef) {
-            writeByte((byte) 21);
-            writeBytesRef((BytesRef) value);
-        } else if (type == GeoPoint.class) {
-            writeByte((byte) 22);
-            writeGeoPoint((GeoPoint) value);
+            type = BytesReference.class;
         } else {
-            throw new IOException("Can't write type [" + type + "]");
+            type = value.getClass();
+        }
+        final Writer writer = WRITERS.get(type);
+        if (writer != null) {
+            writer.write(this, value);
+        } else {
+            throw new IOException("can not write type [" + type + "]");
         }
     }
 

@@ -19,12 +19,11 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.util.BitUtil;
 
 import static org.elasticsearch.common.geo.GeoHashUtils.mortonEncode;
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
-import static org.apache.lucene.spatial.util.GeoEncodingUtils.mortonUnhashLat;
-import static org.apache.lucene.spatial.util.GeoEncodingUtils.mortonUnhashLon;
 
 /**
  *
@@ -84,14 +83,14 @@ public final class GeoPoint {
     }
 
     public GeoPoint resetFromIndexHash(long hash) {
-        lon = mortonUnhashLon(hash);
-        lat = mortonUnhashLat(hash);
+        lon = GeoPointField.decodeLongitude(hash);
+        lat = GeoPointField.decodeLatitude(hash);
         return this;
     }
 
     public GeoPoint resetFromGeoHash(String geohash) {
         final long hash = mortonEncode(geohash);
-        return this.reset(mortonUnhashLat(hash), mortonUnhashLon(hash));
+        return this.reset(GeoPointField.decodeLatitude(hash), GeoPointField.decodeLongitude(hash));
     }
 
     public GeoPoint resetFromGeoHash(long geohashLong) {
@@ -163,9 +162,5 @@ public final class GeoPoint {
 
     public static GeoPoint fromGeohash(long geohashLong) {
         return new GeoPoint().resetFromGeoHash(geohashLong);
-    }
-
-    public static GeoPoint fromIndexLong(long indexLong) {
-        return new GeoPoint().resetFromIndexHash(indexLong);
     }
 }

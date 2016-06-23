@@ -30,16 +30,6 @@ import java.io.IOException;
 
 public class DummyQueryParserPlugin extends Plugin {
 
-    @Override
-    public String name() {
-        return "dummy";
-    }
-
-    @Override
-    public String description() {
-        return "dummy query";
-    }
-
     public void onModule(SearchModule module) {
         module.registerQuery(DummyQueryBuilder::new, DummyQueryBuilder::fromXContent, DummyQueryBuilder.QUERY_NAME_FIELD);
     }
@@ -60,6 +50,16 @@ public class DummyQueryParserPlugin extends Plugin {
         @Override
         public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
             return matchAllDocsQuery.createWeight(searcher, needsScores);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return sameClassAs(obj);
+        }
+
+        @Override
+        public int hashCode() {
+            return classHash();
         }
     }
 }

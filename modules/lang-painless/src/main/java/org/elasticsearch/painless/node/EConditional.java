@@ -20,11 +20,16 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -39,16 +44,23 @@ public final class EConditional extends AExpression {
     public EConditional(Location location, AExpression condition, AExpression left, AExpression right) {
         super(location);
 
-        this.condition = condition;
-        this.left = left;
-        this.right = right;
+        this.condition = Objects.requireNonNull(condition);
+        this.left = Objects.requireNonNull(left);
+        this.right = Objects.requireNonNull(right);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        condition.extractVariables(variables);
+        left.extractVariables(variables);
+        right.extractVariables(variables);
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         condition.expected = Definition.BOOLEAN_TYPE;
-        condition.analyze(variables);
-        condition = condition.cast(variables);
+        condition.analyze(locals);
+        condition = condition.cast(locals);
 
         if (condition.constant != null) {
             throw createError(new IllegalArgumentException("Extraneous conditional statement."));
@@ -62,8 +74,8 @@ public final class EConditional extends AExpression {
         right.internal = internal;
         actual = expected;
 
-        left.analyze(variables);
-        right.analyze(variables);
+        left.analyze(locals);
+        right.analyze(locals);
 
         if (expected == null) {
             final Type promote = AnalyzerCaster.promoteConditional(left.actual, right.actual, left.constant, right.constant);
@@ -73,12 +85,12 @@ public final class EConditional extends AExpression {
             actual = promote;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(locals);
+        right = right.cast(locals);
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         Label localfals = new Label();
@@ -88,11 +100,11 @@ public final class EConditional extends AExpression {
         left.tru = right.tru = tru;
         left.fals = right.fals = fals;
 
-        condition.write(writer);
-        left.write(writer);
+        condition.write(writer, globals);
+        left.write(writer, globals);
         writer.goTo(end);
         writer.mark(localfals);
-        right.write(writer);
+        right.write(writer, globals);
         writer.mark(end);
     }
 }

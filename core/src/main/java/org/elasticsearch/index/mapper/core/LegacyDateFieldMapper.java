@@ -213,7 +213,7 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
-                if (!super.equals(o)) return false;
+                if (sameClassAs(o) == false) return false;
 
                 LateParsingQuery that = (LateParsingQuery) o;
                 if (includeLower != that.includeLower) return false;
@@ -227,7 +227,7 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
 
             @Override
             public int hashCode() {
-                return Objects.hash(super.hashCode(), lowerTerm, upperTerm, includeLower, includeUpper, timeZone);
+                return Objects.hash(classHash(), lowerTerm, upperTerm, includeLower, includeUpper, timeZone);
             }
 
             @Override

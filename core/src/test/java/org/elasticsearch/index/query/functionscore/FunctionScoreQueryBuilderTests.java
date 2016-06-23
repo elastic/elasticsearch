@@ -761,17 +761,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public static class TestPlugin extends Plugin {
-
-        @Override
-        public String name() {
-            return "test-plugin";
-        }
-
-        @Override
-        public String description() {
-            return "Adds random function with fixed seed";
-        }
-
         public void onModule(SearchModule module) {
             module.registerScoreFunction(RandomScoreFunctionBuilderWithFixedSeed::new,
                     RandomScoreFunctionBuilderWithFixedSeed::fromXContent, RandomScoreFunctionBuilderWithFixedSeed.FUNCTION_NAME_FIELD);

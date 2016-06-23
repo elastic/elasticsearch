@@ -19,12 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Represents a set of statements as a branch of control-flow.
@@ -38,9 +40,16 @@ public final class SBlock extends AStatement {
 
         this.statements = Collections.unmodifiableList(statements);
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        for (AStatement statement : statements) {
+            statement.extractVariables(variables);
+        }
+    }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         if (statements == null || statements.isEmpty()) {
             throw createError(new IllegalArgumentException("A block must contain at least one statement."));
         }
@@ -58,7 +67,7 @@ public final class SBlock extends AStatement {
             statement.lastSource = lastSource && statement == last;
             statement.lastLoop = (beginLoop || lastLoop) && statement == last;
 
-            statement.analyze(variables);
+            statement.analyze(locals);
 
             methodEscape = statement.methodEscape;
             loopEscape = statement.loopEscape;
@@ -70,11 +79,11 @@ public final class SBlock extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         for (AStatement statement : statements) {
             statement.continu = continu;
             statement.brake = brake;
-            statement.write(writer);
+            statement.write(writer, globals);
         }
     }
 }

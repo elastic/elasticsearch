@@ -35,6 +35,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -114,12 +115,10 @@ public class IndexModuleTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool("test");
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         BigArrays bigArrays = new BigArrays(settings, circuitBreakerService);
-        Set<ScriptEngineService> scriptEngines = Collections.emptySet();
-        scriptEngines.addAll(Arrays.asList(scriptEngineServices));
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.emptyList());
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(scriptEngineServices));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        ScriptService scriptService = new ScriptService(settings, environment, scriptEngines, new ResourceWatcherService(settings, threadPool), scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+        ScriptService scriptService = new ScriptService(settings, environment, new ResourceWatcherService(settings, threadPool), scriptEngineRegistry, scriptContextRegistry, scriptSettings);
         IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry();
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         return new NodeServicesProvider(threadPool, bigArrays, client, scriptService, indicesQueriesRegistry, circuitBreakerService, clusterService);
@@ -135,7 +134,7 @@ public class IndexModuleTests extends ESTestCase {
         environment = new Environment(settings);
         nodeServicesProvider = newNodeServiceProvider(settings, environment, null);
         nodeEnvironment = new NodeEnvironment(settings, environment);
-        mapperRegistry = new IndicesModule().getMapperRegistry();
+        mapperRegistry = new IndicesModule(new NamedWriteableRegistry()).getMapperRegistry();
     }
 
     @Override

@@ -23,7 +23,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.spatial.geopoint.search.XGeoPointDistanceRangeQuery;
-import org.apache.lucene.spatial.util.GeoDistanceUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -47,8 +46,6 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
-
-import static org.apache.lucene.spatial.util.GeoEncodingUtils.TOLERANCE;
 
 public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistanceRangeQueryBuilder> {
 
@@ -354,7 +351,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                 toValue = geoDistance.normalize(toValue, DistanceUnit.DEFAULT);
             }
         } else {
-            toValue = GeoDistanceUtils.maxRadialDistanceMeters(point.lat(), point.lon());
+            toValue = GeoUtils.maxRadialDistanceMeters(point.lat(), point.lon());
         }
 
         final Version indexVersionCreated = context.indexVersionCreated();
@@ -371,8 +368,8 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
 
         return new XGeoPointDistanceRangeQuery(fieldType.name(), encoding, point.lat(), point.lon(),
-            (includeLower) ? fromValue : fromValue + TOLERANCE,
-            (includeUpper) ? toValue : toValue - TOLERANCE);
+            (includeLower) ? fromValue : fromValue + GeoUtils.TOLERANCE,
+            (includeUpper) ? toValue : toValue - GeoUtils.TOLERANCE);
     }
 
     @Override

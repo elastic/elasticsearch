@@ -60,7 +60,9 @@ import java.nio.charset.Charset;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -1124,13 +1126,13 @@ public class TranslogTests extends ESTestCase {
         Path ckp = config.getTranslogPath().resolve(Translog.CHECKPOINT_FILE_NAME);
         Checkpoint read = Checkpoint.read(ckp);
         Checkpoint corrupted = new Checkpoint(0, 0, 0);
-        Checkpoint.write(config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)), corrupted, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
+        Checkpoint.write(FileChannel::open, config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)), corrupted, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
         try (Translog translog = new Translog(config, translogGeneration)) {
             fail("corrupted");
         } catch (IllegalStateException ex) {
             assertEquals(ex.getMessage(), "Checkpoint file translog-2.ckp already exists but has corrupted content expected: Checkpoint{offset=2738, numOps=55, translogFileGeneration= 2} but got: Checkpoint{offset=0, numOps=0, translogFileGeneration= 0}");
         }
-        Checkpoint.write(config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)), read, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+        Checkpoint.write(FileChannel::open, config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)), read, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
         try (Translog translog = new Translog(config, translogGeneration)) {
             assertNotNull(translogGeneration);
             assertEquals("lastCommitted must be 2 less than current - we never finished the commit", translogGeneration.translogFileGeneration + 2, translog.currentFileGeneration());
@@ -1565,22 +1567,20 @@ public class TranslogTests extends ESTestCase {
     private Translog getFailableTranslog(final FailSwitch fail, final TranslogConfig config, final boolean paritalWrites, final boolean throwUnknownException, Translog.TranslogGeneration generation) throws IOException {
         return new Translog(config, generation) {
             @Override
-            TranslogWriter.ChannelFactory getChannelFactory() {
-                final TranslogWriter.ChannelFactory factory = super.getChannelFactory();
+            ChannelFactory getChannelFactory() {
+                final ChannelFactory factory = super.getChannelFactory();
 
-                return new TranslogWriter.ChannelFactory() {
-                    @Override
-                    public FileChannel open(Path file) throws IOException {
-                        FileChannel channel = factory.open(file);
-                        boolean success = false;
-                        try {
-                            ThrowingFileChannel throwingFileChannel = new ThrowingFileChannel(fail, paritalWrites, throwUnknownException, channel);
-                            success = true;
-                            return throwingFileChannel;
-                        } finally {
-                            if (success == false) {
-                                IOUtils.closeWhileHandlingException(channel);
-                            }
+                return (file, openOption) -> {
+                    FileChannel channel = factory.open(file, openOption);
+                    boolean success = false;
+                    try {
+                        final boolean isCkpFile = file.getFileName().toString().endsWith(".ckp"); // don't do partial writes for checkpoints we rely on the fact that the 20bytes are written as an atomic operation
+                        ThrowingFileChannel throwingFileChannel = new ThrowingFileChannel(fail, isCkpFile ? false : paritalWrites, throwUnknownException, channel);
+                        success = true;
+                        return throwingFileChannel;
+                    } finally {
+                        if (success == false) {
+                            IOUtils.closeWhileHandlingException(channel);
                         }
                     }
                 };
@@ -1841,11 +1841,18 @@ public class TranslogTests extends ESTestCase {
                 } catch (IOException ex) {
                     assertEquals(ex.getMessage(), "__FAKE__ no space left on device");
                 } finally {
+                    Checkpoint checkpoint = failableTLog.readCheckpoint();
+                    if (checkpoint.numOps == unsynced.size() + syncedDocs.size()) {
+                        syncedDocs.addAll(unsynced); // failed in fsync but got fully written
+                        unsynced.clear();
+                    }
                     generation = failableTLog.getGeneration();
                     IOUtils.closeWhileHandlingException(failableTLog);
                 }
             } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
                 // failed - that's ok, we didn't even create it
+            } catch (IOException ex) {
+                assertEquals(ex.getMessage(), "__FAKE__ no space left on device");
             }
             // now randomly open this failing tlog again just to make sure we can also recover from failing during recovery
             if (randomBoolean()) {
@@ -1853,9 +1860,12 @@ public class TranslogTests extends ESTestCase {
                     IOUtils.close(getFailableTranslog(fail, config, randomBoolean(), false, generation));
                 } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
                     // failed - that's ok, we didn't even create it
+                } catch (IOException ex) {
+                    assertEquals(ex.getMessage(), "__FAKE__ no space left on device");
                 }
             }
 
+            fail.failNever(); // we don't wanna fail here but we might since we write a new checkpoint and create a new tlog file
             try (Translog translog = new Translog(config, generation)) {
                 Translog.Snapshot snapshot = translog.newSnapshot();
                 assertEquals(syncedDocs.size(), snapshot.totalOperations());
@@ -1866,5 +1876,31 @@ public class TranslogTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testCheckpointOnDiskFull() throws IOException {
+        Checkpoint checkpoint = new Checkpoint(randomLong(), randomInt(), randomLong());
+        Path tempDir = createTempDir();
+        Checkpoint.write(FileChannel::open, tempDir.resolve("foo.cpk"), checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
+        Checkpoint checkpoint2 = new Checkpoint(randomLong(), randomInt(), randomLong());
+        try {
+            Checkpoint.write((p, o) -> {
+                if (randomBoolean()) {
+                    throw new MockDirectoryWrapper.FakeIOException();
+                }
+                FileChannel open = FileChannel.open(p, o);
+                FailSwitch failSwitch = new FailSwitch();
+                failSwitch.failNever(); // don't fail in the ctor
+                ThrowingFileChannel channel = new ThrowingFileChannel(failSwitch, false, false, open);
+                failSwitch.failAlways();
+                return channel;
+
+            }, tempDir.resolve("foo.cpk"), checkpoint2, StandardOpenOption.WRITE);
+            fail("should have failed earlier");
+        } catch (MockDirectoryWrapper.FakeIOException ex) {
+            //fine
+        }
+        Checkpoint read = Checkpoint.read(tempDir.resolve("foo.cpk"));
+        assertEquals(read, checkpoint);
     }
 }

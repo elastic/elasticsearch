@@ -708,14 +708,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
     public static class InterceptingTransportService extends TransportService {
 
         public static class TestPlugin extends Plugin {
-            @Override
-            public String name() {
-                return "intercepting-transport-service";
-            }
-            @Override
-            public String description() {
-                return "an intercepting transport service for testing";
-            }
+
             public void onModule(NetworkModule module) {
                 module.registerTransportService("intercepting", InterceptingTransportService.class);
             }
@@ -726,8 +719,8 @@ public class IndicesRequestTests extends ESIntegTestCase {
         private final Map<String, List<TransportRequest>> requests = new HashMap<>();
 
         @Inject
-        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool, ClusterName clusterName) {
-            super(settings, transport, threadPool, clusterName);
+        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
+            super(settings, transport, threadPool);
         }
 
         synchronized List<TransportRequest> consumeRequests(String action) {

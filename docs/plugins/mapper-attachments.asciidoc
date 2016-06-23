@@ -57,12 +57,13 @@ Index a new document populated with a `base64`-encoded attachment:
 
 [source,js]
 --------------------------
-POST /trying-out-mapper-attachments/person/1
+POST /trying-out-mapper-attachments/person/1?refresh
 {
   "cv": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0="
 }
 --------------------------
 // CONSOLE
+// TEST[continued]
 
 Search for the document using words in the attachment:
 
@@ -76,8 +77,35 @@ POST /trying-out-mapper-attachments/person/_search
 }}}
 --------------------------
 // CONSOLE
+// TEST[continued]
 
-If you get a hit for your indexed document, the plugin should be installed and working.
+If you get a hit for your indexed document, the plugin should be installed and working. It'll look like:
+
+[source,js]
+--------------------------
+{
+  "timed_out": false,
+  "took": 53,
+  "hits": {
+    "total": 1,
+    "max_score": 0.25811607,
+    "hits": [
+      {
+        "_score": 0.25811607,
+        "_index": "trying-out-mapper-attachments",
+        "_type": "person",
+        "_id": "1",
+        "_source": {
+          "cv": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0="
+        }
+      }
+    ]
+  },
+  "_shards": ...
+}
+--------------------------
+// TESTRESPONSE[s/"took": 53/"took": "$body.took"/]
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards"/]
 
 [[mapper-attachments-usage]]
 ==== Usage
@@ -87,13 +115,14 @@ Using the attachment type is simple, in your mapping JSON, simply set a certain 
 [source,js]
 --------------------------
 PUT /test
-PUT /test/person/_mapping
 {
+  "mappings": {
     "person" : {
-        "properties" : {
-            "my_attachment" : { "type" : "attachment" }
-        }
+      "properties" : {
+        "my_attachment" : { "type" : "attachment" }
+      }
     }
+  }
 }
 --------------------------
 // CONSOLE
@@ -146,25 +175,40 @@ in the mappings. For example:
 
 [source,js]
 --------------------------
-PUT /test/person/_mapping
+PUT /test
 {
-    "person" : {
-        "properties" : {
-            "file" : {
-                "type" : "attachment",
-                "fields" : {
-                    "content" : {"index" : "no"},
-                    "title" : {"store" : "yes"},
-                    "date" : {"store" : "yes"},
-                    "author" : {"analyzer" : "myAnalyzer"},
-                    "keywords" : {"store" : "yes"},
-                    "content_type" : {"store" : "yes"},
-                    "content_length" : {"store" : "yes"},
-                    "language" : {"store" : "yes"}
-                }
-            }
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "my_analyzer": {
+            "type": "custom",
+            "tokenizer": "standard",
+            "filter": ["standard"]
+          }
         }
+      }
     }
+  },
+  "mappings": {
+    "person" : {
+      "properties" : {
+        "file" : {
+          "type" : "attachment",
+          "fields" : {
+            "content" : {"index" : "no"},
+            "title" : {"store" : "yes"},
+            "date" : {"store" : "yes"},
+            "author" : {"analyzer" : "my_analyzer"},
+            "keywords" : {"store" : "yes"},
+            "content_type" : {"store" : "yes"},
+            "content_length" : {"store" : "yes"},
+            "language" : {"store" : "yes"}
+          }
+        }
+      }
+    }
+  }
 }
 --------------------------
 // CONSOLE
@@ -179,7 +223,6 @@ If you need to query on metadata fields, use the attachment field name dot the m
 
 [source,js]
 --------------------------
-DELETE /test
 PUT /test
 PUT /test/person/_mapping
 {
@@ -203,7 +246,7 @@ PUT /test/person/1?refresh=true
 }
 GET /test/person/_search
 {
-  "fields": [ "file.content_type" ],
+  "stored_fields": [ "file.content_type" ],
   "query": {
     "match": {
       "file.content_type": "text plain"
@@ -300,7 +343,6 @@ If you want to highlight your attachment content, you will need to set `"store":
 
 [source,js]
 --------------------------
-DELETE /test
 PUT /test
 PUT /test/person/_mapping
 {
@@ -325,7 +367,7 @@ PUT /test/person/1?refresh=true
 }
 GET /test/person/_search
 {
-  "fields": [],
+  "stored_fields": [],
   "query": {
     "match": {
       "file.content": "king queen"

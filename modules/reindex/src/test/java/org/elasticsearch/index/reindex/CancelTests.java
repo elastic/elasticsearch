@@ -22,7 +22,6 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,6 +30,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.junit.BeforeClass;
 
@@ -189,16 +189,6 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public static class ReindexCancellationPlugin extends Plugin {
-
-        @Override
-        public String name() {
-            return "reindex-cancellation";
-        }
-
-        @Override
-        public String description() {
-            return "See " + CancelTests.class.getName() + " documentation";
-        }
 
         @Override
         public void onIndexModule(IndexModule indexModule) {

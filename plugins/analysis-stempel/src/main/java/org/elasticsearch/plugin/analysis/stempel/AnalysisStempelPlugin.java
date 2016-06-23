@@ -24,20 +24,7 @@ import org.elasticsearch.index.analysis.pl.PolishStemTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.Plugin;
 
-/**
- *
- */
 public class AnalysisStempelPlugin extends Plugin {
-
-    @Override
-    public String name() {
-        return "analysis-stempel";
-    }
-
-    @Override
-    public String description() {
-        return "Stempel (Polish) analysis support";
-    }
 
     public void onModule(AnalysisModule module) {
         module.registerAnalyzer("polish", PolishAnalyzerProvider::new);

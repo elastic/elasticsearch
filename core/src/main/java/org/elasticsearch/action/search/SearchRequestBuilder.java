@@ -26,10 +26,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -253,8 +252,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Sets no fields to be loaded, resulting in only id and type to be returned per field.
      */
-    public SearchRequestBuilder setNoFields() {
-        sourceBuilder().noFields();
+    public SearchRequestBuilder setNoStoredFields() {
+        sourceBuilder().noStoredFields();
         return this;
     }
 
@@ -290,13 +289,23 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    /**
+     * Adds a docvalue based field to load and return. The field does not have to be stored,
+     * but its recommended to use non analyzed or numeric fields.
+     *
+     * @param name The field to get from the docvalue
+     */
+    public SearchRequestBuilder addDocValueField(String name) {
+        sourceBuilder().docValueField(name);
+        return this;
+    }
 
     /**
-     * Adds a field to load and return (note, it must be stored) as part of the search request.
+     * Adds a stored field to load and return (note, it must be stored) as part of the search request.
      * If none are specified, the source of the document will be return.
      */
-    public SearchRequestBuilder addField(String field) {
-        sourceBuilder().field(field);
+    public SearchRequestBuilder addStoredField(String field) {
+        sourceBuilder().storedField(field);
         return this;
     }
 
@@ -305,11 +314,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * but its recommended to use non analyzed or numeric fields.
      *
      * @param name The field to get from the field data cache
+     * @deprecated Use {@link SearchRequestBuilder#addDocValueField(String)} instead.
      */
+    @Deprecated
     public SearchRequestBuilder addFieldDataField(String name) {
-        sourceBuilder().fieldDataField(name);
+        sourceBuilder().docValueField(name);
         return this;
     }
+
 
     /**
      * Adds a script based field to load and return. The field does not have to be stored,
@@ -368,11 +380,23 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Sets the stored fields to load and return as part of the search request. If none
+     * are specified, the source of the document will be returned.
+     *
+     * @deprecated Use {@link SearchRequestBuilder#storedFields(String...)} instead.
+     */
+    @Deprecated
+    public SearchRequestBuilder fields(String... fields) {
+        sourceBuilder().storedFields(Arrays.asList(fields));
+        return this;
+    }
+
+    /**
      * Sets the fields to load and return as part of the search request. If none
      * are specified, the source of the document will be returned.
      */
-    public SearchRequestBuilder fields(String... fields) {
-        sourceBuilder().fields(Arrays.asList(fields));
+    public SearchRequestBuilder storedFields(String... fields) {
+        sourceBuilder().storedFields(Arrays.asList(fields));
         return this;
     }
 
@@ -387,7 +411,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Adds an aggregation to the search operation.
      */
-    public SearchRequestBuilder addAggregation(PipelineAggregatorBuilder aggregation) {
+    public SearchRequestBuilder addAggregation(PipelineAggregationBuilder aggregation) {
         sourceBuilder().aggregation(aggregation);
         return this;
     }
@@ -468,14 +492,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setSource(SearchSourceBuilder source) {
         request.source(source);
-        return this;
-    }
-
-    /**
-     * template stuff
-     */
-    public SearchRequestBuilder setTemplate(Template template) {
-        request.template(template);
         return this;
     }
 

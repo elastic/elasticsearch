@@ -72,7 +72,7 @@ Inner hits also supports the following per document features:
 * <<search-request-explain,Explain>>
 * <<search-request-source-filtering,Source filtering>>
 * <<search-request-script-fields,Script fields>>
-* <<search-request-fielddata-fields,Fielddata fields>>
+* <<search-request-docvalue-fields,Doc value fields>>
 * <<search-request-version,Include versions>>
 
 [[nested-inner-hits]]
@@ -118,8 +118,6 @@ An example of a response snippet that could be generated from the above search r
                  "total": ...,
                  "hits": [
                     {
-                       "_type": "question",
-                       "_id": "1",
                        "_nested": {
                           "field": "comments",
                           "offset": 2

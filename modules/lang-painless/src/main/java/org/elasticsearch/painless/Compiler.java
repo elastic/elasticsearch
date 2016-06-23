@@ -20,9 +20,9 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
-import org.elasticsearch.painless.Variables.Reserved;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.node.SSource;
+import org.objectweb.asm.util.Printer;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -36,8 +36,7 @@ import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 /**
  * The Compiler is the entry point for generating a Painless script.  The compiler will receive a Painless
  * tree based on the type of input passed in (currently only ANTLR).  Two passes will then be run over the tree,
- * one for analysis using the {@link Analyzer} and another to generate the actual byte code using ASM in
- * the {@link Writer}.
+ * one for analysis and another to generate the actual byte code using ASM using the root of the tree {@link SSource}.
  */
 final class Compiler {
 
@@ -100,18 +99,17 @@ final class Compiler {
                 " plugin if a script longer than this length is a requirement.");
         }
 
-        Reserved reserved = new Reserved();
-        SSource root = Walker.buildPainlessTree(name, source, reserved, settings);
-        Variables variables = Analyzer.analyze(reserved, root);
-        BitSet expressions = new BitSet(source.length());
-        byte[] bytes = Writer.write(settings, name, source, variables, root, expressions);
+        SSource root = Walker.buildPainlessTree(name, source, settings, null);
+
+        root.analyze();
+        root.write();
 
         try {
-            Class<? extends Executable> clazz = loader.define(CLASS_NAME, bytes);
+            Class<? extends Executable> clazz = loader.define(CLASS_NAME, root.getBytes());
             java.lang.reflect.Constructor<? extends Executable> constructor =
                     clazz.getConstructor(String.class, String.class, BitSet.class);
 
-            return constructor.newInstance(name, source, expressions);
+            return constructor.newInstance(name, source, root.getStatements());
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException("An internal error occurred attempting to define the script [" + name + "].", exception);
         }
@@ -123,18 +121,19 @@ final class Compiler {
      * @param settings The CompilerSettings to be used during the compilation.
      * @return The bytes for compilation.
      */
-    static byte[] compile(String name, String source, CompilerSettings settings) {
+    static byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
         if (source.length() > MAXIMUM_SOURCE_LENGTH) {
             throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
 
-        Reserved reserved = new Reserved();
-        SSource root = Walker.buildPainlessTree(name, source, reserved, settings);
-        Variables variables = Analyzer.analyze(reserved, root);
+        SSource root = Walker.buildPainlessTree(name, source, settings, debugStream);
 
-        return Writer.write(settings, name, source, variables, root, new BitSet(source.length()));
+        root.analyze();
+        root.write();
+
+        return root.getBytes();
     }
 
     /**

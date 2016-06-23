@@ -19,11 +19,9 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.node.NodeModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.After;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -53,19 +51,8 @@ public class IngestCloseIT extends ESSingleNodeTestCase {
     }
 
     public static class IngestPlugin extends Plugin {
-
-        @Override
-        public String name() {
-            return "ingest";
-        }
-
-        @Override
-        public String description() {
-            return "ingest mock";
-        }
-
         public void onModule(NodeModule nodeModule) {
-            nodeModule.registerProcessor("test", (templateService, registry) -> new Factory());
+            nodeModule.registerProcessor("test", (registry) -> new Factory());
         }
     }
 

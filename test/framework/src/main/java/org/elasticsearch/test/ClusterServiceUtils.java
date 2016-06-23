@@ -43,9 +43,9 @@ import static junit.framework.TestCase.fail;
 public class ClusterServiceUtils {
 
     public static ClusterService createClusterService(ThreadPool threadPool) {
-        ClusterService clusterService = new ClusterService(Settings.EMPTY, null,
+        ClusterService clusterService = new ClusterService(Settings.builder().put("cluster.name", "ClusterServiceTests").build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool, new ClusterName("ClusterServiceTests"));
+                threadPool);
         clusterService.setLocalNode(new DiscoveryNode("node", DummyTransportAddress.INSTANCE, Collections.emptyMap(),
                 new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())),Version.CURRENT));
         clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {

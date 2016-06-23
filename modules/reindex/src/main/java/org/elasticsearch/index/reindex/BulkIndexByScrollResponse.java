@@ -153,7 +153,7 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        took = TimeValue.readTimeValue(in);
+        took = new TimeValue(in);
         status = new BulkByScrollTask.Status(in);
         int indexingFailuresCount = in.readVInt();
         List<Failure> indexingFailures = new ArrayList<>(indexingFailuresCount);

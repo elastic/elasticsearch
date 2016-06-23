@@ -28,16 +28,6 @@ public class ExternalMapperPlugin extends Plugin {
     public static final String EXTERNAL_BIS = "external_bis";
     public static final String EXTERNAL_UPPER = "external_upper";
 
-    @Override
-    public String name() {
-        return "external-mappers";
-    }
-
-    @Override
-    public String description() {
-        return "External Mappers Plugin";
-    }
-
     public void onModule(IndicesModule indicesModule) {
         indicesModule.registerMetadataMapper(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser());
         indicesModule.registerMapper(EXTERNAL, new ExternalMapper.TypeParser(EXTERNAL, "foo"));

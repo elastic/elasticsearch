@@ -22,12 +22,12 @@ package org.elasticsearch.node;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.ingest.ProcessorsRegistry;
-import org.elasticsearch.ingest.core.Processor;
-import org.elasticsearch.ingest.core.TemplateService;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.service.NodeService;
 
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 /**
  *
@@ -38,9 +38,6 @@ public class NodeModule extends AbstractModule {
     private final MonitorService monitorService;
     private final ProcessorsRegistry.Builder processorsRegistryBuilder;
 
-    // pkg private so tests can mock
-    Class<? extends BigArrays> bigArraysImpl = BigArrays.class;
-
     public NodeModule(Node node, MonitorService monitorService) {
         this.node = node;
         this.monitorService = monitorService;
@@ -49,12 +46,6 @@ public class NodeModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        if (bigArraysImpl == BigArrays.class) {
-            bind(BigArrays.class).asEagerSingleton();
-        } else {
-            bind(BigArrays.class).to(bigArraysImpl).asEagerSingleton();
-        }
-
         bind(Node.class).toInstance(node);
         bind(MonitorService.class).toInstance(monitorService);
         bind(NodeService.class).asEagerSingleton();
@@ -71,7 +62,7 @@ public class NodeModule extends AbstractModule {
     /**
      * Adds a processor factory under a specific type name.
      */
-    public void registerProcessor(String type, BiFunction<TemplateService, ProcessorsRegistry, Processor.Factory<?>> provider) {
+    public void registerProcessor(String type, Function<ProcessorsRegistry, Processor.Factory<?>> provider) {
         processorsRegistryBuilder.registerProcessor(type, provider);
     }
 }

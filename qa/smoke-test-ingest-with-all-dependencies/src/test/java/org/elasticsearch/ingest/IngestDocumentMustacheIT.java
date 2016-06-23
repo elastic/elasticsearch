@@ -19,9 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ingest.core.IngestDocument;
-import org.elasticsearch.ingest.core.ValueSource;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -31,7 +28,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class IngestDocumentMustacheIT extends AbstractMustacheTestCase {
+public class IngestDocumentMustacheIT extends AbstractScriptTestCase {
 
     public void testAccessMetaDataViaTemplate() {
         Map<String, Object> document = new HashMap<>();

@@ -18,15 +18,33 @@
  */
 package org.elasticsearch.cluster.routing;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.object.HasToString.hasToString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class OperationRoutingTests extends ESTestCase{
 
@@ -170,4 +188,107 @@ public class OperationRoutingTests extends ESTestCase{
             assertEquals(shard, entry.getValue().intValue());
         }
     }
+
+    public void testPreferNodes() throws InterruptedException, IOException {
+        TestThreadPool threadPool = null;
+        ClusterService clusterService = null;
+        try {
+            threadPool = new TestThreadPool("testPreferNodes");
+            clusterService = ClusterServiceUtils.createClusterService(threadPool);
+            final String indexName = "test";
+            ClusterServiceUtils.setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(indexName, true, randomInt(8)));
+            final Index index = clusterService.state().metaData().index(indexName).getIndex();
+            final List<ShardRouting> shards = clusterService.state().getRoutingNodes().assignedShards(new ShardId(index, 0));
+            final int count = randomIntBetween(1, shards.size());
+            int position = 0;
+            final List<String> nodes = new ArrayList<>();
+            final List<ShardRouting> expected = new ArrayList<>();
+            for (int i = 0; i < count; i++) {
+                if (randomBoolean() && !shards.get(position).initializing()) {
+                    nodes.add(shards.get(position).currentNodeId());
+                    expected.add(shards.get(position));
+                    position++;
+                } else {
+                    nodes.add("missing_" + i);
+                }
+            }
+            final ShardIterator it =
+                    new OperationRouting(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+                            .getShards(clusterService.state(), indexName, 0, "_prefer_nodes:" + String.join(",", nodes));
+            final List<ShardRouting> all = new ArrayList<>();
+            ShardRouting shard;
+            while ((shard = it.nextOrNull()) != null) {
+                all.add(shard);
+            }
+            final Set<ShardRouting> preferred = new HashSet<>();
+            preferred.addAll(all.subList(0, expected.size()));
+            // the preferred shards should be at the front of the list
+            assertThat(preferred, containsInAnyOrder(expected.toArray()));
+            // verify all the shards are there
+            assertThat(all.size(), equalTo(shards.size()));
+        } finally {
+            IOUtils.close(clusterService);
+            terminate(threadPool);
+        }
+    }
+
+    public void testThatOnlyNodesSupportNodeIds() throws InterruptedException, IOException {
+        TestThreadPool threadPool = null;
+        ClusterService clusterService = null;
+        try {
+            threadPool = new TestThreadPool("testThatOnlyNodesSupportNodeIds");
+            clusterService = ClusterServiceUtils.createClusterService(threadPool);
+            final String indexName = "test";
+            ClusterServiceUtils.setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(indexName, true, randomInt(8)));
+            final Index index = clusterService.state().metaData().index(indexName).getIndex();
+            final List<ShardRouting> shards = clusterService.state().getRoutingNodes().assignedShards(new ShardId(index, 0));
+            final int count = randomIntBetween(1, shards.size());
+            int position = 0;
+            final List<String> nodes = new ArrayList<>();
+            final List<ShardRouting> expected = new ArrayList<>();
+            for (int i = 0; i < count; i++) {
+                if (randomBoolean() && !shards.get(position).initializing()) {
+                    nodes.add(shards.get(position).currentNodeId());
+                    expected.add(shards.get(position));
+                    position++;
+                } else {
+                    nodes.add("missing_" + i);
+                }
+            }
+            if (expected.size() > 0) {
+                final ShardIterator it =
+                    new OperationRouting(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+                        .getShards(clusterService.state(), indexName, 0, "_only_nodes:" + String.join(",", nodes));
+                final List<ShardRouting> only = new ArrayList<>();
+                ShardRouting shard;
+                while ((shard = it.nextOrNull()) != null) {
+                    only.add(shard);
+                }
+                assertThat(new HashSet<>(only), equalTo(new HashSet<>(expected)));
+            } else {
+                final ClusterService cs = clusterService;
+                final IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> new OperationRouting(
+                            Settings.EMPTY,
+                            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+                        .getShards(cs.state(), indexName, 0, "_only_nodes:" + String.join(",", nodes)));
+                if (nodes.size() == 1) {
+                    assertThat(
+                        e,
+                        hasToString(containsString(
+                            "no data nodes with criteria [" + String.join(",", nodes) + "] found for shard: [test][0]")));
+                } else {
+                    assertThat(
+                        e,
+                        hasToString(containsString(
+                            "no data nodes with criterion [" + String.join(",", nodes) + "] found for shard: [test][0]")));
+                }
+            }
+        } finally {
+            IOUtils.close(clusterService);
+            terminate(threadPool);
+        }
+    }
+
 }

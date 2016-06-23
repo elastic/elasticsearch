@@ -43,10 +43,7 @@ public class ScriptContextTests extends ESTestCase {
             .put("script." + PLUGIN_NAME + "_custom_globally_disabled_op", "false")
             .put("script.engine." + MockScriptEngine.NAME + ".inline." + PLUGIN_NAME + "_custom_exp_disabled_op", "false")
             .build();
-        Set<ScriptEngineService> engines = new HashSet<>(Collections.singletonList(new MockScriptEngine()));
-        ScriptEngineRegistry.ScriptEngineRegistration registration =
-                new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.NAME, true);
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(registration));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new MockScriptEngine()));
         List<ScriptContext.Plugin> customContexts = Arrays.asList(
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"),
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"),
@@ -54,7 +51,7 @@ public class ScriptContextTests extends ESTestCase {
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
 
-        return new ScriptService(settings, new Environment(settings), engines, null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+        return new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
     }
 
     public void testCustomGlobalScriptContextSettings() throws Exception {

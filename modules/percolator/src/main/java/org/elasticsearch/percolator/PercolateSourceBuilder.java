@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -57,7 +57,7 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
     private Boolean trackScores;
     private HighlightBuilder highlightBuilder;
     private List<AggregationBuilder> aggregationBuilders;
-    private List<PipelineAggregatorBuilder> pipelineAggregationBuilders;
+    private List<PipelineAggregationBuilder> pipelineAggregationBuilders;
 
     /**
      * Sets the document to run the percolate queries against.
@@ -140,7 +140,7 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
     /**
      * Add an aggregation definition.
      */
-    public PercolateSourceBuilder addAggregation(PipelineAggregatorBuilder aggregationBuilder) {
+    public PercolateSourceBuilder addAggregation(PipelineAggregationBuilder aggregationBuilder) {
         if (pipelineAggregationBuilders == null) {
             pipelineAggregationBuilders = new ArrayList<>();
         }
@@ -183,7 +183,7 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
                 }
             }
             if (pipelineAggregationBuilders != null) {
-                for (PipelineAggregatorBuilder aggregation : pipelineAggregationBuilders) {
+                for (PipelineAggregationBuilder aggregation : pipelineAggregationBuilders) {
                     aggregation.toXContent(builder, params);
                 }
             }

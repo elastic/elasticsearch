@@ -50,9 +50,12 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -332,7 +335,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getSettings(indices).setIndicesOptions(options), false);
 
         assertAcked(prepareCreate("foobar"));
-        client().prepareIndex("foobar", "type", "1").setSource("k", "v").setRefresh(true).execute().actionGet();
+        client().prepareIndex("foobar", "type", "1").setSource("k", "v").setRefreshPolicy(IMMEDIATE).get();
 
         // Verify defaults for wildcards, with one wildcard expression and one existing index
         indices = new String[]{"foo*"};
@@ -422,7 +425,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
     public void testAllMissingLenient() throws Exception {
         createIndex("test1");
-        client().prepareIndex("test1", "type", "1").setSource("k", "v").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test1", "type", "1").setSource("k", "v").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse response = client().prepareSearch("test2")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(matchAllQuery())
@@ -587,15 +590,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     }
 
     public static final class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "index-a-setting";
-        }
-
-        @Override
-        public String description() {
-            return "a plugin that adds a dynamic tst setting";
-        }
 
         private static final Setting<String> INDEX_A =
             new Setting<>("index.a", "", Function.identity(), Property.Dynamic, Property.IndexScope);
@@ -605,10 +599,9 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
             new Setting<>("index.e", "", Function.identity(), Property.IndexScope);
 
 
-        public void onModule(SettingsModule module) {
-            module.registerSetting(INDEX_A);
-            module.registerSetting(INDEX_C);
-            module.registerSetting(INDEX_E);
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(INDEX_A, INDEX_C, INDEX_E);
         }
     }
 

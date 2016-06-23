@@ -27,16 +27,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
-import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -71,9 +68,7 @@ public class ScriptModesTests extends ESTestCase {
                 //add the native engine just to make sure it gets filtered out
                 new NativeScriptEngineService(Settings.EMPTY, Collections.<String, NativeScriptFactory>emptyMap()),
                 new CustomScriptEngineService()));
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(
-            new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class, NativeScriptEngineService.NAME),
-            new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.NAME)));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngines.values());
         scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         checkedSettings = new HashSet<>();
         assertAllSettingsWereChecked = true;
@@ -262,12 +257,6 @@ public class ScriptModesTests extends ESTestCase {
 
         @Override
         public void close() {
-
-        }
-
-        @Override
-        public void scriptRemoved(@Nullable CompiledScript script) {
-
         }
     }
 }

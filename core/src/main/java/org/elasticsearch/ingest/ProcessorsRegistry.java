@@ -20,9 +20,8 @@
 package org.elasticsearch.ingest;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ingest.core.Processor;
-import org.elasticsearch.ingest.core.ProcessorInfo;
-import org.elasticsearch.ingest.core.TemplateService;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.script.ScriptService;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -31,19 +30,37 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 public final class ProcessorsRegistry implements Closeable {
 
     private final Map<String, Processor.Factory> processorFactories;
+    private final TemplateService templateService;
+    private final ScriptService scriptService;
+    private final ClusterService clusterService;
 
-    private ProcessorsRegistry(TemplateService templateService,
-                               Map<String, BiFunction<TemplateService, ProcessorsRegistry, Processor.Factory<?>>> providers) {
+    private ProcessorsRegistry(ScriptService scriptService, ClusterService clusterService,
+                               Map<String, Function<ProcessorsRegistry, Processor.Factory<?>>> providers) {
+        this.templateService = new InternalTemplateService(scriptService);
+        this.scriptService = scriptService;
+        this.clusterService = clusterService;
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
-        for (Map.Entry<String, BiFunction<TemplateService, ProcessorsRegistry, Processor.Factory<?>>> entry : providers.entrySet()) {
-            processorFactories.put(entry.getKey(), entry.getValue().apply(templateService, this));
+        for (Map.Entry<String, Function<ProcessorsRegistry, Processor.Factory<?>>> entry : providers.entrySet()) {
+            processorFactories.put(entry.getKey(), entry.getValue().apply(this));
         }
         this.processorFactories = Collections.unmodifiableMap(processorFactories);
+    }
+
+    public TemplateService getTemplateService() {
+        return templateService;
+    }
+
+    public ScriptService getScriptService() {
+        return scriptService;
+    }
+
+    public ClusterService getClusterService() {
+        return clusterService;
     }
 
     public Processor.Factory getProcessorFactory(String name) {
@@ -68,20 +85,20 @@ public final class ProcessorsRegistry implements Closeable {
 
     public static final class Builder {
 
-        private final Map<String, BiFunction<TemplateService, ProcessorsRegistry, Processor.Factory<?>>> providers = new HashMap<>();
+        private final Map<String, Function<ProcessorsRegistry, Processor.Factory<?>>> providers = new HashMap<>();
 
         /**
          * Adds a processor factory under a specific name.
          */
-        public void registerProcessor(String name, BiFunction<TemplateService, ProcessorsRegistry, Processor.Factory<?>> provider) {
-            BiFunction<TemplateService, ProcessorsRegistry, Processor.Factory<?>> previous = this.providers.putIfAbsent(name, provider);
+        public void registerProcessor(String name, Function<ProcessorsRegistry, Processor.Factory<?>> provider) {
+            Function<ProcessorsRegistry, Processor.Factory<?>> previous = this.providers.putIfAbsent(name, provider);
             if (previous != null) {
                 throw new IllegalArgumentException("Processor factory already registered for name [" + name + "]");
             }
         }
 
-        public ProcessorsRegistry build(TemplateService templateService) {
-            return new ProcessorsRegistry(templateService, providers);
+        public ProcessorsRegistry build(ScriptService scriptService, ClusterService clusterService) {
+            return new ProcessorsRegistry(scriptService, clusterService, providers);
         }
 
     }

@@ -93,6 +93,11 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     private float requestsPerSecond = Float.POSITIVE_INFINITY;
 
+    /**
+     * Should this task persist its result?
+     */
+    private boolean shouldPersistResult;
+
     public AbstractBulkByScrollRequest() {
     }
 
@@ -118,8 +123,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         if (searchRequest.source().from() != -1) {
             e = addValidationError("from is not supported in this context", e);
         }
-        if (searchRequest.source().fields() != null) {
-            e = addValidationError("fields is not supported in this context", e);
+        if (searchRequest.source().storedFields() != null) {
+            e = addValidationError("stored_fields is not supported in this context", e);
         }
         if (maxRetries < 0) {
             e = addValidationError("retries cannnot be negative", e);
@@ -286,6 +291,19 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         return self();
     }
 
+    /**
+     * Should this task persist its result after it has finished?
+     */
+    public Self setShouldPersistResult(boolean shouldPersistResult) {
+        this.shouldPersistResult = shouldPersistResult;
+        return self();
+    }
+
+    @Override
+    public boolean getShouldPersistResult() {
+        return shouldPersistResult;
+    }
+
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId) {
         return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId, requestsPerSecond);
@@ -299,9 +317,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         abortOnVersionConflict = in.readBoolean();
         size = in.readVInt();
         refresh = in.readBoolean();
-        timeout = TimeValue.readTimeValue(in);
+        timeout = new TimeValue(in);
         consistency = WriteConsistencyLevel.fromId(in.readByte());
-        retryBackoffInitialTime = TimeValue.readTimeValue(in);
+        retryBackoffInitialTime = new TimeValue(in);
         maxRetries = in.readVInt();
         requestsPerSecond = in.readFloat();
     }

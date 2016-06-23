@@ -62,6 +62,7 @@ public class NodeService extends AbstractComponent implements Closeable {
     private final CircuitBreakerService circuitBreakerService;
     private final IngestService ingestService;
     private final SettingsFilter settingsFilter;
+    private ClusterService clusterService;
     private ScriptService scriptService;
 
     @Nullable
@@ -69,14 +70,12 @@ public class NodeService extends AbstractComponent implements Closeable {
 
     private volatile Map<String, String> serviceAttributes = emptyMap();
 
-    private final Version version;
-
     private final Discovery discovery;
 
     @Inject
     public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService,
                        Discovery discovery, TransportService transportService, IndicesService indicesService,
-                       PluginsService pluginService, CircuitBreakerService circuitBreakerService, Version version,
+                       PluginsService pluginService, CircuitBreakerService circuitBreakerService,
                        ProcessorsRegistry.Builder processorsRegistryBuilder, ClusterService clusterService, SettingsFilter settingsFilter) {
         super(settings);
         this.threadPool = threadPool;
@@ -84,9 +83,9 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.discovery = discovery;
-        this.version = version;
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
+        this.clusterService = clusterService;
         this.ingestService = new IngestService(settings, threadPool, processorsRegistryBuilder);
         this.settingsFilter = settingsFilter;
         clusterService.add(ingestService.getPipelineStore());
@@ -97,7 +96,7 @@ public class NodeService extends AbstractComponent implements Closeable {
     @Inject(optional = true)
     public void setScriptService(ScriptService scriptService) {
         this.scriptService = scriptService;
-        this.ingestService.setScriptService(scriptService);
+        this.ingestService.buildProcessorsFactoryRegistry(scriptService, clusterService);
     }
 
     public void setHttpServer(@Nullable HttpServer httpServer) {
@@ -124,7 +123,7 @@ public class NodeService extends AbstractComponent implements Closeable {
     }
 
     public NodeInfo info() {
-        return new NodeInfo(version, Build.CURRENT, discovery.localNode(), serviceAttributes,
+        return new NodeInfo(Version.CURRENT, Build.CURRENT, discovery.localNode(), serviceAttributes,
                 settings,
                 monitorService.osService().info(),
                 monitorService.processService().info(),
@@ -133,13 +132,14 @@ public class NodeService extends AbstractComponent implements Closeable {
                 transportService.info(),
                 httpServer == null ? null : httpServer.info(),
                 pluginService == null ? null : pluginService.info(),
-                ingestService == null ? null : ingestService.info()
+                ingestService == null ? null : ingestService.info(),
+                indicesService.getTotalIndexingBufferBytes()
         );
     }
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
-                         boolean transport, boolean http, boolean plugin, boolean ingest) {
-        return new NodeInfo(version, Build.CURRENT, discovery.localNode(), serviceAttributes,
+                boolean transport, boolean http, boolean plugin, boolean ingest, boolean indices) {
+        return new NodeInfo(Version.CURRENT, Build.CURRENT, discovery.localNode(), serviceAttributes,
                 settings ? settingsFilter.filter(this.settings) : null,
                 os ? monitorService.osService().info() : null,
                 process ? monitorService.processService().info() : null,
@@ -148,7 +148,8 @@ public class NodeService extends AbstractComponent implements Closeable {
                 transport ? transportService.info() : null,
                 http ? (httpServer == null ? null : httpServer.info()) : null,
                 plugin ? (pluginService == null ? null : pluginService.info()) : null,
-                ingest ? (ingestService == null ? null : ingestService.info()) : null
+                ingest ? (ingestService == null ? null : ingestService.info()) : null,
+                indices ? indicesService.getTotalIndexingBufferBytes() : null
         );
     }
 

@@ -56,6 +56,7 @@ public abstract class ScriptTestCase extends ESTestCase {
     public Object exec(String script, Map<String, Object> vars) {
         Map<String,String> compilerSettings = new HashMap<>();
         compilerSettings.put(CompilerSettings.PICKY, "true");
+        compilerSettings.put(CompilerSettings.INITIAL_CALL_SITE_DEPTH, random().nextBoolean() ? "0" : "10");
         return exec(script, vars, compilerSettings, null);
     }
 
@@ -76,7 +77,16 @@ public abstract class ScriptTestCase extends ESTestCase {
      */
     public void assertBytecodeExists(String script, String bytecode) {
         final String asm = Debugger.toString(script);
-        assertTrue("bytecode not found", asm.contains(bytecode));
+        assertTrue("bytecode not found, got: \n" + asm , asm.contains(bytecode));
+    }
+    
+    /**
+     * Uses the {@link Debugger} to get the bytecode output for a script and compare
+     * it against an expected bytecode pattern as a regular expression (please try to avoid!)
+     */
+    public void assertBytecodeHasPattern(String script, String pattern) {
+        final String asm = Debugger.toString(script);
+        assertTrue("bytecode not found, got: \n" + asm , asm.matches(pattern));
     }
     
     /** Checks a specific exception class is thrown (boxed inside ScriptException) and returns it. */

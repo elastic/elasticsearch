@@ -76,4 +76,35 @@ public class IncrementTests extends ScriptTestCase {
         assertEquals(1D, exec("double x = 0.0; return ++x;"));
         assertEquals(-1D, exec("double x = 0.0; return --x;"));
     }
+    
+    /** incrementing def values */
+    public void testIncrementDef() {
+        assertEquals((byte)0, exec("def x = (byte)0; return x++;"));
+        assertEquals((byte)0, exec("def x = (byte)0; return x--;"));
+        assertEquals((byte)1, exec("def x = (byte)0; return ++x;"));
+        assertEquals((byte)-1, exec("def x = (byte)0; return --x;"));
+        assertEquals((char)0, exec("def x = (char)0; return x++;"));
+        assertEquals((char)1, exec("def x = (char)1; return x--;"));
+        assertEquals((char)1, exec("def x = (char)0; return ++x;"));
+        assertEquals((short)0, exec("def x = (short)0; return x++;"));
+        assertEquals((short)0, exec("def x = (short)0; return x--;"));
+        assertEquals((short)1, exec("def x = (short)0; return ++x;"));
+        assertEquals((short)-1, exec("def x = (short)0; return --x;"));
+        assertEquals(0, exec("def x = 0; return x++;"));
+        assertEquals(0, exec("def x = 0; return x--;"));
+        assertEquals(1, exec("def x = 0; return ++x;"));
+        assertEquals(-1, exec("def x = 0; return --x;"));
+        assertEquals(0L, exec("def x = 0L; return x++;"));
+        assertEquals(0L, exec("def x = 0L; return x--;"));
+        assertEquals(1L, exec("def x = 0L; return ++x;"));
+        assertEquals(-1L, exec("def x = 0L; return --x;"));
+        assertEquals(0F, exec("def x = 0F; return x++;"));
+        assertEquals(0F, exec("def x = 0F; return x--;"));
+        assertEquals(1F, exec("def x = 0F; return ++x;"));
+        assertEquals(-1F, exec("def x = 0F; return --x;"));
+        assertEquals(0D, exec("def x = 0.0; return x++;"));
+        assertEquals(0D, exec("def x = 0.0; return x--;"));
+        assertEquals(1D, exec("def x = 0.0; return ++x;"));
+        assertEquals(-1D, exec("def x = 0.0; return --x;"));
+    }
 }

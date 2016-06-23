@@ -1,5 +1,7 @@
 package org.elasticsearch.painless;
 
+import java.util.function.Function;
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -62,5 +64,10 @@ public class FeatureTest {
     /** static method that returns what you ask it */
     public static boolean overloadedStatic(boolean whatToReturn) {
         return whatToReturn;
+    }
+    
+    /** method taking two functions! */
+    public Object twoFunctionsOfX(Function<Object,Object> f, Function<Object,Object> g) {
+        return f.apply(g.apply(x));
     }
 }

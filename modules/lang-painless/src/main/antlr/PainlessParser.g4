@@ -22,7 +22,15 @@ parser grammar PainlessParser;
 options { tokenVocab=PainlessLexer; }
 
 source
-    : statement* EOF
+    : function* statement* EOF
+    ;
+
+function
+    : decltype ID parameters block
+    ;
+
+parameters
+    : LP ( decltype ID ( COMMA decltype ID )* )? RP
     ;
 
 // Note we use a predicate on the if/else case here to prevent the
@@ -73,10 +81,6 @@ decltype
     : TYPE (LBRACE RBRACE)*
     ;
 
-funcref
-    : TYPE REF ( ID | NEW )
-    ;
-
 declvar
     : ID ( ASSIGN expression )?
     ;
@@ -98,6 +102,7 @@ expression returns [boolean s = true]
     :               u = unary[false]                                       { $s = $u.s; }           # single
     |               expression ( MUL | DIV | REM ) expression              { $s = false; }          # binary
     |               expression ( ADD | SUB ) expression                    { $s = false; }          # binary
+    |               expression ( FIND | MATCH ) expression                 { $s = false; }          # binary
     |               expression ( LSH | RSH | USH ) expression              { $s = false; }          # binary
     |               expression ( LT | LTE | GT | GTE ) expression          { $s = false; }          # comp
     |               expression ( EQ | EQR | NE | NER ) expression          { $s = false; }          # comp
@@ -121,28 +126,32 @@ expression returns [boolean s = true]
 // processing a variable/method chain.  This prevents the chain
 // from being applied to rules where it wouldn't be allowed.
 unary[boolean c] returns [boolean s = true]
-    : { !$c }? ( INCR | DECR ) chain[true]                                  # pre
-    | { !$c }? chain[true] (INCR | DECR )                                   # post
-    | { !$c }? chain[false]                                                 # read
-    | { !$c }? ( OCTAL | HEX | INTEGER | DECIMAL )          { $s = false; } # numeric
-    | { !$c }? TRUE                                         { $s = false; } # true
-    | { !$c }? FALSE                                        { $s = false; } # false
-    | { !$c }? NULL                                         { $s = false; } # null
-    | { !$c }? ( BOOLNOT | BWNOT | ADD | SUB ) unary[false]                 # operator
-    |          LP decltype RP unary[$c]                                     # cast
+    : { !$c }? ( INCR | DECR ) chain[true]                                   # pre
+    | { !$c }? chain[true] (INCR | DECR )                                    # post
+    | { !$c }? chain[false]                                                  # read
+    | { !$c }? ( OCTAL | HEX | INTEGER | DECIMAL )           { $s = false; } # numeric
+    | { !$c }? TRUE                                          { $s = false; } # true
+    | { !$c }? FALSE                                         { $s = false; } # false
+    | { !$c }? NULL                                          { $s = false; } # null
+    | { !$c }? listinitializer                               { $s = false; } # listinit
+    | { !$c }? mapinitializer                                { $s = false; } # mapinit
+    | { !$c }? ( BOOLNOT | BWNOT | ADD | SUB ) unary[false]                  # operator
+    |          LP decltype RP unary[$c]                                      # cast
     ;
 
 chain[boolean c]
-    : p = primary[$c] secondary[$p.s]*                             # dynamic
-    | decltype dot secondary[true]*                                # static
-    | NEW TYPE (LBRACE expression RBRACE)+ (dot secondary[true]*)? # newarray
+    : p = primary[$c] secondary[$p.s]* # dynamic
+    | decltype dot secondary[true]*    # static
+    | arrayinitializer                 # newarray
     ;
 
 primary[boolean c] returns [boolean s = true]
     : { !$c }? LP e = expression RP { $s = $e.s; } # exprprec
     | { $c }?  LP unary[true] RP                   # chainprec
     |          STRING                              # string
+    |          REGEX                               # regex
     |          ID                                  # variable
+    |          ID arguments                        # calllocal
     |          NEW TYPE arguments                  # newobject
     ;
 
@@ -166,5 +175,62 @@ arguments
 
 argument
     : expression
+    | lambda
     | funcref
+    ;
+
+lambda
+    : ( lamtype | LP ( lamtype ( COMMA lamtype )* )? RP ) ARROW ( block | expression )
+    ;
+
+lamtype
+    : decltype? ID
+    ;
+
+funcref
+    : classFuncref
+    | constructorFuncref
+    | capturingFuncref
+    | localFuncref
+    ;
+
+// reference to a static or instance method, e.g. ArrayList::size or Integer::compare
+classFuncref
+    : TYPE REF ID
+    ;
+
+// reference to a constructor, e.g. ArrayList::new
+// currently limited to simple non-array types
+constructorFuncref
+    : decltype REF NEW
+    ;
+
+// reference to an instance method, e.g. object::toString
+// currently limited to capture of a simple variable (id).
+capturingFuncref
+    : ID REF ID
+    ;
+
+// reference to a local function, e.g. this::myfunc
+localFuncref
+    : THIS REF ID
+    ;
+
+arrayinitializer
+    : NEW TYPE (LBRACE expression RBRACE)+ (dot secondary[true]*)?                          # newstandardarray
+    | NEW TYPE LBRACE RBRACE LBRACK ( expression ( COMMA expression )* )? SEMICOLON? RBRACK # newinitializedarray
+    ;
+
+listinitializer
+    : LBRACE expression ( COMMA expression)* RBRACE
+    | LBRACE RBRACE
+    ;
+
+mapinitializer
+    : LBRACE maptoken ( COMMA maptoken )* RBRACE
+    | LBRACE COLON RBRACE
+    ;
+
+maptoken
+    : expression COLON expression
     ;

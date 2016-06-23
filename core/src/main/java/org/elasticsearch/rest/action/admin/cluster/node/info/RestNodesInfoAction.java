@@ -43,7 +43,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestNodesInfoAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
-    private final static Set<String> ALLOWED_METRICS = Sets.newHashSet("http", "jvm", "os", "plugins", "process", "settings", "thread_pool", "transport", "ingest");
+    private final static Set<String> ALLOWED_METRICS = Sets.newHashSet("http", "jvm", "os", "plugins", "process", "settings", "thread_pool", "transport", "ingest", "indices");
 
     @Inject
     public RestNodesInfoAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
@@ -97,10 +97,16 @@ public class RestNodesInfoAction extends BaseRestHandler {
             nodesInfoRequest.http(metrics.contains("http"));
             nodesInfoRequest.plugins(metrics.contains("plugins"));
             nodesInfoRequest.ingest(metrics.contains("ingest"));
+            nodesInfoRequest.indices(metrics.contains("indices"));
         }
 
         settingsFilter.addFilterSettingParams(request);
 
         client.admin().cluster().nodesInfo(nodesInfoRequest, new NodesResponseRestListener<>(channel));
+    }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
     }
 }

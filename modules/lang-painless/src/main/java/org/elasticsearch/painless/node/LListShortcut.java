@@ -20,10 +20,15 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Variables;
+
+import java.util.Objects;
+import java.util.Set;
+
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -38,11 +43,16 @@ final class LListShortcut extends ALink {
     LListShortcut(Location location, AExpression index) {
         super(location, 2);
 
-        this.index = index;
+        this.index = Objects.requireNonNull(index);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        index.extractVariables(variables);
     }
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
         getter = before.struct.methods.get(new Definition.MethodKey("get", 1));
         setter = before.struct.methods.get(new Definition.MethodKey("set", 2));
 
@@ -62,8 +72,8 @@ final class LListShortcut extends ALink {
 
         if ((load || store) && (!load || getter != null) && (!store || setter != null)) {
             index.expected = Definition.INT_TYPE;
-            index.analyze(variables);
-            index = index.cast(variables);
+            index.analyze(locals);
+            index = index.cast(locals);
 
             after = setter != null ? setter.arguments.get(1) : getter.rtn;
         } else {
@@ -74,19 +84,15 @@ final class LListShortcut extends ALink {
     }
 
     @Override
-    void write(MethodWriter writer) {
-        index.write(writer);
+    void write(MethodWriter writer, Globals globals) {
+        index.write(writer, globals);
     }
 
     @Override
-    void load(MethodWriter writer) {
+    void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
-            writer.invokeInterface(getter.owner.type, getter.method);
-        } else {
-            writer.invokeVirtual(getter.owner.type, getter.method);
-        }
+        getter.write(writer);
 
         if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
             writer.checkCast(getter.rtn.type);
@@ -94,14 +100,10 @@ final class LListShortcut extends ALink {
     }
 
     @Override
-    void store(MethodWriter writer) {
+    void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {
-            writer.invokeInterface(setter.owner.type, setter.method);
-        } else {
-            writer.invokeVirtual(setter.owner.type, setter.method);
-        }
+        setter.write(writer);
 
         writer.writePop(setter.rtn.sort.size);
     }

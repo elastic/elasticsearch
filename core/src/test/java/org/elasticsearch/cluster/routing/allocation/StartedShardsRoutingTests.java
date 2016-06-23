@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESAllocationTestCase;
@@ -50,7 +51,7 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
                 .numberOfShards(3).numberOfReplicas(0)
                 .build();
         final Index index = indexMetaData.getIndex();
-        ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT)
+        ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")))
                 .metaData(MetaData.builder().put(indexMetaData, false));
 

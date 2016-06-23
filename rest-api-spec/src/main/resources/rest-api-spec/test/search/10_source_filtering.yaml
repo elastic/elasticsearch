@@ -77,20 +77,25 @@
   - do:
       search:
         body:
-          fields: [ include.field2 ]
+          stored_fields: [ include.field2 ]
           query: { match_all: {} }
   - is_false:  hits.hits.0._source
 
   - do:
         search:
           body:
-            fields: [ include.field2, _source ]
+            stored_fields: [ include.field2, _source ]
             query: { match_all: {} }
   - match: { hits.hits.0._source.include.field2: v2 }
   - is_true:  hits.hits.0._source
 
+  - do:
+      search:
+        docvalue_fields: [ "count" ]
+  - match: { hits.hits.0.fields.count: [1] }
 
   - do:
       search:
         fielddata_fields: [ "count" ]
   - match: { hits.hits.0.fields.count: [1] }
+

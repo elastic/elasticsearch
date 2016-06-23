@@ -20,9 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
+
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents an explicit cast.
@@ -35,12 +39,17 @@ public final class EExplicit extends AExpression {
     public EExplicit(Location location, String type, AExpression child) {
         super(location);
 
-        this.type = type;
-        this.child = child;
+        this.type = Objects.requireNonNull(type);
+        this.child = Objects.requireNonNull(child);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        child.extractVariables(variables);
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         try {
             actual = Definition.getType(this.type);
         } catch (IllegalArgumentException exception) {
@@ -49,20 +58,20 @@ public final class EExplicit extends AExpression {
 
         child.expected = actual;
         child.explicit = true;
-        child.analyze(variables);
-        child = child.cast(variables);
+        child.analyze(locals);
+        child = child.cast(locals);
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
-    AExpression cast(Variables variables) {
+    AExpression cast(Locals locals) {
         child.expected = expected;
         child.explicit = explicit;
         child.internal = internal;
 
-        return child.cast(variables);
+        return child.cast(locals);
     }
 }

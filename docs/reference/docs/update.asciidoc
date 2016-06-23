@@ -57,7 +57,7 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 
 In addition to `_source`, the following variables are available through
 the `ctx` map: `_index`, `_type`, `_id`, `_version`, `_routing`,
-`_parent`, `_timestamp`, `_ttl`.
+`_parent`.
 
 We can also add a new field to the document:
 

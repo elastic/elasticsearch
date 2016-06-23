@@ -209,6 +209,11 @@ public class ClusterRerouteRequestTests extends ESTestCase {
         }
         builder.endObject();
 
-        return new FakeRestRequest(emptyMap(), params, hasBody ? builder.bytes() : null);
+        FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder();
+        requestBuilder.withParams(params);
+        if (hasBody) {
+            requestBuilder.withContent(builder.bytes());
+        }
+        return requestBuilder.build();
     }
 }

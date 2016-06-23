@@ -64,4 +64,9 @@ public class RestClusterHealthAction extends BaseRestHandler {
         clusterHealthRequest.waitForNodes(request.param("wait_for_nodes", clusterHealthRequest.waitForNodes()));
         client.admin().cluster().health(clusterHealthRequest, new RestStatusToXContentListener<ClusterHealthResponse>(channel));
     }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
 }

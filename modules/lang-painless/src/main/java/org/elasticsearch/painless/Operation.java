@@ -32,6 +32,8 @@ public enum Operation {
     REM     ( "%"   ),
     ADD     ( "+"   ),
     SUB     ( "-"   ),
+    FIND    ( "=~"  ),
+    MATCH   ( "==~" ),
     LSH     ( "<<"  ),
     RSH     ( ">>"  ),
     USH     ( ">>>" ),

@@ -115,4 +115,9 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
         client.admin().cluster().nodesStats(nodesStatsRequest, new NodesResponseRestListener<>(channel));
     }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
 }

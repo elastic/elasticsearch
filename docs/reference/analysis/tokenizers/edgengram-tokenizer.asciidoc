@@ -302,13 +302,13 @@ GET my_index/_search
   },
   "hits": {
     "total": 1,
-    "max_score": 0.44194174,
+    "max_score": 0.51623213,
     "hits": [
       {
         "_index": "my_index",
         "_type": "doc",
         "_id": "1",
-        "_score": 0.44194174,
+        "_score": 0.51623213,
         "_source": {
           "title": "Quick Foxes"
         }

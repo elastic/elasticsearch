@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -58,7 +59,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     public void testClearOnClose() throws ExecutionException, InterruptedException {
         createIndex("index");
-        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefresh(true).get();
+        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index").setSize(1).setScroll("1m").get();
         assertThat(searchResponse.getScrollId(), is(notNullValue()));
         SearchService service = getInstanceFromNode(SearchService.class);
@@ -70,7 +71,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     public void testClearOnStop() throws ExecutionException, InterruptedException {
         createIndex("index");
-        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefresh(true).get();
+        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index").setSize(1).setScroll("1m").get();
         assertThat(searchResponse.getScrollId(), is(notNullValue()));
         SearchService service = getInstanceFromNode(SearchService.class);
@@ -82,7 +83,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     public void testClearIndexDelete() throws ExecutionException, InterruptedException {
         createIndex("index");
-        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefresh(true).get();
+        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index").setSize(1).setScroll("1m").get();
         assertThat(searchResponse.getScrollId(), is(notNullValue()));
         SearchService service = getInstanceFromNode(SearchService.class);
@@ -94,7 +95,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     public void testCloseSearchContextOnRewriteException() {
         createIndex("index");
-        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefresh(true).get();
+        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         SearchService service = getInstanceFromNode(SearchService.class);
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -110,16 +111,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     }
 
     public static class FailOnRewriteQueryPlugin extends Plugin {
-
-        @Override
-        public String name() {
-            return FailOnRewriteQueryPlugin.class.getSimpleName();
-        }
-
-        @Override
-        public String description() {
-            return "This plugin registers a query that always fails at rewrite phase";
-        }
 
         public void onModule(SearchModule module) {
             module.registerQuery(FailOnRewriteQueryBuilder::new, parseContext -> {

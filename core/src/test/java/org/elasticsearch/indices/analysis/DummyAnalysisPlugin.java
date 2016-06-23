@@ -22,22 +22,6 @@ package org.elasticsearch.indices.analysis;
 import org.elasticsearch.plugins.Plugin;
 
 public class DummyAnalysisPlugin extends Plugin {
-    /**
-     * The name of the plugin.
-     */
-    @Override
-    public String name() {
-        return "analysis-dummy";
-    }
-
-    /**
-     * The description of the plugin.
-     */
-    @Override
-    public String description() {
-        return "Analysis Dummy Plugin";
-    }
-
 
     public void onModule(AnalysisModule module) {
         module.registerAnalyzer("dummy", (a, b, c, d) -> new DummyAnalyzerProvider());

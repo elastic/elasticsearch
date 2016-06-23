@@ -190,7 +190,7 @@ public class GeoDistanceRangeQuery extends Query {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (super.equals(o) == false) return false;
+        if (sameClassAs(o) == false) return false;
 
         GeoDistanceRangeQuery filter = (GeoDistanceRangeQuery) o;
 
@@ -212,7 +212,7 @@ public class GeoDistanceRangeQuery extends Query {
 
     @Override
     public int hashCode() {
-        int result = super.hashCode();
+        int result = classHash();
         long temp;
         temp = lat != +0.0d ? Double.doubleToLongBits(lat) : 0L;
         result = 31 * result + Long.hashCode(temp);

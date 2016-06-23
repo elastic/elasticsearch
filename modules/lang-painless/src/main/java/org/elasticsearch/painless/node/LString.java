@@ -20,9 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
+
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a string constant.
@@ -32,11 +36,14 @@ public final class LString extends ALink {
     public LString(Location location, String string) {
         super(location, -1);
 
-        this.string = string;
+        this.string = Objects.requireNonNull(string);
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
         if (before != null) {
             throw createError(new IllegalArgumentException("Illegal String constant [" + string + "]."));
         } else if (store) {
@@ -51,17 +58,17 @@ public final class LString extends ALink {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter writer) {
+    void load(MethodWriter writer, Globals globals) {
         writer.push(string);
     }
 
     @Override
-    void store(MethodWriter writer) {
+    void store(MethodWriter writer, Globals globals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

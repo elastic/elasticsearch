@@ -53,13 +53,13 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -69,7 +69,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -94,21 +93,13 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script.ScriptParseException;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
-import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
@@ -120,14 +111,11 @@ import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.containsString;
@@ -880,46 +868,16 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             Environment env = InternalSettingsPreparer.prepareEnvironment(settings, null);
             PluginsService pluginsService =new PluginsService(settings, env.modulesFile(), env.pluginsFile(), plugins);
 
-            SettingsModule settingsModule = new SettingsModule(settings);
-            settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
             final Client proxy = (Client) Proxy.newProxyInstance(
                     Client.class.getClassLoader(),
                     new Class[]{Client.class},
                     clientInvocationHandler);
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-            ScriptModule scriptModule = new ScriptModule() {
-                @Override
-                protected void configure() {
-                    Settings settings = Settings.builder()
-                            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                            // no file watching, so we don't need a ResourceWatcherService
-                            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
-                            .build();
-                    MockScriptEngine mockScriptEngine = new MockScriptEngine();
-                    Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
-                    multibinder.addBinding().toInstance(mockScriptEngine);
-                    Set<ScriptEngineService> engines = new HashSet<>();
-                    engines.add(mockScriptEngine);
-                    List<ScriptContext.Plugin> customContexts = new ArrayList<>();
-                    ScriptEngineRegistry scriptEngineRegistry =
-                            new ScriptEngineRegistry(Collections
-                                    .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class,
-                                            MockScriptEngine.NAME, true)));
-                    bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
-                    ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
-                    bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
-                    ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-                    bind(ScriptSettings.class).toInstance(scriptSettings);
-                    try {
-                        ScriptService scriptService = new ScriptService(settings, new Environment(settings), engines, null,
-                                scriptEngineRegistry, scriptContextRegistry, scriptSettings);
-                        bind(ScriptService.class).toInstance(scriptService);
-                    } catch (IOException e) {
-                        throw new IllegalStateException("error while binding ScriptService", e);
-                    }
-                }
-            };
-            scriptModule.prepareSettings(settingsModule);
+            ScriptModule scriptModule = newTestScriptModule();
+            List<Setting<?>> scriptSettings = scriptModule.getSettings();
+            scriptSettings.addAll(pluginsService.getPluginSettings());
+            scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
+            SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, pluginsService.getPluginSettingsFilter());
             searchModule = new SearchModule(settings, namedWriteableRegistry) {
                 @Override
                 protected void configureSearch() {
@@ -930,19 +888,19 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             for (Module pluginModule : pluginsService.nodeModules()) {
                 modulesBuilder.add(pluginModule);
             }
-            modulesBuilder.add(new PluginsModule(pluginsService));
             modulesBuilder.add(
-                    new EnvironmentModule(new Environment(settings)),
-                    settingsModule,
-                    new ThreadPoolModule(threadPool),
-                    new IndicesModule() {
+                    (b) -> {
+                        b.bind(PluginsService.class).toInstance(pluginsService);
+                        b.bind(Environment.class).toInstance(new Environment(settings));
+                        b.bind(ThreadPool.class).toInstance(threadPool);
+                    },
+                    settingsModule, new IndicesModule(namedWriteableRegistry) {
                         @Override
                         public void configure() {
                             // skip services
                             bindMapperExtension();
                         }
                     },
-                    scriptModule,
                     new IndexSettingsModule(index, indexSettings),
                     searchModule,
                     new AbstractModule() {
@@ -960,7 +918,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             IndexScopedSettings indexScopedSettings = injector.getInstance(IndexScopedSettings.class);
             idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, indexScopedSettings);
             AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
-            scriptService = injector.getInstance(ScriptService.class);
+            scriptService = scriptModule.getScriptService();
             similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
             MapperRegistry mapperRegistry = injector.getInstance(MapperRegistry.class);
             mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry,

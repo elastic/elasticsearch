@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -36,7 +37,8 @@ import java.util.Arrays;
 public class RoutingBackwardCompatibilityTests extends ESTestCase {
 
     public void testBackwardCompatibility() throws Exception {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(RoutingBackwardCompatibilityTests.class.getResourceAsStream("/org/elasticsearch/cluster/routing/shard_routes.txt"), "UTF-8"))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(RoutingBackwardCompatibilityTests.class
+            .getResourceAsStream("/org/elasticsearch/cluster/routing/shard_routes.txt"), "UTF-8"))) {
             for (String line = reader.readLine(); line != null; line = reader.readLine()) {
                 if (line.startsWith("#")) { // comment
                     continue;
@@ -51,18 +53,21 @@ public class RoutingBackwardCompatibilityTests extends ESTestCase {
                 final int pre20ExpectedShardId = Integer.parseInt(parts[5]); // not needed anymore - old hashing is gone
                 final int currentExpectedShard = Integer.parseInt(parts[6]);
 
-                OperationRouting operationRouting = new OperationRouting(Settings.EMPTY, null);
+                OperationRouting operationRouting = new OperationRouting(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
                 for (Version version : VersionUtils.allVersions()) {
                     if (version.onOrAfter(Version.V_2_0_0) == false) {
                         // unsupported version, no need to test
                         continue;
                     }
                     final Settings settings = settings(version).build();
-                    IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(settings).numberOfShards(numberOfShards).numberOfReplicas(randomInt(3)).build();
+                    IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(settings).numberOfShards(numberOfShards)
+                        .numberOfReplicas(randomInt(3)).build();
                     MetaData.Builder metaData = MetaData.builder().put(indexMetaData, false);
                     RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetaData).build();
-                    ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
-                    final int shardId = operationRouting.indexShards(clusterState, index, type, id, routing).shardId().getId();
+                    ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                        .metaData(metaData).routingTable(routingTable).build();
+                    final int shardId = operationRouting.indexShards(clusterState, index, id, routing).shardId().getId();
                     assertEquals(currentExpectedShard, shardId);
                 }
             }

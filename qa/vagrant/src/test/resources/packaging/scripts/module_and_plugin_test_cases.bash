@@ -228,8 +228,8 @@ fi
     install_and_check_plugin ingest geoip geoip2-*.jar jackson-annotations-*.jar jackson-databind-*.jar maxmind-db-*.jar
 }
 
-@test "[$GROUP] check ingest-grok module" {
-    check_module ingest-grok jcodings-*.jar joni-*.jar
+@test "[$GROUP] check ingest-common module" {
+    check_module ingest-common jcodings-*.jar joni-*.jar
 }
 
 @test "[$GROUP] check lang-expression module" {
@@ -248,10 +248,7 @@ fi
 }
 
 @test "[$GROUP] check lang-painless module" {
-    # we specify the version on the asm-5.0.4.jar so that the test does
-    # not spuriously pass if the jar is missing but the other asm jars
-    # are present
-    check_secure_module lang-painless antlr4-runtime-*.jar asm-5.0.4.jar asm-commons-*.jar asm-tree-*.jar
+    check_secure_module lang-painless antlr4-runtime-*.jar asm-debug-all-*.jar
 }
 
 @test "[$GROUP] install javascript plugin" {

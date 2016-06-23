@@ -841,7 +841,7 @@ public abstract class TransportReplicationAction<
     }
 
 
-    static class ReplicaResponse extends ActionResponse implements ReplicationOperation.ReplicaResponse {
+    public static class ReplicaResponse extends ActionResponse implements ReplicationOperation.ReplicaResponse {
         private long localCheckpoint;
         private String allocationId;
 
@@ -849,7 +849,7 @@ public abstract class TransportReplicationAction<
 
         }
 
-        ReplicaResponse(String allocationId, long localCheckpoint) {
+        public ReplicaResponse(String allocationId, long localCheckpoint) {
             this.allocationId = allocationId;
             this.localCheckpoint = localCheckpoint;
         }

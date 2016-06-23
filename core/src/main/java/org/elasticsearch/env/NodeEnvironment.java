@@ -32,12 +32,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -66,7 +63,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -167,7 +163,6 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
     public static final String NODE_LOCK_FILENAME = "node.lock";
     public static final String UPGRADE_LOCK_FILENAME = "upgrade.lock";
 
-    @Inject
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
         super(settings);
 

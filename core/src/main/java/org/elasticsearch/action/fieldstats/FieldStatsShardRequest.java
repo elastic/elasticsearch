@@ -34,6 +34,7 @@ import java.util.Set;
 public class FieldStatsShardRequest extends BroadcastShardRequest {
 
     private String[] fields;
+    private boolean useCache;
 
     public FieldStatsShardRequest() {
     }
@@ -46,22 +47,29 @@ public class FieldStatsShardRequest extends BroadcastShardRequest {
             fields.add(indexConstraint.getField());
         }
         this.fields = fields.toArray(new String[fields.size()]);
+        useCache = request.shouldUseCache();
     }
 
     public String[] getFields() {
         return fields;
     }
 
+    public boolean shouldUseCache() {
+        return useCache;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         fields = in.readStringArray();
+        useCache = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(fields);
+        out.writeBoolean(useCache);
     }
 
 }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.block;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,6 +28,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
+import java.util.Collections;
 import java.util.EnumSet;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
@@ -78,5 +81,21 @@ public class ClusterBlockTests extends ESTestCase {
         ClusterBlock clusterBlock = new ClusterBlock(randomInt(), "cluster block #" + randomInt(), randomBoolean(),
                 randomBoolean(), randomFrom(RestStatus.values()), levels);
         assertThat(clusterBlock.toString(), not(endsWith(",")));
+    }
+
+    public void testGlobalBlocksCheckedIfNoIndicesSpecified() {
+        EnumSet<ClusterBlockLevel> levels = EnumSet.noneOf(ClusterBlockLevel.class);
+        int nbLevels = randomIntBetween(1, ClusterBlockLevel.values().length);
+        for (int j = 0; j < nbLevels; j++) {
+            levels.add(randomFrom(ClusterBlockLevel.values()));
+        }
+        ClusterBlock globalBlock = new ClusterBlock(randomInt(), "cluster block #" + randomInt(), randomBoolean(),
+            randomBoolean(), randomFrom(RestStatus.values()), levels);
+        ClusterBlocks clusterBlocks = new ClusterBlocks(ImmutableSet.of(globalBlock),
+            ImmutableMap.<String, ImmutableSet<ClusterBlock>> of());
+        ClusterBlockException exception = clusterBlocks.indicesBlockedException(
+            randomFrom(globalBlock.levels().toArray(new ClusterBlockLevel[0])), new String[0]);
+        assertNotNull(exception);
+        assertEquals(exception.blocks(), Collections.singleton(globalBlock));
     }
 }

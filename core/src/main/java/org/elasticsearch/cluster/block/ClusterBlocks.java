@@ -147,8 +147,12 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         }
     }
 
+    private boolean globalBlocked(ClusterBlockLevel level) {
+        return global(level).isEmpty() == false;
+    }
+
     public ClusterBlockException globalBlockedException(ClusterBlockLevel level) {
-        if (global(level).isEmpty()) {
+        if (globalBlocked(level) == false) {
             return null;
         }
         return new ClusterBlockException(ImmutableSet.copyOf(global(level)));
@@ -175,7 +179,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
     }
 
     public boolean indexBlocked(ClusterBlockLevel level, String index) {
-        if (!global(level).isEmpty()) {
+        if (globalBlocked(level)) {
             return true;
         }
         ImmutableSet<ClusterBlock> indexBlocks = indices(level).get(index);
@@ -192,7 +196,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
                 indexIsBlocked = true;
             }
         }
-        if (!indexIsBlocked) {
+        if (globalBlocked(level) == false && indexIsBlocked == false) {
             return null;
         }
         ImmutableSet.Builder<ClusterBlock> builder = ImmutableSet.builder();

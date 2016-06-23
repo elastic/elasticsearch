@@ -394,16 +394,15 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public boolean index(Index index) {
-        final boolean created;
+    public void index(Index index) {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (index.origin().isRecovery()) {
                 // Don't throttle recovery operations
-                created = innerIndex(index);
+                innerIndex(index);
             } else {
                 try (Releasable r = throttle.acquireThrottle()) {
-                    created = innerIndex(index);
+                    innerIndex(index);
                 }
             }
         } catch (IllegalStateException | IOException e) {
@@ -414,10 +413,9 @@ public class InternalEngine extends Engine {
             }
             throw new IndexFailedEngineException(shardId, index.type(), index.id(), e);
         }
-        return created;
     }
 
-    private boolean innerIndex(Index index) throws IOException {
+    private void innerIndex(Index index) throws IOException {
         try (Releasable ignored = acquireLock(index.uid())) {
             lastWriteNanos = index.startTime();
             final long currentVersion;
@@ -432,15 +430,16 @@ public class InternalEngine extends Engine {
             }
 
             final long expectedVersion = index.version();
-            if (checkVersionConflict(index, currentVersion, expectedVersion, deleted)) return false;
+            if (checkVersionConflict(index, currentVersion, expectedVersion, deleted)) {
+                index.setCreated(false);
+                return;
+            }
 
             final long updatedVersion = updateVersion(index, currentVersion, expectedVersion);
 
-            final boolean created = indexOrUpdate(index, currentVersion, versionValue);
+            indexOrUpdate(index, currentVersion, versionValue);
 
             maybeAddToTranslog(index, updatedVersion, Translog.Index::new, NEW_VERSION_VALUE);
-
-            return created;
         }
     }
 
@@ -450,16 +449,14 @@ public class InternalEngine extends Engine {
         return updatedVersion;
     }
 
-    private boolean indexOrUpdate(final Index index, final long currentVersion, final VersionValue versionValue) throws IOException {
-        final boolean created;
+    private void indexOrUpdate(final Index index, final long currentVersion, final VersionValue versionValue) throws IOException {
         if (currentVersion == Versions.NOT_FOUND) {
             // document does not exists, we can optimize for create
-            created = true;
+            index.setCreated(true);
             index(index, indexWriter);
         } else {
-            created = update(index, versionValue, indexWriter);
+            update(index, versionValue, indexWriter);
         }
-        return created;
     }
 
     private static void index(final Index index, final IndexWriter indexWriter) throws IOException {
@@ -470,19 +467,17 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private static boolean update(final Index index, final VersionValue versionValue, final IndexWriter indexWriter) throws IOException {
-        final boolean created;
+    private static void update(final Index index, final VersionValue versionValue, final IndexWriter indexWriter) throws IOException {
         if (versionValue != null) {
-            created = versionValue.delete(); // we have a delete which is not GC'ed...
+            index.setCreated(versionValue.delete()); // we have a delete which is not GC'ed...
         } else {
-            created = false;
+            index.setCreated(false);
         }
         if (index.docs().size() > 1) {
             indexWriter.updateDocuments(index.uid(), index.docs());
         } else {
             indexWriter.updateDocument(index.uid(), index.docs().get(0));
         }
-        return created;
     }
 
     @Override

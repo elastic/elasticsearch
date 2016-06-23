@@ -106,7 +106,7 @@ public class ShadowEngine extends Engine {
 
 
     @Override
-    public boolean index(Index index) throws EngineException {
+    public void index(Index index) throws EngineException {
         throw new UnsupportedOperationException(shardId + " index operation not allowed on shadow engine");
     }
 

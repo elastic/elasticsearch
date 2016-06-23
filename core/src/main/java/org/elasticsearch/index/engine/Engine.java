@@ -277,7 +277,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract boolean index(Index operation) throws EngineException;
+    public abstract void index(Index operation) throws EngineException;
 
     public abstract void delete(Delete delete) throws EngineException;
 
@@ -847,6 +847,7 @@ public abstract class Engine implements Closeable {
     public static class Index extends Operation {
 
         private final ParsedDocument doc;
+        private boolean created;
 
         public Index(Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime) {
             super(uid, version, versionType, origin, startTime);
@@ -903,6 +904,14 @@ public abstract class Engine implements Closeable {
 
         public BytesReference source() {
             return this.doc.source();
+        }
+
+        public boolean isCreated() {
+            return created;
+        }
+
+        public void setCreated(boolean created) {
+            this.created = created;
         }
 
         @Override

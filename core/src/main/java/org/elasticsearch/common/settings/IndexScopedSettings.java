@@ -140,18 +140,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         PrimaryShardAllocator.INDEX_RECOVERY_INITIAL_SHARDS_SETTING,
         FsDirectoryService.INDEX_LOCK_FACTOR_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
-        // validate that built-in similarities don't get redefined
-        Setting.groupSetting("index.similarity.", (s) -> {
-            Map<String, Settings> groups = s.getAsGroups();
-            for (String key : SimilarityService.BUILT_IN.keySet()) {
-                if (groups.containsKey(key)) {
-                    throw new IllegalArgumentException("illegal value for [index.similarity." + key +
-                            "] cannot redefine built-in similarity");
-                }
-            }
-        }, Property.IndexScope), // this allows similarity settings to be passed
+        SimilarityService.SIMILARITY_SETTINGS,
         Setting.groupSetting("index.analysis.", Property.IndexScope) // this allows analysis settings to be passed
-
     )));
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY,

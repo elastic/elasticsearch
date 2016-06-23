@@ -21,7 +21,13 @@ package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 
 /**
  * {@link SimilarityProvider} for the {@link BM25Similarity}.
@@ -34,25 +40,41 @@ import org.elasticsearch.common.settings.Settings;
  * </ul>
  * @see BM25Similarity For more information about configuration
  */
-public class BM25SimilarityProvider extends AbstractSimilarityProvider {
-
-    private final BM25Similarity similarity;
+public class BM25SimilarityProvider extends BaseSimilarityProvider {
+    private BM25Similarity similarity;
+    private static Setting<Float> K1_SETTING =
+        Setting.floatSetting("k1", 1.2f, 0f, Setting.Property.Dynamic);
+    private static Setting<Float> B_SETTING =
+        Setting.floatSetting("b", 0.75f, 0f, 1f, Setting.Property.Dynamic);
 
     public BM25SimilarityProvider(String name, Settings settings) {
-        super(name);
-        float k1 = settings.getAsFloat("k1", 1.2f);
-        float b = settings.getAsFloat("b", 0.75f);
-        boolean discountOverlaps = settings.getAsBoolean("discount_overlaps", true);
-
-        this.similarity = new BM25Similarity(k1, b);
-        this.similarity.setDiscountOverlaps(discountOverlaps);
+        super(name, settings);
+        this.similarity = create(settings);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public Similarity get() {
+    public List<Setting<?>> getSettings() {
+        List<Setting<?> > lst = new ArrayList<>(super.getSettings());
+        lst.addAll(Arrays.asList(K1_SETTING, B_SETTING));
+        return lst;
+    }
+
+
+    @Override
+    protected void doUpdateSettings(Settings settings) {
+        this.similarity = create(settings);
+    }
+
+    @Override
+    protected Similarity doGet() {
         return similarity;
+    }
+
+    private BM25Similarity create(Settings settings) {
+        float k1 = K1_SETTING.get(settings);
+        float b = B_SETTING.get(settings);
+        BM25Similarity sim = new BM25Similarity(k1, b);
+        sim.setDiscountOverlaps(discountOverlaps);
+        return sim;
     }
 }

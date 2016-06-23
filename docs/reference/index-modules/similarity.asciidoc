@@ -47,6 +47,20 @@ Here we configure the DFRSimilarity so it can be referenced as
 [float]
 === Available similarities
 
+Similarity options marked with *dynamic* are dynamically updatable.
+Here we update the option `normalization.h2.c` of the similarity `my_similarity`:
+
+[source,js]
+--------------------------------------------------
+"similarity" : {
+  "my_similarity" : {
+    "normalization.h2.c" : "4.0"
+  }
+}
+--------------------------------------------------
+
+Note that it is not possible to update the type of an already defined similarity.
+
 [float]
 [[bm25]]
 ==== BM25 similarity (*default*)
@@ -57,11 +71,11 @@ http://en.wikipedia.org/wiki/Okapi_BM25[Okapi_BM25] for more details.
 This similarity has the following options:
 
 [horizontal]
-`k1`::
+`k1` (*dynamic*)::
     Controls non-linear term frequency normalization
     (saturation). The default value is `1.2`.
 
-`b`::
+`b` (*dynamic*)::
     Controls to what degree document length normalizes tf values.
     The default value is `0.75`.
 
@@ -95,14 +109,19 @@ http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/D
 from randomness] framework. This similarity has the following options:
 
 [horizontal]
-`basic_model`::
+`basic_model` (*dynamic*)::
     Possible values: `be`, `d`, `g`, `if`, `in`, `ine` and `p`.
 
-`after_effect`::
+`after_effect` (*dynamic*)::
     Possible values: `no`, `b` and `l`.
 
-`normalization`::
+`normalization` (*dynamic*)::
     Possible values: `no`, `h1`, `h2`, `h3` and `z`.
+
+`discount_overlaps`::
+    Determines whether overlap tokens (Tokens with
+    0 position increment) are ignored when computing norm. By default this
+    is true, meaning overlap tokens do not count when computing norms.
 
 All options but the first option need a normalization value.
 
@@ -117,7 +136,12 @@ model.
 This similarity has the following options:
 
 [horizontal]
-`independence_measure`:: Possible values `standardized`, `saturated`, `chisquared`.
+`independence_measure` (*dynamic*):: Possible values `standardized`, `saturated`, `chisquared`.
+
+`discount_overlaps`::
+    Determines whether overlap tokens (Tokens with
+    0 position increment) are ignored when computing norm. By default this
+    is true, meaning overlap tokens do not count when computing norms.
 
 Type name: `DFI`
 
@@ -132,9 +156,19 @@ For written texts this challenge would correspond to comparing the writing style
 This similarity has the following options:
 
 [horizontal]
-`distribution`::  Possible values: `ll` and `spl`.
-`lambda`::        Possible values: `df` and `ttf`.
-`normalization`:: Same as in `DFR` similarity.
+`distribution` (*dynamic*)::
+    Possible values: `ll` and `spl`.
+
+`lambda` (*dynamic*)::
+    Possible values: `df` and `ttf`.
+
+`normalization` (*dynamic*)::
+    Same as in `DFR` similarity.
+
+`discount_overlaps`::
+    Determines whether overlap tokens (Tokens with
+    0 position increment) are ignored when computing norm. By default this
+    is true, meaning overlap tokens do not count when computing norms.
 
 Type name: `IB`
 
@@ -146,7 +180,13 @@ http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/L
 Dirichlet similarity] . This similarity has the following options:
 
 [horizontal]
-`mu`::  Default to `2000`.
+`mu` (*dynamic*)::
+    Default to `2000`.
+
+`discount_overlaps`::
+    Determines whether overlap tokens (Tokens with
+    0 position increment) are ignored when computing norm. By default this
+    is true, meaning overlap tokens do not count when computing norms.
 
 Type name: `LMDirichlet`
 
@@ -158,8 +198,13 @@ http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/L
 Jelinek Mercer similarity] . The algorithm attempts to capture important patterns in the text, while leaving out noise. This similarity has the following options:
 
 [horizontal]
-`lambda`::  The optimal value depends on both the collection and the query. The optimal value is around `0.1`
+`lambda` (*dynamic*)::  The optimal value depends on both the collection and the query. The optimal value is around `0.1`
 for title queries and `0.7` for long queries. Default to `0.1`. When value approaches `0`, documents that match more query terms will be ranked higher than those that match fewer terms.
+
+`discount_overlaps`::
+    Determines whether overlap tokens (Tokens with
+    0 position increment) are ignored when computing norm. By default this
+    is true, meaning overlap tokens do not count when computing norms.
 
 Type name: `LMJelinekMercer`
 

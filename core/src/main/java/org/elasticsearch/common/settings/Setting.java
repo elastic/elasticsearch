@@ -486,6 +486,19 @@ public class Setting<T> extends ToXContentToBytes {
         }, properties);
     }
 
+    public static Setting<Float> floatSetting(String key, float defaultValue, float minValue, float maxValue, Property... properties) {
+        return new Setting<>(key, (s) -> Float.toString(defaultValue), (s) -> {
+            float value = Float.parseFloat(s);
+            if (value < minValue) {
+                throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+            }
+            if (value > maxValue) {
+                throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be <= " + maxValue);
+            }
+            return value;
+        }, properties);
+    }
+
     public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, int maxValue, Property... properties) {
         return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, maxValue, key), properties);
     }

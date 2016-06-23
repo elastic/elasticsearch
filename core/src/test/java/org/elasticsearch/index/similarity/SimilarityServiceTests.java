@@ -19,7 +19,6 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -30,25 +29,24 @@ import org.elasticsearch.test.IndexSettingsModule;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SimilarityServiceTests extends ESTestCase {
     public void testDefaultSimilarity() {
         Settings settings = Settings.builder().build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
         SimilarityService service = new SimilarityService(indexSettings, Collections.emptyMap());
-        assertThat(service.getDefaultSimilarity(), instanceOf(BM25Similarity.class));
+        assertThat(service.getSimilarity("default"), instanceOf(BM25SimilarityProvider.class));
     }
 
     // Tests #16594
     public void testOverrideBuiltInSimilarity() {
         Settings settings = Settings.builder().put("index.similarity.BM25.type", "classic").build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        try {
-            new SimilarityService(indexSettings, Collections.emptyMap());
-            fail("can't override bm25");
-        } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Cannot redefine built-in Similarity [BM25]");
-        }
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () ->
+            new SimilarityService(indexSettings, Collections.emptyMap()));
+        assertThat(exc.getMessage(), containsString("Cannot redefine built-in Similarity [BM25]"));
     }
 
     // Pre v3 indices could override built-in similarities
@@ -67,6 +65,51 @@ public class SimilarityServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put("index.similarity.default.type", "classic").build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
         SimilarityService service = new SimilarityService(indexSettings, Collections.emptyMap());
-        assertTrue(service.getDefaultSimilarity() instanceof ClassicSimilarity);
+        assertTrue(service.getSimilarity("default") instanceof ClassicSimilarityProvider);
+    }
+
+    public void testInvalidSimilarityUpdates() {
+        Settings settings = Settings.builder().put("index.similarity.custom.type", "BM25").build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
+        SimilarityService service = new SimilarityService(indexSettings, Collections.emptyMap());
+        assertThat(service.getSimilarity("custom"), instanceOf(BM25SimilarityProvider.class));
+
+        {
+            final Settings update = SimilarityService.SIMILARITY_SETTINGS.get(Settings.builder()
+                .put("index.similarity.custom.type", "classic")
+                .build());
+            IllegalArgumentException exc =
+                expectThrows(IllegalArgumentException.class, () -> service.validateSettings(update));
+            assertThat(exc.getMessage(), containsString("setting [type] for similarity [custom], " +
+                "not dynamically updateable"));
+        }
+
+        {
+            final Settings update = SimilarityService.SIMILARITY_SETTINGS.get(Settings.builder()
+                .put("index.similarity.custom.discount_overlaps", false)
+                .build());
+            IllegalArgumentException exc =
+                expectThrows(IllegalArgumentException.class, () -> service.validateSettings(update));
+            assertThat(exc.getMessage(), containsString("setting [discount_overlaps] for similarity [custom]," +
+                " not dynamically updateable"));
+        }
+    }
+
+    public void testSimilarityUpdates() {
+        Settings settings = Settings.builder().put("index.similarity.custom.type", "BM25").build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
+        SimilarityService service = new SimilarityService(indexSettings, Collections.emptyMap());
+        assertThat(service.getSimilarity("custom"), instanceOf(BM25SimilarityProvider.class));
+
+        settings = SimilarityService.SIMILARITY_SETTINGS.get(Settings.builder()
+            .put("index.similarity.custom.type", "BM25")
+            .put("index.similarity.custom.k1", 1.98f)
+            .put("index.similarity.custom.b", 0.35f)
+            .build());
+        service.updateSettings(settings);
+        assertThat(service.getSimilarity("custom"), instanceOf(BM25SimilarityProvider.class));
+        BM25Similarity sim = (BM25Similarity) service.getSimilarity("custom").get();
+        assertThat(sim.getK1(), equalTo(1.98f));
+        assertThat(sim.getB(), equalTo(0.35f));
     }
 }

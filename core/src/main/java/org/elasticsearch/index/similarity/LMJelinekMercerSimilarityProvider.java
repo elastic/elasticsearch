@@ -21,7 +21,11 @@ package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * {@link SimilarityProvider} for {@link LMJelinekMercerSimilarity}.
@@ -32,21 +36,38 @@ import org.elasticsearch.common.settings.Settings;
  * </ul>
  * @see LMJelinekMercerSimilarity For more information about configuration
  */
-public class LMJelinekMercerSimilarityProvider extends AbstractSimilarityProvider {
-
-    private final LMJelinekMercerSimilarity similarity;
+public class LMJelinekMercerSimilarityProvider extends BaseSimilarityProvider {
+    private static final Setting<Float> LAMBDA_SETTING =
+        Setting.floatSetting("lambda", 0.1f, Setting.Property.Dynamic);
+    private LMJelinekMercerSimilarity similarity;
 
     public LMJelinekMercerSimilarityProvider(String name, Settings settings) {
-        super(name);
-        float lambda = settings.getAsFloat("lambda", 0.1f);
-        this.similarity = new LMJelinekMercerSimilarity(lambda);
+        super(name, settings);
+        this.similarity = create(settings);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public Similarity get() {
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> lst = new ArrayList<>(super.getSettings());
+        lst.add(LAMBDA_SETTING);
+        return lst;
+    }
+
+
+    @Override
+    protected void doUpdateSettings(Settings settings) {
+        similarity = create(settings);
+    }
+
+    @Override
+    protected Similarity doGet() {
         return similarity;
+    }
+
+    private LMJelinekMercerSimilarity create(Settings settings) {
+        float lambda = LAMBDA_SETTING.get(settings);
+        LMJelinekMercerSimilarity sim = new LMJelinekMercerSimilarity(lambda);
+        sim.setDiscountOverlaps(discountOverlaps);
+        return sim;
     }
 }

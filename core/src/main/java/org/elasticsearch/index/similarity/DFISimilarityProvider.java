@@ -25,9 +25,12 @@ import org.apache.lucene.search.similarities.IndependenceChiSquared;
 import org.apache.lucene.search.similarities.IndependenceSaturated;
 import org.apache.lucene.search.similarities.IndependenceStandardized;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
@@ -42,7 +45,7 @@ import static java.util.Collections.unmodifiableMap;
  * </ul>
  * @see DFISimilarity For more information about configuration
  */
-public class DFISimilarityProvider extends AbstractSimilarityProvider {
+public class DFISimilarityProvider extends BaseSimilarityProvider {
     // the "basic models" of divergence from independence
     private static final Map<String, Independence> INDEPENDENCE_MEASURES;
     static {
@@ -53,18 +56,39 @@ public class DFISimilarityProvider extends AbstractSimilarityProvider {
         INDEPENDENCE_MEASURES = unmodifiableMap(measures);
     }
 
-    private final DFISimilarity similarity;
+    private static final Setting<String> INDEPENDENCE_MEASURE_SETTING =
+        Setting.simpleString("independence_measure", Setting.Property.Dynamic);
+    private DFISimilarity similarity;
 
     public DFISimilarityProvider(String name, Settings settings) {
-        super(name);
-        boolean discountOverlaps = settings.getAsBoolean("discount_overlaps", true);
-        Independence measure = parseIndependence(settings);
-        this.similarity = new DFISimilarity(measure);
-        this.similarity.setDiscountOverlaps(discountOverlaps);
+        super(name, settings);
+        this.similarity = create(settings);
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        List<Setting<?> > lst = new ArrayList<>(super.getSettings());
+        lst.add(INDEPENDENCE_MEASURE_SETTING);
+        return lst;
+    }
+
+    @Override
+    protected void doValidateUpdateSettings(Settings settings) {
+        create(settings);
+    }
+
+    @Override
+    protected void doUpdateSettings(Settings settings) {
+        similarity = create(settings);
+    }
+
+    @Override
+    protected Similarity doGet() {
+        return similarity;
     }
 
     private Independence parseIndependence(Settings settings) {
-        String name = settings.get("independence_measure");
+        String name = INDEPENDENCE_MEASURE_SETTING.get(settings);
         Independence measure = INDEPENDENCE_MEASURES.get(name);
         if (measure == null) {
             throw new IllegalArgumentException("Unsupported IndependenceMeasure [" + name + "]");
@@ -72,8 +96,10 @@ public class DFISimilarityProvider extends AbstractSimilarityProvider {
         return measure;
     }
 
-    @Override
-    public Similarity get() {
-        return similarity;
+    private DFISimilarity create(Settings settings) {
+        Independence measure = parseIndependence(settings);
+        DFISimilarity sim = new DFISimilarity(measure);
+        sim.setDiscountOverlaps(discountOverlaps);
+        return sim;
     }
 }

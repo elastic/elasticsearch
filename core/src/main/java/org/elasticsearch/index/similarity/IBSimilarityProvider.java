@@ -28,9 +28,14 @@ import org.apache.lucene.search.similarities.LambdaDF;
 import org.apache.lucene.search.similarities.LambdaTTF;
 import org.apache.lucene.search.similarities.Normalization;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
+
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
@@ -40,14 +45,14 @@ import static java.util.Collections.unmodifiableMap;
  * <p>
  * Configuration options available:
  * <ul>
- *     <li>distribution</li>
- *     <li>lambda</li>
- *     <li>normalization</li>
+ * <li>distribution</li>
+ * <li>lambda</li>
+ * <li>normalization</li>
  * </ul>
+ *
  * @see IBSimilarity For more information about configuration
  */
-public class IBSimilarityProvider extends AbstractSimilarityProvider {
-
+public class IBSimilarityProvider extends BaseSimilarityProvider {
     private static final Map<String, Distribution> DISTRIBUTIONS;
     private static final Map<String, Lambda> LAMBDAS;
 
@@ -63,14 +68,38 @@ public class IBSimilarityProvider extends AbstractSimilarityProvider {
         LAMBDAS = unmodifiableMap(lamdas);
     }
 
-    private final IBSimilarity similarity;
+    private static final Setting<String> DISTRIBUTION_SETTING =
+        Setting.simpleString("distribution", Setting.Property.Dynamic);
+    private static final Setting<String> LAMBDA_SETTING =
+        Setting.simpleString("lambda", Setting.Property.Dynamic);
+    private IBSimilarity similarity;
 
     public IBSimilarityProvider(String name, Settings settings) {
-        super(name);
-        Distribution distribution = parseDistribution(settings);
-        Lambda lambda = parseLambda(settings);
-        Normalization normalization = parseNormalization(settings);
-        this.similarity = new IBSimilarity(distribution, lambda, normalization);
+        super(name, settings);
+        this.similarity = create(settings);
+    }
+
+    @Override
+    protected void doValidateUpdateSettings(Settings settings) {
+        create(settings);
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> lst = new ArrayList<>(super.getSettings());
+        lst.addAll(Arrays.asList(LAMBDA_SETTING, DISTRIBUTION_SETTING,
+            NORMALIZATION_SETTING, H1_C_SETTING, H2_C_SETTING, H3_C_SETTING, Z_Z_SETTING));
+        return lst;
+    }
+
+    @Override
+    protected void doUpdateSettings(Settings settings) {
+        similarity = create(settings);
+    }
+
+    @Override
+    protected Similarity doGet() {
+        return similarity;
     }
 
     /**
@@ -80,7 +109,7 @@ public class IBSimilarityProvider extends AbstractSimilarityProvider {
      * @return {@link Normalization} referred to in the Settings
      */
     protected Distribution parseDistribution(Settings settings) {
-        String rawDistribution = settings.get("distribution");
+        String rawDistribution = DISTRIBUTION_SETTING.get(settings);
         Distribution distribution = DISTRIBUTIONS.get(rawDistribution);
         if (distribution == null) {
             throw new IllegalArgumentException("Unsupported Distribution [" + rawDistribution + "]");
@@ -95,7 +124,7 @@ public class IBSimilarityProvider extends AbstractSimilarityProvider {
      * @return {@link Normalization} referred to in the Settings
      */
     protected Lambda parseLambda(Settings settings) {
-        String rawLambda = settings.get("lambda");
+        String rawLambda = LAMBDA_SETTING.get(settings);
         Lambda lambda = LAMBDAS.get(rawLambda);
         if (lambda == null) {
             throw new IllegalArgumentException("Unsupported Lambda [" + rawLambda + "]");
@@ -103,11 +132,12 @@ public class IBSimilarityProvider extends AbstractSimilarityProvider {
         return lambda;
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Similarity get() {
-        return similarity;
+    private IBSimilarity create(Settings settings) {
+        Distribution distribution = parseDistribution(settings);
+        Lambda lambda = parseLambda(settings);
+        Normalization normalization = parseNormalization(settings);
+        IBSimilarity sim = new IBSimilarity(distribution, lambda, normalization);
+        sim.setDiscountOverlaps(discountOverlaps);
+        return sim;
     }
 }

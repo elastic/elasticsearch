@@ -84,9 +84,9 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 
@@ -297,16 +297,23 @@ public class IndexModuleTests extends ESTestCase {
                 .build();
         IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null,
                 new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap()));
-        module.addSimilarity("test_similarity", (string, settings) -> new SimilarityProvider() {
+        final Setting<String> KEY_SETTING = Setting.simpleString("key");
+        module.addSimilarity("test_similarity", (name, settings) -> new SimilarityProvider(name, settings) {
             @Override
-            public String name() {
-                return string;
+            public List<Setting<?>> getSettings() {
+                return Arrays.asList(KEY_SETTING);
             }
 
             @Override
-            public Similarity get() {
+            public Similarity doGet() {
                 return new TestSimilarity(settings.get("key"));
             }
+
+            @Override
+            protected void doValidateUpdateSettings(Settings settings) {}
+
+            @Override
+            protected void doUpdateSettings(Settings settings) {}
         });
 
         IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, indicesQueryCache, mapperRegistry,

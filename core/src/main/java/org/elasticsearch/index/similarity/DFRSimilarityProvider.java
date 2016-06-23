@@ -33,9 +33,13 @@ import org.apache.lucene.search.similarities.BasicModelP;
 import org.apache.lucene.search.similarities.DFRSimilarity;
 import org.apache.lucene.search.similarities.Normalization;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
@@ -51,7 +55,7 @@ import static java.util.Collections.unmodifiableMap;
  * </ul>
  * @see DFRSimilarity For more information about configuration
  */
-public class DFRSimilarityProvider extends AbstractSimilarityProvider {
+public class DFRSimilarityProvider extends BaseSimilarityProvider {
     private static final Map<String, BasicModel> BASIC_MODELS;
     private static final Map<String, AfterEffect> AFTER_EFFECTS;
 
@@ -73,14 +77,38 @@ public class DFRSimilarityProvider extends AbstractSimilarityProvider {
         AFTER_EFFECTS = unmodifiableMap(effects);
     }
 
-    private final DFRSimilarity similarity;
+    private static final Setting<String> AFTER_EFFECT_SETTING =
+        Setting.simpleString("after_effect", Setting.Property.Dynamic);
+    private static final Setting<String> BASIC_MODEL_SETTING =
+        Setting.simpleString("basic_model", Setting.Property.Dynamic);
+    private DFRSimilarity similarity;
 
     public DFRSimilarityProvider(String name, Settings settings) {
-        super(name);
-        BasicModel basicModel = parseBasicModel(settings);
-        AfterEffect afterEffect = parseAfterEffect(settings);
-        Normalization normalization = parseNormalization(settings);
-        this.similarity = new DFRSimilarity(basicModel, afterEffect, normalization);
+        super(name, settings);
+        this.similarity = create(settings);
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> lst = new ArrayList<>(super.getSettings());
+        lst.addAll(Arrays.asList(BASIC_MODEL_SETTING, AFTER_EFFECT_SETTING,
+            NORMALIZATION_SETTING, H1_C_SETTING, H2_C_SETTING, H3_C_SETTING, Z_Z_SETTING));
+        return lst;
+    }
+
+    @Override
+    protected void doValidateUpdateSettings(Settings settings) {
+        create(settings);
+    }
+
+    @Override
+    protected void doUpdateSettings(Settings settings) {
+        similarity = create(settings);
+    }
+
+    @Override
+    protected Similarity doGet() {
+        return similarity;
     }
 
     /**
@@ -90,7 +118,7 @@ public class DFRSimilarityProvider extends AbstractSimilarityProvider {
      * @return {@link BasicModel} referred to in the Settings
      */
     protected BasicModel parseBasicModel(Settings settings) {
-        String basicModel = settings.get("basic_model");
+        String basicModel = BASIC_MODEL_SETTING.get(settings);
         BasicModel model = BASIC_MODELS.get(basicModel);
         if (model == null) {
             throw new IllegalArgumentException("Unsupported BasicModel [" + basicModel + "]");
@@ -105,7 +133,7 @@ public class DFRSimilarityProvider extends AbstractSimilarityProvider {
      * @return {@link AfterEffect} referred to in the Settings
      */
     protected AfterEffect parseAfterEffect(Settings settings) {
-        String afterEffect = settings.get("after_effect");
+        String afterEffect = AFTER_EFFECT_SETTING.get(settings);
         AfterEffect effect = AFTER_EFFECTS.get(afterEffect);
         if (effect == null) {
             throw new IllegalArgumentException("Unsupported AfterEffect [" + afterEffect + "]");
@@ -113,11 +141,12 @@ public class DFRSimilarityProvider extends AbstractSimilarityProvider {
         return effect;
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Similarity get() {
-        return similarity;
+    private DFRSimilarity create(Settings settings) {
+        BasicModel basicModel = parseBasicModel(settings);
+        AfterEffect afterEffect = parseAfterEffect(settings);
+        Normalization normalization = parseNormalization(settings);
+        DFRSimilarity sim = new DFRSimilarity(basicModel, afterEffect, normalization);
+        sim.setDiscountOverlaps(discountOverlaps);
+        return sim;
     }
 }

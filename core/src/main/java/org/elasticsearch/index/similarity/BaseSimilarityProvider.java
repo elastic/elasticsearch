@@ -24,32 +24,49 @@ import org.apache.lucene.search.similarities.NormalizationH1;
 import org.apache.lucene.search.similarities.NormalizationH2;
 import org.apache.lucene.search.similarities.NormalizationH3;
 import org.apache.lucene.search.similarities.NormalizationZ;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
-/**
- * Abstract implementation of {@link SimilarityProvider} providing common behaviour
- */
-public abstract class AbstractSimilarityProvider implements SimilarityProvider {
+import java.util.List;
+import java.util.Arrays;
 
+
+/**
+ * Base implementation of {@link SimilarityProvider} that encodes the document length in the same way.
+ */
+public abstract class BaseSimilarityProvider extends SimilarityProvider {
     protected static final Normalization NO_NORMALIZATION = new Normalization.NoNormalization();
 
-    private final String name;
+    protected static final Setting<Boolean> DISCOUNT_OVERLAPS_SETTING = Setting.boolSetting("discount_overlaps", true);
+    protected static final Setting<String> NORMALIZATION_SETTING = new Setting<> ("normalization", (s) -> "no",
+        (s) -> {
+            if ("no".equals(s) || "h1".equals(s) || "h2".equals(s) || "h3".equals(s) || "z".equals(s)) {
+                return s;
+            }
+            throw new IllegalArgumentException("Unsupported Normalization [" + s + "]");
+        }, Setting.Property.Dynamic);
+    protected static final Setting<Float> H1_C_SETTING = Setting.floatSetting("normalization.h1.c", 1f, Setting.Property.Dynamic);
+    protected static final Setting<Float> H2_C_SETTING = Setting.floatSetting("normalization.h2.c", 1f, Setting.Property.Dynamic);
+    protected static final Setting<Float> H3_C_SETTING = Setting.floatSetting("normalization.h3.c", 800f, Setting.Property.Dynamic);
+    protected static final Setting<Float> Z_Z_SETTING = Setting.floatSetting("normalization.z.z", 0.3f, Setting.Property.Dynamic);
+
+    protected final String name;
+    protected final boolean discountOverlaps;
 
     /**
      * Creates a new AbstractSimilarityProvider with the given name
      *
      * @param name Name of the Provider
      */
-    protected AbstractSimilarityProvider(String name) {
+    protected BaseSimilarityProvider(String name, Settings settings) {
+        super(name, settings);
         this.name = name;
+        this.discountOverlaps = DISCOUNT_OVERLAPS_SETTING.get(settings);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public String name() {
-        return this.name;
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(DISCOUNT_OVERLAPS_SETTING);
     }
 
     /**
@@ -58,22 +75,22 @@ public abstract class AbstractSimilarityProvider implements SimilarityProvider {
      * @param settings Settings to parse
      * @return {@link Normalization} referred to in the Settings
      */
-    protected Normalization parseNormalization(Settings settings) {
-        String normalization = settings.get("normalization");
+    protected static Normalization parseNormalization(Settings settings) {
+        String normalization = NORMALIZATION_SETTING.get(settings);
 
         if ("no".equals(normalization)) {
             return NO_NORMALIZATION;
         } else if ("h1".equals(normalization)) {
-            float c = settings.getAsFloat("normalization.h1.c", 1f);
+            float c = H1_C_SETTING.get(settings);
             return new NormalizationH1(c);
         } else if ("h2".equals(normalization)) {
-            float c = settings.getAsFloat("normalization.h2.c", 1f);
+            float c = H2_C_SETTING.get(settings);
             return new NormalizationH2(c);
         } else if ("h3".equals(normalization)) {
-            float c = settings.getAsFloat("normalization.h3.c", 800f);
+            float c = H3_C_SETTING.get(settings);
             return new NormalizationH3(c);
         } else if ("z".equals(normalization)) {
-            float z = settings.getAsFloat("normalization.z.z", 0.30f);
+            float z = Z_Z_SETTING.get(settings);
             return new NormalizationZ(z);
         } else {
             throw new IllegalArgumentException("Unsupported Normalization [" + normalization + "]");

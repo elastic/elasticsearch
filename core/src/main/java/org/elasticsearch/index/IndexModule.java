@@ -62,9 +62,11 @@ import java.util.function.Function;
  * <ul>
  *     <li>{@link SimilarityProvider} - New {@link SimilarityProvider} implementations can be registered through
  *     {@link #addSimilarity(String, BiFunction)}while existing Providers can be referenced through Settings under the
- *     {@link IndexModule#SIMILARITY_SETTINGS_PREFIX} prefix along with the "type" value.  For example, to reference the
- *     {@link BM25SimilarityProvider}, the configuration <tt>"index.similarity.my_similarity.type : "BM25"</tt> can be used.</li>
- *      <li>{@link IndexStore} - Custom {@link IndexStore} instances can be registered via {@link #addIndexStore(String, BiFunction)}</li>
+ *     {@link org.elasticsearch.index.similarity.SimilarityService#SIMILARITY_SETTINGS} prefix along with the "type"
+ *     value. For example, to reference the {@link BM25SimilarityProvider}, the configuration
+ *     <tt>"index.similarity.my_similarity.type : "BM25"</tt> can be used.</li>
+ *      <li>{@link IndexStore} - Custom {@link IndexStore} instances can be registered via
+ *      {@link #addIndexStore(String, BiFunction)}</li>
  *      <li>{@link IndexEventListener} - Custom {@link IndexEventListener} instances can be registered via
  *      {@link #addIndexEventListener(IndexEventListener)}</li>
  *      <li>Settings update listener - Custom settings update listener can be registered via
@@ -82,8 +84,6 @@ public final class IndexModule {
     public static final Setting<List<String>> INDEX_STORE_PRE_LOAD_SETTING =
             Setting.listSetting("index.store.preload", Collections.emptyList(), Function.identity(),
                     Property.IndexScope, Property.NodeScope);
-
-    public static final String SIMILARITY_SETTINGS_PREFIX = "index.similarity";
 
     // whether to use the query cache
     public static final Setting<Boolean> INDEX_QUERY_CACHE_ENABLED_SETTING =
@@ -344,7 +344,9 @@ public final class IndexModule {
         } else {
             queryCache = new DisabledQueryCache(indexSettings);
         }
-        return new IndexService(indexSettings, environment, new SimilarityService(indexSettings, similarities), shardStoreDeleter,
+        SimilarityService similarityService = new SimilarityService(indexSettings, similarities);
+        similarityService.addSettingsUpdateConsumer(indexSettings.getScopedSettings());
+        return new IndexService(indexSettings, environment, similarityService, shardStoreDeleter,
             analysisRegistry, engineFactory.get(), servicesProvider, queryCache, store, eventListener, searcherWrapperFactory,
             mapperRegistry, indicesFieldDataCache, searchOperationListeners, indexOperationListeners);
     }

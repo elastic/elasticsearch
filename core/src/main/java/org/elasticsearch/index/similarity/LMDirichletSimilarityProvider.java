@@ -21,7 +21,11 @@ package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * {@link SimilarityProvider} for {@link LMDirichletSimilarity}.
@@ -32,21 +36,38 @@ import org.elasticsearch.common.settings.Settings;
  * </ul>
  * @see LMDirichletSimilarity For more information about configuration
  */
-public class LMDirichletSimilarityProvider extends AbstractSimilarityProvider {
+public class LMDirichletSimilarityProvider extends BaseSimilarityProvider {
+    private static final Setting<Float> MU_SETTING =
+        Setting.floatSetting("mu", 2000f, Setting.Property.Dynamic);
 
-    private final LMDirichletSimilarity similarity;
+    private LMDirichletSimilarity similarity;
 
     public LMDirichletSimilarityProvider(String name, Settings settings) {
-        super(name);
-        float mu = settings.getAsFloat("mu", 2000f);
-        this.similarity = new LMDirichletSimilarity(mu);
+        super(name, settings);
+        this.similarity = create(settings);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public Similarity get() {
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> lst = new ArrayList<>(super.getSettings());
+        lst.add(MU_SETTING);
+        return lst;
+    }
+
+    @Override
+    protected void doUpdateSettings(Settings settings) {
+        similarity = create(settings);
+    }
+
+    @Override
+    protected Similarity doGet() {
         return similarity;
+    }
+
+    private LMDirichletSimilarity create(Settings settings) {
+        float mu = MU_SETTING.get(settings);
+        LMDirichletSimilarity sim = new LMDirichletSimilarity(mu);
+        sim.setDiscountOverlaps(discountOverlaps);
+        return sim;
     }
 }

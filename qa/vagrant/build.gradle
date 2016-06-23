@@ -115,7 +115,7 @@ task stop {
   description 'Stop any tasks from tests that still may be running'
 }
 
-def getVersions() {
+String getVersions() {
   Node xml
   new URL('http://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
     xml = new XmlParser().parse(s)

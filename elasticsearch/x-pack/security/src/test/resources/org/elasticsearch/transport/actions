@@ -1,4 +1,3 @@
-cluster:admin/render/template/search
 cluster:admin/repository/delete
 cluster:admin/repository/get
 cluster:admin/repository/put

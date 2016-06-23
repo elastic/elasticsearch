@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.Index;
@@ -112,7 +113,7 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
                 Settings.EMPTY, DummyOsInfo.INSTANCE, new ProcessInfo(randomInt(), randomBoolean()), JvmInfo.jvmInfo(),
                 new ThreadPoolInfo(Collections.singletonList(new ThreadPool.Info("test_threadpool", ThreadPool.ThreadPoolType.FIXED, 5))),
                 new TransportInfo(transportAddress, Collections.emptyMap()), new HttpInfo(transportAddress, randomLong()),
-                new PluginsAndModules(), new IngestInfo(Collections.emptyList()));
+                new PluginsAndModules(), new IngestInfo(Collections.emptyList()), new ByteSizeValue(randomIntBetween(1, 1024)));
 
     }
 

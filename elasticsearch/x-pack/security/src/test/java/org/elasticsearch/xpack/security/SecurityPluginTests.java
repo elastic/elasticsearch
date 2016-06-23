@@ -5,23 +5,21 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
+import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.is;
 
 public class SecurityPluginTests extends SecurityIntegTestCase {
@@ -35,24 +33,20 @@ public class SecurityPluginTests extends SecurityIntegTestCase {
     }
 
     public void testThatPluginIsLoaded() throws IOException {
-        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
+        try {
             logger.info("executing unauthorized request to /_xpack info");
-            HttpResponse response = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport)
-                    .method("GET")
-                    .path("/_xpack")
-                    .execute();
-            assertThat(response.getStatusCode(), is(UNAUTHORIZED.getStatus()));
+            getRestClient().performRequest("GET", "/_xpack", Collections.emptyMap(), null);
+            fail("request should have failed");
+        } catch(ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(UNAUTHORIZED.getStatus()));
+        }
 
-            logger.info("executing authorized request to /_xpack infos");
-            response = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport)
-                    .method("GET")
-                    .path("/_xpack")
-                    .addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+        logger.info("executing authorized request to /_xpack infos");
+        try (Response response = getRestClient().performRequest("GET", "/_xpack", Collections.emptyMap(), null,
+                new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                         basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                            new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray())))
-                    .execute();
-            assertThat(response.getStatusCode(), is(OK.getStatus()));
+                                new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
+            assertThat(response.getStatusLine().getStatusCode(), is(OK.getStatus()));
         }
     }
 }

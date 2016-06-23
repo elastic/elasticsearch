@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
 import org.elasticsearch.xpack.watcher.history.HistoryModule;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.input.InputModule;
-import org.elasticsearch.xpack.watcher.input.chain.ChainInputFactory;
 import org.elasticsearch.xpack.watcher.rest.action.RestAckWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestActivateWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestDeleteWatchAction;
@@ -266,5 +265,5 @@ public class Watcher {
                 "[.watcher-history-YYYY.MM.dd] are allowed to be created", value);
     }
 
-    
+
 }

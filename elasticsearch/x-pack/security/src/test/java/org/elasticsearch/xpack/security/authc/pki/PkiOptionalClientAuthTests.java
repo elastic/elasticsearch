@@ -7,11 +7,14 @@ package org.elasticsearch.xpack.security.authc.pki;
 
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
@@ -20,8 +23,6 @@ import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerT
 import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.BeforeClass;
@@ -34,6 +35,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.SecureRandom;
+import java.util.Collections;
 
 import static org.elasticsearch.test.SecuritySettingsSource.DEFAULT_PASSWORD;
 import static org.elasticsearch.test.SecuritySettingsSource.DEFAULT_USER_NAME;
@@ -78,23 +80,21 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
     }
 
     public void testRestClientWithoutClientCertificate() throws Exception {
-        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
+        CloseableHttpClient httpClient = HttpClients.custom().setSSLContext(getSSLContext()).build();
+        try (RestClient restClient = createRestClient(httpClient, "https")) {
+            try {
+                restClient.performRequest("GET", "_nodes", Collections.emptyMap(), null);
+                fail("request should have failed");
+            } catch(ResponseException e) {
+                assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
+            }
 
-        try (CloseableHttpClient httpClient = HttpClients.custom().setSslcontext(getSSLContext()).build()) {
-            HttpRequestBuilder requestBuilder = new HttpRequestBuilder(httpClient)
-                    .host("localhost")
-                    .port(((InetSocketTransportAddress)httpServerTransport.boundAddress().publishAddress()).address().getPort())
-                    .protocol("https")
-                    .method("GET")
-                    .path("/_nodes");
-            HttpResponse response = requestBuilder.execute();
-            assertThat(response.getStatusCode(), is(401));
-
-            requestBuilder.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                    UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                            new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray())));
-            response = requestBuilder.execute();
-            assertThat(response.getStatusCode(), is(200));
+            try (Response response = restClient.performRequest("GET", "_nodes", Collections.emptyMap(), null,
+                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
+                                    new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
+                assertThat(response.getStatusLine().getStatusCode(), is(200));
+            }
         }
     }
 

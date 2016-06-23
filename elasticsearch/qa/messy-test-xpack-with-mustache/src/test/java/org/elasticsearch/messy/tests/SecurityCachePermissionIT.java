@@ -5,27 +5,27 @@
  */
 package org.elasticsearch.messy.tests;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.script.ScriptService.ScriptType.INLINE;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -72,18 +72,6 @@ public class SecurityCachePermissionIT extends SecurityIntegTestCase {
     public void loadData() {
         index("data", "a", "1", "{ \"name\": \"John\", \"token\": \"token1\" }");
         index("tokens", "tokens", "1", "{ \"group\": \"1\", \"tokens\": [\"token1\", \"token2\"] }");
-        client().admin().cluster().preparePutStoredScript().setSource(new BytesArray("{\n" +
-                "\"template\": {\n" +
-                "  \"query\": {\n" +
-                "    \"exists\": {\n" +
-                "      \"field\": \"{{name}}\"\n" +
-                "     }\n" +
-                "   }\n" +
-                " }\n" +
-                "}"))
-                .setScriptLang("mustache")
-                .setId("testTemplate")
-                .execute().actionGet();
         refresh();
     }
 
@@ -96,38 +84,44 @@ public class SecurityCachePermissionIT extends SecurityIntegTestCase {
 
         // Repeat with unauthorized user!!!!
         try {
-            response = client().filterWithHeader(Collections.singletonMap("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER,
+            response = client().filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER,
                     new SecuredString("changeme".toCharArray()))))
                     .prepareSearch("data").setTypes("a").setQuery(QueryBuilders.constantScoreQuery(
                     QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "tokens", "1", "tokens"))))
                     .execute().actionGet();
             fail("search phase exception should have been thrown! response was:\n" + response.toString());
-        } catch (SearchPhaseExecutionException e) {
+        } catch (ElasticsearchSecurityException e) {
             assertThat(e.toString(), containsString("ElasticsearchSecurityException[action"));
             assertThat(e.toString(), containsString("unauthorized"));
         }
     }
 
     public void testThatScriptServiceDoesntLeakData() {
+        String source = "{\n" +
+                "\"template\": {\n" +
+                "  \"query\": {\n" +
+                "    \"exists\": {\n" +
+                "      \"field\": \"{{name}}\"\n" +
+                "     }\n" +
+                "   }\n" +
+                " }\n" +
+                "}";
+
+        //Template template = new Template(source, INLINE, MustacheScriptEngineService.NAME, null, singletonMap("name", "token"));
         SearchResponse response = client().prepareSearch("data").setTypes("a")
-                .setTemplate(new Template("testTemplate", ScriptService.ScriptType.STORED, MustacheScriptEngineService.NAME, null,
-                        Collections.<String, Object>singletonMap("name", "token")))
+                .setQuery(QueryBuilders.templateQuery(source, singletonMap("name", "token")))
                 .execute().actionGet();
         assertThat(response.isTimedOut(), is(false));
         assertThat(response.getHits().hits().length, is(1));
 
         // Repeat with unauthorized user!!!!
-        try {
-            response = client().filterWithHeader(Collections.singletonMap("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER,
-                    new SecuredString("changeme".toCharArray()))))
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> client()
+                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER,
+                        new SecuredString("changeme".toCharArray()))))
                     .prepareSearch("data").setTypes("a")
-                    .setTemplate(new Template("testTemplate", ScriptService.ScriptType.STORED, MustacheScriptEngineService.NAME, null,
-                            Collections.<String, Object>singletonMap("name", "token")))
-                    .execute().actionGet();
-            fail("search phase exception should have been thrown! response was:\n" + response.toString());
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.toString(), containsString("ElasticsearchSecurityException[action"));
-            assertThat(e.toString(), containsString("unauthorized"));
-        }
+                    .setQuery(QueryBuilders.templateQuery(source, singletonMap("name", "token")))
+                    .execute().actionGet());
+        assertThat(e.toString(), containsString("ElasticsearchSecurityException[action"));
+        assertThat(e.toString(), containsString("unauthorized"));
     }
 }

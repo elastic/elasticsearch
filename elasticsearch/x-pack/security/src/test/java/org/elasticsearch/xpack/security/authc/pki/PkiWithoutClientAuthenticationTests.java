@@ -8,27 +8,27 @@ package org.elasticsearch.xpack.security.authc.pki;
 
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
 import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
+import java.util.Collections;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.is;
@@ -77,21 +77,16 @@ public class PkiWithoutClientAuthenticationTests extends SecurityIntegTestCase {
     }
 
     public void testThatHttpWorks() throws Exception {
-        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
         SSLContext sc = SSLContext.getInstance("SSL");
         sc.init(null, trustAllCerts, new SecureRandom());
-        try (CloseableHttpClient httpClient = HttpClients.custom().setSslcontext(sc).build()) {
-            HttpRequestBuilder requestBuilder = new HttpRequestBuilder(httpClient)
-                    .host("localhost")
-                    .port(((InetSocketTransportAddress)httpServerTransport.boundAddress().publishAddress()).address().getPort())
-                    .protocol("https")
-                    .method("GET")
-                    .path("/_nodes");
-            requestBuilder.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                    UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                            new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray())));
-            HttpResponse response = requestBuilder.execute();
-            assertThat(response.getStatusCode(), is(200));
+        CloseableHttpClient httpClient = HttpClients.custom().setSSLContext(sc).build();
+        try (RestClient restClient =  createRestClient(httpClient, "https")) {
+            try (Response response = restClient.performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
+                                    new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
+                assertThat(response.getStatusLine().getStatusCode(), is(200));
+            }
         }
     }
 }

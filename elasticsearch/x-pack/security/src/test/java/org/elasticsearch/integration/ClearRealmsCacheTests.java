@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.integration;
 
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.security.authc.Realm;
@@ -22,10 +23,7 @@ import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
-import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
+import org.elasticsearch.xpack.security.user.User;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
@@ -39,14 +37,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-/**
- *
- */
 public class ClearRealmsCacheTests extends SecurityIntegTestCase {
     private static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("passwd".toCharArray())));
 
@@ -168,21 +162,12 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
         }
 
         static void executeHttpRequest(String path, Map<String, String> params) throws Exception {
-            try (CloseableHttpClient client = HttpClients.createDefault()) {
-                HttpRequestBuilder requestBuilder = new HttpRequestBuilder(client)
-                        .httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class))
-                        .method("POST")
-                        .path(path);
-                for (Map.Entry<String, String> entry : params.entrySet()) {
-                    requestBuilder.addParam(entry.getKey(), entry.getValue());
-                }
-                requestBuilder.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                        UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                                new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray())));
-                HttpResponse response = requestBuilder.execute();
-                assertThat(response.hasBody(), is(true));
-                String body = response.getBody();
-                assertThat(body.contains("cluster_name"), is(true));
+            try (Response response = getRestClient().performRequest("POST", path, params, null,
+                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
+                                    new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
+                assertNotNull(response.getEntity());
+                assertTrue(EntityUtils.toString(response.getEntity()).contains("cluster_name"));
             }
         }
     }

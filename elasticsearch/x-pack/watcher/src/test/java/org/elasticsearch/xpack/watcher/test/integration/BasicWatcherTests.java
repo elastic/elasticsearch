@@ -7,20 +7,16 @@ package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.Callback;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
-import org.elasticsearch.xpack.watcher.support.WatcherUtils;
-import org.elasticsearch.xpack.support.clock.SystemClock;
+import org.elasticsearch.xpack.watcher.support.Script;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.delete.DeleteWatchResponse;
@@ -151,8 +147,8 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         watchSource.field("unknown_field", "x");
         watchSource.startObject("schedule").field("cron", "0/5 * * * * ? *").endObject();
 
-        watchSource.startObject("condition").startObject("script").field("script", "return true").field("request");
-        WatcherUtils.writeSearchRequest(newInputSearchRequest(), watchSource, ToXContent.EMPTY_PARAMS);
+        watchSource.startObject("condition").startObject("script").field("script", "return true");
+        watchSource.field("request", new WatcherSearchTemplateRequest(newInputSearchRequest()));
         watchSource.endObject().endObject();
 
         watchSource.endObject();
@@ -252,22 +248,20 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
     public void testConditionSearchWithSource() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(matchQuery("level", "a"));
-        testConditionSearch(newInputSearchRequest("events").source(searchSourceBuilder));
+        testConditionSearch(newInputSearchRequest("events").source(searchSourceBuilder), null);
     }
 
     public void testConditionSearchWithIndexedTemplate() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(matchQuery("level", "a"));
-        client().admin().cluster().preparePutStoredScript()
+        assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setScriptLang("mustache")
                 .setId("my-template")
                 .setSource(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject().bytes())
-                .get();
+                .get());
 
-        Template template = new Template("my-template", ScriptType.STORED, null, null, null);
+        Script template = Script.indexed("my-template").lang("mustache").build();
         SearchRequest searchRequest = newInputSearchRequest("events");
-        // TODO (2.0 upgrade): move back to BytesReference instead of coverting to a string
-        searchRequest.template(template);
-        testConditionSearch(searchRequest);
+        testConditionSearch(searchRequest, template);
     }
 
     public void testInputFiltering() throws Exception {
@@ -298,12 +292,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
         // Check that the input result payload has been filtered
         refresh();
-        SearchResponse searchResponse = searchWatchRecords(new Callback<SearchRequestBuilder>() {
-            @Override
-            public void handle(SearchRequestBuilder builder) {
-                builder.setQuery(matchQuery("watch_id", "_name1"));
-            }
-        });
+        SearchResponse searchResponse = searchWatchRecords(builder -> builder.setQuery(matchQuery("watch_id", "_name1")));
         assertHitCount(searchResponse, 1);
         XContentSource source = xContentSource(searchResponse.getHits().getAt(0).getSourceRef());
         assertThat(source.getValue("result.input.payload.hits.total"), equalTo((Object) 1));
@@ -379,17 +368,17 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         }
     }
 
-    private void testConditionSearch(SearchRequest request) throws Exception {
+    private void testConditionSearch(SearchRequest request, Script template) throws Exception {
         // reset, so we don't miss event docs when we filter over the _timestamp field.
         timeWarp().clock().setTime(SystemClock.INSTANCE.nowUTC());
 
         String watchName = "_name";
-        assertAcked(prepareCreate("events").addMapping("event", "_timestamp", "enabled=true", "level", "type=text"));
+        assertAcked(prepareCreate("events").addMapping("event", "level", "type=text"));
 
         watcherClient().preparePutWatch(watchName)
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
-                        .input(searchInput(request))
+                        .input(searchInput(new WatcherSearchTemplateRequest(request, template)))
                         .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GTE, 3L)))
                 .get();
 

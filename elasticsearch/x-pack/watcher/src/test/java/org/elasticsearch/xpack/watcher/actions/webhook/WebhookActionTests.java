@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.common.secret.SecretService;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
@@ -238,7 +239,7 @@ public class WebhookActionTests extends ESTestCase {
 
             ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
             String watchId = "test_url_encode" + randomAsciiOfLength(10);
-            Watch watch = createWatch(watchId, mock(WatcherClientProxy.class), "account1");
+            Watch watch = createWatch(watchId, "account1");
             WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(UTC),
                     new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
             executable.execute("_id", ctx, new Payload.Simple());
@@ -264,16 +265,16 @@ public class WebhookActionTests extends ESTestCase {
 
         ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, client, templateEngine);
 
-        Watch watch = createWatch(watchId, mock(WatcherClientProxy.class), "account1");
+        Watch watch = createWatch(watchId, "account1");
         WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(UTC),
                 new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
         Action.Result result = executable.execute("_id", ctx, new Payload.Simple());
         assertThat(result, Matchers.instanceOf(WebhookAction.Result.Success.class));
     }
 
-    private Watch createWatch(String watchId, WatcherClientProxy client, final String account) throws AddressException, IOException {
+    private Watch createWatch(String watchId, final String account) throws AddressException, IOException {
         return WatcherTestUtils.createTestWatch(watchId,
-                client,
+                mock(WatcherClientProxy.class),
                 ExecuteScenario.Success.client(),
                 new AbstractWatcherIntegrationTestCase.NoopEmailService() {
                     @Override
@@ -286,6 +287,7 @@ public class WebhookActionTests extends ESTestCase {
                         return new EmailSent(account, email);
                     }
                 },
+                mock(WatcherSearchTemplateService.class),
                 logger);
     };
 

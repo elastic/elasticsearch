@@ -1,4 +1,3 @@
-cluster:admin/render/template/search
 cluster:admin/snapshot/status[nodes]
 cluster:admin/snapshot/status[nodes][n]
 cluster:admin/tasks/cancel[n]

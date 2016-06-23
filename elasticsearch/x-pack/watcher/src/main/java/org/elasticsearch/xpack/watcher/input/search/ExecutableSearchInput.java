@@ -11,16 +11,15 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
-import org.elasticsearch.xpack.watcher.support.WatcherUtils;
 import org.elasticsearch.xpack.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.util.Map;
@@ -35,11 +34,14 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
     public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.QUERY_THEN_FETCH;
 
     private final WatcherClientProxy client;
+    private final WatcherSearchTemplateService searchTemplateService;
     private final @Nullable TimeValue timeout;
 
-    public ExecutableSearchInput(SearchInput input, ESLogger logger, WatcherClientProxy client, @Nullable TimeValue defaultTimeout) {
+    public ExecutableSearchInput(SearchInput input, ESLogger logger, WatcherClientProxy client,
+                                 WatcherSearchTemplateService searchTemplateService, @Nullable TimeValue defaultTimeout) {
         super(input, logger);
         this.client = client;
+        this.searchTemplateService = searchTemplateService;
         this.timeout = input.getTimeout() != null ? input.getTimeout() : defaultTimeout;
     }
 
@@ -47,7 +49,7 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
     public SearchInput.Result execute(WatchExecutionContext ctx, Payload payload) {
         SearchRequest request = null;
         try {
-            request = WatcherUtils.createSearchRequestFromPrototype(input.getSearchRequest(), ctx, payload);
+            request = searchTemplateService.createSearchRequestFromPrototype(input.getRequest(), ctx, payload);
             return doExecute(ctx, request);
         } catch (Exception e) {
             logger.error("failed to execute [{}] input for [{}]", e, SearchInput.TYPE, ctx.watch());
@@ -57,8 +59,7 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
 
     SearchInput.Result doExecute(WatchExecutionContext ctx, SearchRequest request) throws Exception {
         if (logger.isTraceEnabled()) {
-            ToXContent source = request.source() != null ? request.source() : request.template();
-            logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().id(), XContentHelper.toString(source));
+            logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().id(), XContentHelper.toString(request.source()));
         }
 
         SearchResponse response = client.search(request, timeout);

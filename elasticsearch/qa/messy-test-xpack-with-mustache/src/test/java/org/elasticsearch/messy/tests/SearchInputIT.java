@@ -232,7 +232,9 @@ public class SearchInputIT extends ESIntegTestCase {
 
         assertNotNull(executedResult.executedRequest());
         assertThat(executedResult.status(), is(Input.Result.Status.SUCCESS));
-        assertEquals(executedResult.executedRequest().searchType(), request.searchType());
+        if (getNumShards("test-search-index").numPrimaries > 1) {
+            assertEquals(executedResult.executedRequest().searchType(), request.searchType());
+        }
         assertArrayEquals(executedResult.executedRequest().indices(), request.indices());
         assertEquals(executedResult.executedRequest().indicesOptions(), request.indicesOptions());
 

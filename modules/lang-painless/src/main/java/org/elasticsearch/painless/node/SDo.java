@@ -113,7 +113,9 @@ public final class SDo extends AStatement {
         condition.fals = end;
         condition.write(writer, globals);
 
-        writer.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
+        if (loopCounter != null) {
+            writer.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
+        }
 
         writer.goTo(start);
         writer.mark(end);

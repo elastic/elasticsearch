@@ -22,6 +22,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
@@ -29,6 +30,8 @@ import org.apache.http.conn.socket.PlainConnectionSocketFactory;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.lucene.util.IOUtils;
@@ -79,6 +82,10 @@ public class RestTestClient implements Closeable {
     public static final String TRUSTSTORE_PATH = "truststore.path";
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
 
+    public static final int CONNECT_TIMEOUT_MILLIS = 1000;
+    public static final int SOCKET_TIMEOUT_MILLIS = 30000;
+    public static final int MAX_RETRY_TIMEOUT_MILLIS = SOCKET_TIMEOUT_MILLIS;
+    public static final int CONNECTION_REQUEST_TIMEOUT_MILLIS = 500;
 
     private static final ESLogger logger = Loggers.getLogger(RestTestClient.class);
     //query_string params that don't need to be declared in the spec, thay are supported by default
@@ -296,7 +303,17 @@ public class RestTestClient implements Closeable {
                 .register("http", PlainConnectionSocketFactory.getSocketFactory())
                 .register("https", sslsf)
                 .build();
-        CloseableHttpClient httpClient = RestClient.Builder.createDefaultHttpClient(socketFactoryRegistry);
+        PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager(socketFactoryRegistry);
+        //default settings may be too constraining
+        connectionManager.setDefaultMaxPerRoute(10);
+        connectionManager.setMaxTotal(30);
+
+        //default timeouts are all infinite
+        RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(CONNECT_TIMEOUT_MILLIS)
+            .setSocketTimeout(SOCKET_TIMEOUT_MILLIS)
+            .setConnectionRequestTimeout(CONNECTION_REQUEST_TIMEOUT_MILLIS).build();
+        CloseableHttpClient httpClient = HttpClientBuilder.create()
+            .setConnectionManager(connectionManager).setDefaultRequestConfig(requestConfig).build();
 
         String protocol = settings.get(PROTOCOL, "http");
         HttpHost[] hosts = new HttpHost[urls.length];
@@ -305,7 +322,7 @@ public class RestTestClient implements Closeable {
             hosts[i] = new HttpHost(url.getHost(), url.getPort(), protocol);
         }
 
-        RestClient.Builder builder = RestClient.builder(hosts).setHttpClient(httpClient);
+        RestClient.Builder builder = RestClient.builder(hosts).setHttpClient(httpClient).setMaxRetryTimeoutMillis(MAX_RETRY_TIMEOUT_MILLIS);
         try (ThreadContext threadContext = new ThreadContext(settings)) {
             Header[] defaultHeaders = new Header[threadContext.getHeaders().size()];
             int i = 0;

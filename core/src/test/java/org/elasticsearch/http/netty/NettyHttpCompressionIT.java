@@ -22,27 +22,31 @@ import org.apache.http.Header;
 import org.apache.http.HttpException;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpResponseInterceptor;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.message.BasicHeader;
 import org.apache.http.protocol.HttpContext;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 
 import java.io.IOException;
+import java.util.Collections;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 1)
 public class NettyHttpCompressionIT extends ESIntegTestCase {
     private static final String GZIP_ENCODING = "gzip";
 
-    private static final String SAMPLE_DOCUMENT = "{\n" +
+    private static final StringEntity SAMPLE_DOCUMENT = new StringEntity("{\n" +
         "   \"name\": {\n" +
         "      \"first name\": \"Steve\",\n" +
         "      \"last name\": \"Jobs\"\n" +
         "   }\n" +
-        "}";
+        "}", RestClient.JSON_CONTENT_TYPE);
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -55,69 +59,55 @@ public class NettyHttpCompressionIT extends ESIntegTestCase {
 
     public void testCompressesResponseIfRequested() throws Exception {
         ensureGreen();
-
         // we need to intercept early, otherwise internal logic in HttpClient will just remove the header and we cannot verify it
         ContentEncodingHeaderExtractor headerExtractor = new ContentEncodingHeaderExtractor();
-        CloseableHttpClient internalClient = HttpClients.custom().addInterceptorFirst(headerExtractor).build();
-
-        HttpResponse response = httpClient(internalClient).path("/").addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING).execute();
-        assertEquals(200, response.getStatusCode());
-        assertTrue(headerExtractor.hasContentEncodingHeader());
-        assertEquals(GZIP_ENCODING, headerExtractor.getContentEncodingHeader().getValue());
+        try (RestClient client = createRestClient(HttpClients.custom().addInterceptorFirst(headerExtractor).build())) {
+            try (Response response = client.performRequest("GET", "/", Collections.emptyMap(), null,
+                    new BasicHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING))) {
+                assertEquals(200, response.getStatusLine().getStatusCode());
+                assertTrue(headerExtractor.hasContentEncodingHeader());
+                assertEquals(GZIP_ENCODING, headerExtractor.getContentEncodingHeader().getValue());
+            }
+        }
     }
 
     public void testUncompressedResponseByDefault() throws Exception {
         ensureGreen();
-
         ContentEncodingHeaderExtractor headerExtractor = new ContentEncodingHeaderExtractor();
-        CloseableHttpClient internalClient = HttpClients
-            .custom()
-            .disableContentCompression()
-            .addInterceptorFirst(headerExtractor)
-            .build();
-
-        HttpResponse response = httpClient(internalClient).path("/").execute();
-        assertEquals(200, response.getStatusCode());
-        assertFalse(headerExtractor.hasContentEncodingHeader());
+        CloseableHttpClient httpClient = HttpClients.custom().disableContentCompression().addInterceptorFirst(headerExtractor).build();
+        try (RestClient client = createRestClient(httpClient)) {
+            try (Response response = client.performRequest("GET", "/", Collections.emptyMap(), null)) {
+                assertEquals(200, response.getStatusLine().getStatusCode());
+                assertFalse(headerExtractor.hasContentEncodingHeader());
+            }
+        }
     }
 
     public void testCanInterpretUncompressedRequest() throws Exception {
         ensureGreen();
-
         ContentEncodingHeaderExtractor headerExtractor = new ContentEncodingHeaderExtractor();
-        CloseableHttpClient internalClient = HttpClients
-            .custom()
-            // this disable content compression in both directions (request and response)
-            .disableContentCompression()
-            .addInterceptorFirst(headerExtractor)
-            .build();
-
-        HttpResponse response = httpClient(internalClient)
-            .path("/company/employees/1")
-            .method("POST")
-            .body(SAMPLE_DOCUMENT)
-            .execute();
-
-        assertEquals(201, response.getStatusCode());
-        assertFalse(headerExtractor.hasContentEncodingHeader());
+        // this disable content compression in both directions (request and response)
+        CloseableHttpClient httpClient = HttpClients.custom().disableContentCompression().addInterceptorFirst(headerExtractor).build();
+        try (RestClient client = createRestClient(httpClient)) {
+            try (Response response = client.performRequest("POST", "/company/employees/1",
+                    Collections.emptyMap(), SAMPLE_DOCUMENT)) {
+                assertEquals(201, response.getStatusLine().getStatusCode());
+                assertFalse(headerExtractor.hasContentEncodingHeader());
+            }
+        }
     }
 
     public void testCanInterpretCompressedRequest() throws Exception {
         ensureGreen();
-
         ContentEncodingHeaderExtractor headerExtractor = new ContentEncodingHeaderExtractor();
         // we don't call #disableContentCompression() hence the client will send the content compressed
-        CloseableHttpClient internalClient = HttpClients.custom().addInterceptorFirst(headerExtractor).build();
-
-        HttpResponse response = httpClient(internalClient)
-            .path("/company/employees/2")
-            .method("POST")
-            .body(SAMPLE_DOCUMENT)
-            .execute();
-
-        assertEquals(201, response.getStatusCode());
-        assertTrue(headerExtractor.hasContentEncodingHeader());
-        assertEquals(GZIP_ENCODING, headerExtractor.getContentEncodingHeader().getValue());
+        try (RestClient client = createRestClient(HttpClients.custom().addInterceptorFirst(headerExtractor).build())) {
+            try (Response response = client.performRequest("POST", "/company/employees/2",
+                    Collections.emptyMap(), SAMPLE_DOCUMENT)) {
+                assertEquals(201, response.getStatusLine().getStatusCode());
+                assertEquals(GZIP_ENCODING, headerExtractor.getContentEncodingHeader().getValue());
+            }
+        }
     }
 
     private static class ContentEncodingHeaderExtractor implements HttpResponseInterceptor {
@@ -141,6 +131,4 @@ public class NettyHttpCompressionIT extends ESIntegTestCase {
             return contentEncodingHeader;
         }
     }
-
-
 }

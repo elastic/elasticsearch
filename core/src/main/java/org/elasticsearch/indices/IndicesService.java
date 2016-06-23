@@ -27,11 +27,11 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
-import org.elasticsearch.action.fieldstats.FieldStats;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -53,9 +53,10 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -1047,10 +1048,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
      * Can the shard request be cached at all?
      */
     public boolean canCache(ShardSearchRequest request, SearchContext context) {
-        if (request.template() != null) {
-            return false;
-        }
-
         // for now, only enable it for requests with no hits
         if (context.size() != 0) {
             return false;
@@ -1138,6 +1135,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
         try (StreamInput in = StreamInput.wrap(statsRef)) {
             return in.readOptionalWriteable(FieldStats::readFrom);
         }
+    }
+
+    public ByteSizeValue getTotalIndexingBufferBytes() {
+        return indexingMemoryController.indexingBufferSize();
     }
 
     /**

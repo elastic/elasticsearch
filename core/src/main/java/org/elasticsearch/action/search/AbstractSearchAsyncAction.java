@@ -108,6 +108,15 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
 
         shardsIts = clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, request.preference());
         final int shardCount = shardsIts.size();
+        failIfOverShardCountLimit(clusterService, shardCount);
+        expectedSuccessfulOps = shardCount;
+        // we need to add 1 for non active partition, since we count it in the total!
+        expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
+
+        firstResults = new AtomicArray<>(shardsIts.size());
+    }
+
+    private void failIfOverShardCountLimit(ClusterService clusterService, int shardCount) {
         final long shardCountLimit = clusterService.getClusterSettings().get(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING);
         if (shardCount > shardCountLimit) {
             throw new IllegalArgumentException("Trying to query " + shardCount + " shards, which is over the limit of "
@@ -116,11 +125,6 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                     + "have a smaller number of larger shards. Update [" + TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey()
                     + "] to a greater value if you really want to query that many shards at the same time.");
         }
-        expectedSuccessfulOps = shardCount;
-        // we need to add 1 for non active partition, since we count it in the total!
-        expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
-
-        firstResults = new AtomicArray<>(shardsIts.size());
     }
 
     public void start() {

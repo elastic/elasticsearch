@@ -40,7 +40,7 @@ import org.elasticsearch.index.IndexSettings;
  *
  * @author kimchy (shay.banon)
  */
-public class IcuFoldingTokenFilterFactory extends AbstractTokenFilterFactory {
+public class IcuFoldingTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
     private final String unicodeSetFilter;
 
     public IcuFoldingTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
@@ -66,5 +66,10 @@ public class IcuFoldingTokenFilterFactory extends AbstractTokenFilterFactory {
         else {
             return new ICUFoldingFilter(tokenStream);
         }
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }

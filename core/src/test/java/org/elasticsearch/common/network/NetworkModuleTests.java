@@ -115,11 +115,13 @@ public class NetworkModuleTests extends ModuleTestCase {
         NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
         module.registerTransportService("custom", FakeTransportService.class);
         assertBinding(module, TransportService.class, FakeTransportService.class);
+        assertFalse(module.isTransportClient());
 
         // check it works with transport only as well
         module = new NetworkModule(new NetworkService(settings), settings, true, new NamedWriteableRegistry());
         module.registerTransportService("custom", FakeTransportService.class);
         assertBinding(module, TransportService.class, FakeTransportService.class);
+        assertTrue(module.isTransportClient());
     }
 
     public void testRegisterTransport() {
@@ -127,11 +129,13 @@ public class NetworkModuleTests extends ModuleTestCase {
         NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
         module.registerTransport("custom", FakeTransport.class);
         assertBinding(module, Transport.class, FakeTransport.class);
+        assertFalse(module.isTransportClient());
 
         // check it works with transport only as well
         module = new NetworkModule(new NetworkService(settings), settings, true, new NamedWriteableRegistry());
         module.registerTransport("custom", FakeTransport.class);
         assertBinding(module, Transport.class, FakeTransport.class);
+        assertTrue(module.isTransportClient());
     }
 
     public void testRegisterHttpTransport() {
@@ -139,9 +143,11 @@ public class NetworkModuleTests extends ModuleTestCase {
         NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
         module.registerHttpTransport("custom", FakeHttpTransport.class);
         assertBinding(module, HttpServerTransport.class, FakeHttpTransport.class);
+        assertFalse(module.isTransportClient());
 
         // check registration not allowed for transport only
         module = new NetworkModule(new NetworkService(settings), settings, true, new NamedWriteableRegistry());
+        assertTrue(module.isTransportClient());
         try {
             module.registerHttpTransport("custom", FakeHttpTransport.class);
             fail();
@@ -154,6 +160,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         settings = Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).build();
         module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
         assertNotBound(module, HttpServerTransport.class);
+        assertFalse(module.isTransportClient());
     }
 
     public void testRegisterRestHandler() {
@@ -186,6 +193,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         NamedWriteableRegistry registry = new NamedWriteableRegistry();
         Settings settings = Settings.EMPTY;
         NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, registry);
+        assertFalse(module.isTransportClient());
 
         // Builtin reader comes back
         assertNotNull(registry.getReader(Task.Status.class, ReplicationTask.Status.NAME));

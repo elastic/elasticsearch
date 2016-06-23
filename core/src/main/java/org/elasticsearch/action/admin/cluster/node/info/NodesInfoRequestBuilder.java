@@ -118,4 +118,12 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
         request().ingest(ingest);
         return this;
     }
+
+    /**
+     * Should the node indices info be returned.
+     */
+    public NodesInfoRequestBuilder setIndices(boolean indices) {
+        request().indices(indices);
+        return this;
+    }
 }

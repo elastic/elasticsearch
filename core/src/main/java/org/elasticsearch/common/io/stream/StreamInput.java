@@ -440,45 +440,21 @@ public abstract class StreamInput extends InputStream {
             case 5:
                 return readBoolean();
             case 6:
-                int bytesSize = readVInt();
-                byte[] value = new byte[bytesSize];
-                readBytes(value, 0, bytesSize);
-                return value;
+                return readByteArray();
             case 7:
-                int size = readVInt();
-                List list = new ArrayList(size);
-                for (int i = 0; i < size; i++) {
-                    list.add(readGenericValue());
-                }
-                return list;
+                return readArrayList();
             case 8:
-                int size8 = readVInt();
-                Object[] list8 = new Object[size8];
-                for (int i = 0; i < size8; i++) {
-                    list8[i] = readGenericValue();
-                }
-                return list8;
+                return readArray();
             case 9:
-                int size9 = readVInt();
-                Map map9 = new LinkedHashMap(size9);
-                for (int i = 0; i < size9; i++) {
-                    map9.put(readString(), readGenericValue());
-                }
-                return map9;
+                return readLinkedHashMap();
             case 10:
-                int size10 = readVInt();
-                Map map10 = new HashMap(size10);
-                for (int i = 0; i < size10; i++) {
-                    map10.put(readString(), readGenericValue());
-                }
-                return map10;
+                return readHashMap();
             case 11:
                 return readByte();
             case 12:
-                return new Date(readLong());
+                return readDate();
             case 13:
-                final String timeZoneId = readString();
-                return new DateTime(readLong(), DateTimeZone.forID(timeZoneId));
+                return readDateTime();
             case 14:
                 return readBytesReference();
             case 15:
@@ -500,6 +476,52 @@ public abstract class StreamInput extends InputStream {
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List readArrayList() throws IOException {
+        int size = readVInt();
+        List list = new ArrayList(size);
+        for (int i = 0; i < size; i++) {
+            list.add(readGenericValue());
+        }
+        return list;
+    }
+
+    private DateTime readDateTime() throws IOException {
+        final String timeZoneId = readString();
+        return new DateTime(readLong(), DateTimeZone.forID(timeZoneId));
+    }
+
+    private Object[] readArray() throws IOException {
+        int size8 = readVInt();
+        Object[] list8 = new Object[size8];
+        for (int i = 0; i < size8; i++) {
+            list8[i] = readGenericValue();
+        }
+        return list8;
+    }
+
+    private Map readLinkedHashMap() throws IOException {
+        int size9 = readVInt();
+        Map map9 = new LinkedHashMap(size9);
+        for (int i = 0; i < size9; i++) {
+            map9.put(readString(), readGenericValue());
+        }
+        return map9;
+    }
+
+    private Map readHashMap() throws IOException {
+        int size10 = readVInt();
+        Map map10 = new HashMap(size10);
+        for (int i = 0; i < size10; i++) {
+            map10.put(readString(), readGenericValue());
+        }
+        return map10;
+    }
+
+    private Date readDate() throws IOException {
+        return new Date(readLong());
     }
 
     /**
@@ -581,12 +603,10 @@ public abstract class StreamInput extends InputStream {
     }
 
     public byte[] readByteArray() throws IOException {
-        int length = readVInt();
-        byte[] values = new byte[length];
-        for (int i = 0; i < length; i++) {
-            values[i] = readByte();
-        }
-        return values;
+        final int length = readVInt();
+        final byte[] bytes = new byte[length];
+        readBytes(bytes, 0, bytes.length);
+        return bytes;
     }
 
     public <T> T[] readArray(Writeable.Reader<T> reader, IntFunction<T[]> arraySupplier) throws IOException {

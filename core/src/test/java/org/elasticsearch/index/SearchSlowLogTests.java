@@ -29,7 +29,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -91,11 +90,6 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                     @Override
                     public long nowInMillis() {
                         return 0;
-                    }
-
-                    @Override
-                    public Template template() {
-                        return null;
                     }
 
                     @Override

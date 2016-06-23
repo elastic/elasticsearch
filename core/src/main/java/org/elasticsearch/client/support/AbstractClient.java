@@ -129,10 +129,6 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksAction;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateAction;
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateRequest;
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateRequestBuilder;
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -1071,21 +1067,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public SnapshotsStatusRequestBuilder prepareSnapshotStatus() {
             return new SnapshotsStatusRequestBuilder(this, SnapshotsStatusAction.INSTANCE);
-        }
-
-        @Override
-        public ActionFuture<RenderSearchTemplateResponse> renderSearchTemplate(final RenderSearchTemplateRequest request) {
-            return execute(RenderSearchTemplateAction.INSTANCE, request);
-        }
-
-        @Override
-        public void renderSearchTemplate(final RenderSearchTemplateRequest request, final ActionListener<RenderSearchTemplateResponse> listener) {
-            execute(RenderSearchTemplateAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public RenderSearchTemplateRequestBuilder prepareRenderSearchTemplate() {
-            return new RenderSearchTemplateRequestBuilder(this, RenderSearchTemplateAction.INSTANCE);
         }
 
         @Override

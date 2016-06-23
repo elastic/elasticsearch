@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -61,7 +61,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     private static final LocalDiscovery[] NO_MEMBERS = new LocalDiscovery[0];
 
     private final ClusterService clusterService;
-    private AllocationService allocationService;
+    private RoutingService routingService;
     private final ClusterName clusterName;
 
     private final DiscoverySettings discoverySettings;
@@ -83,8 +83,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     }
 
     @Override
-    public void setAllocationService(AllocationService allocationService) {
-        this.allocationService = allocationService;
+    public void setRoutingService(RoutingService routingService) {
+        this.routingService = routingService;
     }
 
     @Override
@@ -156,12 +156,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                             nodesBuilder.put(discovery.localNode());
                         }
                         nodesBuilder.localNodeId(master.localNode().getId()).masterNodeId(master.localNode().getId());
-                        currentState = ClusterState.builder(currentState).nodes(nodesBuilder).build();
-                        RoutingAllocation.Result result =  master.allocationService.reroute(currentState, "node_add");
-                        if (result.changed()) {
-                            currentState = ClusterState.builder(currentState).routingResult(result).build();
-                        }
-                        return currentState;
+                        return ClusterState.builder(currentState).nodes(nodesBuilder).build();
                     }
 
                     @Override
@@ -169,6 +164,13 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         logger.error("unexpected failure during [{}]", t, source);
                     }
 
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        // we reroute not in the same cluster state update since in certain areas we rely on
+                        // the node to be in the cluster state (sampled from ClusterService#state) to be there, also
+                        // shard transitions need to better be handled in such cases
+                        master.routingService.reroute("post_node_add");
+                    }
                 });
             }
         } // else, no master node, the next node that will start will fill things in...
@@ -224,7 +226,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         }
                         // reroute here, so we eagerly remove dead nodes from the routing
                         ClusterState updatedState = ClusterState.builder(currentState).nodes(newNodes).build();
-                        RoutingAllocation.Result routingResult = master.allocationService.reroute(
+                        RoutingAllocation.Result routingResult = master.routingService.getAllocationService().reroute(
                                 ClusterState.builder(updatedState).build(), "elected as master");
                         return ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }

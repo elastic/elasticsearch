@@ -118,17 +118,16 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     public void writeLoopCounter(int slot, int count, Location location) {
-        if (slot > -1) {
-            writeDebugInfo(location);
-            final Label end = new Label();
+        assert slot != -1;
+        writeDebugInfo(location);
+        final Label end = new Label();
 
-            iinc(slot, -count);
-            visitVarInsn(Opcodes.ILOAD, slot);
-            push(0);
-            ifICmp(GeneratorAdapter.GT, end);
-            throwException(PAINLESS_ERROR_TYPE, "The maximum number of statements that can be executed in a loop has been reached.");
-            mark(end);
-        }
+        iinc(slot, -count);
+        visitVarInsn(Opcodes.ILOAD, slot);
+        push(0);
+        ifICmp(GeneratorAdapter.GT, end);
+        throwException(PAINLESS_ERROR_TYPE, "The maximum number of statements that can be executed in a loop has been reached.");
+        mark(end);
     }
 
     public void writeCast(final Cast cast) {

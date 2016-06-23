@@ -1,5 +1,7 @@
 package org.elasticsearch.painless;
 
+import java.util.Collections;
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -222,5 +224,26 @@ public class BasicStatementTests extends ScriptTestCase {
         // Two statements in the block, in case that is the general case
         assertEquals(10, exec("def i = 1; if (i == 1) {i = 2; return 10}"));
         assertEquals(10, exec("def i = 1; if (i == 1) {i = 2; return 10} else {return 12}"));
+    }
+    
+    public void testArrayLoopWithoutCounter() {
+       assertEquals(6L, exec("long sum = 0; long[] array = new long[] { 1, 2, 3 };" + 
+                              "for (int i = 0; i < array.length; i++) { sum += array[i] } return sum", 
+                              Collections.emptyMap(),
+                              Collections.singletonMap(CompilerSettings.MAX_LOOP_COUNTER, "0"),
+                              null
+       ));
+       assertEquals(6L, exec("long sum = 0; long[] array = new long[] { 1, 2, 3 };" + 
+                             "int i = 0; while (i < array.length) { sum += array[i++] } return sum", 
+                             Collections.emptyMap(),
+                             Collections.singletonMap(CompilerSettings.MAX_LOOP_COUNTER, "0"),
+                             null
+       ));
+       assertEquals(6L, exec("long sum = 0; long[] array = new long[] { 1, 2, 3 };" + 
+                             "int i = 0; do { sum += array[i++] } while (i < array.length); return sum", 
+                             Collections.emptyMap(),
+                             Collections.singletonMap(CompilerSettings.MAX_LOOP_COUNTER, "0"),
+                             null
+       ));
     }
 }

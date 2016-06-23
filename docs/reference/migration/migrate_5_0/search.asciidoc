@@ -64,10 +64,14 @@ characteristics as the former `scan` search type.
 
 ==== `fields` parameter
 
-The `fields` parameter used to try to retrieve field values from stored
-fields, and fall back to extracting from the `_source` if a field is not
-marked as stored.  Now, the `fields` parameter will only return stored fields
+The `fields` parameter has been replaced by `stored_fields`.
+The `stored_fields` parameter will only return stored fields
 -- it will no longer extract values from the `_source`.
+
+==== `fielddata_fields` parameter
+
+The `fielddata_fields` has been deprecated, use parameter `docvalue_fields` instead.
+
 
 ==== search-exists API removed
 
@@ -182,6 +186,9 @@ This is now consistent for source filtering on other places in the search API.
 
 * Nested inner hits will now no longer include `_index`, `_type` and `_id` keys. For nested inner hits these values
 are always the same as the `_index`, `_type` and `_id` keys of the root search hit.
+
+* Parent/child inner hits will now no longer include the `_index` key. For parent/child inner hits the `_index` key is
+always the same as the the parent search hit.
 
 ==== Query Profiler
 

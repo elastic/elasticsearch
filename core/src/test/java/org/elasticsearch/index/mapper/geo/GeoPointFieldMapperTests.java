@@ -816,7 +816,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .field("lon", -74.0059731).endObject().endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         // match all search with geohash field
-        SearchResponse searchResponse = client().prepareSearch().addField("location.geohash").setQuery(matchAllQuery()).execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch().addStoredField("location.geohash").setQuery(matchAllQuery()).execute().actionGet();
         Map<String, SearchHitField> m = searchResponse.getHits().getAt(0).getFields();
 
         // ensure single geohash was indexed
@@ -841,7 +841,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .field("lon", -74.0059731).endObject().endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         // match all search with geohash field (includes prefixes)
-        SearchResponse searchResponse = client().prepareSearch().addField("location.geohash").setQuery(matchAllQuery()).execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch().addStoredField("location.geohash").setQuery(matchAllQuery()).execute().actionGet();
         Map<String, SearchHitField> m = searchResponse.getHits().getAt(0).getFields();
 
         List<Object> hashes = m.get("location.geohash").values();
@@ -872,11 +872,11 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         // query by geohash subfield
-        SearchResponse searchResponse = client().prepareSearch().addField("location.geohash").setQuery(matchAllQuery()).execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch().addStoredField("location.geohash").setQuery(matchAllQuery()).execute().actionGet();
         assertEquals(numDocs, searchResponse.getHits().totalHits());
 
         // query by latlon subfield
-        searchResponse = client().prepareSearch().addField("location.latlon").setQuery(matchAllQuery()).execute().actionGet();
+        searchResponse = client().prepareSearch().addStoredField("location.latlon").setQuery(matchAllQuery()).execute().actionGet();
         assertEquals(numDocs, searchResponse.getHits().totalHits());
     }
 }

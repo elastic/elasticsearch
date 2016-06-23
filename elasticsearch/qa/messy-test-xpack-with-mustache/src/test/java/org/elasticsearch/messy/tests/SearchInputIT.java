@@ -313,7 +313,8 @@ public class SearchInputIT extends ESIntegTestCase {
                                 .from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
 
         TimeValue timeout = randomBoolean() ? TimeValue.timeValueSeconds(randomInt(10)) : null;
-        XContentBuilder builder = jsonBuilder().value(new SearchInput(new WatcherSearchTemplateRequest(searchRequest), null, timeout, null));
+        XContentBuilder builder = jsonBuilder().value(
+                new SearchInput(new WatcherSearchTemplateRequest(searchRequest), null, timeout, null));
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 

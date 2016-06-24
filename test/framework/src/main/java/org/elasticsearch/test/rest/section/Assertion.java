@@ -48,18 +48,18 @@ public abstract class Assertion implements ExecutableSection {
         if (expectedValue instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) expectedValue;
-            return executionContext.stash().unstashMap(map);
+            return executionContext.stash().replaceStashedValues(map);
         }
 
         if (executionContext.stash().isStashedValue(expectedValue)) {
-            return executionContext.stash().unstashValue(expectedValue.toString());
+            return executionContext.stash().getValue(expectedValue.toString());
         }
         return expectedValue;
     }
 
     protected final Object getActualValue(RestTestExecutionContext executionContext) throws IOException {
         if (executionContext.stash().isStashedValue(field)) {
-            return executionContext.stash().unstashValue(field);
+            return executionContext.stash().getValue(field);
         }
         return executionContext.response(field);
     }

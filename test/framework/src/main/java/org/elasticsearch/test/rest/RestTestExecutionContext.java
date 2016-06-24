@@ -67,7 +67,7 @@ public class RestTestExecutionContext implements Closeable {
         HashMap<String, String> requestParams = new HashMap<>(params);
         for (Map.Entry<String, String> entry : requestParams.entrySet()) {
             if (stash.isStashedValue(entry.getValue())) {
-                entry.setValue(stash.unstashValue(entry.getValue()).toString());
+                entry.setValue(stash.getValue(entry.getValue()).toString());
             }
         }
 
@@ -90,12 +90,12 @@ public class RestTestExecutionContext implements Closeable {
         }
 
         if (bodies.size() == 1) {
-            return bodyAsString(stash.unstashMap(bodies.get(0)));
+            return bodyAsString(stash.replaceStashedValues(bodies.get(0)));
         }
 
         StringBuilder bodyBuilder = new StringBuilder();
         for (Map<String, Object> body : bodies) {
-            bodyBuilder.append(bodyAsString(stash.unstashMap(body))).append("\n");
+            bodyBuilder.append(bodyAsString(stash.replaceStashedValues(body))).append("\n");
         }
         return bodyBuilder.toString();
     }

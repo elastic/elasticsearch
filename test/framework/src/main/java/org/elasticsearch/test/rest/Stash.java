@@ -69,7 +69,8 @@ public class Stash implements ToXContent {
     }
 
     /**
-     * Tells whether a particular value needs to be looked up in the stash
+     * Tells whether a particular key needs to be looked up in the stash based on its name.
+     * Returns true if the string representation of the key starts with "$", false otherwise
      * The stash contains fields eventually extracted from previous responses that can be reused
      * as arguments for following requests (e.g. scroll_id)
      */
@@ -82,28 +83,29 @@ public class Stash implements ToXContent {
     }
 
     /**
-     * Extracts a value from the current stash
+     * Retrieves a value from the current stash.
      * The stash contains fields eventually extracted from previous responses that can be reused
      * as arguments for following requests (e.g. scroll_id)
      */
-    public Object unstashValue(String value) throws IOException {
-        if (value.startsWith("$body.")) {
+    public Object getValue(String key) throws IOException {
+        if (key.startsWith("$body.")) {
             if (response == null) {
                 return null;
             }
-            return response.evaluate(value.substring("$body".length()), this);
+            return response.evaluate(key.substring("$body".length()), this);
         }
-        Object stashedValue = stash.get(value.substring(1));
+        Object stashedValue = stash.get(key.substring(1));
         if (stashedValue == null) {
-            throw new IllegalArgumentException("stashed value not found for key [" + value + "]");
+            throw new IllegalArgumentException("stashed value not found for key [" + key + "]");
         }
         return stashedValue;
     }
 
     /**
-     * Recursively unstashes map values if needed
+     * Goes recursively against each map entry and replaces any string value starting with "$" with its
+     * corresponding value retrieved from the stash
      */
-    public Map<String, Object> unstashMap(Map<String, Object> map) throws IOException {
+    public Map<String, Object> replaceStashedValues(Map<String, Object> map) throws IOException {
         Map<String, Object> copy = new HashMap<>(map);
         unstashObject(copy);
         return copy;
@@ -116,7 +118,7 @@ public class Stash implements ToXContent {
             for (int i = 0; i < list.size(); i++) {
                 Object o = list.get(i);
                 if (isStashedValue(o)) {
-                    list.set(i, unstashValue(o.toString()));
+                    list.set(i, getValue(o.toString()));
                 } else {
                     unstashObject(o);
                 }
@@ -126,7 +128,7 @@ public class Stash implements ToXContent {
             Map<String, Object> map = (Map) obj;
             for (Map.Entry<String, Object> entry : map.entrySet()) {
                 if (isStashedValue(entry.getValue())) {
-                    entry.setValue(unstashValue(entry.getValue().toString()));
+                    entry.setValue(getValue(entry.getValue().toString()));
                 } else {
                     unstashObject(entry.getValue());
                 }

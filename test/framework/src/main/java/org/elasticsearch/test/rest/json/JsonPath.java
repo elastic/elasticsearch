@@ -71,7 +71,7 @@ public class JsonPath {
     @SuppressWarnings("unchecked")
     private Object evaluate(String key, Object object, Stash stash) throws IOException {
         if (stash.isStashedValue(key)) {
-            key = stash.unstashValue(key).toString();
+            key = stash.getValue(key).toString();
         }
 
         if (object instanceof Map) {

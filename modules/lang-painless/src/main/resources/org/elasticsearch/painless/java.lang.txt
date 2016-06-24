@@ -52,12 +52,15 @@ class Iterable -> java.lang.Iterable {
   Spliterator spliterator()
   # some adaptations of groovy methods
   boolean any*(Predicate)
+  Collection asCollection*()
+  List asList*()
   def each*(Consumer)
   def eachWithIndex*(ObjIntConsumer)
   boolean every*(Predicate)
   List findResults*(Function)
   Map groupBy*(Function)
   String join*(String)
+  double sum*()
   double sum*(ToDoubleFunction)
 }
 

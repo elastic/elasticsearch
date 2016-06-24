@@ -105,6 +105,7 @@ expression returns [boolean s = true]
     |               expression ( FIND | MATCH ) expression                 { $s = false; }          # binary
     |               expression ( LSH | RSH | USH ) expression              { $s = false; }          # binary
     |               expression ( LT | LTE | GT | GTE ) expression          { $s = false; }          # comp
+    |               expression INSTANCEOF decltype                         { $s = false; }          # instanceof
     |               expression ( EQ | EQR | NE | NER ) expression          { $s = false; }          # comp
     |               expression BWAND expression                            { $s = false; }          # binary
     |               expression XOR expression                              { $s = false; }          # binary

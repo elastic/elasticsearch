@@ -27,7 +27,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  * Factory for {@link SoraniNormalizationFilter}
  */
-public class SoraniNormalizationFilterFactory extends AbstractTokenFilterFactory {
+public class SoraniNormalizationFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
     public SoraniNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -36,6 +36,11 @@ public class SoraniNormalizationFilterFactory extends AbstractTokenFilterFactory
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new SoraniNormalizationFilter(tokenStream);
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 
 }

@@ -66,8 +66,6 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksAction;
 import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateAction;
-import org.elasticsearch.action.admin.cluster.validate.template.TransportRenderSearchTemplateAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistAction;
@@ -340,7 +338,6 @@ public class ActionModule extends AbstractModule {
         registerAction(ExplainAction.INSTANCE, TransportExplainAction.class);
         registerAction(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
         registerAction(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
-        registerAction(RenderSearchTemplateAction.INSTANCE, TransportRenderSearchTemplateAction.class);
 
         //Indexed scripts
         registerAction(PutStoredScriptAction.INSTANCE, TransportPutStoredScriptAction.class);

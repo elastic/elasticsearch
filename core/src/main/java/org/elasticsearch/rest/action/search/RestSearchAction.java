@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.TemplateQueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -40,7 +39,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -81,18 +79,13 @@ public class RestSearchAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/_search", this);
         controller.registerHandler(GET, "/{index}/{type}/_search", this);
         controller.registerHandler(POST, "/{index}/{type}/_search", this);
-        controller.registerHandler(GET, "/_search/template", this);
-        controller.registerHandler(POST, "/_search/template", this);
-        controller.registerHandler(GET, "/{index}/_search/template", this);
-        controller.registerHandler(POST, "/{index}/_search/template", this);
-        controller.registerHandler(GET, "/{index}/{type}/_search/template", this);
-        controller.registerHandler(POST, "/{index}/{type}/_search/template", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
-        parseSearchRequest(searchRequest, queryRegistry, request, parseFieldMatcher, aggParsers, suggesters, null);
+        BytesReference restContent = RestActions.hasBodyContent(request) ? RestActions.getRestContent(request) : null;
+        parseSearchRequest(searchRequest, queryRegistry, request, parseFieldMatcher, aggParsers, suggesters, restContent);
         client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }
 
@@ -113,23 +106,10 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.source(new SearchSourceBuilder());
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
-        // get the content, and put it in the body
-        // add content/source as template if template flag is set
-        boolean isTemplateRequest = request.path().endsWith("/template");
-        if (restContent == null) {
-            if (RestActions.hasBodyContent(request)) {
-                restContent = RestActions.getRestContent(request);
-            }
-        }
         if (restContent != null) {
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, parseFieldMatcher);
-                if (isTemplateRequest) {
-                    Template template = TemplateQueryBuilder.parse(parser, context.getParseFieldMatcher(), "params", "template");
-                    searchRequest.template(template);
-                } else {
-                    searchRequest.source().parseXContent(context, aggParsers, suggesters);
-                }
+                searchRequest.source().parseXContent(context, aggParsers, suggesters);
             }
         }
 

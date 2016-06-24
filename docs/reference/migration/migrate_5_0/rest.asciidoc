@@ -62,3 +62,15 @@ renamed `filter`/`token_filter`/`char_filter`.
 
 The `DELETE /_query` endpoint provided by the Delete-By-Query plugin has been
 removed and replaced by the <<docs-delete-by-query,Delete By Query API>>.
+
+==== Create stored script endpoint removed
+
+The `PUT /_scripts/{lang}/{id}/_create` endpoint that previously allowed to create
+ indexed scripts has been removed. Indexed scripts have been replaced
+ by <<modules-scripting-stored-scripts,stored scripts>>.
+
+==== Create stored template endpoint removed
+
+The `PUT /_search/template/{id}/_create` endpoint that previously allowed to create
+ indexed template has been removed. Indexed templates have been replaced
+ by <<pre-registered-templates, Pre-registered templates>>.

@@ -17,26 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.validate.template;
+package org.elasticsearch.action.search.template;
 
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.script.Template;
 
-public class RenderSearchTemplateRequestBuilder extends ActionRequestBuilder<RenderSearchTemplateRequest, RenderSearchTemplateResponse, RenderSearchTemplateRequestBuilder> {
+public class MultiSearchTemplateAction
+        extends Action<MultiSearchTemplateRequest, MultiSearchTemplateResponse, MultiSearchTemplateRequestBuilder> {
 
-    public RenderSearchTemplateRequestBuilder(ElasticsearchClient client,
-            RenderSearchTemplateAction action) {
-        super(client, action, new RenderSearchTemplateRequest());
-    }
-    
-    public RenderSearchTemplateRequestBuilder template(Template template) {
-        request.template(template);
-        return this;
-    }
-    
-    public Template template() {
-        return request.template();
+    public static final MultiSearchTemplateAction INSTANCE = new MultiSearchTemplateAction();
+    public static final String NAME = "indices:data/read/msearch/template";
+
+    private MultiSearchTemplateAction() {
+        super(NAME);
     }
 
+    @Override
+    public MultiSearchTemplateResponse newResponse() {
+        return new MultiSearchTemplateResponse();
+    }
+
+    @Override
+    public MultiSearchTemplateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new MultiSearchTemplateRequestBuilder(client, this);
+    }
 }

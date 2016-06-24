@@ -34,7 +34,7 @@ import java.io.Reader;
  * <p>The <tt>name</tt> can be used to provide the type of normalization to perform.</p>
  * <p>The <tt>mode</tt> can be used to provide 'compose' or 'decompose'. Default is compose.</p>
  */
-public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory {
+public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory implements MultiTermAwareComponent {
 
     private final String name;
 
@@ -54,5 +54,10 @@ public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory {
     @Override
     public Reader create(Reader reader) {
         return new ICUNormalizer2CharFilter(reader, normalizer);
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }

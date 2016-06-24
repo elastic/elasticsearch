@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.rest.action.admin.cluster.storedscripts;
+package org.elasticsearch.rest.action.search.template;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
@@ -28,10 +28,9 @@ import org.elasticsearch.script.Template;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-/**
- *
- */
 public class RestGetSearchTemplateAction extends RestGetStoredScriptAction {
+
+    private static final String TEMPLATE = "template";
 
     @Inject
     public RestGetSearchTemplateAction(Settings settings, RestController controller, Client client) {
@@ -48,6 +47,4 @@ public class RestGetSearchTemplateAction extends RestGetStoredScriptAction {
     protected String getScriptFieldName() {
         return TEMPLATE;
     }
-
-    private static final String TEMPLATE = "template";
 }

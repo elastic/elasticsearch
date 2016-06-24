@@ -1899,4 +1899,23 @@ public class TranslogTests extends ESTestCase {
         Checkpoint read = Checkpoint.read(tempDir.resolve("foo.cpk"));
         assertEquals(read, checkpoint);
     }
+
+    /**
+     * Tests that closing views after the translog is fine and we can reopen the translog
+     */
+    public void testPendingDelete() throws IOException {
+        translog.add(new Translog.Index("test", "1", new byte[]{1}));
+        translog.prepareCommit();
+        Translog.TranslogGeneration generation = translog.getGeneration();
+        TranslogConfig config = translog.getConfig();
+        translog.close();
+        translog = new Translog(config, generation);
+        translog.add(new Translog.Index("test", "2", new byte[]{2}));
+        translog.prepareCommit();
+        Translog.View view = translog.newView();
+        translog.add(new Translog.Index("test", "3", new byte[]{3}));
+        translog.close();
+        IOUtils.close(view);
+        translog = new Translog(config, generation);
+    }
 }

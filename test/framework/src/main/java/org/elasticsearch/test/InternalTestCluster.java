@@ -1852,8 +1852,12 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    /**
+     * returns default settings that can be used as a base to start an independent node.
+     */
     public Settings getDefaultSettings() {
-        return defaultSettings;
+        // we want to return a valid complete settings, meaning we have to add the home settings
+        return Settings.builder().put(defaultSettings).put(Environment.PATH_HOME_SETTING.getKey(), baseDir.toAbsolutePath()).build();
     }
 
     @Override

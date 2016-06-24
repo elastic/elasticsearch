@@ -24,6 +24,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
@@ -82,9 +83,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -626,6 +625,20 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         // Oh well, we didn't get enough unique things. It'll be ok.
         return things;
+    }
+
+    public static String randomGeohash(int minPrecision, int maxPrecision) {
+        return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
+    }
+
+    private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
+
+    public static class GeohashGenerator extends CodepointSetGenerator {
+        private final static char[] ASCII_SET = "0123456789bcdefghjkmnpqrstuvwxyz".toCharArray();
+
+        public GeohashGenerator() {
+            super(ASCII_SET);
+        }
     }
 
     /**

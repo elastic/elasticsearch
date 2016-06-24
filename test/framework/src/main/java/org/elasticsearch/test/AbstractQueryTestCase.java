@@ -19,27 +19,15 @@
 
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsModule;
-import org.elasticsearch.plugins.PluginsService;
 
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -62,6 +50,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
@@ -69,6 +58,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -87,6 +77,11 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -96,6 +91,10 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsModule;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptContext;
@@ -138,7 +137,6 @@ import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
-    private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
     public static final String STRING_FIELD_NAME = "mapped_string";
     protected static final String STRING_FIELD_NAME_2 = "mapped_string_2";
     protected static final String INT_FIELD_NAME = "mapped_int";
@@ -694,18 +692,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return (serviceHolder.currentTypes.length == 0) ? MetaData.ALL : randomFrom(serviceHolder.currentTypes);
     }
 
-    public static String randomGeohash(int minPrecision, int maxPrecision) {
-        return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
-    }
-
-    public static class GeohashGenerator extends CodepointSetGenerator {
-        private final static char[] ASCII_SET = "0123456789bcdefghjkmnpqrstuvwxyz".toCharArray();
-
-        public GeohashGenerator() {
-            super(ASCII_SET);
-        }
-    }
-
     protected static Fuzziness randomFuzziness(String fieldName) {
         switch (fieldName) {
             case INT_FIELD_NAME:
@@ -1005,6 +991,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             this.namedWriteableRegistry = injector.getInstance(NamedWriteableRegistry.class);
         }
 
+        @Override
         public void close() throws IOException {
             injector.getInstance(ClusterService.class).close();
             try {

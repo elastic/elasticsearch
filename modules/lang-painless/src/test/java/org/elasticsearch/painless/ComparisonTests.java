@@ -439,4 +439,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(true, exec("def x = (float)6; double y = (double)2; return x >= y"));
         assertEquals(true, exec("def x = (double)7; double y = (double)1; return x >= y"));
     }
+    
+    public void testInstanceOf() {
+        assertEquals(true, exec("int x = 5; return x instanceof int"));
+        assertEquals(true, exec("def x = 5; return x instanceof int"));
+        assertEquals(true, exec("def x = 5; return x instanceof def"));
+        assertEquals(true, exec("def x = 5; return x instanceof Object"));
+        assertEquals(true, exec("def x = 5; return x instanceof Integer"));
+        assertEquals(true, exec("def x = 5; return x instanceof Number"));
+        assertEquals(false, exec("def x = 5; return x instanceof float"));
+        assertEquals(false, exec("def x = 5; return x instanceof Map"));
+        assertEquals(true, exec("List l = new ArrayList(); return l instanceof List"));
+        assertEquals(false, exec("List l = null; return l instanceof List"));
+        assertEquals(true, exec("List l = new ArrayList(); return l instanceof Collection"));
+        assertEquals(false, exec("List l = new ArrayList(); return l instanceof Map"));
+        assertEquals(true, exec("int[] x = new int[] { 5 }; return x instanceof int[]"));
+        assertEquals(false, exec("int[] x = new int[] { 5 }; return x instanceof float[]"));
+        assertEquals(false, exec("int[] x = new int[] { 5 }; return x instanceof int[][]"));
+    }
 }

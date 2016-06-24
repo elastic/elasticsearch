@@ -52,6 +52,7 @@ TRY:       'try';
 CATCH:     'catch';
 THROW:     'throw';
 THIS:      'this';
+INSTANCEOF: 'instanceof';
 
 BOOLNOT: '!';
 BWNOT:   '~';

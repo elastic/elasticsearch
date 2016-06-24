@@ -58,6 +58,18 @@ public class AugmentationTests extends ScriptTestCase {
                 exec("List l = new ArrayList(); l.add(1); l.any(x -> x == 1)"));
     }
     
+    public void testIterable_AsCollection() {
+        assertEquals(true, 
+                exec("List l = new ArrayList(); return l.asCollection() === l"));
+    }
+    
+    public void testIterable_AsList() {
+        assertEquals(true, 
+                exec("List l = new ArrayList(); return l.asList() === l"));
+        assertEquals(5, 
+                exec("Set l = new HashSet(); l.add(5); return l.asList()[0]"));
+    }
+    
     public void testIterable_Each() {
         assertEquals(1, 
                 exec("List l = new ArrayList(); l.add(1); List l2 = new ArrayList(); l.each(l2::add); return l2.size()"));
@@ -88,6 +100,7 @@ public class AugmentationTests extends ScriptTestCase {
     }
     
     public void testIterable_Sum() {
+        assertEquals(3.0D, exec("def l = [1,2]; return l.sum()"));
         assertEquals(5.0D, 
                 exec("List l = new ArrayList(); l.add(1); l.add(2); l.sum(x -> x + 1)"));
     }

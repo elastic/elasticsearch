@@ -136,6 +136,13 @@ public class NettyUtils {
      * Wraps the given ChannelBuffer with a BytesReference
      */
     public static BytesReference toBytesReference(ChannelBuffer channelBuffer) {
-        return new ChannelBufferBytesReference(channelBuffer);
+        return toBytesReference(channelBuffer, channelBuffer.readableBytes());
+    }
+
+    /**
+     * Wraps the given ChannelBuffer with a BytesReference of a given size
+     */
+    public static BytesReference toBytesReference(ChannelBuffer channelBuffer, int size) {
+        return new ChannelBufferBytesReference(channelBuffer, size);
     }
 }

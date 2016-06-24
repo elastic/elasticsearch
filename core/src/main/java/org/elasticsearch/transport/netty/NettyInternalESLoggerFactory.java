@@ -23,9 +23,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.jboss.netty.logging.InternalLogger;
 import org.jboss.netty.logging.InternalLoggerFactory;
 
-/**
- *
- */
 public class NettyInternalESLoggerFactory extends InternalLoggerFactory {
 
     @Override

@@ -38,12 +38,13 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TCPMessageHandler;
 import org.elasticsearch.transport.TransportSettings;
-import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -115,26 +116,31 @@ public class NettyTransportIT extends ESIntegTestCase {
             @Override
             public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = super.getPipeline();
-                pipeline.replace("dispatcher", "dispatcher",
-                    new MessageChannelHandler(nettyTransport, logger, TransportSettings.DEFAULT_PROFILE) {
-
+                TCPMessageHandler handler = new TCPMessageHandler(nettyTransport.getThreadPool(), nettyTransport,
+                    nettyTransport.transportServiceAdapter(), nettyTransport.getNamedWriteableRegistry(), logger) {
                     @Override
-                    protected String handleRequest(Channel channel, Marker marker, StreamInput buffer, long requestId,
-                                                   int messageLengthBytes, Version version) throws IOException {
-                        String action = super.handleRequest(channel, marker, buffer, requestId, messageLengthBytes, version);
-                        channelProfileName = this.profileName;
+                    protected String handleRequest(TCPMessageHandler.ChannelFactory channelFactory, TCPMessageHandler.Marker marker,
+                                                   StreamInput buffer, long requestId, int messageLengthBytes, Version version,
+                                                   InetSocketAddress remoteAddress) throws IOException {
+                        String action = super.handleRequest(channelFactory, marker, buffer, requestId, messageLengthBytes, version,
+                            remoteAddress);
+                        channelProfileName = TransportSettings.DEFAULT_PROFILE;
                         return action;
                     }
 
                     @Override
-                    protected void validateRequest(Marker marker, StreamInput buffer, long requestId, String action) throws IOException {
+                    protected void validateRequest(TCPMessageHandler.Marker marker, StreamInput buffer, long requestId, String action)
+                        throws IOException {
                         super.validateRequest(marker, buffer, requestId, action);
                         String error = threadPool.getThreadContext().getHeader("ERROR");
                         if (error != null) {
                             throw new ElasticsearchException(error);
                         }
                     }
-                });
+                };
+                    nettyTransport.newMessageChannelHandler();
+                pipeline.replace("dispatcher", "dispatcher",
+                    new NettyMessageChannelHandler(nettyTransport, TransportSettings.DEFAULT_PROFILE, handler));
                 return pipeline;
             }
         }

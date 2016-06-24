@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.netty;
 
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -32,13 +33,14 @@ import org.jboss.netty.channel.ChannelState;
 import org.jboss.netty.channel.ChannelStateEvent;
 import org.jboss.netty.channel.ChannelUpstreamHandler;
 
+import java.io.Closeable;
 import java.util.Set;
 
 /**
  *
  */
 @ChannelHandler.Sharable
-public class OpenChannelsHandler implements ChannelUpstreamHandler {
+public class OpenChannelsHandler implements ChannelUpstreamHandler, Releasable {
 
     final Set<Channel> openChannels = ConcurrentCollections.newConcurrentSet();
     final CounterMetric openChannelsMetric = new CounterMetric();
@@ -91,6 +93,7 @@ public class OpenChannelsHandler implements ChannelUpstreamHandler {
         return totalChannelsMetric.count();
     }
 
+    @Override
     public void close() {
         for (Channel channel : openChannels) {
             channel.close().awaitUninterruptibly();

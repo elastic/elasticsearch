@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  * A Netty {@link org.jboss.netty.buffer.ChannelBuffer} based {@link org.elasticsearch.common.io.stream.StreamInput}.
  */
-public class ChannelBufferStreamInput extends StreamInput {
+class ChannelBufferStreamInput extends StreamInput {
 
     private final ChannelBuffer buffer;
     private final int startIndex;

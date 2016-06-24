@@ -34,9 +34,12 @@ import java.nio.charset.StandardCharsets;
 final class ChannelBufferBytesReference implements BytesReference {
 
     private final ChannelBuffer buffer;
+    private final int size;
 
-    ChannelBufferBytesReference(ChannelBuffer buffer) {
+    ChannelBufferBytesReference(ChannelBuffer buffer, int size) {
         this.buffer = buffer;
+        this.size = size;
+        assert size <= buffer.readableBytes() : "size[" + size +"] > " + buffer.readableBytes();
     }
 
     @Override
@@ -46,12 +49,12 @@ final class ChannelBufferBytesReference implements BytesReference {
 
     @Override
     public int length() {
-        return buffer.readableBytes();
+        return size;
     }
 
     @Override
     public BytesReference slice(int from, int length) {
-        return new ChannelBufferBytesReference(buffer.slice(buffer.readerIndex() + from, length));
+        return new ChannelBufferBytesReference(buffer.slice(buffer.readerIndex() + from, length), length);
     }
 
     @Override
@@ -61,10 +64,9 @@ final class ChannelBufferBytesReference implements BytesReference {
 
     @Override
     public void writeTo(OutputStream os) throws IOException {
-        buffer.getBytes(buffer.readerIndex(), os, length());
+        buffer.getBytes(buffer.readerIndex(), os, size);
     }
 
-    @Override
     public byte[] toBytes() {
         return copyBytesArray().toBytes();
     }
@@ -72,7 +74,7 @@ final class ChannelBufferBytesReference implements BytesReference {
     @Override
     public BytesArray toBytesArray() {
         if (buffer.hasArray()) {
-            return new BytesArray(buffer.array(), buffer.arrayOffset() + buffer.readerIndex(), buffer.readableBytes());
+            return new BytesArray(buffer.array(), buffer.arrayOffset() + buffer.readerIndex(), size);
         }
         return copyBytesArray();
     }
@@ -111,7 +113,7 @@ final class ChannelBufferBytesReference implements BytesReference {
     @Override
     public BytesRef toBytesRef() {
         if (buffer.hasArray()) {
-            return new BytesRef(buffer.array(), buffer.arrayOffset() + buffer.readerIndex(), buffer.readableBytes());
+            return new BytesRef(buffer.array(), buffer.arrayOffset() + buffer.readerIndex(), size);
         }
         byte[] copy = new byte[buffer.readableBytes()];
         buffer.getBytes(buffer.readerIndex(), copy);
@@ -120,7 +122,7 @@ final class ChannelBufferBytesReference implements BytesReference {
 
     @Override
     public BytesRef copyBytesRef() {
-        byte[] copy = new byte[buffer.readableBytes()];
+        byte[] copy = new byte[size];
         buffer.getBytes(buffer.readerIndex(), copy);
         return new BytesRef(copy);
     }

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.transport.netty;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -30,6 +29,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TCPTransport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.junit.Before;
@@ -58,7 +58,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
                 .build();
 
         ThreadPool threadPool = new TestThreadPool("tst");
-        try (NettyTransport transport = startNettyTransport(settings, threadPool)) {
+        try (TCPTransport<?> transport = startTransport(settings, threadPool)) {
             assertEquals(1, transport.profileBoundAddresses().size());
             assertEquals(1, transport.boundAddress().boundAddresses().length);
         } finally {
@@ -74,7 +74,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
                 .build();
 
         ThreadPool threadPool = new TestThreadPool("tst");
-        try (NettyTransport transport = startNettyTransport(settings, threadPool)) {
+        try (TCPTransport<?> transport = startTransport(settings, threadPool)) {
             assertEquals(1, transport.profileBoundAddresses().size());
             assertEquals(1, transport.boundAddress().boundAddresses().length);
         } finally {
@@ -91,7 +91,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
                 .build();
 
         ThreadPool threadPool = new TestThreadPool("tst");
-        try (NettyTransport transport = startNettyTransport(settings, threadPool)) {
+        try (TCPTransport<?> transport = startTransport(settings, threadPool)) {
             assertEquals(0, transport.profileBoundAddresses().size());
             assertEquals(1, transport.boundAddress().boundAddresses().length);
         } finally {
@@ -107,7 +107,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
                 .build();
 
         ThreadPool threadPool = new TestThreadPool("tst");
-        try (NettyTransport transport = startNettyTransport(settings, threadPool)) {
+        try (TCPTransport<?> transport = startTransport(settings, threadPool)) {
             assertEquals(0, transport.profileBoundAddresses().size());
             assertEquals(1, transport.boundAddress().boundAddresses().length);
         } finally {
@@ -125,7 +125,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
                 .build();
 
         ThreadPool threadPool = new TestThreadPool("tst");
-        try (NettyTransport transport = startNettyTransport(settings, threadPool)) {
+        try (TCPTransport<?> transport = startTransport(settings, threadPool)) {
             assertEquals(0, transport.profileBoundAddresses().size());
             assertEquals(1, transport.boundAddress().boundAddresses().length);
         } finally {
@@ -133,14 +133,13 @@ public class NettyTransportMultiPortTests extends ESTestCase {
         }
     }
 
-    private NettyTransport startNettyTransport(Settings settings, ThreadPool threadPool) {
+    private TCPTransport<?> startTransport(Settings settings, ThreadPool threadPool) {
         BigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
-
-        NettyTransport nettyTransport = new NettyTransport(settings, threadPool, new NetworkService(settings), bigArrays,
+        TCPTransport<?> transport = new NettyTransport(settings, threadPool, new NetworkService(settings), bigArrays,
             new NamedWriteableRegistry(), new NoneCircuitBreakerService());
-        nettyTransport.start();
+        transport.start();
 
-        assertThat(nettyTransport.lifecycleState(), is(Lifecycle.State.STARTED));
-        return nettyTransport;
+        assertThat(transport.lifecycleState(), is(Lifecycle.State.STARTED));
+        return transport;
     }
 }

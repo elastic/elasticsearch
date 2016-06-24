@@ -4,7 +4,7 @@
     "methods": [ "PUT", "POST" ],
     "url": {
       "path": "/_xpack/watcher/watch/{watch_id}/_ack",
-      "paths": [ "/_xpack/watcher/watch/{watch_id}/_ack", "/_xpack/watcher/watch/{watch_id}/{action_id}/_ack"],
+      "paths": [ "/_xpack/watcher/watch/{watch_id}/_ack", "/_xpack/watcher/watch/{watch_id}/_ack/{action_id}"],
       "parts": {
         "watch_id": {
           "type" : "string",

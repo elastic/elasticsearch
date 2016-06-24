@@ -102,6 +102,6 @@ public class IcuTokenizerFactoryTests extends ESTestCase {
             .build();
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
 
-        return createAnalysisService(new Index("test", "_na_"), nodeSettings, settings, new AnalysisICUPlugin()::onModule);
+        return createAnalysisService(new Index("test", "_na_"), nodeSettings, settings, new AnalysisICUPlugin());
     }
 }

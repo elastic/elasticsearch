@@ -122,3 +122,8 @@ been removed.
 
 Plugins that register custom scripts should implement `ScriptPlugin` and remove
 their `onModule(ScriptModule)` implementation.
+
+==== AnalysisPlugin
+
+Plugins that register custom analysis components should implement
+`AnalysisPlugin` and remove their `onModule(AnalysisModule)` implementation.

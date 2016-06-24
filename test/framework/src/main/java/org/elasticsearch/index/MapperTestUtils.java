@@ -36,6 +36,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 
+import static org.elasticsearch.test.ESTestCase.createAnalysisService;
+
 
 public class MapperTestUtils {
 
@@ -54,7 +56,7 @@ public class MapperTestUtils {
         Settings finalSettings = settingsBuilder.build();
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", finalSettings);
-        AnalysisService analysisService = new AnalysisRegistry(null, new Environment(finalSettings)).build(indexSettings);
+        AnalysisService analysisService = createAnalysisService(indexSettings, finalSettings);
         SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
         return new MapperService(indexSettings,
             analysisService,

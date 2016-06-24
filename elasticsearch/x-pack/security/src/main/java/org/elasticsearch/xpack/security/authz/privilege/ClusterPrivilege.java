@@ -42,6 +42,7 @@ public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivileg
             new ClusterPrivilege("manage_ingest_pipelines", MANAGE_INGEST_PIPELINE_AUTOMATON);
     public static final ClusterPrivilege TRANSPORT_CLIENT =      new ClusterPrivilege("transport_client",       TRANSPORT_CLIENT_AUTOMATON);
     public static final ClusterPrivilege MANAGE_SECURITY =       new ClusterPrivilege("manage_security",        MANAGE_SECURITY_AUTOMATON);
+    public static final ClusterPrivilege MANAGE_PIPELINE =       new ClusterPrivilege("manage_pipeline", "cluster:admin/ingest/pipeline/*");
 
     public static final Predicate<String> ACTION_MATCHER = ClusterPrivilege.ALL.predicate();
 
@@ -56,6 +57,7 @@ public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivileg
         values.add(MANAGE_INGEST_PIPELINES);
         values.add(TRANSPORT_CLIENT);
         values.add(MANAGE_SECURITY);
+        values.add(MANAGE_PIPELINE);
     }
 
     static Set<ClusterPrivilege> values() {

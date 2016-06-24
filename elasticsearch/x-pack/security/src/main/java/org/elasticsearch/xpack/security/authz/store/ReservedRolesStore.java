@@ -14,6 +14,7 @@ import java.util.Set;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.security.authz.permission.IngestAdminRole;
 import org.elasticsearch.xpack.security.authz.permission.KibanaRole;
 import org.elasticsearch.xpack.security.authz.permission.KibanaUserRole;
 import org.elasticsearch.xpack.security.authz.permission.MonitoringUserRole;
@@ -48,6 +49,8 @@ public class ReservedRolesStore implements RolesStore {
                 return MonitoringUserRole.INSTANCE;
             case RemoteMonitoringAgentRole.NAME:
                 return RemoteMonitoringAgentRole.INSTANCE;
+            case IngestAdminRole.NAME:
+                return IngestAdminRole.INSTANCE;
             case KibanaRole.NAME:
                 // The only user that should know about this role is the kibana user itself (who has this role). The reason we want to hide
                 // this role is that it was created specifically for kibana, with all the permissions that the kibana user needs.
@@ -78,6 +81,8 @@ public class ReservedRolesStore implements RolesStore {
                 return MonitoringUserRole.DESCRIPTOR;
             case RemoteMonitoringAgentRole.NAME:
                 return RemoteMonitoringAgentRole.DESCRIPTOR;
+            case IngestAdminRole.NAME:
+                return IngestAdminRole.DESCRIPTOR;
             case KibanaRole.NAME:
                 // The only user that should know about this role is the kibana user itself (who has this role). The reason we want to hide
                 // this role is that it was created specifically for kibana, with all the permissions that the kibana user needs.
@@ -94,15 +99,16 @@ public class ReservedRolesStore implements RolesStore {
     public Collection<RoleDescriptor> roleDescriptors() {
         if (KibanaUser.is(securityContext.getUser())) {
             return Arrays.asList(SuperuserRole.DESCRIPTOR, TransportClientRole.DESCRIPTOR, KibanaUserRole.DESCRIPTOR,
-                    KibanaRole.DESCRIPTOR, MonitoringUserRole.DESCRIPTOR, RemoteMonitoringAgentRole.DESCRIPTOR);
+                    KibanaRole.DESCRIPTOR, MonitoringUserRole.DESCRIPTOR, RemoteMonitoringAgentRole.DESCRIPTOR,
+                    IngestAdminRole.DESCRIPTOR);
         }
         return Arrays.asList(SuperuserRole.DESCRIPTOR, TransportClientRole.DESCRIPTOR, KibanaUserRole.DESCRIPTOR,
-                MonitoringUserRole.DESCRIPTOR, RemoteMonitoringAgentRole.DESCRIPTOR);
+                MonitoringUserRole.DESCRIPTOR, RemoteMonitoringAgentRole.DESCRIPTOR, IngestAdminRole.DESCRIPTOR);
     }
 
     public static Set<String> names() {
         return Sets.newHashSet(SuperuserRole.NAME, KibanaRole.NAME, TransportClientRole.NAME, KibanaUserRole.NAME,
-                MonitoringUserRole.NAME, RemoteMonitoringAgentRole.NAME);
+                MonitoringUserRole.NAME, RemoteMonitoringAgentRole.NAME, IngestAdminRole.NAME);
     }
 
     public static boolean isReserved(String role) {
@@ -114,6 +120,7 @@ public class ReservedRolesStore implements RolesStore {
             case MonitoringUserRole.NAME:
             case RemoteMonitoringAgentRole.NAME:
             case SystemUser.ROLE_NAME:
+            case IngestAdminRole.NAME:
                 return true;
             default:
                 return false;

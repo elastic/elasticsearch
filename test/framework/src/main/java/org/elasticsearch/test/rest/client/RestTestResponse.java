@@ -23,21 +23,21 @@ import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.Stash;
-import org.elasticsearch.test.rest.json.JsonPath;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 /**
  * Response obtained from a REST call, eagerly reads the response body into a string for later optional parsing.
- * Supports parsing the response body as json when needed and returning specific values extracted from it.
+ * Supports parsing the response body when needed and returning specific values extracted from it.
  */
 public class RestTestResponse {
 
     private final Response response;
     private final String body;
-    private JsonPath parsedResponse;
+    private ObjectPath parsedResponse;
 
     public RestTestResponse(Response response) {
         this.response = response;
@@ -74,7 +74,7 @@ public class RestTestResponse {
      */
     public Object getBody() throws IOException {
         if (isJson()) {
-            JsonPath parsedResponse = parsedResponse();
+            ObjectPath parsedResponse = parsedResponse();
             if (parsedResponse == null) {
                 return null;
             }
@@ -95,23 +95,23 @@ public class RestTestResponse {
     }
 
     /**
-     * Parses the response body as json and extracts a specific value from it (identified by the provided path)
+     * Parses the response body and extracts a specific value from it (identified by the provided path)
      */
     public Object evaluate(String path) throws IOException {
         return evaluate(path, Stash.EMPTY);
     }
 
     /**
-     * Parses the response body as json and extracts a specific value from it (identified by the provided path)
+     * Parses the response body and extracts a specific value from it (identified by the provided path)
      */
     public Object evaluate(String path, Stash stash) throws IOException {
         if (response == null) {
             return null;
         }
 
-        JsonPath jsonPath = parsedResponse();
+        ObjectPath objectPath = parsedResponse();
 
-        if (jsonPath == null) {
+        if (objectPath == null) {
             //special case: api that don't support body (e.g. exists) return true if 200, false if 404, even if no body
             //is_true: '' means the response had no body but the client returned true (caused by 200)
             //is_false: '' means the response had no body but the client returned false (caused by 404)
@@ -121,7 +121,7 @@ public class RestTestResponse {
             return null;
         }
 
-        return jsonPath.evaluate(path, stash);
+        return objectPath.evaluate(path, stash);
     }
 
     private boolean isJson() {
@@ -129,13 +129,13 @@ public class RestTestResponse {
         return contentType != null && contentType.contains("application/json");
     }
 
-    private JsonPath parsedResponse() throws IOException {
+    private ObjectPath parsedResponse() throws IOException {
         if (parsedResponse != null) {
             return parsedResponse;
         }
         if (response == null || body == null) {
             return null;
         }
-        return parsedResponse = new JsonPath(body);
+        return parsedResponse = ObjectPath.createFromXContent(body);
     }
 }

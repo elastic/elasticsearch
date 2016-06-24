@@ -20,7 +20,7 @@ package org.elasticsearch.test.rest.test;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.Stash;
-import org.elasticsearch.test.rest.json.JsonPath;
+import org.elasticsearch.test.rest.ObjectPath;
 
 import java.util.List;
 import java.util.Map;
@@ -33,59 +33,59 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class JsonPathTests extends ESTestCase {
+public class ObjectPathTests extends ESTestCase {
     public void testEvaluateObjectPathEscape() throws Exception {
         String json = "{ \"field1\": { \"field2.field3\" : \"value2\" } }";
-        JsonPath jsonPath = new JsonPath(json);
-        Object object = jsonPath.evaluate("field1.field2\\.field3");
+        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        Object object = objectPath.evaluate("field1.field2\\.field3");
         assertThat(object, instanceOf(String.class));
         assertThat((String)object, equalTo("value2"));
     }
 
     public void testEvaluateObjectPathWithDoubleDot() throws Exception {
         String json = "{ \"field1\": { \"field2\" : \"value2\" } }";
-        JsonPath jsonPath = new JsonPath(json);
-        Object object = jsonPath.evaluate("field1..field2");
+        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        Object object = objectPath.evaluate("field1..field2");
         assertThat(object, instanceOf(String.class));
         assertThat((String)object, equalTo("value2"));
     }
 
     public void testEvaluateObjectPathEndsWithDot() throws Exception {
         String json = "{ \"field1\": { \"field2\" : \"value2\" } }";
-        JsonPath jsonPath = new JsonPath(json);
-        Object object = jsonPath.evaluate("field1.field2.");
+        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        Object object = objectPath.evaluate("field1.field2.");
         assertThat(object, instanceOf(String.class));
         assertThat((String)object, equalTo("value2"));
     }
 
     public void testEvaluateString() throws Exception {
         String json = "{ \"field1\": { \"field2\" : \"value2\" } }";
-        JsonPath jsonPath = new JsonPath(json);
-        Object object = jsonPath.evaluate("field1.field2");
+        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        Object object = objectPath.evaluate("field1.field2");
         assertThat(object, instanceOf(String.class));
         assertThat((String)object, equalTo("value2"));
     }
 
     public void testEvaluateInteger() throws Exception {
         String json = "{ \"field1\": { \"field2\" : 333 } }";
-        JsonPath jsonPath = new JsonPath(json);
-        Object object = jsonPath.evaluate("field1.field2");
+        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        Object object = objectPath.evaluate("field1.field2");
         assertThat(object, instanceOf(Integer.class));
         assertThat((Integer)object, equalTo(333));
     }
 
     public void testEvaluateDouble() throws Exception {
         String json = "{ \"field1\": { \"field2\" : 3.55 } }";
-        JsonPath jsonPath = new JsonPath(json);
-        Object object = jsonPath.evaluate("field1.field2");
+        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        Object object = objectPath.evaluate("field1.field2");
         assertThat(object, instanceOf(Double.class));
         assertThat((Double)object, equalTo(3.55));
     }
 
     public void testEvaluateArray() throws Exception {
         String json = "{ \"field1\": { \"array1\" : [ \"value1\", \"value2\" ] } }";
-        JsonPath jsonPath = new JsonPath(json);
-        Object object = jsonPath.evaluate("field1.array1");
+        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        Object object = objectPath.evaluate("field1.array1");
         assertThat(object, instanceOf(List.class));
         List list = (List) object;
         assertThat(list.size(), equalTo(2));
@@ -97,32 +97,32 @@ public class JsonPathTests extends ESTestCase {
 
     public void testEvaluateArrayElement() throws Exception {
         String json = "{ \"field1\": { \"array1\" : [ \"value1\", \"value2\" ] } }";
-        JsonPath jsonPath = new JsonPath(json);
-        Object object = jsonPath.evaluate("field1.array1.1");
+        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        Object object = objectPath.evaluate("field1.array1.1");
         assertThat(object, instanceOf(String.class));
         assertThat((String)object, equalTo("value2"));
     }
 
     public void testEvaluateArrayElementObject() throws Exception {
         String json = "{ \"field1\": { \"array1\" : [ {\"element\": \"value1\"}, {\"element\":\"value2\"} ] } }";
-        JsonPath jsonPath = new JsonPath(json);
-        Object object = jsonPath.evaluate("field1.array1.1.element");
+        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        Object object = objectPath.evaluate("field1.array1.1.element");
         assertThat(object, instanceOf(String.class));
         assertThat((String)object, equalTo("value2"));
     }
 
     public void testEvaluateArrayElementObjectWrongPath() throws Exception {
         String json = "{ \"field1\": { \"array1\" : [ {\"element\": \"value1\"}, {\"element\":\"value2\"} ] } }";
-        JsonPath jsonPath = new JsonPath(json);
-        Object object = jsonPath.evaluate("field1.array2.1.element");
+        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        Object object = objectPath.evaluate("field1.array2.1.element");
         assertThat(object, nullValue());
     }
 
     @SuppressWarnings("unchecked")
     public void testEvaluateObjectKeys() throws Exception {
         String json = "{ \"metadata\": { \"templates\" : {\"template_1\": { \"field\" : \"value\"}, \"template_2\": { \"field\" : \"value\"} } } }";
-        JsonPath jsonPath = new JsonPath(json);
-        Object object = jsonPath.evaluate("metadata.templates");
+        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        Object object = objectPath.evaluate("metadata.templates");
         assertThat(object, instanceOf(Map.class));
         Map<String, Object> map = (Map<String, Object>)object;
         assertThat(map.size(), equalTo(2));
@@ -133,8 +133,8 @@ public class JsonPathTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testEvaluateEmptyPath() throws Exception {
         String json = "{ \"field1\": { \"array1\" : [ {\"element\": \"value1\"}, {\"element\":\"value2\"} ] } }";
-        JsonPath jsonPath = new JsonPath(json);
-        Object object = jsonPath.evaluate("");
+        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        Object object = objectPath.evaluate("");
         assertThat(object, notNullValue());
         assertThat(object, instanceOf(Map.class));
         assertThat(((Map<String, Object>)object).containsKey("field1"), equalTo(true));
@@ -142,9 +142,9 @@ public class JsonPathTests extends ESTestCase {
 
     public void testEvaluateStashInPropertyName() throws Exception {
         String json = "{ \"field1\": { \"elements\" : {\"element1\": \"value1\"}}}";
-        JsonPath jsonPath = new JsonPath(json);
+        ObjectPath objectPath = ObjectPath.createFromXContent(json);
         try {
-            jsonPath.evaluate("field1.$placeholder.element1");
+            objectPath.evaluate("field1.$placeholder.element1");
             fail("evaluate should have failed due to unresolved placeholder");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("stashed value not found for key [$placeholder]"));
@@ -152,7 +152,7 @@ public class JsonPathTests extends ESTestCase {
 
         Stash stash = new Stash();
         stash.stashValue("placeholder", "elements");
-        Object object = jsonPath.evaluate("field1.$placeholder.element1", stash);
+        Object object = objectPath.evaluate("field1.$placeholder.element1", stash);
         assertThat(object, notNullValue());
         assertThat(object.toString(), equalTo("value1"));
     }

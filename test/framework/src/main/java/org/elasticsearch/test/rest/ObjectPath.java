@@ -16,11 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.json;
+package org.elasticsearch.test.rest;
 
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.rest.Stash;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,22 +27,20 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Holds a json object and allows to extract specific values from it
+ * Holds an object and allows to extract specific values from it given their path
  */
-public class JsonPath {
+public class ObjectPath {
 
-    final String json;
-    final Map<String, Object> jsonMap;
+    private final Map<String, Object> object;
 
-    public JsonPath(String json) throws IOException {
-        this.json = json;
-        this.jsonMap = convertToMap(json);
+    public static ObjectPath createFromXContent(String input) throws IOException {
+        try (XContentParser parser = XContentFactory.xContent(input).createParser(input)) {
+            return new ObjectPath(parser.mapOrdered());
+        }
     }
 
-    private static Map<String, Object> convertToMap(String json) throws IOException {
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(json)) {
-            return parser.mapOrdered();
-        }
+    public ObjectPath(Map<String, Object> map) throws IOException {
+        this.object = map;
     }
 
     /**
@@ -58,7 +55,7 @@ public class JsonPath {
      */
     public Object evaluate(String path, Stash stash) throws IOException {
         String[] parts = parsePath(path);
-        Object object = jsonMap;
+        Object object = this.object;
         for (String part : parts) {
             object = evaluate(part, object, stash);
             if (object == null) {

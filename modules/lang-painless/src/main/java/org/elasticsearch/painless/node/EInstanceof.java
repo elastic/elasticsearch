@@ -79,7 +79,7 @@ public class EInstanceof extends AExpression {
             // discard its result
             writer.writePop(expression.actual.type.getSize());
             // push our result: its a primitive so it cannot be null.
-            writer.push(resolvedType == Object.class || resolvedType == expressionType);
+            writer.push(resolvedType.isAssignableFrom(expressionType));
         } else {
             // ordinary instanceof
             expression.write(writer, globals);

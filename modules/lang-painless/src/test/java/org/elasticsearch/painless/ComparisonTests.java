@@ -442,6 +442,10 @@ public class ComparisonTests extends ScriptTestCase {
     
     public void testInstanceOf() {
         assertEquals(true, exec("int x = 5; return x instanceof int"));
+        assertEquals(true, exec("int x = 5; return x instanceof Number"));
+        assertEquals(true, exec("int x = 5; return x instanceof Integer"));
+        assertEquals(true, exec("int x = 5; return x instanceof def"));
+        assertEquals(true, exec("int x = 5; return x instanceof Object"));
         assertEquals(true, exec("def x = 5; return x instanceof int"));
         assertEquals(true, exec("def x = 5; return x instanceof def"));
         assertEquals(true, exec("def x = 5; return x instanceof Object"));

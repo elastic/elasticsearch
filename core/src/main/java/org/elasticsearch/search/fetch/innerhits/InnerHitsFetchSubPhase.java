@@ -68,7 +68,6 @@ public final class InnerHitsFetchSubPhase implements FetchSubPhase {
             for (int i = 0; i < internalHits.length; i++) {
                 ScoreDoc scoreDoc = topDocs.scoreDocs[i];
                 InternalSearchHit searchHitFields = internalHits[i];
-                searchHitFields.shard(innerHits.shardTarget());
                 searchHitFields.score(scoreDoc.score);
                 if (scoreDoc instanceof FieldDoc) {
                     FieldDoc fieldDoc = (FieldDoc) scoreDoc;

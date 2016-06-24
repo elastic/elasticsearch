@@ -19,6 +19,31 @@
 
 package org.elasticsearch.test.rest;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.client.RestTestResponse;
+import org.elasticsearch.test.rest.parser.RestTestParseException;
+import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
+import org.elasticsearch.test.rest.section.DoSection;
+import org.elasticsearch.test.rest.section.ExecutableSection;
+import org.elasticsearch.test.rest.section.RestTestSuite;
+import org.elasticsearch.test.rest.section.SkipSection;
+import org.elasticsearch.test.rest.section.TestSection;
+import org.elasticsearch.test.rest.spec.RestApi;
+import org.elasticsearch.test.rest.spec.RestSpec;
+import org.elasticsearch.test.rest.support.FileUtils;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -37,32 +62,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.client.RestException;
-import org.elasticsearch.test.rest.client.RestResponse;
-import org.elasticsearch.test.rest.parser.RestTestParseException;
-import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
-import org.elasticsearch.test.rest.section.DoSection;
-import org.elasticsearch.test.rest.section.ExecutableSection;
-import org.elasticsearch.test.rest.section.RestTestSuite;
-import org.elasticsearch.test.rest.section.SkipSection;
-import org.elasticsearch.test.rest.section.TestSection;
-import org.elasticsearch.test.rest.spec.RestApi;
-import org.elasticsearch.test.rest.spec.RestSpec;
-import org.elasticsearch.test.rest.support.FileUtils;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -98,8 +97,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     private static final String DEFAULT_SPEC_PATH = "/rest-api-spec/api";
 
     /**
-     * This separator pattern matches ',' except it is preceded by a '\'. This allows us to support ',' within paths when it is escaped with
-     * a slash.
+     * This separator pattern matches ',' except it is preceded by a '\'.
+     * This allows us to support ',' within paths when it is escaped with a slash.
      *
      * For example, the path string "/a/b/c\,d/e/f,/foo/bar,/baz" is separated to "/a/b/c\,d/e/f", "/foo/bar" and "/baz".
      *
@@ -233,7 +232,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     @BeforeClass
-    public static void initExecutionContext() throws IOException, RestException {
+    public static void initExecutionContext() throws IOException {
         String[] specPaths = resolvePathsProperty(REST_TESTS_SPEC, DEFAULT_SPEC_PATH);
         RestSpec restSpec = null;
         FileSystem fileSystem = getFileSystem();
@@ -277,9 +276,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         deleteIndicesArgs.put("index", "*");
         try {
             adminExecutionContext.callApi("indices.delete", deleteIndicesArgs, Collections.emptyList(), Collections.emptyMap());
-        } catch (RestException e) {
+        } catch (ResponseException e) {
             // 404 here just means we had no indexes
-            if (e.statusCode() != 404) {
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
                 throw e;
             }
         }
@@ -300,8 +299,8 @@ public abstract class ESRestTestCase extends ESTestCase {
      * other tests.
      */
     @After
-    public void logIfThereAreRunningTasks() throws InterruptedException, IOException, RestException {
-        RestResponse tasks = adminExecutionContext.callApi("tasks.list", emptyMap(), emptyList(), emptyMap());
+    public void logIfThereAreRunningTasks() throws InterruptedException, IOException {
+        RestTestResponse tasks = adminExecutionContext.callApi("tasks.list", emptyMap(), emptyList(), emptyMap());
         Set<String> runningTasks = runningTasks(tasks);
         // Ignore the task list API - it doens't count against us
         runningTasks.remove(ListTasksAction.NAME);
@@ -341,13 +340,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         return restClientSettings(); // default to the same client settings
     }
 
-    /** Returns the addresses the client uses to connect to the test cluster. */
-    protected URL[] getClusterUrls() {
-        return clusterUrls;
-    }
-
     @Before
-    public void reset() throws IOException, RestException {
+    public void reset() throws IOException {
         // admin context must be available for @After always, regardless of whether the test was blacklisted
         adminExecutionContext.initClient(clusterUrls, restAdminSettings());
         adminExecutionContext.clear();
@@ -355,7 +349,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         //skip test if it matches one of the blacklist globs
         for (BlacklistedPathPatternMatcher blacklistedPathMatcher : blacklistPathMatchers) {
             String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
-            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher.isSuffixMatch(testPath));
+            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher
+                    .isSuffixMatch(testPath));
         }
         //The client needs non static info to get initialized, therefore it can't be initialized in the before class
         restTestExecutionContext.initClient(clusterUrls, restClientSettings());
@@ -374,7 +369,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (skipSection.isVersionCheck()) {
             messageBuilder.append("[").append(description).append("] skipped, reason: [").append(skipSection.getReason()).append("] ");
         } else {
-            messageBuilder.append("[").append(description).append("] skipped, reason: features ").append(skipSection.getFeatures()).append(" not supported");
+            messageBuilder.append("[").append(description).append("] skipped, reason: features ")
+                    .append(skipSection.getFeatures()).append(" not supported");
         }
         return messageBuilder.toString();
     }
@@ -401,7 +397,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public Set<String> runningTasks(RestResponse response) throws IOException {
+    public Set<String> runningTasks(RestTestResponse response) throws IOException {
         Set<String> runningTasks = new HashSet<>();
         Map<String, Object> nodes = (Map<String, Object>) response.evaluate("nodes");
         for (Map.Entry<String, Object> node : nodes.entrySet()) {

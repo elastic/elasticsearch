@@ -159,6 +159,22 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         assertThat(simulateDocumentVerboseResult.getProcessorResults().get(2).getFailure(), nullValue());
     }
 
+    public void testExecuteVerboseItemExceptionWithIgnoreFailure() throws Exception {
+        TestProcessor testProcessor = new TestProcessor("processor_0", "mock", ingestDocument -> { throw new RuntimeException("processor failed"); });
+        CompoundProcessor processor = new CompoundProcessor(true, Collections.singletonList(testProcessor), Collections.emptyList());
+        Pipeline pipeline = new Pipeline("_id", "_description", new CompoundProcessor(processor));
+        SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
+        assertThat(testProcessor.getInvokedCounter(), equalTo(1));
+        assertThat(actualItemResponse, instanceOf(SimulateDocumentVerboseResult.class));
+        SimulateDocumentVerboseResult simulateDocumentVerboseResult = (SimulateDocumentVerboseResult) actualItemResponse;
+        assertThat(simulateDocumentVerboseResult.getProcessorResults().size(), equalTo(1));
+        assertThat(simulateDocumentVerboseResult.getProcessorResults().get(0).getProcessorTag(), equalTo("processor_0"));
+        assertThat(simulateDocumentVerboseResult.getProcessorResults().get(0).getFailure(), nullValue());
+        assertThat(simulateDocumentVerboseResult.getProcessorResults().get(0).getIngestDocument(), not(sameInstance(ingestDocument)));
+        assertIngestDocument(simulateDocumentVerboseResult.getProcessorResults().get(0).getIngestDocument(), ingestDocument);
+        assertThat(simulateDocumentVerboseResult.getProcessorResults().get(0).getIngestDocument().getSourceAndMetadata(), not(sameInstance(ingestDocument.getSourceAndMetadata())));
+    }
+
     public void testExecuteItemWithFailure() throws Exception {
         TestProcessor processor = new TestProcessor(ingestDocument -> { throw new RuntimeException("processor failed"); });
         Pipeline pipeline = new Pipeline("_id", "_description", new CompoundProcessor(processor, processor));

@@ -901,7 +901,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                             bindMapperExtension();
                         }
                     },
-                    scriptModule,
                     new IndexSettingsModule(index, indexSettings),
                     searchModule,
                     new AbstractModule() {
@@ -919,7 +918,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             IndexScopedSettings indexScopedSettings = injector.getInstance(IndexScopedSettings.class);
             idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, indexScopedSettings);
             AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
-            scriptService = injector.getInstance(ScriptService.class);
+            scriptService = scriptModule.getScriptService();
             similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
             MapperRegistry mapperRegistry = injector.getInstance(MapperRegistry.class);
             mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry,

@@ -89,7 +89,7 @@ dependencies {
   compile "log4j:log4j:${versions.log4j}", optional
   compile "log4j:apache-log4j-extras:${versions.log4j}", optional
 
-  compile "net.java.dev.jna:jna:${versions.jna}", optional
+  compile "net.java.dev.jna:jna:${versions.jna}"
 
   if (isEclipse == false || project.path == ":core-tests") {
     testCompile("org.elasticsearch.test:framework:${version}") {

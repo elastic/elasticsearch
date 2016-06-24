@@ -105,6 +105,7 @@ expression returns [boolean s = true]
     |               expression ( FIND | MATCH ) expression                 { $s = false; }          # binary
     |               expression ( LSH | RSH | USH ) expression              { $s = false; }          # binary
     |               expression ( LT | LTE | GT | GTE ) expression          { $s = false; }          # comp
+    |               expression INSTANCEOF decltype                         { $s = false; }          # instanceof
     |               expression ( EQ | EQR | NE | NER ) expression          { $s = false; }          # comp
     |               expression BWAND expression                            { $s = false; }          # binary
     |               expression XOR expression                              { $s = false; }          # binary
@@ -126,21 +127,23 @@ expression returns [boolean s = true]
 // processing a variable/method chain.  This prevents the chain
 // from being applied to rules where it wouldn't be allowed.
 unary[boolean c] returns [boolean s = true]
-    : { !$c }? ( INCR | DECR ) chain[true]                                  # pre
-    | { !$c }? chain[true] (INCR | DECR )                                   # post
-    | { !$c }? chain[false]                                                 # read
-    | { !$c }? ( OCTAL | HEX | INTEGER | DECIMAL )          { $s = false; } # numeric
-    | { !$c }? TRUE                                         { $s = false; } # true
-    | { !$c }? FALSE                                        { $s = false; } # false
-    | { !$c }? NULL                                         { $s = false; } # null
-    | { !$c }? ( BOOLNOT | BWNOT | ADD | SUB ) unary[false]                 # operator
-    |          LP decltype RP unary[$c]                                     # cast
+    : { !$c }? ( INCR | DECR ) chain[true]                                   # pre
+    | { !$c }? chain[true] (INCR | DECR )                                    # post
+    | { !$c }? chain[false]                                                  # read
+    | { !$c }? ( OCTAL | HEX | INTEGER | DECIMAL )           { $s = false; } # numeric
+    | { !$c }? TRUE                                          { $s = false; } # true
+    | { !$c }? FALSE                                         { $s = false; } # false
+    | { !$c }? NULL                                          { $s = false; } # null
+    | { !$c }? listinitializer                               { $s = false; } # listinit
+    | { !$c }? mapinitializer                                { $s = false; } # mapinit
+    | { !$c }? ( BOOLNOT | BWNOT | ADD | SUB ) unary[false]                  # operator
+    |          LP decltype RP unary[$c]                                      # cast
     ;
 
 chain[boolean c]
-    : p = primary[$c] secondary[$p.s]*                             # dynamic
-    | decltype dot secondary[true]*                                # static
-    | NEW TYPE (LBRACE expression RBRACE)+ (dot secondary[true]*)? # newarray
+    : p = primary[$c] secondary[$p.s]* # dynamic
+    | decltype dot secondary[true]*    # static
+    | arrayinitializer                 # newarray
     ;
 
 primary[boolean c] returns [boolean s = true]
@@ -212,4 +215,23 @@ capturingFuncref
 // reference to a local function, e.g. this::myfunc
 localFuncref
     : THIS REF ID
+    ;
+
+arrayinitializer
+    : NEW TYPE (LBRACE expression RBRACE)+ (dot secondary[true]*)?                          # newstandardarray
+    | NEW TYPE LBRACE RBRACE LBRACK ( expression ( COMMA expression )* )? SEMICOLON? RBRACK # newinitializedarray
+    ;
+
+listinitializer
+    : LBRACE expression ( COMMA expression)* RBRACE
+    | LBRACE RBRACE
+    ;
+
+mapinitializer
+    : LBRACE maptoken ( COMMA maptoken )* RBRACE
+    | LBRACE COLON RBRACE
+    ;
+
+maptoken
+    : expression COLON expression
     ;

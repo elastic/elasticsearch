@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -66,7 +65,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     private String[] types = Strings.EMPTY_ARRAY;
     private String[] filteringAliases;
     private SearchSourceBuilder source;
-    private Template template;
     private Boolean requestCache;
     private long nowInMillis;
 
@@ -79,7 +77,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
                             String[] filteringAliases, long nowInMillis) {
         this(shardRouting.shardId(), numberOfShards, searchRequest.searchType(),
                 searchRequest.source(), searchRequest.types(), searchRequest.requestCache());
-        this.template = searchRequest.template();
         this.scroll = searchRequest.scroll();
         this.filteringAliases = filteringAliases;
         this.nowInMillis = nowInMillis;
@@ -145,10 +142,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     public long nowInMillis() {
         return nowInMillis;
     }
-    @Override
-    public Template template() {
-        return template;
-    }
 
     @Override
     public Boolean requestCache() {
@@ -183,7 +176,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         types = in.readStringArray();
         filteringAliases = in.readStringArray();
         nowInMillis = in.readVLong();
-        template = in.readOptionalWriteable(Template::new);
         requestCache = in.readOptionalBoolean();
     }
 
@@ -211,8 +203,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         if (!asKey) {
             out.writeVLong(nowInMillis);
         }
-
-        out.writeOptionalWriteable(template);
         out.writeOptionalBoolean(requestCache);
     }
 

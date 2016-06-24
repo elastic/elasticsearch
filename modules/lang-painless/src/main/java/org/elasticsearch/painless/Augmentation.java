@@ -64,6 +64,30 @@ public class Augmentation {
         return false;
     }
     
+    /** Converts this Iterable to a Collection. Returns the original Iterable if it is already a Collection. */
+    public static <T> Collection<T> asCollection(Iterable<T> receiver) {
+        if (receiver instanceof Collection) {
+            return (Collection<T>)receiver;
+        }
+        List<T> list = new ArrayList<>();
+        for (T t : receiver) {
+            list.add(t);
+        }
+        return list;
+    }
+    
+    /** Converts this Iterable to a List. Returns the original Iterable if it is already a List. */
+    public static <T> List<T> asList(Iterable<T> receiver) {
+        if (receiver instanceof List) {
+            return (List<T>)receiver;
+        }
+        List<T> list = new ArrayList<>();
+        for (T t : receiver) {
+            list.add(t);
+        }
+        return list;
+    }
+    
     /** Counts the number of occurrences which satisfy the given predicate from inside this Iterable. */ 
     public static <T> int count(Iterable<T> receiver, Predicate<T> predicate) {
         int count = 0;
@@ -153,6 +177,17 @@ public class Augmentation {
             sb.append(t);
         }
         return sb.toString();
+    }
+    
+    /**
+     * Sums the result of an Iterable
+     */
+    public static <T extends Number> double sum(Iterable<T> receiver) {
+        double sum = 0;
+        for (T t : receiver) {
+            sum += t.doubleValue();
+        }
+        return sum;
     }
     
     /**

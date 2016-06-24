@@ -243,7 +243,7 @@ directory so that you do not delete important data later on.
 | script
   | Location of script files.
   | %ES_HOME%\scripts
-  | path.script
+  | path.scripts
 
 |=======================================================================
 

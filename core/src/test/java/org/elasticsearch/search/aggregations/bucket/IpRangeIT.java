@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
@@ -54,6 +55,7 @@ public class IpRangeIT extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("idx")
                 .addMapping("type", "ip", "type=ip", "ips", "type=ip"));
+        waitForRelocation(ClusterHealthStatus.GREEN);
 
         indexRandom(true,
                 client().prepareIndex("idx", "type", "1").setSource(
@@ -67,6 +69,8 @@ public class IpRangeIT extends ESIntegTestCase {
                         "ips", Arrays.asList("2001:db8::ff00:42:8329", "2001:db8::ff00:42:8380")));
 
         assertAcked(prepareCreate("idx_unmapped"));
+        waitForRelocation(ClusterHealthStatus.GREEN);
+        refresh();
     }
 
     public void testSingleValuedField() {

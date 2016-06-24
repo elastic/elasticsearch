@@ -22,7 +22,7 @@
  * <p>
  * The following are the types of nodes:
  * A* (abstract) - These are the abstract nodes that are the superclasses for the other types.
- * I* (interface) -- Thse are marker interfaces to denote a property of the node.
+ * I* (interface) -- These are marker interfaces to denote a property of the node.
  * S* (statement) - These are nodes that represent a statement in Painless.  These are the highest level nodes.
  * E* (expression) - These are nodes that represent an expression in Painless.  These are the middle level nodes.
  * L* (link) - These are nodes that represent a piece of a variable/method chain.  The are the lowest level nodes.
@@ -44,6 +44,9 @@
  * {@link org.elasticsearch.painless.node.EDecimal} - Represents a decimal constant.
  * {@link org.elasticsearch.painless.node.EExplicit} - Represents an explicit cast.
  * {@link org.elasticsearch.painless.node.EFunctionRef} - Represents a function reference (non-capturing).
+ * {@link org.elasticsearch.painless.node.EInstanceof} - Represents an instanceof check.
+ * {@link org.elasticsearch.painless.node.EListInit} - Represents a list initialization shortcut.
+ * {@link org.elasticsearch.painless.node.EMapInit} - Represents a map initialization shortcut.
  * {@link org.elasticsearch.painless.node.ENull} - Represents a null constant.
  * {@link org.elasticsearch.painless.node.ENumeric} - Represents a non-decimal numeric constant.
  * {@link org.elasticsearch.painless.node.EUnary} - Represents a unary math expression.
@@ -90,7 +93,7 @@
  * All Painless trees must start with an SSource node at the root.  Each node has a constructor that requires
  * all of its values and children be passed in at the time of instantiation.  This means that Painless trees
  * are build bottom-up; however, this helps enforce tree structure to be correct and fits naturally with a
- * standard recurvise-descent parser.
+ * standard recursive-descent parser.
  * <p>
  * Generally, statement nodes have member data that evaluate legal control-flow during the analysis phase.
  * The typical order for statement nodes is for each node to call analyze on it's children during the analysis phase

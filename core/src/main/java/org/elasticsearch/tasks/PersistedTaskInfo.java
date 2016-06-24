@@ -160,6 +160,7 @@ public final class PersistedTaskInfo implements Writeable, ToXContent {
     }
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("completed", completed);
         builder.field("task", task);
         if (error != null) {
             XContentHelper.writeRawField("error", error, builder, params);
@@ -171,8 +172,16 @@ public final class PersistedTaskInfo implements Writeable, ToXContent {
     }
 
     public static final ConstructingObjectParser<PersistedTaskInfo, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
-            "persisted_task_info", a -> new PersistedTaskInfo(true, (TaskInfo) a[0], (BytesReference) a[1], (BytesReference) a[2]));
+            "persisted_task_info", a -> {
+                int i = 0;
+                boolean completed = (boolean) a[i++];
+                TaskInfo task = (TaskInfo) a[i++];
+                BytesReference error = (BytesReference) a[i++];
+                BytesReference response = (BytesReference) a[i++];
+                return new PersistedTaskInfo(completed, task, error, response);
+            });
     static {
+        PARSER.declareBoolean(constructorArg(), new ParseField("completed"));
         PARSER.declareObject(constructorArg(), TaskInfo.PARSER, new ParseField("task"));
         PARSER.declareRawObject(optionalConstructorArg(), new ParseField("error"));
         PARSER.declareRawObject(optionalConstructorArg(), new ParseField("response"));

@@ -117,3 +117,8 @@ via ES_JAVA_OPTS.
 
 The ability to specify a custom plugins path via `path.plugins` has
 been removed.
+
+==== ScriptPlugin
+
+Plugins that register custom scripts should implement `ScriptPlugin` and remove
+their `onModule(ScriptModule)` implementation.

@@ -265,12 +265,13 @@ The `setTemplateSource(String)` and `setTemplateSource(BytesReference)` methods 
 
 ==== SearchRequest
 
-All `template` methods have been removed in favor of a single `template(Template)` method.
-
 All `source` methods have been removed in favor of a single `source(SearchSourceBuilder)` method. This means that all search requests can now be validated
 at call time which results in much clearer errors.
 
 All `extraSource` methods have been removed.
+
+All `template` methods have been removed in favor of a new Search Template API. A new `SearchTemplateRequest` now accepts a template and
+a `SearchRequest` and must be executed using the new `SearchTemplateAction` action.
 
 ==== SearchResponse
 
@@ -310,3 +311,11 @@ Removed the `getMemoryAvailable` method from `OsStats`, which could be previousl
 `setRefresh(boolean)` has been removed in favor of `setRefreshPolicy(RefreshPolicy)` because there
 are now three options (NONE, IMMEDIATE, and WAIT_FOR). `setRefresh(IMMEDIATE)` has the same behavior
 as `setRefresh(true)` used to have. See `setRefreshPolicy`'s javadoc for more.
+
+=== Render Search Template Java API has been removed
+
+The Render Search Template Java API including `RenderSearchTemplateAction`, `RenderSearchTemplateRequest` and
+`RenderSearchTemplateResponse` has been removed in favor of a new `simulate` option in the Search Template Java API.
+ This Search Template API is now included in the `lang-mustache` module and the `simulate` flag must be set on the
+ `SearchTemplateRequest` object.
+

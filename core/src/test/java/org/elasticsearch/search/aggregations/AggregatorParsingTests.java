@@ -29,7 +29,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -112,27 +111,29 @@ public class AggregatorParsingTests extends ESTestCase {
             (b) -> {
                 b.bind(Environment.class).toInstance(new Environment(settings));
                 b.bind(ThreadPool.class).toInstance(threadPool);
-            }, settingsModule
-            , scriptModule, new IndicesModule(namedWriteableRegistry, Collections.emptyList()) {
-                    @Override
-                    protected void configure() {
-                        bindMapperExtension();
-                    }
-                }, new SearchModule(settings, namedWriteableRegistry) {
-                    @Override
-                    protected void configureSearch() {
-                        // Skip me
-                    }
-                }, new IndexSettingsModule(index, settings),
+                b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
+            },
+            settingsModule,
+            new IndicesModule(namedWriteableRegistry, Collections.emptyList()) {
+                @Override
+                protected void configure() {
+                    bindMapperExtension();
+                }
+            }, new SearchModule(settings, namedWriteableRegistry) {
+                @Override
+                protected void configureSearch() {
+                    // Skip me
+                }
+            }, new IndexSettingsModule(index, settings),
 
-                new AbstractModule() {
-                    @Override
-                    protected void configure() {
-                        bind(ClusterService.class).toProvider(Providers.of(clusterService));
-                        bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
-                        bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
-                    }
-                }).createInjector();
+            new AbstractModule() {
+                @Override
+                protected void configure() {
+                    bind(ClusterService.class).toInstance(clusterService);
+                    bind(CircuitBreakerService.class).toInstance(new NoneCircuitBreakerService());
+                    bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
+                }
+            }).createInjector();
         aggParsers = injector.getInstance(AggregatorParsers.class);
         // create some random type with some default field, those types will
         // stick around for all of the subclasses

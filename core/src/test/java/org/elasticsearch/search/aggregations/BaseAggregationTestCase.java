@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.util.Providers;
@@ -140,30 +139,25 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
             (b) -> {
                 b.bind(Environment.class).toInstance(new Environment(settings));
                 b.bind(ThreadPool.class).toInstance(threadPool);
+                b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
+                b.bind(ClusterService.class).toProvider(Providers.of(clusterService));
+                b.bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
+                b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
             },
             settingsModule,
-            scriptModule,
             new IndicesModule(namedWriteableRegistry, Collections.emptyList()) {
                 @Override
                 protected void configure() {
                     bindMapperExtension();
                 }
-            }, new SearchModule(settings, namedWriteableRegistry) {
+            },
+            new SearchModule(settings, namedWriteableRegistry) {
                 @Override
                 protected void configureSearch() {
                     // Skip me
                 }
             },
-            new IndexSettingsModule(index, settings),
-
-            new AbstractModule() {
-                @Override
-                protected void configure() {
-                    bind(ClusterService.class).toProvider(Providers.of(clusterService));
-                    bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
-                    bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
-                }
-            }
+            new IndexSettingsModule(index, settings)
         ).createInjector();
     }
 

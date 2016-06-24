@@ -112,6 +112,14 @@ public class ReplicationOperation<
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] op [{}] completed on primary for request [{}]", primaryId, opType, request);
         }
+
+        performOnReplicas(primaryId, replicaRequest);
+
+        successfulShards.incrementAndGet();
+        decPendingAndFinishIfNeeded();
+    }
+
+    private void performOnReplicas(ShardId primaryId, ReplicaRequest replicaRequest) {
         // we have to get a new state after successfully indexing into the primary in order to honour recovery semantics.
         // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
         // to the recovery target. If we use an old cluster state, we may miss a relocation that has started since then.
@@ -134,9 +142,6 @@ public class ReplicationOperation<
                 performOnReplica(shard.buildTargetRelocatingShard(), replicaRequest);
             }
         }
-
-        successfulShards.incrementAndGet();
-        decPendingAndFinishIfNeeded();
     }
 
     private void performOnReplica(final ShardRouting shard, final ReplicaRequest replicaRequest) {

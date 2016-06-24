@@ -19,14 +19,20 @@
 
 package org.elasticsearch.timestamp;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
+import java.util.Collection;
 import java.util.Locale;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -41,8 +47,17 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  */
 public class SimpleTimestampIT extends ESIntegTestCase {
+
+    private static final Settings BW_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0).build();
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
+
     public void testSimpleTimestamp() throws Exception {
         client().admin().indices().prepareCreate("test")
+                .setSettings(BW_SETTINGS)
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("_timestamp").field("enabled", true).endObject().endObject().endObject())
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -98,7 +113,7 @@ public class SimpleTimestampIT extends ESIntegTestCase {
         String type = "mytype";
 
         XContentBuilder builder = jsonBuilder().startObject().startObject("_timestamp").field("enabled", true).endObject().endObject();
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setSettings(BW_SETTINGS).addMapping(type, builder));
 
         // check mapping again
         assertTimestampMappingEnabled(index, type, true);
@@ -117,7 +132,7 @@ public class SimpleTimestampIT extends ESIntegTestCase {
         String type = "mytype";
 
         XContentBuilder builder = jsonBuilder().startObject().startObject("_timestamp").field("enabled", true).endObject().endObject();
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setSettings(BW_SETTINGS).addMapping(type, builder));
 
         // check mapping again
         assertTimestampMappingEnabled(index, type, true);

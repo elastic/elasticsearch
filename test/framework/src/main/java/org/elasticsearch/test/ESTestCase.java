@@ -63,11 +63,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
@@ -102,6 +99,8 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -801,26 +800,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static ScriptModule newTestScriptModule() {
-        return new ScriptModule(new MockScriptEngine()) {
-            @Override
-            protected void configure() {
-                Settings settings = Settings.builder()
-                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                    // no file watching, so we don't need a ResourceWatcherService
-                    .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
-                    .build();
-                bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
-                bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
-                bind(ScriptSettings.class).toInstance(scriptSettings);
-                try {
-                    ScriptService scriptService = new ScriptService(settings, new Environment(settings), null,
-                        scriptEngineRegistry, scriptContextRegistry, scriptSettings);
-                    bind(ScriptService.class).toInstance(scriptService);
-                } catch (IOException e) {
-                    throw new IllegalStateException("error while binding ScriptService", e);
-                }
-            }
-        };
+        Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                // no file watching, so we don't need a ResourceWatcherService
+                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
+                .build();
+        Environment environment = new Environment(settings);
+        return new ScriptModule(settings, environment, null, singletonList(new MockScriptEngine()), emptyList());
     }
 
     /** Creates an IndicesModule for testing with the given mappers and metadata mappers. */

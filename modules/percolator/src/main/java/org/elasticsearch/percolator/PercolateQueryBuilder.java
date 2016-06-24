@@ -420,10 +420,11 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         "] to be of type [percolator], but is of type [" + fieldType.typeName() + "]");
             }
             PercolatorFieldMapper.PercolatorFieldType pft = (PercolatorFieldMapper.PercolatorFieldType) fieldType;
+            PercolateQuery.QueryStore queryStore = createStore(pft, context, mapUnmappedFieldsAsString);
             PercolateQuery.Builder builder = new PercolateQuery.Builder(
-                    documentType, createStore(pft, context, mapUnmappedFieldsAsString), document, docSearcher
+                    documentType, queryStore, document, docSearcher
             );
-            builder.extractQueryTermsQuery(pft.getExtractedTermsField(), pft.getUnknownQueryFieldName());
+            builder.extractQueryTermsQuery(pft.getExtractedTermsField(), pft.getExtractionResultFieldName());
             return builder.build();
         } else {
             Query percolateTypeQuery = new TermQuery(new Term(TypeFieldMapper.NAME, MapperService.PERCOLATOR_LEGACY_TYPE_NAME));

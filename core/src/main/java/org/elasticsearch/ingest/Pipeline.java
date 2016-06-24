@@ -109,6 +109,9 @@ public final class Pipeline {
                 throw new ElasticsearchParseException("pipeline [" + id +
                         "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
             }
+            if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
+                throw new ElasticsearchParseException("pipeline [" + id + "] cannot have an empty on_failure option defined");
+            }
             CompoundProcessor compoundProcessor = new CompoundProcessor(false, Collections.unmodifiableList(processors),
                     Collections.unmodifiableList(onFailureProcessors));
             return new Pipeline(id, description, compoundProcessor);

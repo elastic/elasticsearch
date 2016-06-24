@@ -99,9 +99,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRespo
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateRequest;
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateRequestBuilder;
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
@@ -535,28 +532,6 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Get snapshot status.
      */
     SnapshotsStatusRequestBuilder prepareSnapshotStatus();
-
-
-    /**
-     * Return the rendered search request for a given search template.
-     *
-     * @param request The request
-     * @return The result future
-     */
-    ActionFuture<RenderSearchTemplateResponse> renderSearchTemplate(RenderSearchTemplateRequest request);
-
-    /**
-     * Return the rendered search request for a given search template.
-     *
-     * @param request  The request
-     * @param listener A listener to be notified of the result
-     */
-    void renderSearchTemplate(RenderSearchTemplateRequest request, ActionListener<RenderSearchTemplateResponse> listener);
-
-    /**
-     * Return the rendered search request for a given search template.
-     */
-    RenderSearchTemplateRequestBuilder prepareRenderSearchTemplate();
 
     /**
      * Stores an ingest pipeline

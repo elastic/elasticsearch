@@ -29,7 +29,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class ElisionTokenFilterFactory extends AbstractTokenFilterFactory {
+public class ElisionTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
     private final CharArraySet articles;
 
@@ -41,5 +41,10 @@ public class ElisionTokenFilterFactory extends AbstractTokenFilterFactory {
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new ElisionFilter(tokenStream, articles);
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }

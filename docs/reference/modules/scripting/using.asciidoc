@@ -114,7 +114,7 @@ files stored on every node in the cluster.  File scripts must be saved in the
 `scripts` directory whose default location depends on whether you use  the
 <<zip-targz-layout,`zip`/`tar.gz`>> (`$ES_HOME/config/scripts/`),
 <<rpm-layout,RPM>>, or <<deb-layout,Debian>> package.  The default may be
-changed with the `path.script` setting.
+changed with the `path.scripts` setting.
 
 The languages which are assumed to be safe by default are: `painless`,
 `expression`, and `mustache` (used for search and query templates).

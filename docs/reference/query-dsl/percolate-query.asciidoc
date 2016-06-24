@@ -367,7 +367,7 @@ GET /_search
 {
   "query": {
     "term" : {
-      "query.unknown_query" : ""
+      "query.extraction_result" : "failed"
     }
   }
 }

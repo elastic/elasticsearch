@@ -27,7 +27,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -222,6 +221,8 @@ public final class InternalTestCluster extends TestCluster {
      */
     private final String nodePrefix;
     private final Path baseDir;
+    /** custom data paths to use, if non null. These are releative paths **/
+    private final String[] dataPaths;
 
     private ServiceDisruptionScheme activeDisruptionScheme;
     private String nodeMode;
@@ -291,20 +292,19 @@ public final class InternalTestCluster extends TestCluster {
             clusterName, SeedUtils.formatSeed(clusterSeed),
             numSharedDedicatedMasterNodes, numSharedDataNodes, numSharedCoordOnlyNodes);
         this.nodeConfigurationSource = nodeConfigurationSource;
-        Builder builder = Settings.builder();
         if (random.nextInt(5) == 0) { // sometimes set this
             // randomize (multi/single) data path, special case for 0, don't set it at all...
-            final int numOfDataPaths = random.nextInt(5);
-            if (numOfDataPaths > 0) {
-                StringBuilder dataPath = new StringBuilder();
-                for (int i = 0; i < numOfDataPaths; i++) {
-                    dataPath.append(baseDir.resolve("d" + i).toAbsolutePath()).append(',');
-                }
-                builder.put(Environment.PATH_DATA_SETTING.getKey(), dataPath.toString());
+            final int numOfDataPaths = 1 + random.nextInt(4);
+            dataPaths = new String[numOfDataPaths];
+            for (int i = 0; i < dataPaths.length; i++) {
+                dataPaths[i] = "d" + i;
             }
+        } else {
+            dataPaths = null;
         }
+
+        Builder builder = Settings.builder();
         builder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), baseDir.resolve("custom"));
-        builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
         builder.put(TransportSettings.PORT.getKey(), TRANSPORT_BASE_PORT + "-" + (TRANSPORT_BASE_PORT + PORTS_PER_CLUSTER));
         builder.put("http.port", HTTP_BASE_PORT + "-" + (HTTP_BASE_PORT + PORTS_PER_CLUSTER));
@@ -367,15 +367,6 @@ public final class InternalTestCluster extends TestCluster {
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
         Builder builder = Settings.builder().put(defaultSettings)
             .put(getRandomNodeSettings(nodeSeed));
-        Settings interimSettings = builder.build();
-        final String dataSuffix = getRoleSuffix(interimSettings);
-        if (dataSuffix.isEmpty() == false) {
-            // to make sure that a master node will not pick up on the data folder of a data only node
-            // once restarted we append the role suffix to each path.
-            String[] dataPath = Environment.PATH_DATA_SETTING.get(interimSettings).stream()
-                .map(path -> path + dataSuffix).toArray(String[]::new);
-            builder.putArray(Environment.PATH_DATA_SETTING.getKey(), dataPath);
-        }
         Settings settings = nodeConfigurationSource.nodeSettings(nodeOrdinal);
         if (settings != null) {
             if (settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) != null) {
@@ -586,17 +577,17 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private NodeAndClient buildNode(Settings settings, Version version) {
+    private NodeAndClient buildNode(Settings settings) {
         int ord = nextNodeId.getAndIncrement();
-        return buildNode(ord, random.nextLong(), settings, version, false);
+        return buildNode(ord, random.nextLong(), settings, false);
     }
 
     private NodeAndClient buildNode() {
         int ord = nextNodeId.getAndIncrement();
-        return buildNode(ord, random.nextLong(), null, Version.CURRENT, false);
+        return buildNode(ord, random.nextLong(), null, false);
     }
 
-    private NodeAndClient buildNode(int nodeId, long seed, Settings settings, Version version, boolean reuseExisting) {
+    private NodeAndClient buildNode(int nodeId, long seed, Settings settings, boolean reuseExisting) {
         assert Thread.holdsLock(this);
         ensureOpen();
         settings = getSettings(nodeId, seed, settings);
@@ -608,13 +599,28 @@ public final class InternalTestCluster extends TestCluster {
             assert reuseExisting == true || nodes.containsKey(name) == false :
                 "node name [" + name + "] already exists but not allowed to use it";
         }
-        Settings finalSettings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), baseDir) // allow overriding path.home
+        final String dataSuffix = getRoleSuffix(settings);
+        // to make sure that a master node will not pick up on the data folder of a data only node
+        // once restarted we append the role suffix to each path.
+        final Path finalBaseDir = dataSuffix.isEmpty() ? baseDir : baseDir.resolve(dataSuffix);
+
+
+        Settings.Builder finalSettings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), finalBaseDir.toAbsolutePath()) // allow overriding path.home
             .put(settings)
             .put("node.name", name)
-            .put(DiscoveryNodeService.NODE_ID_SEED_SETTING.getKey(), seed)
-            .build();
-        MockNode node = new MockNode(finalSettings, plugins);
+            .put(DiscoveryNodeService.NODE_ID_SEED_SETTING.getKey(), seed);
+
+        if (Environment.PATH_DATA_SETTING.exists(settings) == false && this.dataPaths != null) {
+            // to make sure that a master node will not pick up on the data folder of a data only node
+            // once restarted we append the role suffix to each path.
+                StringBuilder dataPath = new StringBuilder();
+                for (int i = 0; i < this.dataPaths.length; i++) {
+                    dataPath.append(finalBaseDir.resolve("d" + i).toAbsolutePath()).append(',');
+                }
+                finalSettings.put(Environment.PATH_DATA_SETTING.getKey(), dataPath.toString());
+        }
+        MockNode node = new MockNode(finalSettings.build(), plugins);
         return new NodeAndClient(name, node);
     }
 
@@ -933,7 +939,7 @@ public final class InternalTestCluster extends TestCluster {
             Settings nodeSettings = node.settings();
             Builder builder = Settings.builder()
                 .put("client.transport.nodes_sampler_interval", "1s")
-                .put(Environment.PATH_HOME_SETTING.getKey(), baseDir)
+                .put(Environment.PATH_HOME_SETTING.getKey(), Environment.PATH_HOME_SETTING.get(nodeSettings))
                 .put("node.name", TRANSPORT_CLIENT_PREFIX + node.settings().get("node.name"))
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).put("client.transport.sniff", sniff)
                 .put(Node.NODE_MODE_SETTING.getKey(), Node.NODE_MODE_SETTING.exists(nodeSettings) ? Node.NODE_MODE_SETTING.get(nodeSettings) : nodeMode)
@@ -988,7 +994,7 @@ public final class InternalTestCluster extends TestCluster {
             final Settings.Builder settings = Settings.builder();
             settings.put(Node.NODE_MASTER_SETTING.getKey(), true).build();
             settings.put(Node.NODE_DATA_SETTING.getKey(), false).build();
-            NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), Version.CURRENT, true);
+            NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true);
             nodeAndClient.node().start();
             sharedNodes.add(nodeAndClient);
         }
@@ -999,7 +1005,7 @@ public final class InternalTestCluster extends TestCluster {
                 settings.put(Node.NODE_MASTER_SETTING.getKey(), false).build();
                 settings.put(Node.NODE_DATA_SETTING.getKey(), true).build();
             }
-            NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), Version.CURRENT, true);
+            NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true);
             nodeAndClient.node().start();
             sharedNodes.add(nodeAndClient);
         }
@@ -1007,7 +1013,7 @@ public final class InternalTestCluster extends TestCluster {
              i < numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {
             final Builder settings = Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_INGEST_SETTING.getKey(), false);
-            NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), Version.CURRENT, true);
+            NodeAndClient nodeAndClient = buildNode(i, sharedNodesSeeds[i], settings.build(), true);
             nodeAndClient.node().start();
             sharedNodes.add(nodeAndClient);
         }
@@ -1487,35 +1493,21 @@ public final class InternalTestCluster extends TestCluster {
      * Starts a node with default settings and returns it's name.
      */
     public synchronized String startNode() {
-        return startNode(Settings.EMPTY, Version.CURRENT);
-    }
-
-    /**
-     * Starts a node with default settings ad the specified version and returns it's name.
-     */
-    public synchronized String startNode(Version version) {
-        return startNode(Settings.EMPTY, version);
+        return startNode(Settings.EMPTY);
     }
 
     /**
      * Starts a node with the given settings builder and returns it's name.
      */
     public synchronized String startNode(Settings.Builder settings) {
-        return startNode(settings.build(), Version.CURRENT);
+        return startNode(settings.build());
     }
 
     /**
      * Starts a node with the given settings and returns it's name.
      */
     public synchronized String startNode(Settings settings) {
-        return startNode(settings, Version.CURRENT);
-    }
-
-    /**
-     * Starts a node with the given settings and version and returns it's name.
-     */
-    public synchronized String startNode(Settings settings, Version version) {
-        NodeAndClient buildNode = buildNode(settings, version);
+        NodeAndClient buildNode = buildNode(settings);
         buildNode.node().start();
         publishNode(buildNode);
         return buildNode.name;
@@ -1527,7 +1519,7 @@ public final class InternalTestCluster extends TestCluster {
 
     public synchronized Async<List<String>> startMasterOnlyNodesAsync(int numNodes, Settings settings) {
         Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), true).put(Node.NODE_DATA_SETTING.getKey(), false).build();
-        return startNodesAsync(numNodes, settings1, Version.CURRENT);
+        return startNodesAsync(numNodes, settings1);
     }
 
     public synchronized Async<List<String>> startDataOnlyNodesAsync(int numNodes) {
@@ -1536,7 +1528,7 @@ public final class InternalTestCluster extends TestCluster {
 
     public synchronized Async<List<String>> startDataOnlyNodesAsync(int numNodes, Settings settings) {
         Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false).put(Node.NODE_DATA_SETTING.getKey(), true).build();
-        return startNodesAsync(numNodes, settings1, Version.CURRENT);
+        return startNodesAsync(numNodes, settings1);
     }
 
     public synchronized Async<String> startMasterOnlyNodeAsync() {
@@ -1545,12 +1537,12 @@ public final class InternalTestCluster extends TestCluster {
 
     public synchronized Async<String> startMasterOnlyNodeAsync(Settings settings) {
         Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), true).put(Node.NODE_DATA_SETTING.getKey(), false).build();
-        return startNodeAsync(settings1, Version.CURRENT);
+        return startNodeAsync(settings1);
     }
 
     public synchronized String startMasterOnlyNode(Settings settings) {
         Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), true).put(Node.NODE_DATA_SETTING.getKey(), false).build();
-        return startNode(settings1, Version.CURRENT);
+        return startNode(settings1);
     }
 
     public synchronized Async<String> startDataOnlyNodeAsync() {
@@ -1559,33 +1551,26 @@ public final class InternalTestCluster extends TestCluster {
 
     public synchronized Async<String> startDataOnlyNodeAsync(Settings settings) {
         Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false).put(Node.NODE_DATA_SETTING.getKey(), true).build();
-        return startNodeAsync(settings1, Version.CURRENT);
+        return startNodeAsync(settings1);
     }
 
     public synchronized String startDataOnlyNode(Settings settings) {
         Settings settings1 = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false).put(Node.NODE_DATA_SETTING.getKey(), true).build();
-        return startNode(settings1, Version.CURRENT);
+        return startNode(settings1);
     }
 
     /**
      * Starts a node in an async manner with the given settings and returns future with its name.
      */
     public synchronized Async<String> startNodeAsync() {
-        return startNodeAsync(Settings.EMPTY, Version.CURRENT);
+        return startNodeAsync(Settings.EMPTY);
     }
 
     /**
      * Starts a node in an async manner with the given settings and returns future with its name.
      */
     public synchronized Async<String> startNodeAsync(final Settings settings) {
-        return startNodeAsync(settings, Version.CURRENT);
-    }
-
-    /**
-     * Starts a node in an async manner with the given settings and version and returns future with its name.
-     */
-    public synchronized Async<String> startNodeAsync(final Settings settings, final Version version) {
-        final NodeAndClient buildNode = buildNode(settings, version);
+        final NodeAndClient buildNode = buildNode(settings);
         final Future<String> submit = executor.submit(() -> {
             buildNode.node().start();
             publishNode(buildNode);
@@ -1598,23 +1583,16 @@ public final class InternalTestCluster extends TestCluster {
      * Starts multiple nodes in an async manner and returns future with its name.
      */
     public synchronized Async<List<String>> startNodesAsync(final int numNodes) {
-        return startNodesAsync(numNodes, Settings.EMPTY, Version.CURRENT);
+        return startNodesAsync(numNodes, Settings.EMPTY);
     }
 
     /**
      * Starts multiple nodes in an async manner with the given settings and returns future with its name.
      */
     public synchronized Async<List<String>> startNodesAsync(final int numNodes, final Settings settings) {
-        return startNodesAsync(numNodes, settings, Version.CURRENT);
-    }
-
-    /**
-     * Starts multiple nodes in an async manner with the given settings and version and returns future with its name.
-     */
-    public synchronized Async<List<String>> startNodesAsync(final int numNodes, final Settings settings, final Version version) {
         final List<Async<String>> asyncs = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
-            asyncs.add(startNodeAsync(settings, version));
+            asyncs.add(startNodeAsync(settings));
         }
 
         return () -> {
@@ -1633,7 +1611,7 @@ public final class InternalTestCluster extends TestCluster {
     public synchronized Async<List<String>> startNodesAsync(final Settings... settings) {
         List<Async<String>> asyncs = new ArrayList<>();
         for (Settings setting : settings) {
-            asyncs.add(startNodeAsync(setting, Version.CURRENT));
+            asyncs.add(startNodeAsync(setting));
         }
         return () -> {
             List<String> ids = new ArrayList<>();

@@ -22,14 +22,20 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.transport.TransportSettings;
 
+import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -39,6 +45,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Basic test that ensure that the internal cluster reproduces the same
@@ -152,5 +159,52 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             IOUtils.close(cluster0, cluster1);
         }
+    }
+
+    public void testDifferentRolesWithDifferentDataPaths() throws IOException, InterruptedException {
+        final Path baseDir = createTempDir();
+        Map<DiscoveryNode.Role, String[]> pathsPerRole = new HashMap<>();
+        InternalTestCluster cluster = new InternalTestCluster("local", randomLong(), baseDir, true, 0, 0, "test",
+            new NodeConfigurationSource() {
+                @Override
+                public Settings nodeSettings(int nodeOrdinal) {
+                    return Settings.builder().put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0).build();
+                }
+
+                @Override
+                public Settings transportClientSettings() {
+                    return Settings.EMPTY;
+                }
+            }, 0, randomBoolean(), "", Collections.emptyList(), Function.identity());
+        cluster.beforeTest(random(), 0.0);
+        try {
+            for (int i = 0; i < 5; i++) {
+                final DiscoveryNode.Role role;
+                if (randomBoolean()) {
+                    role = DiscoveryNode.Role.MASTER;
+                    cluster.startMasterOnlyNode(Settings.EMPTY);
+                } else {
+                    role = DiscoveryNode.Role.DATA;
+                    cluster.startDataOnlyNode(Settings.EMPTY);
+                }
+
+                String[] paths = Arrays.stream(cluster.getInstance(NodeEnvironment.class).nodePaths()).map(np -> np.path.toString())
+                    .sorted().toArray(String[]::new);
+                if (pathsPerRole.containsKey(role) == false) {
+                    pathsPerRole.put(role, paths);
+                }
+                for (Map.Entry<DiscoveryNode.Role, String[]> entry : pathsPerRole.entrySet()) {
+                    if (entry.getKey() == role) {
+                        assertThat(paths, equalTo(entry.getValue()));
+                    } else {
+                        assertThat(paths, not(equalTo(entry.getValue())));
+                    }
+                }
+                cluster.closeNonSharedNodes(false);
+            }
+        } finally {
+            cluster.close();
+        }
+
     }
 }

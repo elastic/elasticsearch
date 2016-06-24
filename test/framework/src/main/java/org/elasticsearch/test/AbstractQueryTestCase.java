@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
@@ -128,7 +127,6 @@ import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
-    private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
     public static final String STRING_FIELD_NAME = "mapped_string";
     protected static final String STRING_FIELD_NAME_2 = "mapped_string_2";
     protected static final String INT_FIELD_NAME = "mapped_int";
@@ -683,18 +681,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     protected String getRandomType() {
         return (serviceHolder.currentTypes.length == 0) ? MetaData.ALL : randomFrom(serviceHolder.currentTypes);
-    }
-
-    public static String randomGeohash(int minPrecision, int maxPrecision) {
-        return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
-    }
-
-    public static class GeohashGenerator extends CodepointSetGenerator {
-        private static final char[] ASCII_SET = "0123456789bcdefghjkmnpqrstuvwxyz".toCharArray();
-
-        public GeohashGenerator() {
-            super(ASCII_SET);
-        }
     }
 
     protected static Fuzziness randomFuzziness(String fieldName) {

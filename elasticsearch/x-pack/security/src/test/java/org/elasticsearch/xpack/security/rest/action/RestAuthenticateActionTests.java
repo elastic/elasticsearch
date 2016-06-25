@@ -11,6 +11,8 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authz.InternalAuthorizationService;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
@@ -56,7 +58,8 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
                 new BasicHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
                         new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
-            ObjectPath objectPath = ObjectPath.createFromXContent(EntityUtils.toString(response.getEntity()));
+            ObjectPath objectPath = ObjectPath.createFromXContent(XContentFactory.xContent(XContentType.JSON),
+                    EntityUtils.toString(response.getEntity()));
             assertThat(objectPath.evaluate("username").toString(), equalTo(SecuritySettingsSource.DEFAULT_USER_NAME));
             @SuppressWarnings("unchecked")
             List<String> roles = (List<String>) objectPath.evaluate("roles");
@@ -70,7 +73,8 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
                 Collections.emptyMap(), null)) {
             if (anonymousEnabled) {
                 assertThat(response.getStatusLine().getStatusCode(), is(200));
-                ObjectPath objectPath = ObjectPath.createFromXContent(EntityUtils.toString(response.getEntity()));
+                ObjectPath objectPath = ObjectPath.createFromXContent(XContentFactory.xContent(XContentType.JSON),
+                        EntityUtils.toString(response.getEntity()));
                 assertThat(objectPath.evaluate("username").toString(), equalTo("anon"));
                 @SuppressWarnings("unchecked")
                 List<String> roles = (List<String>) objectPath.evaluate("roles");

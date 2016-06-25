@@ -149,9 +149,10 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
     protected abstract boolean accumulateExceptions();
 
     /**
-     * resolve node ids to concrete nodes the incoming request
-     ***/
+     * resolve node ids to concrete nodes of the incoming request
+     **/
     protected void resolveRequest(NodesRequest request, ClusterState clusterState) {
+        assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
         String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
         request.setConcreteNodes(Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new));
     }

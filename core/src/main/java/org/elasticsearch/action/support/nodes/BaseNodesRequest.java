@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -35,11 +34,10 @@ import java.io.IOException;
  */
 public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>> extends ActionRequest<Request> {
 
-    public static String[] ALL_NODES = Strings.EMPTY_ARRAY;
-
     /**
-     * the list of nodesIds that will be used to resolve this request, once resolved this array will by nulled and {@link #concreteNodes}
-     * will be populated
+     * the list of nodesIds that will be used to resolve this request and {@link #concreteNodes}
+     * will be populated. Note that if {@link #concreteNodes} is not null, it will be used and nodeIds
+     * will be ignored.
      *
      * See {@link DiscoveryNodes#resolveNodes} for a full description of the options.
      *

@@ -341,7 +341,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
 
         @Override
         public String toString() {
-            return "[[" + getNode() + "] found [" + storeFilesMetaData + "]";
+            return "[[" + getNode() + "][" + storeFilesMetaData + "]]";
         }
     }
 }

@@ -183,7 +183,6 @@ public class TransportNodesListGatewayStartedShards extends
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             shardId = ShardId.readShardId(in);
-            List<DiscoveryNode> discoveryNodes = in.readList(DiscoveryNode::new);
         }
 
         @Override

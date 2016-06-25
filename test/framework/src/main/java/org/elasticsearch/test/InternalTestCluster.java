@@ -936,7 +936,7 @@ public final class InternalTestCluster extends TestCluster {
             Settings nodeSettings = node.settings();
             Builder builder = Settings.builder()
                 .put("client.transport.nodes_sampler_interval", "1s")
-                .put(Environment.PATH_HOME_SETTING.getKey(), Environment.PATH_HOME_SETTING.get(nodeSettings))
+                .put(Environment.PATH_HOME_SETTING.getKey(), baseDir)
                 .put("node.name", TRANSPORT_CLIENT_PREFIX + node.settings().get("node.name"))
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).put("client.transport.sniff", sniff)
                 .put(Node.NODE_MODE_SETTING.getKey(), Node.NODE_MODE_SETTING.exists(nodeSettings) ? Node.NODE_MODE_SETTING.get(nodeSettings) : nodeMode)

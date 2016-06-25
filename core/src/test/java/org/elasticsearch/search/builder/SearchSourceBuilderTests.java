@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.builder;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -89,7 +90,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class SearchSourceBuilderTests extends ESTestCase {
     private static Injector injector;
@@ -590,6 +593,27 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 assertEquals(new QueryRescorerBuilder(QueryBuilders.matchQuery("content", "baz")).windowSize(50),
                         searchSourceBuilder.rescores().get(0));
             }
+        }
+    }
+
+    public void testTimeoutWithUnits() throws IOException {
+        final String timeout = randomTimeValue();
+        final String query = "{ \"query\": { \"match_all\": {}}, \"timeout\": \"" + timeout + "\"}";
+        try (XContentParser parser = XContentFactory.xContent(query).createParser(query)) {
+            final SearchSourceBuilder builder = SearchSourceBuilder.fromXContent(createParseContext(parser), aggParsers, suggesters);
+            assertThat(builder.timeoutInMillis(), equalTo(TimeValue.parseTimeValue(timeout, null, "timeout").millis()));
+        }
+    }
+
+    public void testTimeoutWithoutUnits() throws IOException {
+        final int timeout = randomIntBetween(1, 1024);
+        final String query = "{ \"query\": { \"match_all\": {}}, \"timeout\": \"" + timeout + "\"}";
+        try (XContentParser parser = XContentFactory.xContent(query).createParser(query)) {
+            final ElasticsearchParseException e =
+                    expectThrows(
+                            ElasticsearchParseException.class,
+                            () -> SearchSourceBuilder.fromXContent(createParseContext(parser), aggParsers, suggesters));
+            assertThat(e, hasToString(containsString("unit is missing or unrecognized")));
         }
     }
 

@@ -31,16 +31,19 @@ import java.util.Map;
  */
 public class ObjectPath {
 
-    private final Map<String, Object> object;
+    private final Object object;
 
     public static ObjectPath createFromXContent(String input) throws IOException {
         try (XContentParser parser = XContentFactory.xContent(input).createParser(input)) {
+            if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
+                return new ObjectPath(parser.listOrderedMap());
+            }
             return new ObjectPath(parser.mapOrdered());
         }
     }
 
-    public ObjectPath(Map<String, Object> map) throws IOException {
-        this.object = map;
+    public ObjectPath(Object object) throws IOException {
+        this.object = object;
     }
 
     /**

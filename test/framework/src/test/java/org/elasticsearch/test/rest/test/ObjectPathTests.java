@@ -198,4 +198,28 @@ public class ObjectPathTests extends ESTestCase {
         assertThat(object, notNullValue());
         assertThat(object.toString(), equalTo("value1"));
     }
+
+    @SuppressWarnings("unchecked")
+    public void testEvaluateArrayAsRoot() throws Exception {
+        String input = "---\n" +
+                "- alias: \"test_alias1\"\n" +
+                "  index: \"test1\"\n" +
+                "- alias: \"test_alias2\"\n" +
+                "  index: \"test2\"";
+
+        ObjectPath objectPath = ObjectPath.createFromXContent(input);
+        Object object = objectPath.evaluate("");
+        assertThat(object, notNullValue());
+        assertThat(object, instanceOf(List.class));
+        assertThat(((List<Object>)object).size(), equalTo(2));
+        object = objectPath.evaluate("0");
+        assertThat(object, notNullValue());
+        assertThat(object, instanceOf(Map.class));
+        assertThat(((Map<String, Object>)object).get("alias"), equalTo("test_alias1"));
+        object = objectPath.evaluate("1.index");
+        assertThat(object, notNullValue());
+        assertThat(object, instanceOf(String.class));
+        assertThat(object, equalTo("test2"));
+    }
+
 }

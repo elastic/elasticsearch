@@ -366,15 +366,6 @@ public final class InternalTestCluster extends TestCluster {
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
         Builder builder = Settings.builder().put(defaultSettings)
             .put(getRandomNodeSettings(nodeSeed));
-        Settings interimSettings = builder.build();
-        final String dataSuffix = getRoleSuffix(interimSettings);
-        if (dataSuffix.isEmpty() == false) {
-            // to make sure that a master node will not pick up on the data folder of a data only node
-            // once restarted we append the role suffix to each path.
-            String[] dataPath = Environment.PATH_DATA_SETTING.get(interimSettings).stream()
-                .map(path -> path + dataSuffix).toArray(String[]::new);
-            builder.putArray(Environment.PATH_DATA_SETTING.getKey(), dataPath);
-        }
         Settings settings = nodeConfigurationSource.nodeSettings(nodeOrdinal);
         if (settings != null) {
             if (settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) != null) {
@@ -1359,15 +1350,24 @@ public final class InternalTestCluster extends TestCluster {
                 nodeAndClient.closeNode();
             }
 
-            // starting master nodes first, for now so restart will be quick. If we'll start
-            // the data nodes first, they will wait for 30s for a master
+            // starting master nodes first, the data nodes, then coordinate nodes, to make sure that:
+            // 1) A data folder that was assigned to a data node will stay so
+            // 2) Data nodes will get the same node lock ordinal range, so custom index paths (where the ordinal is used)
+            //    will still belong to data nodes
             List<DiscoveryNode> discoveryNodes = new ArrayList<>();
             for (ClusterService clusterService : getInstances(ClusterService.class)) {
                 discoveryNodes.add(clusterService.localNode());
             }
 
-            discoveryNodes.sort((n1, n2) -> Boolean.compare(n1.isMasterNode() == false, n2.isMasterNode() == false));
-
+            discoveryNodes.sort((n1, n2) -> {
+                if (n1.isMasterNode() != n2.isMasterNode())  {
+                    return n1.isMasterNode() ? -1 : 1;
+                } else if (n1.isDataNode() != n2.isDataNode()) {
+                    return n1.isDataNode() ? -1 : 1;
+                } else {
+                    return 0;
+                }
+            });
 
             for (DiscoveryNode node : discoveryNodes) {
                 NodeAndClient nodeAndClient = nodes.get(node.getName());

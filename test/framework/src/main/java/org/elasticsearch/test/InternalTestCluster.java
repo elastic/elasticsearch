@@ -369,15 +369,6 @@ public final class InternalTestCluster extends TestCluster {
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
         Builder builder = Settings.builder().put(defaultSettings)
             .put(getRandomNodeSettings(nodeSeed));
-        Settings interimSettings = builder.build();
-        final String dataSuffix = getRoleSuffix(interimSettings);
-        if (dataSuffix.isEmpty() == false) {
-            // to make sure that a master node will not pick up on the data folder of a data only node
-            // once restarted we append the role suffix to each path.
-            String[] dataPath = Environment.PATH_DATA_SETTING.get(interimSettings).stream()
-                .map(path -> path + dataSuffix).toArray(String[]::new);
-            builder.putArray(Environment.PATH_DATA_SETTING.getKey(), dataPath);
-        }
         Settings settings = nodeConfigurationSource.nodeSettings(nodeOrdinal);
         if (settings != null) {
             if (settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) != null) {

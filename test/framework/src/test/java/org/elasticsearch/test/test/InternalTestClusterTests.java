@@ -22,23 +22,39 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.transport.TransportSettings;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.node.DiscoveryNode.Role.DATA;
+import static org.elasticsearch.cluster.node.DiscoveryNode.Role.INGEST;
+import static org.elasticsearch.cluster.node.DiscoveryNode.Role.MASTER;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Basic test that ensure that the internal cluster reproduces the same
@@ -152,5 +168,132 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             IOUtils.close(cluster0, cluster1);
         }
+    }
+
+    public void testDataFolderAssignmentAndCleaning() throws IOException, InterruptedException {
+        long clusterSeed = randomLong();
+        boolean masterNodes = randomBoolean();
+        // we need one stable node
+        int minNumDataNodes = 2;
+        int maxNumDataNodes = 2;
+        final String clusterName1 = "shared1";
+        NodeConfigurationSource nodeConfigurationSource = NodeConfigurationSource.EMPTY;
+        int numClientNodes = randomIntBetween(0, 2);
+        boolean enableHttpPipelining = randomBoolean();
+        String nodePrefix = "test";
+        Path baseDir = createTempDir();
+        InternalTestCluster cluster = new InternalTestCluster("local", clusterSeed, baseDir, masterNodes,
+            minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
+            enableHttpPipelining, nodePrefix, Collections.emptyList(), Function.identity());
+        try {
+            cluster.beforeTest(random(), 0.0);
+            final Map<String,Path[]> shardNodePaths = new HashMap<>();
+            for (String name: cluster.getNodeNames()) {
+                shardNodePaths.put(name, cluster.getInstance(NodeEnvironment.class, name).nodeDataPaths());
+            }
+            String poorNode = randomFrom(cluster.getNodeNames());
+            Path dataPath = cluster.getInstance(NodeEnvironment.class, poorNode).nodeDataPaths()[0];
+            final Path testMarker = dataPath.resolve("testMarker");
+            Files.createDirectories(testMarker);
+            cluster.stopRandomNode(InternalTestCluster.nameFilter(poorNode));
+            assertFileExists(testMarker); // stopping a node half way shouldn't clean data
+
+            final String stableNode = randomFrom(cluster.getNodeNames());
+            final Path stableDataPath = cluster.getInstance(NodeEnvironment.class, stableNode).nodeDataPaths()[0];
+            final Path stableTestMarker = stableDataPath.resolve("stableTestMarker");
+            assertThat(stableDataPath, not(dataPath));
+            Files.createDirectories(stableTestMarker);
+
+            final String newNode1 =  cluster.startNode();
+            assertThat(cluster.getInstance(NodeEnvironment.class, newNode1).nodeDataPaths()[0], equalTo(dataPath));
+            assertFileExists(testMarker); // starting a node should re-use data folders and not clean it
+
+            final String newNode2 =  cluster.startNode();
+            final Path newDataPath = cluster.getInstance(NodeEnvironment.class, newNode2).nodeDataPaths()[0];
+            final Path newTestMarker = newDataPath.resolve("newTestMarker");
+            assertThat(newDataPath, not(dataPath));
+            Files.createDirectories(newTestMarker);
+            cluster.beforeTest(random(), 0.0);
+            assertFileNotExists(newTestMarker); // the cluster should be reset for a new test, cleaning up the extra path we made
+            assertFileNotExists(testMarker); // a new unknown node used this path, it should be cleaned
+            assertFileExists(stableTestMarker); // but leaving the structure of existing, reused nodes
+            for (String name: cluster.getNodeNames()) {
+                assertThat("data paths for " + name + " changed", cluster.getInstance(NodeEnvironment.class, name).nodeDataPaths(),
+                    equalTo(shardNodePaths.get(name)));
+            }
+
+            cluster.beforeTest(random(), 0.0);
+            assertFileExists(stableTestMarker); // but leaving the structure of existing, reused nodes
+            for (String name: cluster.getNodeNames()) {
+                assertThat("data paths for " + name + " changed", cluster.getInstance(NodeEnvironment.class, name).nodeDataPaths(),
+                    equalTo(shardNodePaths.get(name)));
+            }
+
+        } finally {
+            cluster.close();
+        }
+    }
+
+    public void testDifferentRolesMaintainPathOnRestart() throws Exception {
+        final Path baseDir = createTempDir();
+        InternalTestCluster cluster = new InternalTestCluster("local", randomLong(), baseDir, true, 0, 0, "test",
+            new NodeConfigurationSource() {
+                @Override
+                public Settings nodeSettings(int nodeOrdinal) {
+                    return Settings.builder().put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0).build();
+                }
+
+                @Override
+                public Settings transportClientSettings() {
+                    return Settings.EMPTY;
+                }
+            }, 0, randomBoolean(), "", Collections.emptyList(), Function.identity());
+        cluster.beforeTest(random(), 0.0);
+        try {
+            Map<DiscoveryNode.Role, Set<String>> pathsPerRole = new HashMap<>();
+            for (int i = 0; i < 5; i++) {
+                final DiscoveryNode.Role role = randomFrom(MASTER, DiscoveryNode.Role.DATA, DiscoveryNode.Role.INGEST);
+                final String node;
+                switch (role) {
+                    case MASTER:
+                        node = cluster.startMasterOnlyNode(Settings.EMPTY);
+                        break;
+                    case DATA:
+                        node = cluster.startDataOnlyNode(Settings.EMPTY);
+                        break;
+                    case INGEST:
+                        node = cluster.startCoordinatingOnlyNode(Settings.EMPTY);
+                        break;
+                    default:
+                        throw new IllegalStateException("get your story straight");
+                }
+                for (NodeEnvironment.NodePath nodePath : cluster.getInstance(NodeEnvironment.class, node).nodePaths()) {
+                    assertTrue(pathsPerRole.computeIfAbsent(role, k -> new HashSet<>()).add(nodePath.path.toString()));
+                }
+            }
+            cluster.fullRestart();
+
+            Map<DiscoveryNode.Role, Set<String>> result = new HashMap<>();
+            for (String name : cluster.getNodeNames()) {
+                DiscoveryNode node = cluster.getInstance(ClusterService.class, name).localNode();
+                List<String> paths = Arrays.stream(cluster.getInstance(NodeEnvironment.class, name).nodePaths())
+                    .map(np -> np.path.toString()).collect(Collectors.toList());
+                if (node.isMasterNode()) {
+                    result.computeIfAbsent(MASTER, k -> new HashSet<>()).addAll(paths);
+                } else if (node.isDataNode()) {
+                    result.computeIfAbsent(DATA, k -> new HashSet<>()).addAll(paths);
+                } else {
+                    result.computeIfAbsent(INGEST, k -> new HashSet<>()).addAll(paths);
+                }
+            }
+
+            assertThat(result.size(), equalTo(pathsPerRole.size()));
+            for (DiscoveryNode.Role role : result.keySet()) {
+                assertThat("path are not the same for " + role, result.get(role), equalTo(pathsPerRole.get(role)));
+            }
+        } finally {
+            cluster.close();
+        }
+
     }
 }

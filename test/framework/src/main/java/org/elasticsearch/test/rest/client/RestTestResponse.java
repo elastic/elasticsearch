@@ -68,7 +68,7 @@ public class RestTestResponse {
             String contentType = response.getHeader("Content-Type");
             XContentType xContentType = XContentType.fromMediaTypeOrFormat(contentType);
             //skip parsing if we got text back (e.g. if we called _cat apis)
-            if (xContentType == XContentType.JSON) {
+            if (xContentType == XContentType.JSON || xContentType == XContentType.YAML) {
                 this.parsedResponse = ObjectPath.createFromXContent(xContentType.xContent(), body);
             }
         }

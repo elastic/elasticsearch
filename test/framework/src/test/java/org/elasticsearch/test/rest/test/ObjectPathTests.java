@@ -52,7 +52,7 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.field("field2.field3", "value2");
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.string());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.string());
         Object object = objectPath.evaluate("field1.field2\\.field3");
         assertThat(object, instanceOf(String.class));
         assertThat(object, equalTo("value2"));
@@ -65,7 +65,7 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.field("field2", "value2");
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.string());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.string());
         Object object = objectPath.evaluate("field1..field2");
         assertThat(object, instanceOf(String.class));
         assertThat(object, equalTo("value2"));
@@ -84,7 +84,7 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.field("field2", 333);
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.string());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.string());
         Object object = objectPath.evaluate("field1.field2");
         assertThat(object, instanceOf(Integer.class));
         assertThat(object, equalTo(333));
@@ -97,7 +97,7 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.field("field2", 3.55);
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.string());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.string());
         Object object = objectPath.evaluate("field1.field2");
         assertThat(object, instanceOf(Double.class));
         assertThat(object, equalTo(3.55));
@@ -110,7 +110,7 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.array("array1", "value1", "value2");
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.string());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.string());
         Object object = objectPath.evaluate("field1.array1");
         assertThat(object, instanceOf(List.class));
         List list = (List) object;
@@ -139,7 +139,7 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.endArray();
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.string());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.string());
         Object object = objectPath.evaluate("field1.array1.1.element");
         assertThat(object, instanceOf(String.class));
         assertThat(object, equalTo("value2"));
@@ -166,7 +166,7 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.endObject();
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.string());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.string());
         Object object = objectPath.evaluate("metadata.templates");
         assertThat(object, instanceOf(Map.class));
         Map<String, Object> map = (Map<String, Object>)object;
@@ -184,7 +184,7 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.endObject();
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.string());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.string());
         try {
             objectPath.evaluate("field1.$placeholder.element1");
             fail("evaluate should have failed due to unresolved placeholder");
@@ -201,13 +201,18 @@ public class ObjectPathTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testEvaluateArrayAsRoot() throws Exception {
-        String input = "---\n" +
-                "- alias: \"test_alias1\"\n" +
-                "  index: \"test1\"\n" +
-                "- alias: \"test_alias2\"\n" +
-                "  index: \"test2\"";
-
-        ObjectPath objectPath = ObjectPath.createFromXContent(input);
+        XContentBuilder xContentBuilder = randomXContentBuilder();
+        xContentBuilder.startArray();
+        xContentBuilder.startObject();
+        xContentBuilder.field("alias", "test_alias1");
+        xContentBuilder.field("index", "test1");
+        xContentBuilder.endObject();
+        xContentBuilder.startObject();
+        xContentBuilder.field("alias", "test_alias2");
+        xContentBuilder.field("index", "test2");
+        xContentBuilder.endObject();
+        xContentBuilder.endArray();
+        ObjectPath objectPath = ObjectPath.createFromXContent(XContentFactory.xContent(XContentType.YAML), xContentBuilder.string());
         Object object = objectPath.evaluate("");
         assertThat(object, notNullValue());
         assertThat(object, instanceOf(List.class));
@@ -221,5 +226,4 @@ public class ObjectPathTests extends ESTestCase {
         assertThat(object, instanceOf(String.class));
         assertThat(object, equalTo("test2"));
     }
-
 }

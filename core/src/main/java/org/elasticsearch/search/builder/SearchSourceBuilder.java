@@ -21,7 +21,6 @@ package org.elasticsearch.search.builder;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -42,7 +41,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -51,6 +49,7 @@ import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -959,7 +958,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 } else if (context.getParseFieldMatcher().match(currentFieldName, SIZE_FIELD)) {
                     size = parser.intValue();
                 } else if (context.getParseFieldMatcher().match(currentFieldName, TIMEOUT_FIELD)) {
-                    timeoutInMillis = parser.longValue();
+                    timeoutInMillis = TimeValue.parseTimeValue(parser.text(), null, TIMEOUT_FIELD.getPreferredName()).millis();
                 } else if (context.getParseFieldMatcher().match(currentFieldName, TERMINATE_AFTER_FIELD)) {
                     terminateAfter = parser.intValue();
                 } else if (context.getParseFieldMatcher().match(currentFieldName, MIN_SCORE_FIELD)) {
@@ -1105,7 +1104,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
 
         if (timeoutInMillis != -1) {
-            builder.field(TIMEOUT_FIELD.getPreferredName(), timeoutInMillis);
+            builder.field(TIMEOUT_FIELD.getPreferredName(), TimeValue.timeValueMillis(timeoutInMillis).toString());
         }
 
         if (terminateAfter != SearchContext.DEFAULT_TERMINATE_AFTER) {

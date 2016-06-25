@@ -186,13 +186,14 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
         assertThat(Files.exists(indexDirectory(node_1, index)), equalTo(true));
 
-        final String node_2 = internalCluster().startDataOnlyNode(Settings.builder().build());
+        final String node_2 = internalCluster().startNode(Settings.builder().build());
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
-        assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
-        assertThat(Files.exists(indexDirectory(node_1, index)), equalTo(true));
-        assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(false));
-        assertThat(Files.exists(indexDirectory(node_2, index)), equalTo(false));
+        assertThat(shardDirectory(node_1, index, 0) + " should exist", Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
+        assertThat(indexDirectory(node_1, index) + " should exist", Files.exists(indexDirectory(node_1, index)), equalTo(true));
+        assertThat(shardDirectory(node_2, index, 0) + " should not exist", Files.exists(shardDirectory(node_2, index, 0)), equalTo(false));
+        // index meta state is written to disk
+        assertThat(indexDirectory(node_2, index) + " should exist",Files.exists(indexDirectory(node_2, index)), equalTo(true));
 
         // add a transport delegate that will prevent the shard active request to succeed the first time after relocation has finished.
         // node_1 will then wait for the next cluster state change before it tries a next attempt to delete the shard.

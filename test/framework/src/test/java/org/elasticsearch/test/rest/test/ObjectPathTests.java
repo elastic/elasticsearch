@@ -18,10 +18,14 @@
  */
 package org.elasticsearch.test.rest.test;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.Stash;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.Stash;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,94 +38,135 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ObjectPathTests extends ESTestCase {
+
+    private static XContentBuilder randomXContentBuilder() throws IOException {
+        //only string based formats are supported, no cbor nor smile
+        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.YAML);
+        return XContentBuilder.builder(XContentFactory.xContent(xContentType));
+    }
+
     public void testEvaluateObjectPathEscape() throws Exception {
-        String json = "{ \"field1\": { \"field2.field3\" : \"value2\" } }";
-        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        XContentBuilder xContentBuilder = randomXContentBuilder();
+        xContentBuilder.startObject();
+        xContentBuilder.startObject("field1");
+        xContentBuilder.field("field2.field3", "value2");
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.string());
         Object object = objectPath.evaluate("field1.field2\\.field3");
         assertThat(object, instanceOf(String.class));
-        assertThat((String)object, equalTo("value2"));
+        assertThat(object, equalTo("value2"));
     }
 
-    public void testEvaluateObjectPathWithDoubleDot() throws Exception {
-        String json = "{ \"field1\": { \"field2\" : \"value2\" } }";
-        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+    public void testEvaluateObjectPathWithDots() throws Exception {
+        XContentBuilder xContentBuilder = randomXContentBuilder();
+        xContentBuilder.startObject();
+        xContentBuilder.startObject("field1");
+        xContentBuilder.field("field2", "value2");
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.string());
         Object object = objectPath.evaluate("field1..field2");
         assertThat(object, instanceOf(String.class));
-        assertThat((String)object, equalTo("value2"));
-    }
-
-    public void testEvaluateObjectPathEndsWithDot() throws Exception {
-        String json = "{ \"field1\": { \"field2\" : \"value2\" } }";
-        ObjectPath objectPath = ObjectPath.createFromXContent(json);
-        Object object = objectPath.evaluate("field1.field2.");
+        assertThat(object, equalTo("value2"));
+        object = objectPath.evaluate("field1.field2.");
         assertThat(object, instanceOf(String.class));
-        assertThat((String)object, equalTo("value2"));
-    }
-
-    public void testEvaluateString() throws Exception {
-        String json = "{ \"field1\": { \"field2\" : \"value2\" } }";
-        ObjectPath objectPath = ObjectPath.createFromXContent(json);
-        Object object = objectPath.evaluate("field1.field2");
+        assertThat(object, equalTo("value2"));
+        object = objectPath.evaluate("field1.field2");
         assertThat(object, instanceOf(String.class));
-        assertThat((String)object, equalTo("value2"));
+        assertThat(object, equalTo("value2"));
     }
 
     public void testEvaluateInteger() throws Exception {
-        String json = "{ \"field1\": { \"field2\" : 333 } }";
-        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        XContentBuilder xContentBuilder = randomXContentBuilder();
+        xContentBuilder.startObject();
+        xContentBuilder.startObject("field1");
+        xContentBuilder.field("field2", 333);
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.string());
         Object object = objectPath.evaluate("field1.field2");
         assertThat(object, instanceOf(Integer.class));
-        assertThat((Integer)object, equalTo(333));
+        assertThat(object, equalTo(333));
     }
 
     public void testEvaluateDouble() throws Exception {
-        String json = "{ \"field1\": { \"field2\" : 3.55 } }";
-        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        XContentBuilder xContentBuilder = randomXContentBuilder();
+        xContentBuilder.startObject();
+        xContentBuilder.startObject("field1");
+        xContentBuilder.field("field2", 3.55);
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.string());
         Object object = objectPath.evaluate("field1.field2");
         assertThat(object, instanceOf(Double.class));
-        assertThat((Double)object, equalTo(3.55));
+        assertThat(object, equalTo(3.55));
     }
 
     public void testEvaluateArray() throws Exception {
-        String json = "{ \"field1\": { \"array1\" : [ \"value1\", \"value2\" ] } }";
-        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        XContentBuilder xContentBuilder = randomXContentBuilder();
+        xContentBuilder.startObject();
+        xContentBuilder.startObject("field1");
+        xContentBuilder.array("array1", "value1", "value2");
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.string());
         Object object = objectPath.evaluate("field1.array1");
         assertThat(object, instanceOf(List.class));
         List list = (List) object;
         assertThat(list.size(), equalTo(2));
         assertThat(list.get(0), instanceOf(String.class));
-        assertThat((String)list.get(0), equalTo("value1"));
+        assertThat(list.get(0), equalTo("value1"));
         assertThat(list.get(1), instanceOf(String.class));
-        assertThat((String)list.get(1), equalTo("value2"));
-    }
-
-    public void testEvaluateArrayElement() throws Exception {
-        String json = "{ \"field1\": { \"array1\" : [ \"value1\", \"value2\" ] } }";
-        ObjectPath objectPath = ObjectPath.createFromXContent(json);
-        Object object = objectPath.evaluate("field1.array1.1");
+        assertThat(list.get(1), equalTo("value2"));
+        object = objectPath.evaluate("field1.array1.1");
         assertThat(object, instanceOf(String.class));
-        assertThat((String)object, equalTo("value2"));
+        assertThat(object, equalTo("value2"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testEvaluateArrayElementObject() throws Exception {
-        String json = "{ \"field1\": { \"array1\" : [ {\"element\": \"value1\"}, {\"element\":\"value2\"} ] } }";
-        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        XContentBuilder xContentBuilder = randomXContentBuilder();
+        xContentBuilder.startObject();
+        xContentBuilder.startObject("field1");
+        xContentBuilder.startArray("array1");
+        xContentBuilder.startObject();
+        xContentBuilder.field("element", "value1");
+        xContentBuilder.endObject();
+        xContentBuilder.startObject();
+        xContentBuilder.field("element", "value2");
+        xContentBuilder.endObject();
+        xContentBuilder.endArray();
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.string());
         Object object = objectPath.evaluate("field1.array1.1.element");
         assertThat(object, instanceOf(String.class));
-        assertThat((String)object, equalTo("value2"));
-    }
-
-    public void testEvaluateArrayElementObjectWrongPath() throws Exception {
-        String json = "{ \"field1\": { \"array1\" : [ {\"element\": \"value1\"}, {\"element\":\"value2\"} ] } }";
-        ObjectPath objectPath = ObjectPath.createFromXContent(json);
-        Object object = objectPath.evaluate("field1.array2.1.element");
+        assertThat(object, equalTo("value2"));
+        object = objectPath.evaluate("");
+        assertThat(object, notNullValue());
+        assertThat(object, instanceOf(Map.class));
+        assertThat(((Map<String, Object>)object).containsKey("field1"), equalTo(true));
+        object = objectPath.evaluate("field1.array2.1.element");
         assertThat(object, nullValue());
     }
 
     @SuppressWarnings("unchecked")
     public void testEvaluateObjectKeys() throws Exception {
-        String json = "{ \"metadata\": { \"templates\" : {\"template_1\": { \"field\" : \"value\"}, \"template_2\": { \"field\" : \"value\"} } } }";
-        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        XContentBuilder xContentBuilder = randomXContentBuilder();
+        xContentBuilder.startObject();
+        xContentBuilder.startObject("metadata");
+        xContentBuilder.startObject("templates");
+        xContentBuilder.startObject("template_1");
+        xContentBuilder.field("field", "value");
+        xContentBuilder.endObject();
+        xContentBuilder.startObject("template_2");
+        xContentBuilder.field("field", "value");
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.string());
         Object object = objectPath.evaluate("metadata.templates");
         assertThat(object, instanceOf(Map.class));
         Map<String, Object> map = (Map<String, Object>)object;
@@ -130,19 +175,16 @@ public class ObjectPathTests extends ESTestCase {
         assertThat(strings, contains("template_1", "template_2"));
     }
 
-    @SuppressWarnings("unchecked")
-    public void testEvaluateEmptyPath() throws Exception {
-        String json = "{ \"field1\": { \"array1\" : [ {\"element\": \"value1\"}, {\"element\":\"value2\"} ] } }";
-        ObjectPath objectPath = ObjectPath.createFromXContent(json);
-        Object object = objectPath.evaluate("");
-        assertThat(object, notNullValue());
-        assertThat(object, instanceOf(Map.class));
-        assertThat(((Map<String, Object>)object).containsKey("field1"), equalTo(true));
-    }
-
     public void testEvaluateStashInPropertyName() throws Exception {
-        String json = "{ \"field1\": { \"elements\" : {\"element1\": \"value1\"}}}";
-        ObjectPath objectPath = ObjectPath.createFromXContent(json);
+        XContentBuilder xContentBuilder = randomXContentBuilder();
+        xContentBuilder.startObject();
+        xContentBuilder.startObject("field1");
+        xContentBuilder.startObject("elements");
+        xContentBuilder.field("element1", "value1");
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.string());
         try {
             objectPath.evaluate("field1.$placeholder.element1");
             fail("evaluate should have failed due to unresolved placeholder");

@@ -43,6 +43,8 @@ include::index-modules.asciidoc[]
 
 include::ingest.asciidoc[]
 
+include::how-to.asciidoc[]
+
 include::testing.asciidoc[]
 
 include::glossary.asciidoc[]

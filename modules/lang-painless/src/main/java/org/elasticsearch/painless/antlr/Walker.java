@@ -70,6 +70,7 @@ import org.elasticsearch.painless.antlr.PainlessParser.FuncrefContext;
 import org.elasticsearch.painless.antlr.PainlessParser.FunctionContext;
 import org.elasticsearch.painless.antlr.PainlessParser.IfContext;
 import org.elasticsearch.painless.antlr.PainlessParser.InitializerContext;
+import org.elasticsearch.painless.antlr.PainlessParser.InstanceofContext;
 import org.elasticsearch.painless.antlr.PainlessParser.LambdaContext;
 import org.elasticsearch.painless.antlr.PainlessParser.LamtypeContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ListinitContext;
@@ -119,6 +120,7 @@ import org.elasticsearch.painless.node.EConditional;
 import org.elasticsearch.painless.node.EDecimal;
 import org.elasticsearch.painless.node.EExplicit;
 import org.elasticsearch.painless.node.EFunctionRef;
+import org.elasticsearch.painless.node.EInstanceof;
 import org.elasticsearch.painless.node.ELambda;
 import org.elasticsearch.painless.node.EListInit;
 import org.elasticsearch.painless.node.EMapInit;
@@ -1105,6 +1107,13 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
     @Override
     public Object visitMaptoken(MaptokenContext ctx) {
         throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+    }
+
+    @Override
+    public Object visitInstanceof(InstanceofContext ctx) {
+        AExpression expr = (AExpression)visitExpression(ctx.expression());
+        String type = ctx.decltype().getText();
+        return new EInstanceof(location(ctx), expr, type);
     }
 
     /** Returns name of next lambda */

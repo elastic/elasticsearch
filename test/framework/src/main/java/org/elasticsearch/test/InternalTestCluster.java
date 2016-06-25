@@ -604,7 +604,6 @@ public final class InternalTestCluster extends TestCluster {
         // once restarted we append the role suffix to each path.
         final Path finalBaseDir = dataSuffix.isEmpty() ? baseDir : baseDir.resolve(dataSuffix);
 
-
         Settings.Builder finalSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), finalBaseDir.toAbsolutePath()) // allow overriding path.home
             .put(settings)
@@ -612,13 +611,11 @@ public final class InternalTestCluster extends TestCluster {
             .put(DiscoveryNodeService.NODE_ID_SEED_SETTING.getKey(), seed);
 
         if (Environment.PATH_DATA_SETTING.exists(settings) == false && this.dataPaths != null) {
-            // to make sure that a master node will not pick up on the data folder of a data only node
-            // once restarted we append the role suffix to each path.
-                StringBuilder dataPath = new StringBuilder();
-                for (int i = 0; i < this.dataPaths.length; i++) {
-                    dataPath.append(finalBaseDir.resolve("d" + i).toAbsolutePath()).append(',');
-                }
-                finalSettings.put(Environment.PATH_DATA_SETTING.getKey(), dataPath.toString());
+            StringBuilder dataPath = new StringBuilder();
+            for (int i = 0; i < this.dataPaths.length; i++) {
+                dataPath.append(finalBaseDir.resolve("d" + i).toAbsolutePath()).append(',');
+            }
+            finalSettings.put(Environment.PATH_DATA_SETTING.getKey(), dataPath.toString());
         }
         MockNode node = new MockNode(finalSettings.build(), plugins);
         return new NodeAndClient(name, node);

@@ -19,18 +19,22 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-public class ReindexPlugin extends Plugin {
+import java.util.Arrays;
+import java.util.List;
+
+public class ReindexPlugin extends Plugin implements ActionPlugin {
     public static final String NAME = "reindex";
 
-    public void onModule(ActionModule actionModule) {
-        actionModule.registerAction(ReindexAction.INSTANCE, TransportReindexAction.class);
-        actionModule.registerAction(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class);
-        actionModule.registerAction(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class);
-        actionModule.registerAction(RethrottleAction.INSTANCE, TransportRethrottleAction.class);
+    @Override
+    public List<ActionHandler<?, ?>> getActions() {
+        return Arrays.asList(new ActionHandler<>(ReindexAction.INSTANCE, TransportReindexAction.class),
+                new ActionHandler<>(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
+                new ActionHandler<>(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
+                new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class));
     }
 
     public void onModule(NetworkModule networkModule) {

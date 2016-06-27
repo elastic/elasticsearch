@@ -44,6 +44,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchModule;
@@ -138,7 +139,7 @@ public class TransportClient extends AbstractClient {
                         // noop
                     }
                 });
-                modules.add(new ActionModule(false, true));
+                modules.add(new ActionModule(false, true, pluginsService.filterPlugins(ActionPlugin.class)));
 
                 pluginsService.processModules(modules);
                 final List<Setting<?>> additionalSettings = new ArrayList<>();

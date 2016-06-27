@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.notification.email.attachment;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -13,13 +12,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.Scheme;
-import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.notification.email.Attachment;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -165,7 +165,8 @@ public class EmailAttachmentParsersTests extends ESTestCase {
 
         @Override
         public Attachment toAttachment(WatchExecutionContext ctx, Payload payload, TestEmailAttachment attachment) {
-            return new Attachment.Bytes(attachment.id(), attachment.getValue().getBytes(Charsets.UTF_8), "personalContentType", false);
+            return new Attachment.Bytes(attachment.id(), attachment.getValue().getBytes(StandardCharsets.UTF_8),
+                                        "personalContentType", false);
         }
     }
 

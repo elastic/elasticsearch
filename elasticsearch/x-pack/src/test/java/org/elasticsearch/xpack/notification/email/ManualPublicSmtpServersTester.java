@@ -6,17 +6,15 @@
 package org.elasticsearch.xpack.notification.email;
 
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.xpack.common.secret.SecretService;
 
-import java.io.InputStream;
 import java.util.Collections;
 import java.util.Locale;
-
-import static com.google.common.base.Preconditions.checkNotNull;
 
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/379")
 public class ManualPublicSmtpServersTester {
@@ -92,7 +90,9 @@ public class ManualPublicSmtpServersTester {
 
     static void test(Profile profile, Settings.Builder settingsBuilder) throws Exception {
         String path = "/org/elasticsearch/xpack/watcher/actions/email/service/logo.png";
-        checkNotNull(InternalEmailServiceTests.class.getResourceAsStream(path));
+        if (InternalEmailServiceTests.class.getResourceAsStream(path) == null) {
+            throw new ElasticsearchException("Could not find logo at path {}", path);
+        }
 
         InternalEmailService service = startEmailService(settingsBuilder);
         try {

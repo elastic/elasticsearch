@@ -365,8 +365,8 @@ public class TimeZoneRoundingTests extends ESTestCase {
     }
 
     /**
-     * Test that rounded values are always greater or eaual to last rounded value if date is increasing.
-     * The example covers an interval around 2011-10-30T02:10:00+01:00, timezone CET, interval: 2700000ms
+     * Test that rounded values are always greater or equal to last rounded value if date is increasing.
+     * The example covers an interval around 2011-10-30T02:10:00+01:00, time zone CET, interval: 2700000ms
      */
     public void testIntervalRoundingMonotonic_CET() {
         long interval = TimeUnit.MINUTES.toMillis(45);

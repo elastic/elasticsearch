@@ -17,14 +17,24 @@
  * under the License.
  */
 
-esplugin {
-  description 'The Rank Eval module adds APIs to evaluate ranking quality.'
-  classname 'org.elasticsearch.index.rankeval.RankEvalPlugin'
-}
+package org.elasticsearch.action.quality;
 
-integTest {
-  cluster {
-    setting 'script.inline', 'true'
-    setting 'script.stored', 'true'
-  }
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.RestTestCandidate;
+import org.elasticsearch.test.rest.parser.RestTestParseException;
+
+import java.io.IOException;
+
+public class RankEvalRestIT extends ESRestTestCase {
+    public RankEvalRestIT(@Name("yaml") RestTestCandidate testCandidate) {
+        super(testCandidate);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+        return ESRestTestCase.createParameters(0, 1);
+    }
 }

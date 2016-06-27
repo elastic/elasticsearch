@@ -1,0 +1,48 @@
+---
+"Response format":
+
+  - do:
+      index:
+        index:   foo
+        type:    bar
+        id:      1
+        body:    { "text": "berlin" }
+
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     2
+        body:   { "text": "amsterdam" }
+   
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     3
+        body:   { "text": "amsterdam" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      rank_eval:
+        body:
+          requests: [
+            {
+                id: "amsterdam_query",
+                request: { query: {match : {text : "amsterdam" }}},
+                ratings: { "1": 0, "2": 1, "3": 1 }
+            }, {
+                id: "berlin_query",
+                request: { query: { match : { text : "berlin" } }, size : 10 },
+                ratings: {"1": 1}
+            }
+          ]
+          metric: { precisionAtN: { size: 10}}
+
+  - match: {quality_level: 1}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+

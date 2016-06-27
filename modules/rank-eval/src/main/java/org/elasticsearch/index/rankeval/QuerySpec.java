@@ -22,7 +22,6 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
@@ -39,17 +38,15 @@ public class QuerySpec implements Writeable {
 
     private int specId = 0;
     private SearchSourceBuilder testRequest;
-    private Template template;
     private List<String> indices = new ArrayList<>();
     private List<String> types = new ArrayList<>();
     
     public QuerySpec(
-            int specId, SearchSourceBuilder testRequest, List<String> indices, List<String> types, Template template) {
+            int specId, SearchSourceBuilder testRequest, List<String> indices, List<String> types) {
         this.specId = specId;
         this.testRequest = testRequest;
         this.indices = indices;
         this.types = types;
-        this.template = template;
     }
 
     public QuerySpec(StreamInput in) throws IOException {
@@ -65,7 +62,6 @@ public class QuerySpec implements Writeable {
         for (int i = 0; i < typesSize; i++) {
             this.types.add(in.readString());
         }
-        this.template = new Template(in);
     }
 
     @Override
@@ -80,15 +76,10 @@ public class QuerySpec implements Writeable {
         for (String type : types) {
             out.writeString(type);
         }
-        this.template.writeTo(out);
     }
 
     public SearchSourceBuilder getTestRequest() {
         return testRequest;
-    }
-    
-    public Template getTemplate() {
-        return template;
     }
 
     public void setTestRequest(SearchSourceBuilder testRequest) {

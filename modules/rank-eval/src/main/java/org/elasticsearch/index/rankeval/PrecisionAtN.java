@@ -79,8 +79,6 @@ public class PrecisionAtN implements RankedListQualityMetric {
     }
 
     /** Compute precisionAtN based on provided relevant document IDs.
-     * @param relevantDocIds set of docIds considered relevant for some query.
-     * @param hits hits as returned for some query
      * @return precision at n for above {@link SearchResult} list.
      **/
     @Override

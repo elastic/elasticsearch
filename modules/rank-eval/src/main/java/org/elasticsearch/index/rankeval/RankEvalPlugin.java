@@ -22,9 +22,6 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptEngineRegistry;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 
 public class RankEvalPlugin extends Plugin {
     public static final String NAME = "rank-eval";
@@ -43,12 +40,7 @@ public class RankEvalPlugin extends Plugin {
         actionModule.registerAction(RankEvalAction.INSTANCE, TransportRankEvalAction.class);
     }
 
-    public void onModule(ScriptModule module) {
-        module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class,
-                        MustacheScriptEngineService.NAME, true));
-    }
-
     public void onModule(NetworkModule networkModule) {
-        //networkModule.registerRestHandler(RestRankEvalAction.class);
+        networkModule.registerRestHandler(RestRankEvalAction.class);
     }
 }

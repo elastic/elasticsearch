@@ -1,0 +1,17 @@
+{ 
+  "rank_eval": { 
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-rank-eval.html", 
+    "methods": ["POST"], 
+    "url": { 
+      "path": "/_rank_eval", 
+      "paths": ["/_rank_eval"], 
+      "parts": {}, 
+      "params": {}
+    }, 
+    "body": { 
+      "description": "The search definition using the Query DSL and the prototype for the eval request.", 
+      "required": true 
+    } 
+  } 
+}
+

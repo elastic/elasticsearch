@@ -34,7 +34,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -93,18 +92,10 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             spec.getIndices().toArray(indices);
             SearchRequest templatedRequest = new SearchRequest(indices, specRequest);
 
-            Template specTemplate = spec.getTemplate();
 
             Map<Integer, Collection<String>> unknownDocs = new HashMap<Integer, Collection<String>>();
             Collection<RatedQuery> intents = qualityTask.getIntents();
             for (RatedQuery intent : intents) {
-                Template template = new Template(
-                        specTemplate.getScript(),
-                        specTemplate.getType(),
-                        specTemplate.getLang(),
-                        specTemplate.getContentType(),
-                        intent.getIntentParameters());
-                templatedRequest.template(template);
 
                 TransportSearchAction transportSearchAction = new TransportSearchAction(
                         settings, 

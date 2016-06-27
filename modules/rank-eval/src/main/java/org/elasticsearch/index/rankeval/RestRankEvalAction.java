@@ -19,30 +19,27 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.index.reindex.RestReindexAction.ReindexParseContext;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.script.Script;
+import org.elasticsearch.rest.action.support.RestActions;
+import org.elasticsearch.search.aggregations.AggregatorParsers;
+import org.elasticsearch.search.suggest.Suggesters;
 
-import java.util.Map;
+import java.io.IOException;
 
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * Accepted input format:
@@ -122,13 +119,8 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
         "successful": 5,
         "failed": 0
     },
-    "rank_eval": [{
-        "spec_id": "... id_of_query_template_specification ...",
-        "quality_level": ... quality level ...,
-        "unknown_docs": [{
-            "user_request_id": [... list of unknown docs ...]
-        }]
-    }]
+    "quality_level": ... quality level ...,
+    "unknown_docs": [{"user_request_id": [... list of unknown docs ...]}]
 } 
 
  * 
@@ -160,12 +152,36 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 public class RestRankEvalAction extends BaseRestHandler {
 
     @Inject
-    public RestRankEvalAction(Settings settings, Client client) {
+    public RestRankEvalAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry queryRegistry,
+            AggregatorParsers aggParsers, Suggesters suggesters) {
         super(settings, client);
+        controller.registerHandler(GET, "/_rank_eval", this);
+        controller.registerHandler(POST, "/_rank_eval", this);
+        controller.registerHandler(GET, "/{index}/_rank_eval", this);
+        controller.registerHandler(POST, "/{index}/_rank_eval", this);
+        controller.registerHandler(GET, "/{index}/{type}/_rank_eval", this);
+        controller.registerHandler(POST, "/{index}/{type}/_rank_eval", this);
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws IOException {
+        RankEvalRequest rankEvalRequest = new RankEvalRequest();
+        //parseRankEvalRequest(rankEvalRequest, request, parseFieldMatcher);
+        //client.rankEval(rankEvalRequest, new RestStatusToXContentListener<>(channel));
     }
 
+    public static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request, ParseFieldMatcher parseFieldMatcher)
+        throws IOException {
+
+        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        BytesReference restContent = null;
+        if (restContent == null) {
+            if (RestActions.hasBodyContent(request)) {
+                restContent = RestActions.getRestContent(request);
+            }
+        }
+        if (restContent != null) {
+        }
+
+    }
 }

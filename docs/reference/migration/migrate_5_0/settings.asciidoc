@@ -286,3 +286,9 @@ The setting `bootstrap.mlockall` has been renamed to
 The default setting `include_global_state` for restoring snapshots has been
 changed from `true` to `false`. It has not been changed for taking snapshots and
 still defaults to `true` in that case.
+
+==== Time value parsing
+
+The unit 'w' representing weeks is no longer supported.
+
+Fractional time values (e.g., 0.5s) are no longer supported.

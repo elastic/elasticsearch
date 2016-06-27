@@ -37,7 +37,10 @@ import java.util.concurrent.TimeUnit;
 public class TimeValue implements Writeable {
 
     /** How many nano-seconds in one milli-second */
-    public static final long NSEC_PER_MSEC = 1000000;
+    public static final long NSEC_PER_MSEC = TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
+
+    public static final TimeValue MINUS_ONE = timeValueMillis(-1);
+    public static final TimeValue ZERO = timeValueMillis(0);
 
     public static TimeValue timeValueNanos(long nanos) {
         return new TimeValue(nanos, TimeUnit.NANOSECONDS);
@@ -240,19 +243,19 @@ public class TimeValue implements Writeable {
         }
         switch (timeUnit) {
             case NANOSECONDS:
-                return Strings.format1Decimals(duration, "nanos");
+                return duration + "nanos";
             case MICROSECONDS:
-                return Strings.format1Decimals(duration, "micros");
+                return duration + "micros";
             case MILLISECONDS:
-                return Strings.format1Decimals(duration, "ms");
+                return duration + "ms";
             case SECONDS:
-                return Strings.format1Decimals(duration, "s");
+                return duration + "s";
             case MINUTES:
-                return Strings.format1Decimals(duration, "m");
+                return duration + "m";
             case HOURS:
-                return Strings.format1Decimals(duration, "h");
+                return duration + "h";
             case DAYS:
-                return Strings.format1Decimals(duration, "d");
+                return duration + "d";
             default:
                 throw new IllegalArgumentException("unknown time unit: " + timeUnit.name());
         }
@@ -270,47 +273,48 @@ public class TimeValue implements Writeable {
             return defaultValue;
         }
         try {
-            long millis;
             String lowerSValue = sValue.toLowerCase(Locale.ROOT).trim();
-            if (lowerSValue.endsWith("ms")) {
-                millis = parse(lowerSValue, 2, 1);
+            if (lowerSValue.endsWith("nanos")) {
+                return new TimeValue(parse(lowerSValue, 5), TimeUnit.NANOSECONDS);
+            } else if (lowerSValue.endsWith("micros")) {
+                return new TimeValue(parse(lowerSValue, 6), TimeUnit.MICROSECONDS);
+            } else if (lowerSValue.endsWith("ms")) {
+                return new TimeValue(parse(lowerSValue, 2), TimeUnit.MILLISECONDS);
             } else if (lowerSValue.endsWith("s")) {
-                millis = parse(lowerSValue, 1, 1000);
+                return new TimeValue(parse(lowerSValue, 1), TimeUnit.SECONDS);
             } else if (lowerSValue.endsWith("m")) {
-                millis = parse(lowerSValue, 1, 60 * 1000);
+                return new TimeValue(parse(lowerSValue, 1), TimeUnit.MINUTES);
             } else if (lowerSValue.endsWith("h")) {
-                millis = parse(lowerSValue, 1, 60 * 60 * 1000);
+                return new TimeValue(parse(lowerSValue, 1), TimeUnit.HOURS);
             } else if (lowerSValue.endsWith("d")) {
-                millis = parse(lowerSValue, 1, 24 * 60 * 60 * 1000);
-            } else if (lowerSValue.endsWith("w")) {
-                millis = parse(lowerSValue, 1, 7 * 24 * 60 * 60 * 1000);
-            } else if (lowerSValue.equals("-1")) {
-                // Allow this special value to be unit-less:
-                millis = -1;
-            } else if (lowerSValue.equals("0")) {
-                // Allow this special value to be unit-less:
-                millis = 0;
+                return new TimeValue(parse(lowerSValue, 1), TimeUnit.DAYS);
+            } else if (lowerSValue.matches("-0*1")) {
+                return TimeValue.MINUS_ONE;
+            } else if (lowerSValue.matches("0+")) {
+                return TimeValue.ZERO;
             } else {
                 // Missing units:
-                throw new ElasticsearchParseException("Failed to parse setting [{}] with value [{}] as a time value: unit is missing or unrecognized", settingName, sValue);
+                throw new ElasticsearchParseException(
+                        "failed to parse setting [{}] with value [{}] as a time value: unit is missing or unrecognized",
+                        settingName,
+                        sValue);
             }
-            return new TimeValue(millis, TimeUnit.MILLISECONDS);
         } catch (NumberFormatException e) {
-            throw new ElasticsearchParseException("Failed to parse [{}]", e, sValue);
+            throw new ElasticsearchParseException("failed to parse [{}]", e, sValue);
         }
     }
 
-    private static long parse(String s, int suffixLength, long scale) {
-        return (long) (Double.parseDouble(s.substring(0, s.length() - suffixLength)) * scale);
+    private static long parse(String s, int suffixLength) {
+        return Long.parseLong(s.substring(0, s.length() - suffixLength).trim());
     }
 
-    static final long C0 = 1L;
-    static final long C1 = C0 * 1000L;
-    static final long C2 = C1 * 1000L;
-    static final long C3 = C2 * 1000L;
-    static final long C4 = C3 * 60L;
-    static final long C5 = C4 * 60L;
-    static final long C6 = C5 * 24L;
+    private static final long C0 = 1L;
+    private static final long C1 = C0 * 1000L;
+    private static final long C2 = C1 * 1000L;
+    private static final long C3 = C2 * 1000L;
+    private static final long C4 = C3 * 60L;
+    private static final long C5 = C4 * 60L;
+    private static final long C6 = C5 * 24L;
 
     @Override
     public boolean equals(Object o) {

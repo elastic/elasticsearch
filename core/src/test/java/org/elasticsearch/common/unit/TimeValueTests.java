@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.unit;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -85,9 +86,6 @@ public class TimeValueTests extends ESTestCase {
         assertEquals(new TimeValue(10, TimeUnit.SECONDS),
                      TimeValue.parseTimeValue("10S", null, "test"));
 
-        assertEquals(new TimeValue(100, TimeUnit.MILLISECONDS),
-                    TimeValue.parseTimeValue("0.1s", null, "test"));
-
         assertEquals(new TimeValue(10, TimeUnit.MINUTES),
                      TimeValue.parseTimeValue("10 m", null, "test"));
         assertEquals(new TimeValue(10, TimeUnit.MINUTES),
@@ -115,14 +113,17 @@ public class TimeValueTests extends ESTestCase {
         assertEquals(new TimeValue(10, TimeUnit.DAYS),
                      TimeValue.parseTimeValue("10D", null, "test"));
 
-        assertEquals(new TimeValue(70, TimeUnit.DAYS),
-                     TimeValue.parseTimeValue("10 w", null, "test"));
-        assertEquals(new TimeValue(70, TimeUnit.DAYS),
-                     TimeValue.parseTimeValue("10w", null, "test"));
-        assertEquals(new TimeValue(70, TimeUnit.DAYS),
-                     TimeValue.parseTimeValue("10 W", null, "test"));
-        assertEquals(new TimeValue(70, TimeUnit.DAYS),
-                     TimeValue.parseTimeValue("10W", null, "test"));
+        final int length = randomIntBetween(0, 8);
+        final String zeros = new String(new char[length]).replace('\0', '0');
+        assertTrue(TimeValue.parseTimeValue("-" + zeros + "1", null, "test") == TimeValue.MINUS_ONE);
+        assertTrue(TimeValue.parseTimeValue(zeros + "0", null, "test") == TimeValue.ZERO);
+    }
+
+    public void testRoundTrip() {
+        final String s = randomTimeValue();
+        assertThat(TimeValue.parseTimeValue(s, null, "test").getStringRep(), equalTo(s));
+        final TimeValue t = new TimeValue(randomIntBetween(1, 128), randomFrom(TimeUnit.values()));
+        assertThat(TimeValue.parseTimeValue(t.getStringRep(), null, "test"), equalTo(t));
     }
 
     private void assertEqualityAfterSerialize(TimeValue value, int expectedSize) throws IOException {
@@ -148,7 +149,7 @@ public class TimeValueTests extends ESTestCase {
             TimeValue.parseTimeValue("23tw", null, "test");
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), containsString("Failed to parse"));
+            assertThat(e.getMessage(), containsString("failed to parse"));
         }
     }
 
@@ -157,7 +158,7 @@ public class TimeValueTests extends ESTestCase {
             TimeValue.parseTimeValue("42", null, "test");
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), containsString("Failed to parse"));
+            assertThat(e.getMessage(), containsString("failed to parse"));
         }
     }
 
@@ -166,7 +167,7 @@ public class TimeValueTests extends ESTestCase {
             TimeValue.parseTimeValue("42ms.", null, "test");
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), containsString("Failed to parse"));
+            assertThat(e.getMessage(), containsString("failed to parse"));
         }
     }
 

@@ -144,7 +144,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     private Float minScore;
 
-    private long timeoutInMillis = -1;
+    private TimeValue timeout = TimeValue.MINUS_ONE;
     private int terminateAfter = SearchContext.DEFAULT_TERMINATE_AFTER;
 
     private List<String> storedFieldNames;
@@ -228,7 +228,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
         suggestBuilder = in.readOptionalWriteable(SuggestBuilder::new);
         terminateAfter = in.readVInt();
-        timeoutInMillis = in.readLong();
+        timeout = in.readOptionalWriteable(TimeValue::new);
         trackScores = in.readBoolean();
         version = in.readOptionalBoolean();
         ext = in.readOptionalBytesReference();
@@ -293,7 +293,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
         out.writeOptionalWriteable(suggestBuilder);
         out.writeVInt(terminateAfter);
-        out.writeLong(timeoutInMillis);
+        out.writeOptionalWriteable(timeout);
         out.writeBoolean(trackScores);
         out.writeOptionalBoolean(version);
         out.writeOptionalBytesReference(ext);
@@ -419,15 +419,15 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * An optional timeout to control how long search is allowed to take.
      */
     public SearchSourceBuilder timeout(TimeValue timeout) {
-        this.timeoutInMillis = timeout.millis();
+        this.timeout = timeout;
         return this;
     }
 
     /**
      * Gets the timeout to control how long search is allowed to take.
      */
-    public long timeoutInMillis() {
-        return timeoutInMillis;
+    public TimeValue timeout() {
+        return timeout;
     }
 
     /**
@@ -928,7 +928,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             rewrittenBuilder.stats = stats;
             rewrittenBuilder.suggestBuilder = suggestBuilder;
             rewrittenBuilder.terminateAfter = terminateAfter;
-            rewrittenBuilder.timeoutInMillis = timeoutInMillis;
+            rewrittenBuilder.timeout = timeout;
             rewrittenBuilder.trackScores = trackScores;
             rewrittenBuilder.version = version;
             return rewrittenBuilder;
@@ -958,7 +958,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 } else if (context.getParseFieldMatcher().match(currentFieldName, SIZE_FIELD)) {
                     size = parser.intValue();
                 } else if (context.getParseFieldMatcher().match(currentFieldName, TIMEOUT_FIELD)) {
-                    timeoutInMillis = TimeValue.parseTimeValue(parser.text(), null, TIMEOUT_FIELD.getPreferredName()).millis();
+                    timeout = TimeValue.parseTimeValue(parser.text(), null, TIMEOUT_FIELD.getPreferredName());
                 } else if (context.getParseFieldMatcher().match(currentFieldName, TERMINATE_AFTER_FIELD)) {
                     terminateAfter = parser.intValue();
                 } else if (context.getParseFieldMatcher().match(currentFieldName, MIN_SCORE_FIELD)) {
@@ -1103,8 +1103,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             builder.field(SIZE_FIELD.getPreferredName(), size);
         }
 
-        if (timeoutInMillis != -1) {
-            builder.field(TIMEOUT_FIELD.getPreferredName(), TimeValue.timeValueMillis(timeoutInMillis).toString());
+        if (!timeout.equals(TimeValue.MINUS_ONE)) {
+            builder.field(TIMEOUT_FIELD.getPreferredName(), timeout.getStringRep());
         }
 
         if (terminateAfter != SearchContext.DEFAULT_TERMINATE_AFTER) {
@@ -1349,7 +1349,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public int hashCode() {
         return Objects.hash(aggregations, explain, fetchSourceContext, docValueFields, storedFieldNames, from,
                 highlightBuilder, indexBoost, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields,
-                size, sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeoutInMillis, trackScores, version, profile);
+                size, sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version, profile);
     }
 
     @Override
@@ -1381,7 +1381,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 && Objects.equals(stats, other.stats)
                 && Objects.equals(suggestBuilder, other.suggestBuilder)
                 && Objects.equals(terminateAfter, other.terminateAfter)
-                && Objects.equals(timeoutInMillis, other.timeoutInMillis)
+                && Objects.equals(timeout, other.timeout)
                 && Objects.equals(trackScores, other.trackScores)
                 && Objects.equals(version, other.version)
                 && Objects.equals(profile, other.profile);

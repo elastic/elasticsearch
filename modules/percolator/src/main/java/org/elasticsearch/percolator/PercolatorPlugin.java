@@ -19,23 +19,25 @@
 
 package org.elasticsearch.percolator;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
-import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
 
-public class PercolatorPlugin extends Plugin implements MapperPlugin {
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+public class PercolatorPlugin extends Plugin implements MapperPlugin, ActionPlugin {
 
     public static final String NAME = "percolator";
 
@@ -47,9 +49,10 @@ public class PercolatorPlugin extends Plugin implements MapperPlugin {
         this.settings = settings;
     }
 
-    public void onModule(ActionModule module) {
-        module.registerAction(PercolateAction.INSTANCE, TransportPercolateAction.class);
-        module.registerAction(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class);
+    @Override
+    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+        return Arrays.asList(new ActionHandler<>(PercolateAction.INSTANCE, TransportPercolateAction.class),
+                new ActionHandler<>(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class));
     }
 
     public void onModule(NetworkModule module) {

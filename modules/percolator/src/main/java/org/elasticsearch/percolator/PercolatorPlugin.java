@@ -19,20 +19,23 @@
 
 package org.elasticsearch.percolator;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
 
-import java.util.Arrays;
-import java.util.List;
-
-public class PercolatorPlugin extends Plugin {
+public class PercolatorPlugin extends Plugin implements MapperPlugin {
 
     public static final String NAME = "percolator";
 
@@ -56,10 +59,6 @@ public class PercolatorPlugin extends Plugin {
         }
     }
 
-    public void onModule(IndicesModule module) {
-        module.registerMapper(PercolatorFieldMapper.CONTENT_TYPE, new PercolatorFieldMapper.TypeParser());
-    }
-
     public void onModule(SearchModule module) {
         module.registerQuery(PercolateQueryBuilder::new, PercolateQueryBuilder::fromXContent, PercolateQueryBuilder.QUERY_NAME_FIELD);
         module.registerFetchSubPhase(new PercolatorHighlightSubFetchPhase(settings, module.getHighlighters()));
@@ -68,6 +67,11 @@ public class PercolatorPlugin extends Plugin {
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
+    }
+
+    @Override
+    public Map<String, Mapper.TypeParser> getMappers() {
+        return Collections.singletonMap(PercolatorFieldMapper.CONTENT_TYPE, new PercolatorFieldMapper.TypeParser());
     }
 
     static boolean transportClientMode(Settings settings) {

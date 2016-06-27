@@ -34,8 +34,6 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 
 import java.util.Collections;
 
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
-
 /**
  * This service is responsible for upgrading legacy index metadata to the current version
  * <p>

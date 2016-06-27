@@ -114,7 +114,7 @@ public class AggregatorParsingTests extends ESTestCase {
                 b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
             },
             settingsModule,
-            new IndicesModule(namedWriteableRegistry) {
+            new IndicesModule(namedWriteableRegistry, Collections.emptyList()) {
                 @Override
                 protected void configure() {
                     bindMapperExtension();

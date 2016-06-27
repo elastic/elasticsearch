@@ -145,8 +145,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
                 b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
             },
             settingsModule,
-            new IndicesModule(namedWriteableRegistry) {
-
+            new IndicesModule(namedWriteableRegistry, Collections.emptyList()) {
                 @Override
                 protected void configure() {
                     bindMapperExtension();

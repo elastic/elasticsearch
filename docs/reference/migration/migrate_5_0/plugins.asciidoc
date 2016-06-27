@@ -127,3 +127,10 @@ their `onModule(ScriptModule)` implementation.
 
 Plugins that register custom analysis components should implement
 `AnalysisPlugin` and remove their `onModule(AnalysisModule)` implementation.
+
+==== MapperPlugin
+
+Plugins that register custom mappers should implement
+`MapperPlugin` and remove their `onModule(IndicesModule)` implementation.
+
+

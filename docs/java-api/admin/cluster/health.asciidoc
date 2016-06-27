@@ -14,7 +14,7 @@ String clusterName = healths.getClusterName();              <2>
 int numberOfDataNodes = healths.getNumberOfDataNodes();     <3>
 int numberOfNodes = healths.getNumberOfNodes();             <4>
 
-for (ClusterIndexHealth health : healths) {                 <5>
+for (ClusterIndexHealth health : healths.getIndices().values()) { <5>
     String index = health.getIndex();                       <6>
     int numberOfShards = health.getNumberOfShards();        <7>
     int numberOfReplicas = health.getNumberOfReplicas();    <8>

@@ -24,15 +24,34 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.TransportActions;
 
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 
+/**
+ * An additional extension point for {@link Plugin}s that extends Elasticsearch's scripting functionality. Implement it like this:
+ * <pre>{@code
+ *   @Override
+ *   public List<ActionHandler<?, ?>> getActions() {
+ *       return Arrays.asList(new ActionHandler<>(ReindexAction.INSTANCE, TransportReindexAction.class),
+ *               new ActionHandler<>(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
+ *               new ActionHandler<>(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
+ *               new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class));
+ *   }
+ * }</pre>
+ */
 public interface ActionPlugin {
+    /**
+     * Actions added by this plugin.
+     */
     default List<ActionHandler<?, ?>> getActions() {
         return emptyList();
     }
+    /**
+     * Action filters added by this plugin.
+     */
     default List<Class<? extends ActionFilter>> getActionFilters() {
         return emptyList();
     }
@@ -42,6 +61,10 @@ public interface ActionPlugin {
         private final Class<? extends TransportAction<Request, Response>> transportAction;
         private final Class<?>[] supportTransportActions;
 
+        /**
+         * Create a record of an action, the {@linkplain TransportAction} that handles it, and any supporting {@linkplain TransportActions}
+         * that are needed by that {@linkplain TransportAction}.
+         */
         public ActionHandler(GenericAction<Request, Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
                 Class<?>... supportTransportActions) {
             this.action = action;

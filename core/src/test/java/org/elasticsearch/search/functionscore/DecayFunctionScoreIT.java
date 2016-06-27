@@ -594,9 +594,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(
                                 functionScoreQuery(QueryBuilders.matchAllQuery(), new FilterFunctionBuilder[]{
-                                        new FilterFunctionBuilder(linearDecayFunction("num1", null, "1000w")),
+                                        new FilterFunctionBuilder(linearDecayFunction("num1", null, "7000d")),
                                         new FilterFunctionBuilder(gaussDecayFunction("num1", null, "1d")),
-                                        new FilterFunctionBuilder(exponentialDecayFunction("num1", null, "1000w"))
+                                        new FilterFunctionBuilder(exponentialDecayFunction("num1", null, "7000d"))
                                 }).scoreMode(FiltersFunctionScoreQuery.ScoreMode.MULTIPLY))));
 
         SearchResponse sr = response.actionGet();

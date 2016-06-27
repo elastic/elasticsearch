@@ -20,6 +20,7 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Counter;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -155,7 +156,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public void timeoutInMillis(long timeoutInMillis) {
+    public void timeout(TimeValue timeout) {
         throw new UnsupportedOperationException("Not supported");
     }
 

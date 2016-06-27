@@ -685,7 +685,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         if (source.profile()) {
             context.setProfilers(new Profilers(context.searcher()));
         }
-        context.timeoutInMillis(source.timeout().millis());
+        context.timeout(source.timeout());
         context.terminateAfter(source.terminateAfter());
         if (source.aggregations() != null) {
             try {

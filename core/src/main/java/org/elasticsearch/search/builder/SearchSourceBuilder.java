@@ -144,7 +144,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     private Float minScore;
 
-    private TimeValue timeout = TimeValue.MINUS_ONE;
+    private TimeValue timeout = null;
     private int terminateAfter = SearchContext.DEFAULT_TERMINATE_AFTER;
 
     private List<String> storedFieldNames;
@@ -1103,7 +1103,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             builder.field(SIZE_FIELD.getPreferredName(), size);
         }
 
-        if (!timeout.equals(TimeValue.MINUS_ONE)) {
+        if (timeout != null && !timeout.equals(TimeValue.MINUS_ONE)) {
             builder.field(TIMEOUT_FIELD.getPreferredName(), timeout.getStringRep());
         }
 

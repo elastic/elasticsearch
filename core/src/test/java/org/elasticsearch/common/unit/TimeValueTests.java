@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.unit;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -135,13 +134,15 @@ public class TimeValueTests extends ESTestCase {
         TimeValue inValue = new TimeValue(in);
 
         assertThat(inValue, equalTo(value));
+        assertThat(inValue.duration(), equalTo(value.duration()));
+        assertThat(inValue.timeUnit(), equalTo(value.timeUnit()));
     }
 
     public void testSerialize() throws Exception {
-        assertEqualityAfterSerialize(new TimeValue(100, TimeUnit.DAYS), 8);
-        assertEqualityAfterSerialize(timeValueNanos(-1), 1);
-        assertEqualityAfterSerialize(timeValueNanos(1), 1);
-        assertEqualityAfterSerialize(timeValueSeconds(30), 6);
+        assertEqualityAfterSerialize(new TimeValue(100, TimeUnit.DAYS), 3);
+        assertEqualityAfterSerialize(timeValueNanos(-1), 2);
+        assertEqualityAfterSerialize(timeValueNanos(1), 2);
+        assertEqualityAfterSerialize(timeValueSeconds(30), 2);
     }
 
     public void testFailOnUnknownUnits() {

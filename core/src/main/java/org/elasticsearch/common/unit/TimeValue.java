@@ -30,14 +30,47 @@ import org.joda.time.format.PeriodFormat;
 import org.joda.time.format.PeriodFormatter;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 public class TimeValue implements Writeable {
 
     /** How many nano-seconds in one milli-second */
     public static final long NSEC_PER_MSEC = TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
+
+    private static Map<TimeUnit, Byte> TIME_UNIT_BYTE_MAP;
+    private static Map<Byte, TimeUnit> BYTE_TIME_UNIT_MAP;
+
+    static {
+        final Map<TimeUnit, Byte> timeUnitByteMap = new HashMap<>();
+        timeUnitByteMap.put(TimeUnit.NANOSECONDS, (byte)0);
+        timeUnitByteMap.put(TimeUnit.MICROSECONDS, (byte)1);
+        timeUnitByteMap.put(TimeUnit.MILLISECONDS, (byte)2);
+        timeUnitByteMap.put(TimeUnit.SECONDS, (byte)3);
+        timeUnitByteMap.put(TimeUnit.MINUTES, (byte)4);
+        timeUnitByteMap.put(TimeUnit.HOURS, (byte)5);
+        timeUnitByteMap.put(TimeUnit.DAYS, (byte)6);
+
+        final Set<Byte> bytes = new HashSet<>();
+        for (TimeUnit value : TimeUnit.values()) {
+            assert timeUnitByteMap.containsKey(value) : value;
+            assert bytes.add(timeUnitByteMap.get(value));
+        }
+
+        final Map<Byte, TimeUnit> byteTimeUnitMap = new HashMap<>();
+        for (Map.Entry<TimeUnit, Byte> entry : timeUnitByteMap.entrySet()) {
+            byteTimeUnitMap.put(entry.getValue(), entry.getKey());
+        }
+
+        TIME_UNIT_BYTE_MAP = Collections.unmodifiableMap(timeUnitByteMap);
+        BYTE_TIME_UNIT_MAP = Collections.unmodifiableMap(byteTimeUnitMap);
+    }
 
     public static final TimeValue MINUS_ONE = timeValueMillis(-1);
     public static final TimeValue ZERO = timeValueMillis(0);
@@ -63,7 +96,18 @@ public class TimeValue implements Writeable {
     }
 
     private final long duration;
+
+    // visible for testing
+    long duration() {
+        return duration;
+    }
+
     private final TimeUnit timeUnit;
+
+    // visible for testing
+    TimeUnit timeUnit() {
+        return timeUnit;
+    }
 
     public TimeValue(long millis) {
         this(millis, TimeUnit.MILLISECONDS);
@@ -79,12 +123,13 @@ public class TimeValue implements Writeable {
      */
     public TimeValue(StreamInput in) throws IOException {
         duration = in.readZLong();
-        timeUnit = TimeUnit.NANOSECONDS;
+        timeUnit = BYTE_TIME_UNIT_MAP.get(in.readByte());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeZLong(nanos());
+        out.writeZLong(duration);
+        out.writeByte(TIME_UNIT_BYTE_MAP.get(timeUnit));
     }
 
     public long nanos() {

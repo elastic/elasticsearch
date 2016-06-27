@@ -64,6 +64,7 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
@@ -94,7 +95,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
                 Collections.emptyMap(), Collections.emptyMap());
         SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
         mapperService = new MapperService(indexSettings, analysisService, similarityService,
-                new IndicesModule(new NamedWriteableRegistry()).getMapperRegistry(), () -> null);
+                new IndicesModule(new NamedWriteableRegistry(), emptyList()).getMapperRegistry(), () -> null);
 
         ShardId shardId = new ShardId(index, 0);
         licenseState = mock(SecurityLicenseState.class);

@@ -78,7 +78,8 @@ public final class FileUtils {
      * Each input path can either be a single file (the .yaml suffix is optional) or a directory.
      * Each path is looked up in the classpath, or optionally from {@code fileSystem} if its not null.
      */
-    public static Map<String, Set<Path>> findYamlSuites(FileSystem fileSystem, String optionalPathPrefix, final String... paths) throws IOException {
+    public static Map<String, Set<Path>> findYamlSuites(FileSystem fileSystem, String optionalPathPrefix, final String... paths)
+            throws IOException {
         Map<String, Set<Path>> yamlSuites = new HashMap<>();
         for (String path : paths) {
             collectFiles(resolveFile(fileSystem, optionalPathPrefix, path, YAML_SUFFIX), YAML_SUFFIX, yamlSuites);
@@ -86,7 +87,8 @@ public final class FileUtils {
         return yamlSuites;
     }
 
-    private static Path resolveFile(FileSystem fileSystem, String optionalPathPrefix, String path, String optionalFileSuffix) throws IOException {
+    private static Path resolveFile(FileSystem fileSystem, String optionalPathPrefix, String path, String optionalFileSuffix)
+            throws IOException {
         if (fileSystem != null) {
             Path file = findFile(fileSystem, path, optionalFileSuffix);
             if (!lenientExists(file)) {
@@ -94,7 +96,8 @@ public final class FileUtils {
                 String newPath = optionalPathPrefix + "/" + path;
                 file = findFile(fileSystem, newPath, optionalFileSuffix);
                 if (!lenientExists(file)) {
-                    throw new NoSuchFileException("path prefix: " + optionalPathPrefix + ", path: " + path + ", file suffix: " + optionalFileSuffix);
+                    throw new NoSuchFileException("path prefix: " + optionalPathPrefix + ", path: " + path + ", file suffix: "
+                            + optionalFileSuffix);
                 }
             }
             return file;

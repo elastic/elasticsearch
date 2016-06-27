@@ -115,11 +115,12 @@ public class RestTestParserTests extends ESTestCase {
             assertThat(restTestSuite.getSetupSection().getDoSections().size(), equalTo(1));
             assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getApi(), equalTo("indices.create"));
             assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getParams().size(), equalTo(1));
-            assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getParams().get("index"), equalTo("test_index"));
+            assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getParams().get("index"),
+                    equalTo("test_index"));
         } else {
             assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(true));
         }
-
+        
         assertThat(restTestSuite.getTeardownSection(), notNullValue());
         if (includeTeardown) {
             assertThat(restTestSuite.getTeardownSection().isEmpty(), equalTo(false));
@@ -154,7 +155,8 @@ public class RestTestParserTests extends ESTestCase {
 
         assertThat(restTestSuite.getTestSections().get(1).getName(), equalTo("Get type mapping - pre 1.0"));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().isEmpty(), equalTo(false));
-        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getReason(), equalTo("for newer versions the index name is always returned"));
+        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getReason(),
+                equalTo("for newer versions the index name is always returned"));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getLowerVersion(), equalTo(Version.V_2_0_0));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getUpperVersion(), equalTo(Version.CURRENT));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().size(), equalTo(3));

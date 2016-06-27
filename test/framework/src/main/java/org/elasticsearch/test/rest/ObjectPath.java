@@ -84,7 +84,8 @@ public class ObjectPath {
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("element was a list, but [" + key + "] was not numeric", e);
             } catch (IndexOutOfBoundsException e) {
-                throw new IllegalArgumentException("element was a list with " + list.size() + " elements, but [" + key + "] was out of bounds", e);
+                throw new IllegalArgumentException("element was a list with " + list.size() +
+                        " elements, but [" + key + "] was out of bounds", e);
             }
         }
 

@@ -62,6 +62,24 @@ String formattedSeed
 String[] upgradeFromVersions
 String upgradeFromVersion
 
+String maybeTestsSeed = System.getProperty("tests.seed", null);
+if (maybeTestsSeed != null) {
+  seed = new BigInteger(maybeTestsSeed, 16).longValue()
+  formattedSeed = maybeTestsSeed
+} else {
+  seed = new Random().nextLong()
+  formattedSeed = String.format("%016X", seed)
+}
+
+String maybeUpdradeFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
+if (maybeUpdradeFromVersions != null) {
+  upgradeFromVersions = maybeUpdradeFromVersions.split(",")
+} else {
+  upgradeFromVersions = new File(project.projectDir, 'versions')
+}
+
+upgradeFromVersion = upgradeFromVersions[new Random(seed).nextInt(upgradeFromVersions.length)]
+
 configurations {
   test
 }
@@ -71,24 +89,6 @@ repositories {
 }
 
 dependencies {
-  String maybeTestsSeed = System.getProperty("tests.seed", null);
-  if (maybeTestsSeed != null) {
-    seed = new BigInteger(maybeTestsSeed, 16).longValue()
-    formattedSeed = maybeTestsSeed
-  } else {
-    seed = new Random().nextLong()
-    formattedSeed = String.format("%016X", seed)
-  }
-
-  String maybeUpdradeFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
-  if (maybeUpdradeFromVersions != null) {
-    upgradeFromVersions = maybeUpdradeFromVersions.split(",")
-  } else {
-    upgradeFromVersions = new File(project.projectDir, 'versions')
-  }
-
-  upgradeFromVersion = upgradeFromVersions[new Random(seed).nextInt(upgradeFromVersions.length)]
-
   test project(path: ':distribution:tar', configuration: 'archives')
   test project(path: ':distribution:rpm', configuration: 'archives')
   test project(path: ':distribution:deb', configuration: 'archives')

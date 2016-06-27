@@ -78,7 +78,7 @@ public class RestGetSourceAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(GetResponse response) throws Exception {
                 XContentBuilder builder = channel.newBuilder(response.getSourceInternal(), false);
-                if (!response.isExists()) {
+                if (response.isSourceEmpty()) { // check if doc source (or doc itself) is missing
                     return new BytesRestResponse(NOT_FOUND, builder);
                 } else {
                     builder.rawValue(response.getSourceInternal());

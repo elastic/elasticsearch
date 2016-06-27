@@ -72,7 +72,7 @@ Inner hits also supports the following per document features:
 * <<search-request-explain,Explain>>
 * <<search-request-source-filtering,Source filtering>>
 * <<search-request-script-fields,Script fields>>
-* <<search-request-docvalue-fields,Doc value fields>>
+* <<search-request-fielddata-fields,Fielddata fields>>
 * <<search-request-version,Include versions>>
 
 [[nested-inner-hits]]

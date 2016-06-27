@@ -218,8 +218,8 @@ public class InnerHitBuilderTests extends ESTestCase {
         innerHits.setExplain(randomBoolean());
         innerHits.setVersion(randomBoolean());
         innerHits.setTrackScores(randomBoolean());
-        innerHits.setStoredFieldNames(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
-        innerHits.setDocValueFields(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
+        innerHits.setFieldNames(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
+        innerHits.setFieldDataFields(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
         // Random script fields deduped on their field name.
         Map<String, SearchSourceBuilder.ScriptField> scriptFields = new HashMap<>();
         for (SearchSourceBuilder.ScriptField field: randomListStuff(16, InnerHitBuilderTests::randomScript)) {
@@ -294,11 +294,11 @@ public class InnerHitBuilderTests extends ESTestCase {
                 break;
             case 6:
                 if (randomBoolean()) {
-                    instance.setDocValueFields(randomValueOtherThan(instance.getDocValueFields(), () -> {
+                    instance.setFieldDataFields(randomValueOtherThan(instance.getFieldDataFields(), () -> {
                         return randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16));
                     }));
                 } else {
-                    instance.addDocValueField(randomAsciiOfLengthBetween(1, 16));
+                    instance.addFieldDataField(randomAsciiOfLengthBetween(1, 16));
                 }
                 break;
             case 7:
@@ -341,12 +341,12 @@ public class InnerHitBuilderTests extends ESTestCase {
                         HighlightBuilderTests::randomHighlighterBuilder));
                 break;
             case 11:
-                if (instance.getStoredFieldNames() == null || randomBoolean()) {
-                    instance.setStoredFieldNames(randomValueOtherThan(instance.getStoredFieldNames(), () -> {
+                if (instance.getFieldNames() == null || randomBoolean()) {
+                    instance.setFieldNames(randomValueOtherThan(instance.getFieldNames(), () -> {
                         return randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16));
                     }));
                 } else {
-                    instance.getStoredFieldNames().add(randomAsciiOfLengthBetween(1, 16));
+                    instance.getFieldNames().add(randomAsciiOfLengthBetween(1, 16));
                 }
                 break;
             default:

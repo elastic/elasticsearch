@@ -64,14 +64,10 @@ characteristics as the former `scan` search type.
 
 ==== `fields` parameter
 
-The `fields` parameter has been replaced by `stored_fields`.
-The `stored_fields` parameter will only return stored fields
+The `fields` parameter used to try to retrieve field values from stored
+fields, and fall back to extracting from the `_source` if a field is not
+marked as stored.  Now, the `fields` parameter will only return stored fields
 -- it will no longer extract values from the `_source`.
-
-==== `fielddata_fields` parameter
-
-The `fielddata_fields` has been deprecated, use parameter `docvalue_fields` instead.
-
 
 ==== search-exists API removed
 

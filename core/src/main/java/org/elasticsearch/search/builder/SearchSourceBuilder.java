@@ -83,8 +83,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField EXPLAIN_FIELD = new ParseField("explain");
     public static final ParseField _SOURCE_FIELD = new ParseField("_source");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
-    public static final ParseField STORED_FIELDS_FIELD = new ParseField("stored_fields");
-    public static final ParseField DOCVALUE_FIELDS_FIELD = new ParseField("docvalue_fields", "fielddata_fields");
+    public static final ParseField FIELDDATA_FIELDS_FIELD = new ParseField("fielddata_fields");
     public static final ParseField SCRIPT_FIELDS_FIELD = new ParseField("script_fields");
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
     public static final ParseField IGNORE_FAILURE_FIELD = new ParseField("ignore_failure");
@@ -147,8 +146,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     private long timeoutInMillis = -1;
     private int terminateAfter = SearchContext.DEFAULT_TERMINATE_AFTER;
 
-    private List<String> storedFieldNames;
-    private List<String> docValueFields;
+    private List<String> fieldNames;
+    private List<String> fieldDataFields;
     private List<ScriptField> scriptFields;
     private FetchSourceContext fetchSourceContext;
 
@@ -182,8 +181,22 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
         explain = in.readOptionalBoolean();
         fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
-        docValueFields = (List<String>) in.readGenericValue();
-        storedFieldNames = (List<String>) in.readGenericValue();
+        boolean hasFieldDataFields = in.readBoolean();
+        if (hasFieldDataFields) {
+            int size = in.readVInt();
+            fieldDataFields = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                fieldDataFields.add(in.readString());
+            }
+        }
+        boolean hasFieldNames = in.readBoolean();
+        if (hasFieldNames) {
+            int size = in.readVInt();
+            fieldNames = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                fieldNames.add(in.readString());
+            }
+        }
         from = in.readVInt();
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
         boolean hasIndexBoost = in.readBoolean();
@@ -242,8 +255,22 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         out.writeOptionalWriteable(aggregations);
         out.writeOptionalBoolean(explain);
         out.writeOptionalStreamable(fetchSourceContext);
-        out.writeGenericValue(docValueFields);
-        out.writeGenericValue(storedFieldNames);
+        boolean hasFieldDataFields = fieldDataFields != null;
+        out.writeBoolean(hasFieldDataFields);
+        if (hasFieldDataFields) {
+            out.writeVInt(fieldDataFields.size());
+            for (String field : fieldDataFields) {
+                out.writeString(field);
+            }
+        }
+        boolean hasFieldNames = fieldNames != null;
+        out.writeBoolean(hasFieldNames);
+        if (hasFieldNames) {
+            out.writeVInt(fieldNames.size());
+            for (String field : fieldNames) {
+                out.writeString(field);
+            }
+        }
         out.writeVInt(from);
         out.writeOptionalWriteable(highlightBuilder);
         boolean hasIndexBoost = indexBoost != null;
@@ -705,87 +732,60 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     }
 
     /**
-     * Adds a stored field to load and return as part of the
+     * Adds a field to load and return (note, it must be stored) as part of the
      * search request. If none are specified, the source of the document will be
      * return.
      */
-    public SearchSourceBuilder storedField(String name) {
-        if (storedFieldNames == null) {
-            storedFieldNames = new ArrayList<>();
+    public SearchSourceBuilder field(String name) {
+        if (fieldNames == null) {
+            fieldNames = new ArrayList<>();
         }
-        storedFieldNames.add(name);
+        fieldNames.add(name);
         return this;
     }
 
     /**
-     * Sets the stored fields to load and return as part of the search request. If none
+     * Sets the fields to load and return as part of the search request. If none
      * are specified, the source of the document will be returned.
      */
-    public SearchSourceBuilder storedFields(List<String> fields) {
-        this.storedFieldNames = fields;
+    public SearchSourceBuilder fields(List<String> fields) {
+        this.fieldNames = fields;
         return this;
     }
 
     /**
-     * Sets no stored fields to be loaded, resulting in only id and type to be returned
+     * Sets no fields to be loaded, resulting in only id and type to be returned
      * per field.
      */
-    public SearchSourceBuilder noStoredFields() {
-        this.storedFieldNames = Collections.emptyList();
+    public SearchSourceBuilder noFields() {
+        this.fieldNames = Collections.emptyList();
         return this;
     }
 
     /**
-     * Gets the stored fields to load and return as part of the search request.
+     * Gets the fields to load and return as part of the search request.
      */
-    public List<String> storedFields() {
-        return storedFieldNames;
+    public List<String> fields() {
+        return fieldNames;
     }
 
-
     /**
-     * Adds a field to load from the docvalue and return as part of the
+     * Adds a field to load from the field data cache and return as part of the
      * search request.
-     *
-     * @deprecated Use {@link SearchSourceBuilder#docValueField(String)} instead.
      */
-    @Deprecated
     public SearchSourceBuilder fieldDataField(String name) {
-        if (docValueFields == null) {
-            docValueFields = new ArrayList<>();
+        if (fieldDataFields == null) {
+            fieldDataFields = new ArrayList<>();
         }
-        docValueFields.add(name);
+        fieldDataFields.add(name);
         return this;
     }
 
     /**
-     * Gets the docvalue fields.
-     *
-     * @deprecated Use {@link SearchSourceBuilder#docValueFields()} instead.
+     * Gets the field-data fields.
      */
-    @Deprecated
     public List<String> fieldDataFields() {
-        return docValueFields;
-    }
-
-
-    /**
-     * Gets the docvalue fields.
-     */
-    public List<String> docValueFields() {
-        return docValueFields;
-    }
-
-    /**
-     * Adds a field to load from the docvalue and return as part of the
-     * search request.
-     */
-    public SearchSourceBuilder docValueField(String name) {
-        if (docValueFields == null) {
-            docValueFields = new ArrayList<>();
-        }
-        docValueFields.add(name);
-        return this;
+        return fieldDataFields;
     }
 
     /**
@@ -910,8 +910,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             rewrittenBuilder.explain = explain;
             rewrittenBuilder.ext = ext;
             rewrittenBuilder.fetchSourceContext = fetchSourceContext;
-            rewrittenBuilder.docValueFields = docValueFields;
-            rewrittenBuilder.storedFieldNames = storedFieldNames;
+            rewrittenBuilder.fieldDataFields = fieldDataFields;
+            rewrittenBuilder.fieldNames = fieldNames;
             rewrittenBuilder.from = from;
             rewrittenBuilder.highlightBuilder = highlightBuilder;
             rewrittenBuilder.indexBoost = indexBoost;
@@ -971,16 +971,12 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     trackScores = parser.booleanValue();
                 } else if (context.getParseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
                     fetchSourceContext = FetchSourceContext.parse(context);
-                } else if (context.getParseFieldMatcher().match(currentFieldName, STORED_FIELDS_FIELD)) {
-                    storedField(parser.text());
+                } else if (context.getParseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
+                    field(parser.text());
                 } else if (context.getParseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
                     sort(parser.text());
                 } else if (context.getParseFieldMatcher().match(currentFieldName, PROFILE_FIELD)) {
                     profile = parser.booleanValue();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
-                    throw new ParsingException(parser.getTokenLocation(), "Deprecated field [" +
-                        SearchSourceBuilder.FIELDS_FIELD + "] used, expected [" +
-                        SearchSourceBuilder.STORED_FIELDS_FIELD + "] instead");
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
@@ -1030,21 +1026,22 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                             parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (context.getParseFieldMatcher().match(currentFieldName, STORED_FIELDS_FIELD)) {
-                    storedFieldNames = new ArrayList<>();
+
+                if (context.getParseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
+                    fieldNames = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
-                            storedFieldNames.add(parser.text());
+                            fieldNames.add(parser.text());
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.VALUE_STRING + "] in ["
                                     + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
                         }
                     }
-                } else if (context.getParseFieldMatcher().match(currentFieldName, DOCVALUE_FIELDS_FIELD)) {
-                    docValueFields = new ArrayList<>();
+                } else if (context.getParseFieldMatcher().match(currentFieldName, FIELDDATA_FIELDS_FIELD)) {
+                    fieldDataFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
-                            docValueFields.add(parser.text());
+                            fieldDataFields.add(parser.text());
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.VALUE_STRING + "] in ["
                                     + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
@@ -1071,11 +1068,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     fetchSourceContext = FetchSourceContext.parse(context);
                 } else if (context.getParseFieldMatcher().match(currentFieldName, SEARCH_AFTER)) {
                     searchAfterBuilder = SearchAfterBuilder.fromXContent(parser, context.getParseFieldMatcher());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
-                    throw new ParsingException(parser.getTokenLocation(), "The field [" +
-                        SearchSourceBuilder.FIELDS_FIELD + "] is not longer supported, please use [" +
-                        SearchSourceBuilder.STORED_FIELDS_FIELD + "] to retrieve stored fields or _source filtering " +
-                        "if the field is not stored");
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
@@ -1139,21 +1131,21 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             builder.field(_SOURCE_FIELD.getPreferredName(), fetchSourceContext);
         }
 
-        if (storedFieldNames != null) {
-            if (storedFieldNames.size() == 1) {
-                builder.field(STORED_FIELDS_FIELD.getPreferredName(), storedFieldNames.get(0));
+        if (fieldNames != null) {
+            if (fieldNames.size() == 1) {
+                builder.field(FIELDS_FIELD.getPreferredName(), fieldNames.get(0));
             } else {
-                builder.startArray(STORED_FIELDS_FIELD.getPreferredName());
-                for (String fieldName : storedFieldNames) {
+                builder.startArray(FIELDS_FIELD.getPreferredName());
+                for (String fieldName : fieldNames) {
                     builder.value(fieldName);
                 }
                 builder.endArray();
             }
         }
 
-        if (docValueFields != null) {
-            builder.startArray(DOCVALUE_FIELDS_FIELD.getPreferredName());
-            for (String fieldDataField : docValueFields) {
+        if (fieldDataFields != null) {
+            builder.startArray(FIELDDATA_FIELDS_FIELD.getPreferredName());
+            for (String fieldDataField : fieldDataFields) {
                 builder.value(fieldDataField);
             }
             builder.endArray();
@@ -1347,7 +1339,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     @Override
     public int hashCode() {
-        return Objects.hash(aggregations, explain, fetchSourceContext, docValueFields, storedFieldNames, from,
+        return Objects.hash(aggregations, explain, fetchSourceContext, fieldDataFields, fieldNames, from,
                 highlightBuilder, indexBoost, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields,
                 size, sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeoutInMillis, trackScores, version, profile);
     }
@@ -1364,8 +1356,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         return Objects.equals(aggregations, other.aggregations)
                 && Objects.equals(explain, other.explain)
                 && Objects.equals(fetchSourceContext, other.fetchSourceContext)
-                && Objects.equals(docValueFields, other.docValueFields)
-                && Objects.equals(storedFieldNames, other.storedFieldNames)
+                && Objects.equals(fieldDataFields, other.fieldDataFields)
+                && Objects.equals(fieldNames, other.fieldNames)
                 && Objects.equals(from, other.from)
                 && Objects.equals(highlightBuilder, other.highlightBuilder)
                 && Objects.equals(indexBoost, other.indexBoost)

@@ -13,10 +13,14 @@ GET /_search
     },
     "script_fields" : {
         "test1" : {
-            "script" : "doc['my_field_name'].value * 2"
+            "script" : {
+                "lang": "painless",
+                "inline": "doc['my_field_name'].value * 2"
+            }
         },
         "test2" : {
             "script" : {
+                "lang": "painless",
                 "inline": "doc['my_field_name'].value * factor",
                 "params" : {
                     "factor"  : 2.0

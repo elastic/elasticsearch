@@ -124,7 +124,10 @@ simple sample:
 [source,js]
 --------------------------------------------------
 "script_score" : {
-    "script" : "_score * doc['my_numeric_field'].value"
+    "script" : {
+      "lang": "painless",
+      "inline": "_score * doc['my_numeric_field'].value"
+    }
 }
 --------------------------------------------------
 
@@ -140,12 +143,12 @@ script, and provide parameters to it:
 --------------------------------------------------
 "script_score": {
     "script": {
-        "lang": "lang",
+        "lang": "painless",
         "params": {
             "param1": value1,
             "param2": value2
         },
-        "inline": "_score * doc['my_numeric_field'].value / pow(param1, param2)"
+        "inline": "_score * doc['my_numeric_field'].value / Math.pow(params.param1, params.param2)"
     }
 }
 --------------------------------------------------

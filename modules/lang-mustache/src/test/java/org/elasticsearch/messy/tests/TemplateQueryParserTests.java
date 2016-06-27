@@ -39,7 +39,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -128,7 +127,7 @@ public class TemplateQueryParserTests extends ESTestCase {
                 new IndexSettingsModule(index, settings)
         ).createInjector();
 
-        AnalysisService analysisService = new AnalysisRegistry(null, environment).build(idxSettings);
+        AnalysisService analysisService = createAnalysisService(idxSettings, settings);
         SimilarityService similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(new NamedWriteableRegistry()).getMapperRegistry();
         MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry, () ->

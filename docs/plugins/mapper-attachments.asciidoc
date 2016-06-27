@@ -246,7 +246,7 @@ PUT /test/person/1?refresh=true
 }
 GET /test/person/_search
 {
-  "stored_fields": [ "file.content_type" ],
+  "fields": [ "file.content_type" ],
   "query": {
     "match": {
       "file.content_type": "text plain"
@@ -367,7 +367,7 @@ PUT /test/person/1?refresh=true
 }
 GET /test/person/_search
 {
-  "stored_fields": [],
+  "fields": [],
   "query": {
     "match": {
       "file.content": "king queen"

@@ -98,7 +98,7 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(0, aC.get());
         assertEquals(0, bC.get());
         try {
-            service.dryRun(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", -15).build());
+            service.validateUpdate(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", -15).build());
             fail("invalid value");
         } catch (IllegalArgumentException ex) {
             assertEquals("illegal value can't update [foo.bar.baz] from [1] to [-15]", ex.getMessage());
@@ -108,7 +108,7 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(0, consumer2.get());
         assertEquals(0, aC.get());
         assertEquals(0, bC.get());
-        service.dryRun(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", 15).build());
+        service.validateUpdate(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", 15).build());
         assertEquals(0, consumer.get());
         assertEquals(0, consumer2.get());
         assertEquals(0, aC.get());

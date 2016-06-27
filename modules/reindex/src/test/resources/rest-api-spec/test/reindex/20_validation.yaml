@@ -216,11 +216,11 @@
 ---
 "source fields may not be modified":
   - do:
-      catch: /stored_fields is not supported in this context/
+      catch: /fields is not supported in this context/
       reindex:
         body:
           source:
             index: test
-            stored_fields: [_id]
+            fields: [_id]
           dest:
             index: dest

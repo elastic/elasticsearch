@@ -25,6 +25,7 @@ import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -42,6 +43,9 @@ public interface AzureStorageService {
 
     final class Storage {
         public static final String PREFIX = "cloud.azure.storage.";
+
+        public static final Setting<Settings> STORAGE_ACCOUNTS = Setting.groupSetting(Storage.PREFIX, Setting.Property.NodeScope);
+
         public static final Setting<TimeValue> TIMEOUT_SETTING =
             Setting.timeSetting("cloud.azure.storage.timeout", TimeValue.timeValueMinutes(-1), Property.NodeScope);
         public static final Setting<String> ACCOUNT_SETTING =

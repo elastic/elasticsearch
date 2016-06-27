@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RestoreSource;
@@ -436,7 +435,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     if (request.includeGlobalState()) {
                         if (metaData.persistentSettings() != null) {
                             Settings settings = metaData.persistentSettings();
-                            clusterSettings.dryRun(settings);
+                            clusterSettings.validateUpdate(settings);
                             mdBuilder.persistentSettings(settings);
                         }
                         if (metaData.templates() != null) {

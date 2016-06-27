@@ -424,12 +424,13 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
             // this will also fail if some plugin fails etc. which is nice since we can verify that early
             final IndexService service = createIndexService("metadata verification", nodeServicesProvider,
                 metaData, indicesQueryCache, indicesFieldDataCache, Collections.emptyList());
+            closeables.add(() -> service.close("metadata verification", false));
             for (ObjectCursor<MappingMetaData> typeMapping : metaData.getMappings().values()) {
                 // don't apply the default mapping, it has been applied when the mapping was created
                 service.mapperService().merge(typeMapping.value.type(), typeMapping.value.source(),
                     MapperService.MergeReason.MAPPING_RECOVERY, true);
             }
-            closeables.add(() -> service.close("metadata verification", false));
+            service.getIndexSettings().getScopedSettings().validateUpdate(metaData.getSettings());
         } finally {
             IOUtils.close(closeables);
         }

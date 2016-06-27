@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -36,9 +36,20 @@ import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.Analysis;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.AnalysisTestsHelper;
+import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.MappingCharFilterFactory;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.PatternReplaceCharFilterFactory;
+import org.elasticsearch.index.analysis.StandardTokenizerFactory;
+import org.elasticsearch.index.analysis.StopTokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory;
-import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.indices.analysis.HunspellService;
+import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
 
@@ -49,9 +60,11 @@ import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -72,8 +85,16 @@ public class AnalysisModuleTests extends ModuleTestCase {
     }
 
     public AnalysisRegistry getNewRegistry(Settings settings) {
-       return new AnalysisRegistry(null, new Environment(settings),
-                Collections.emptyMap(), Collections.singletonMap("myfilter", MyFilterTokenFilterFactory::new), Collections.emptyMap(), Collections.emptyMap());
+        try {
+            return new AnalysisModule(new Environment(settings), singletonList(new AnalysisPlugin() {
+                @Override
+                public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+                    return singletonMap("myfilter", MyFilterTokenFilterFactory::new);
+                }
+            })).getAnalysisRegistry();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
     
     private Settings loadFromClasspath(String path) throws IOException {
@@ -125,7 +146,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
         assertEquals(org.apache.lucene.util.Version.fromBits(3,6,0), analysisService2.analyzer("custom7").analyzer().getVersion());
     }
 
-    private void assertTokenFilter(String name, Class clazz) throws IOException {
+    private void assertTokenFilter(String name, Class<?> clazz) throws IOException {
         Settings settings = Settings.builder()
                                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
@@ -148,17 +169,9 @@ public class AnalysisModuleTests extends ModuleTestCase {
 
         StopTokenFilterFactory stop1 = (StopTokenFilterFactory) custom1.tokenFilters()[0];
         assertThat(stop1.stopWords().size(), equalTo(1));
-        //assertThat((Iterable<char[]>) stop1.stopWords(), hasItem("test-stop".toCharArray()));
 
         analyzer = analysisService.analyzer("custom2").analyzer();
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));
-        CustomAnalyzer custom2 = (CustomAnalyzer) analyzer;
-
-//        HtmlStripCharFilterFactory html = (HtmlStripCharFilterFactory) custom2.charFilters()[0];
-//        assertThat(html.readAheadLimit(), equalTo(HTMLStripCharFilter.DEFAULT_READ_AHEAD));
-//
-//        html = (HtmlStripCharFilterFactory) custom2.charFilters()[1];
-//        assertThat(html.readAheadLimit(), equalTo(1024));
 
         // verify position increment gap
         analyzer = analysisService.analyzer("custom6").analyzer();
@@ -248,7 +261,8 @@ public class AnalysisModuleTests extends ModuleTestCase {
             getAnalysisService(settings);
             fail("This should fail with IllegalArgumentException because the analyzers name starts with _");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), either(equalTo("analyzer name must not start with '_'. got \"_invalid_name\"")).or(equalTo("analyzer name must not start with '_'. got \"_invalidName\"")));
+            assertThat(e.getMessage(), either(equalTo("analyzer name must not start with '_'. got \"_invalid_name\""))
+                    .or(equalTo("analyzer name must not start with '_'. got \"_invalidName\"")));
         }
     }
 
@@ -289,13 +303,18 @@ public class AnalysisModuleTests extends ModuleTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
         Environment environment = new Environment(settings);
-        AnalysisModule module = new AnalysisModule(environment);
         InputStream aff = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.aff");
         InputStream dic = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.dic");
+        Dictionary dictionary;
         try (Directory tmp = new SimpleFSDirectory(environment.tmpFile())) {
-            Dictionary dictionary = new Dictionary(tmp, "hunspell", aff, dic);
-            module.registerHunspellDictionary("foo", dictionary);
-            assertInstanceBinding(module, HunspellService.class, (x) -> x.getDictionary("foo") == dictionary);
+            dictionary = new Dictionary(tmp, "hunspell", aff, dic);
         }
+        AnalysisModule module = new AnalysisModule(environment, singletonList(new AnalysisPlugin() {
+            @Override
+            public Map<String, Dictionary> getHunspellDictionaries() {
+                return singletonMap("foo", dictionary);
+            }
+        }));
+        assertSame(dictionary, module.getHunspellService().getDictionary("foo"));
     }
 }

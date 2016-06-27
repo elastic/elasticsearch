@@ -54,7 +54,7 @@
         search:
             index: test
             body:
-                stored_fields: [file.content_type,file.name]
+                fields: [file.content_type,file.name]
 
     - match: { hits.total: 1 }
     - match: { hits.hits.0.fields: { file.content_type: ["text/my-dummy-content-type"],  file.name: ["my-dummy-name-txt"] }}

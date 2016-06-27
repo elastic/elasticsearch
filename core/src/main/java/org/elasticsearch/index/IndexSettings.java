@@ -275,6 +275,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
+
     }
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {
@@ -545,5 +546,5 @@ public final class IndexSettings {
         this.maxSlicesPerScroll = value;
     }
 
-    IndexScopedSettings getScopedSettings() { return scopedSettings;}
+    public IndexScopedSettings getScopedSettings() { return scopedSettings;}
 }

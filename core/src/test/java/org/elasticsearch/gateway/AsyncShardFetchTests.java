@@ -270,8 +270,9 @@ public class AsyncShardFetchTests extends ESTestCase {
         }
 
         @Override
-        protected void asyncFetch(final ShardId shardId, String[] nodesIds) {
-            for (final String nodeId : nodesIds) {
+        protected void asyncFetch(final ShardId shardId, DiscoveryNode[] nodes) {
+            for (final DiscoveryNode node : nodes) {
+                final String nodeId = node.getId();
                 threadPool.generic().execute(new Runnable() {
                     @Override
                     public void run() {

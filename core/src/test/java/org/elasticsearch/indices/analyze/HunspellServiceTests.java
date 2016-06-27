@@ -19,36 +19,30 @@
 package org.elasticsearch.indices.analyze;
 
 import org.apache.lucene.analysis.hunspell.Dictionary;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.analysis.HunspellService;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.hamcrest.Matchers;
+import org.elasticsearch.test.ESTestCase;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.indices.analysis.HunspellService.HUNSPELL_IGNORE_CASE;
 import static org.elasticsearch.indices.analysis.HunspellService.HUNSPELL_LAZY_LOAD;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
-@ClusterScope(scope= Scope.TEST, numDataNodes=0)
-public class HunspellServiceIT extends ESIntegTestCase {
+public class HunspellServiceTests extends ESTestCase {
     public void testLocaleDirectoryWithNodeLevelConfig() throws Exception {
         Settings settings = Settings.builder()
                 .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/indices/analyze/conf_dir"))
                 .put(HUNSPELL_LAZY_LOAD.getKey(), randomBoolean())
                 .put(HUNSPELL_IGNORE_CASE.getKey(), true)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
 
-        internalCluster().startNode(settings);
-        Dictionary dictionary = internalCluster().getInstance(HunspellService.class).getDictionary("en_US");
+        Dictionary dictionary = new HunspellService(settings, new Environment(settings), emptyMap()).getDictionary("en_US");
         assertThat(dictionary, notNullValue());
-        assertIgnoreCase(true, dictionary);
+        assertTrue(dictionary.getIgnoreCase());
     }
 
     public void testLocaleDirectoryWithLocaleSpecificConfig() throws Exception {
@@ -58,58 +52,42 @@ public class HunspellServiceIT extends ESIntegTestCase {
                 .put(HUNSPELL_IGNORE_CASE.getKey(), true)
                 .put("indices.analysis.hunspell.dictionary.en_US.strict_affix_parsing", false)
                 .put("indices.analysis.hunspell.dictionary.en_US.ignore_case", false)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
 
-        internalCluster().startNode(settings);
-        Dictionary dictionary = internalCluster().getInstance(HunspellService.class).getDictionary("en_US");
+        Dictionary dictionary = new HunspellService(settings, new Environment(settings), emptyMap()).getDictionary("en_US");
         assertThat(dictionary, notNullValue());
-        assertIgnoreCase(false, dictionary);
-
-
+        assertFalse(dictionary.getIgnoreCase());
 
         // testing that dictionary specific settings override node level settings
-        dictionary = internalCluster().getInstance(HunspellService.class).getDictionary("en_US_custom");
+        dictionary = new HunspellService(settings, new Environment(settings), emptyMap()).getDictionary("en_US_custom");
         assertThat(dictionary, notNullValue());
-        assertIgnoreCase(true, dictionary);
+        assertTrue(dictionary.getIgnoreCase());
     }
 
     public void testDicWithNoAff() throws Exception {
         Settings settings = Settings.builder()
                 .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/indices/analyze/no_aff_conf_dir"))
                 .put(HUNSPELL_LAZY_LOAD.getKey(), randomBoolean())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
 
-        Dictionary dictionary = null;
-        try {
-            internalCluster().startNode(settings);
-            dictionary = internalCluster().getInstance(HunspellService.class).getDictionary("en_US");
-            fail("Missing affix file didn't throw an error");
-        }
-        catch (Throwable t) {
-            assertNull(dictionary);
-            assertThat(ExceptionsHelper.unwrap(t, ElasticsearchException.class).toString(), Matchers.containsString("Missing affix file"));
-        }
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> new HunspellService(settings, new Environment(settings), emptyMap()).getDictionary("en_US"));
+        assertEquals("failed to load hunspell dictionary for locale: en_US", e.getMessage());
+        assertThat(e.getCause(), hasToString(containsString("Missing affix file")));
     }
 
     public void testDicWithTwoAffs() throws Exception {
         Settings settings = Settings.builder()
                 .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/indices/analyze/two_aff_conf_dir"))
                 .put(HUNSPELL_LAZY_LOAD.getKey(), randomBoolean())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
 
-        Dictionary dictionary = null;
-        try {
-            internalCluster().startNode(settings);
-            dictionary = internalCluster().getInstance(HunspellService.class).getDictionary("en_US");
-            fail("Multiple affix files didn't throw an error");
-        } catch (Throwable t) {
-            assertNull(dictionary);
-            assertThat(ExceptionsHelper.unwrap(t, ElasticsearchException.class).toString(), Matchers.containsString("Too many affix files"));
-        }
-    }
-
-    // TODO: on next upgrade of lucene, just use new getter
-    private void assertIgnoreCase(boolean expected, Dictionary dictionary) throws Exception {
-        // assertEquals(expected, dictionary.getIgnoreCase());
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> new HunspellService(settings, new Environment(settings), emptyMap()).getDictionary("en_US"));
+        assertEquals("failed to load hunspell dictionary for locale: en_US", e.getMessage());
+        assertThat(e.getCause(), hasToString(containsString("Too many affix files")));
     }
 }

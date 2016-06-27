@@ -36,6 +36,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.spans.SpanFirstQuery;
@@ -556,6 +557,18 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         assertThat(terms.get(2).bytes(), equalTo(termQuery3.getTerm().bytes()));
         assertThat(terms.get(3).field(), equalTo(termQuery4.getTerm().field()));
         assertThat(terms.get(3).bytes(), equalTo(termQuery4.getTerm().bytes()));
+    }
+
+    public void testSynonymQuery() {
+        SynonymQuery query = new SynonymQuery();
+        Result result = extractQueryTerms(query);
+        assertThat(result.verified, is(true));
+        assertThat(result.terms.isEmpty(), is(true));
+
+        query = new SynonymQuery(new Term("_field", "_value1"), new Term("_field", "_value2"));
+        result = extractQueryTerms(query);
+        assertThat(result.verified, is(true));
+        assertTermsEqual(result.terms, new Term("_field", "_value1"), new Term("_field", "_value2"));
     }
 
     public void testCreateQueryMetadataQuery() throws Exception {

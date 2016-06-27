@@ -115,18 +115,18 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     /**
-     * Applies the given settings to all listeners and rolls back the result after application. This
+     * Validates the given settings by running it through all update listeners without applying it. This
      * method will not change any settings but will fail if any of the settings can't be applied.
      */
-    public synchronized Settings dryRun(Settings settings) {
+    public synchronized Settings validateUpdate(Settings settings) {
         final Settings current = Settings.builder().put(this.settings).put(settings).build();
         final Settings previous = Settings.builder().put(this.settings).put(this.lastSettingsApplied).build();
         List<RuntimeException> exceptions = new ArrayList<>();
         for (SettingUpdater<?> settingUpdater : settingUpdaters) {
             try {
-                if (settingUpdater.hasChanged(current, previous)) {
-                    settingUpdater.getValue(current, previous);
-                }
+                // ensure running this through the updater / dynamic validator
+                // don't check if the value has changed we wanna test this anyways
+                settingUpdater.getValue(current, previous);
             } catch (RuntimeException ex) {
                 exceptions.add(ex);
                 logger.debug("failed to prepareCommit settings for [{}]", ex, settingUpdater);

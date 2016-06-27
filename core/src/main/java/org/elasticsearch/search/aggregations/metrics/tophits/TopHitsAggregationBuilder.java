@@ -567,9 +567,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         }
         if (fieldNames != null) {
             if (fieldNames.size() == 1) {
-                builder.field(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), fieldNames.get(0));
+                builder.field(SearchSourceBuilder.FIELDS_FIELD.getPreferredName(), fieldNames.get(0));
             } else {
-                builder.startArray(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName());
+                builder.startArray(SearchSourceBuilder.FIELDS_FIELD.getPreferredName());
                 for (String fieldName : fieldNames) {
                     builder.value(fieldName);
                 }
@@ -577,7 +577,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
             }
         }
         if (fieldDataFields != null) {
-            builder.startArray(SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.getPreferredName());
+            builder.startArray(SearchSourceBuilder.FIELDDATA_FIELDS_FIELD.getPreferredName());
             for (String fieldDataField : fieldDataFields) {
                 builder.value(fieldDataField);
             }
@@ -628,7 +628,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                     factory.trackScores(parser.booleanValue());
                 } else if (context.getParseFieldMatcher().match(currentFieldName, SearchSourceBuilder._SOURCE_FIELD)) {
                     factory.fetchSource(FetchSourceContext.parse(context));
-                } else if (context.getParseFieldMatcher().match(currentFieldName, SearchSourceBuilder.STORED_FIELDS_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, SearchSourceBuilder.FIELDS_FIELD)) {
                     List<String> fieldNames = new ArrayList<>();
                     fieldNames.add(parser.text());
                     factory.fields(fieldNames);
@@ -694,7 +694,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
 
-                if (context.getParseFieldMatcher().match(currentFieldName, SearchSourceBuilder.STORED_FIELDS_FIELD)) {
+                if (context.getParseFieldMatcher().match(currentFieldName, SearchSourceBuilder.FIELDS_FIELD)) {
                     List<String> fieldNames = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
@@ -705,7 +705,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                         }
                     }
                     factory.fields(fieldNames);
-                } else if (context.getParseFieldMatcher().match(currentFieldName, SearchSourceBuilder.DOCVALUE_FIELDS_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, SearchSourceBuilder.FIELDDATA_FIELDS_FIELD)) {
                     List<String> fieldDataFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {

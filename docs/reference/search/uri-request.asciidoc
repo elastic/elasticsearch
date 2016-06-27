@@ -83,7 +83,7 @@ hits was computed.
 part of the document by using `_source_include` & `_source_exclude` (see the <<search-request-source-filtering, request body>>
 documentation for more details)
 
-|`stored_fields` |The selective stored fields of the document to return for each hit,
+|`fields` |The selective stored fields of the document to return for each hit,
 comma delimited. Not specifying any value will cause no fields to return.
 
 |`sort` |Sorting to perform. Can either be in the form of `fieldName`, or

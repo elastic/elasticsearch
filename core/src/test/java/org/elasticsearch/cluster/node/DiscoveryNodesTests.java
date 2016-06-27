@@ -97,7 +97,7 @@ public class DiscoveryNodesTests extends ESTestCase {
             expectedNodeIdsSet.add(discoveryNode.getId());
         }
 
-        String[] resolvedNodesIds = discoveryNodes.resolveNodesIds(nodeSelectors.toArray(new String[nodeSelectors.size()]));
+        String[] resolvedNodesIds = discoveryNodes.resolveNodes(nodeSelectors.toArray(new String[nodeSelectors.size()]));
         Arrays.sort(resolvedNodesIds);
         String[] expectedNodesIds = expectedNodeIdsSet.toArray(new String[expectedNodeIdsSet.size()]);
         Arrays.sort(expectedNodesIds);

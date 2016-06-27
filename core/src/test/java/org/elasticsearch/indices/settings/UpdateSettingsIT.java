@@ -29,7 +29,9 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -37,9 +39,13 @@ import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
@@ -52,6 +58,42 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateSettingsIT extends ESIntegTestCase {
+
+
+    public void testInvalidDynamicUpdate() {
+        createIndex("test");
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
+            client().admin().indices().prepareUpdateSettings("test")
+                .setSettings(Settings.builder()
+                    .put("index.dummy", "boom")
+                )
+                .execute().actionGet());
+        assertEquals(exception.getCause().getMessage(), "this setting goes boom");
+        IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
+        assertNotEquals(indexMetaData.getSettings().get("index.dummy"), "invalid dynamic value");
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(DummySettingPlugin.class);
+    }
+
+    public static class DummySettingPlugin extends Plugin {
+        public static final Setting<String> DUMMY_SETTING = Setting.simpleString("index.dummy",
+            Setting.Property.IndexScope, Setting.Property.Dynamic);
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            indexModule.addSettingsUpdateConsumer(DUMMY_SETTING, (s) -> {}, (s) -> {
+                if (s.equals("boom"))
+                    throw new IllegalArgumentException("this setting goes boom");
+            });
+        }
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(DUMMY_SETTING);
+        }
+    }
 
     public void testResetDefault() {
         createIndex("test");

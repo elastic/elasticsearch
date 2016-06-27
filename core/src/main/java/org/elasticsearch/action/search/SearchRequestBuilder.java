@@ -252,8 +252,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Sets no fields to be loaded, resulting in only id and type to be returned per field.
      */
-    public SearchRequestBuilder setNoStoredFields() {
-        sourceBuilder().noStoredFields();
+    public SearchRequestBuilder setNoFields() {
+        sourceBuilder().noFields();
         return this;
     }
 
@@ -289,23 +289,13 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
-    /**
-     * Adds a docvalue based field to load and return. The field does not have to be stored,
-     * but its recommended to use non analyzed or numeric fields.
-     *
-     * @param name The field to get from the docvalue
-     */
-    public SearchRequestBuilder addDocValueField(String name) {
-        sourceBuilder().docValueField(name);
-        return this;
-    }
 
     /**
-     * Adds a stored field to load and return (note, it must be stored) as part of the search request.
+     * Adds a field to load and return (note, it must be stored) as part of the search request.
      * If none are specified, the source of the document will be return.
      */
-    public SearchRequestBuilder addStoredField(String field) {
-        sourceBuilder().storedField(field);
+    public SearchRequestBuilder addField(String field) {
+        sourceBuilder().field(field);
         return this;
     }
 
@@ -314,14 +304,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * but its recommended to use non analyzed or numeric fields.
      *
      * @param name The field to get from the field data cache
-     * @deprecated Use {@link SearchRequestBuilder#addDocValueField(String)} instead.
      */
-    @Deprecated
     public SearchRequestBuilder addFieldDataField(String name) {
-        sourceBuilder().docValueField(name);
+        sourceBuilder().fieldDataField(name);
         return this;
     }
-
 
     /**
      * Adds a script based field to load and return. The field does not have to be stored,
@@ -380,23 +367,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Sets the stored fields to load and return as part of the search request. If none
-     * are specified, the source of the document will be returned.
-     *
-     * @deprecated Use {@link SearchRequestBuilder#storedFields(String...)} instead.
-     */
-    @Deprecated
-    public SearchRequestBuilder fields(String... fields) {
-        sourceBuilder().storedFields(Arrays.asList(fields));
-        return this;
-    }
-
-    /**
      * Sets the fields to load and return as part of the search request. If none
      * are specified, the source of the document will be returned.
      */
-    public SearchRequestBuilder storedFields(String... fields) {
-        sourceBuilder().storedFields(Arrays.asList(fields));
+    public SearchRequestBuilder fields(String... fields) {
+        sourceBuilder().fields(Arrays.asList(fields));
         return this;
     }
 

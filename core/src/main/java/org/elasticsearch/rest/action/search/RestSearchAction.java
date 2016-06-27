@@ -175,35 +175,27 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
-        if (request.param("fields") != null) {
-            throw new IllegalArgumentException("The parameter [" +
-                SearchSourceBuilder.FIELDS_FIELD + "] is not longer supported, please use [" +
-                SearchSourceBuilder.STORED_FIELDS_FIELD + "] to retrieve stored fields or _source filtering " +
-                "if the field is not stored");
-        }
-
-        String sField = request.param("stored_fields");
+        String sField = request.param("fields");
         if (sField != null) {
             if (!Strings.hasText(sField)) {
-                searchSourceBuilder.noStoredFields();
+                searchSourceBuilder.noFields();
             } else {
                 String[] sFields = Strings.splitStringByCommaToArray(sField);
                 if (sFields != null) {
                     for (String field : sFields) {
-                        searchSourceBuilder.storedField(field);
+                        searchSourceBuilder.field(field);
                     }
                 }
             }
         }
-        String sDocValueFields = request.param("docvalue_fields");
-        if (sDocValueFields == null) {
-            sDocValueFields = request.param("fielddata_fields");
-        }
-        if (sDocValueFields != null) {
-            if (Strings.hasText(sDocValueFields)) {
-                String[] sFields = Strings.splitStringByCommaToArray(sDocValueFields);
-                for (String field : sFields) {
-                    searchSourceBuilder.docValueField(field);
+        String sFieldDataFields = request.param("fielddata_fields");
+        if (sFieldDataFields != null) {
+            if (Strings.hasText(sFieldDataFields)) {
+                String[] sFields = Strings.splitStringByCommaToArray(sFieldDataFields);
+                if (sFields != null) {
+                    for (String field : sFields) {
+                        searchSourceBuilder.fieldDataField(field);
+                    }
                 }
             }
         }

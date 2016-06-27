@@ -359,6 +359,11 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     "indexed document [{}/{}/{}] couldn't be found", indexedDocumentIndex, indexedDocumentType, indexedDocumentId
             );
         }
+        if(getResponse.isSourceEmpty()) {
+            throw new IllegalArgumentException(
+                "indexed document [" + indexedDocumentIndex + "/" + indexedDocumentType + "/" + indexedDocumentId + "] source disabled"
+            );
+        }
         return new PercolateQueryBuilder(field, documentType, getResponse.getSourceAsBytesRef());
     }
 
@@ -369,7 +374,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
 
         if (document == null) {
-            throw new IllegalStateException("nothing to percolator");
+            throw new IllegalStateException("no document to percolate");
         }
 
         MapperService mapperService = context.getMapperService();

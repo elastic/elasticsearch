@@ -252,11 +252,11 @@ Due to the fact that indexed script has been replaced by stored
 scripts the following settings have been replaced to:
 
 * `script.indexed` has been replaced by `script.stored`
-* `script.engine.*.indexed.aggs` has been replaced by `script.engine.*.stored.aggs` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
-* `script.engine.*.indexed.mapping` has been replaced by `script.engine.*.stored.mapping` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
-* `script.engine.*.indexed.search` has been replaced by `script.engine.*.stored.search` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
-* `script.engine.*.indexed.update` has been replaced by `script.engine.*.stored.update` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
-* `script.engine.*.indexed.plugin` has been replaced by `script.engine.*.stored.plugin` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
+* `script.engine.*.indexed.aggs` has been replaced by `script.engine.*.stored.aggs` (where `*` represents the script language, like `groovy`, `mustache`, `painless` etc.)
+* `script.engine.*.indexed.mapping` has been replaced by `script.engine.*.stored.mapping` (where `*` represents the script language, like `groovy`, `mustache`, `painless` etc.)
+* `script.engine.*.indexed.search` has been replaced by `script.engine.*.stored.search` (where `*` represents the script language, like `groovy`, `mustache`, `painless` etc.)
+* `script.engine.*.indexed.update` has been replaced by `script.engine.*.stored.update` (where `*` represents the script language, like `groovy`, `mustache`, `painless` etc.)
+* `script.engine.*.indexed.plugin` has been replaced by `script.engine.*.stored.plugin` (where `*` represents the script language, like `groovy`, `mustache`, `painless` etc.)
 
 ==== Script mode settings
 

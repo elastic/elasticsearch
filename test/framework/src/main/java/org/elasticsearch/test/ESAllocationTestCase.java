@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -157,7 +158,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static AllocationDeciders yesAllocationDeciders() {
-        return new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new TestAllocateDecision(Decision.YES)});
+        return new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new TestAllocateDecision(Decision.YES),
+            new SameShardAllocationDecider(Settings.EMPTY)});
     }
 
     protected static AllocationDeciders noAllocationDeciders() {
@@ -165,7 +167,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static AllocationDeciders throttleAllocationDeciders() {
-        return new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new TestAllocateDecision(Decision.THROTTLE)});
+        return new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new TestAllocateDecision(Decision.THROTTLE),
+            new SameShardAllocationDecider(Settings.EMPTY)});
     }
 
     public static class TestAllocateDecision extends AllocationDecider {

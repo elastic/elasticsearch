@@ -173,7 +173,16 @@ public class HistogramAggregator extends BucketsAggregator {
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) throws IOException {
-            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, extendedBounds, null, config.formatter(),
+            // we need to round the bounds given by the user and we have to do it for every aggregator we crate
+            // as the rounding is not necessarily an idempotent operation.
+            // todo we need to think of a better structure to the factory/agtor code so we won't need to do that
+            ExtendedBounds roundedBounds = null;
+            if (extendedBounds != null) {
+                // we need to process & validate here using the parser
+                extendedBounds.processAndValidate(name, aggregationContext.searchContext(), config.parser());
+                roundedBounds = extendedBounds.round(rounding);
+            }
+            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, roundedBounds, null, config.formatter(),
                     histogramFactory, aggregationContext, parent, pipelineAggregators, metaData);
         }
 

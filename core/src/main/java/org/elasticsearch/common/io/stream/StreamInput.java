@@ -57,6 +57,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.readException;
@@ -608,6 +609,19 @@ public abstract class StreamInput extends InputStream {
         return bytes;
     }
 
+    public <T> T[] readArray(Writeable.Reader<T> reader, IntFunction<T[]> arraySupplier) throws IOException {
+        int length = readVInt();
+        T[] values = arraySupplier.apply(length);
+        for (int i = 0; i < length; i++) {
+            values[i] = reader.read(this);
+        }
+        return values;
+    }
+
+    public <T> T[] readOptionalArray(Writeable.Reader<T> reader, IntFunction<T[]> arraySupplier) throws IOException {
+        return readBoolean() ? readArray(reader, arraySupplier) : null;
+    }
+
     /**
      * Serializes a potential null value.
      */
@@ -782,7 +796,7 @@ public abstract class StreamInput extends InputStream {
     /**
      * Reads a list of objects
      */
-    public <T> List<T> readList(StreamInputReader<T> reader) throws IOException {
+    public <T> List<T> readList(Writeable.Reader<T> reader) throws IOException {
         int count = readVInt();
         List<T> builder = new ArrayList<>(count);
         for (int i=0; i<count; i++) {

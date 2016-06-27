@@ -38,7 +38,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -259,17 +258,6 @@ public class TestTaskPlugin extends Plugin {
                 throw new IllegalStateException("Simulating operation failure");
             }
             return new NodesResponse(clusterService.getClusterName(), responses, failures);
-        }
-
-        @Override
-        protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
-            List<String> list = new ArrayList<>();
-            for (String node : nodesIds) {
-                if (nodes.nodeExists(node)) {
-                    list.add(node);
-                }
-            }
-            return list.toArray(new String[list.size()]);
         }
 
         @Override

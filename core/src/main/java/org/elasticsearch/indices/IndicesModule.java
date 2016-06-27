@@ -118,7 +118,11 @@ public class IndicesModule extends AbstractModule {
         }
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
-            mappers.putAll(mapperPlugin.getMappers());
+            for (Map.Entry<String, Mapper.TypeParser> entry : mapperPlugin.getMappers().entrySet()) {
+                if (mappers.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Mapper [" + entry.getKey() + "] is already registered");
+                }
+            }
         }
         return Collections.unmodifiableMap(mappers);
     }
@@ -143,11 +147,16 @@ public class IndicesModule extends AbstractModule {
         // _field_names is not registered here, see below
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
-            metadataMappers.putAll(mapperPlugin.getMetadataMappers());
+            for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : mapperPlugin.getMetadataMappers().entrySet()) {
+                if (entry.getKey().equals(FieldNamesFieldMapper.NAME)) {
+                    throw new IllegalArgumentException("Plugin cannot contain metadata mapper [" + FieldNamesFieldMapper.NAME + "]");
+                }
+                if (metadataMappers.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("MetadataFieldMapper [" + entry.getKey() + "] is already registered");
+                }
+            }
         }
-        if (metadataMappers.containsKey(FieldNamesFieldMapper.NAME)) {
-            throw new IllegalStateException("Plugin cannot contain metadata mapper [" + FieldNamesFieldMapper.NAME + "]");
-        }
+
         // we register _field_names here so that it has a chance to see all other mappers, including from plugins
         metadataMappers.put(FieldNamesFieldMapper.NAME, new FieldNamesFieldMapper.TypeParser());
         return Collections.unmodifiableMap(metadataMappers);

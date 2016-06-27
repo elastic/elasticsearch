@@ -19,10 +19,10 @@
 
 package org.elasticsearch.transport.netty;
 
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+import org.junit.Test;
 
 import java.util.Map.Entry;
 import java.util.Set;
@@ -34,7 +34,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class KeyedLockTests extends ESTestCase {
-    public void testIfMapEmptyAfterLotsOfAcquireAndReleases() throws InterruptedException {
+
+    @Test
+    public void checkIfMapEmptyAfterLotsOfAcquireAndReleases() throws InterruptedException {
         ConcurrentHashMap<String, Integer> counter = new ConcurrentHashMap<>();
         ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<>();
         KeyedLock<String> connectionLock = new KeyedLock<String>(randomBoolean());
@@ -67,6 +69,20 @@ public class KeyedLockTests extends ESTestCase {
         }
     }
 
+    @Test(expected = IllegalStateException.class)
+    public void checkCannotAcquireTwoLocks() throws InterruptedException {
+        KeyedLock<String> connectionLock = new KeyedLock<String>();
+        String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
+        connectionLock.acquire(name);
+        connectionLock.acquire(name);
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void checkCannotReleaseUnacquiredLock() throws InterruptedException {
+        KeyedLock<String> connectionLock = new KeyedLock<String>();
+        String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
+        connectionLock.release(name);
+    }
 
     public static class AcquireAndReleaseThread extends Thread {
         private CountDownLatch startLatch;
@@ -76,7 +92,7 @@ public class KeyedLockTests extends ESTestCase {
         ConcurrentHashMap<String, AtomicInteger> safeCounter;
 
         public AcquireAndReleaseThread(CountDownLatch startLatch, KeyedLock<String> connectionLock, String[] names,
-                                       ConcurrentHashMap<String, Integer> counter, ConcurrentHashMap<String, AtomicInteger> safeCounter) {
+                ConcurrentHashMap<String, Integer> counter, ConcurrentHashMap<String, AtomicInteger> safeCounter) {
             this.startLatch = startLatch;
             this.connectionLock = connectionLock;
             this.names = names;
@@ -89,21 +105,21 @@ public class KeyedLockTests extends ESTestCase {
             try {
                 startLatch.await();
             } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+                throw new RuntimeException();
             }
             int numRuns = scaledRandomIntBetween(5000, 50000);
             for (int i = 0; i < numRuns; i++) {
                 String curName = names[randomInt(names.length - 1)];
-                assert connectionLock.isHeldByCurrentThread(curName) == false;
-                try (Releasable ignored = connectionLock.acquire(curName)) {
-                    assert connectionLock.isHeldByCurrentThread(curName);
-                    assert connectionLock.isHeldByCurrentThread(curName + "bla") == false;
+                connectionLock.acquire(curName);
+                try {
                     Integer integer = counter.get(curName);
                     if (integer == null) {
                         counter.put(curName, 1);
                     } else {
                         counter.put(curName, integer.intValue() + 1);
                     }
+                } finally {
+                    connectionLock.release(curName);
                 }
                 AtomicInteger atomicInteger = new AtomicInteger(0);
                 AtomicInteger value = safeCounter.putIfAbsent(curName, atomicInteger);

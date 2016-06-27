@@ -126,6 +126,15 @@ public class TransportClient extends AbstractClient {
             final NetworkService networkService = new NetworkService(settings);
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             try {
+                final List<Setting<?>> additionalSettings = new ArrayList<>();
+                final List<String> additionalSettingsFilter = new ArrayList<>();
+                additionalSettings.addAll(pluginsService.getPluginSettings());
+                additionalSettingsFilter.addAll(pluginsService.getPluginSettingsFilter());
+                for (final ExecutorBuilder<?> builder : threadPool.builders()) {
+                    additionalSettings.addAll(builder.getRegisteredSettings());
+                }
+                SettingsModule settingsModule = new SettingsModule(settings, additionalSettings, additionalSettingsFilter);
+
                 ModulesBuilder modules = new ModulesBuilder();
                 // plugin modules must be added here, before others or we can get crazy injection errors...
                 for (Module pluginModule : pluginsService.nodeModules()) {
@@ -139,17 +148,10 @@ public class TransportClient extends AbstractClient {
                         // noop
                     }
                 });
-                modules.add(new ActionModule(false, true, pluginsService.filterPlugins(ActionPlugin.class)));
+                modules.add(new ActionModule(false, true, settings, null, settingsModule.getClusterSettings(),
+                        pluginsService.filterPlugins(ActionPlugin.class)));
 
                 pluginsService.processModules(modules);
-                final List<Setting<?>> additionalSettings = new ArrayList<>();
-                final List<String> additionalSettingsFilter = new ArrayList<>();
-                additionalSettings.addAll(pluginsService.getPluginSettings());
-                additionalSettingsFilter.addAll(pluginsService.getPluginSettingsFilter());
-                for (final ExecutorBuilder<?> builder : threadPool.builders()) {
-                    additionalSettings.addAll(builder.getRegisteredSettings());
-                }
-                SettingsModule settingsModule = new SettingsModule(settings, additionalSettings, additionalSettingsFilter);
                 CircuitBreakerService circuitBreakerService = Node.createCircuitBreakerService(settingsModule.getSettings(),
                     settingsModule.getClusterSettings());
                 resourcesToClose.add(circuitBreakerService);

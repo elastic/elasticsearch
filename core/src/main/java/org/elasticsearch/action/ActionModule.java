@@ -189,10 +189,13 @@ import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction
 import org.elasticsearch.action.termvectors.TransportTermVectorsAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 
@@ -208,14 +211,19 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class ActionModule extends AbstractModule {
 
-    private final boolean proxy;
+    private final boolean transportClient;
     private final Map<String, ActionHandler<?, ?>> actions;
     private final List<Class<? extends ActionFilter>> actionFilters;
+    private final AutoCreateIndex autoCreateIndex;
+    private final DestructiveOperations destructiveOperations;
 
-    public ActionModule(boolean ingestEnabled, boolean proxy, List<ActionPlugin> actionPlugins) {
-        this.proxy = proxy;
+    public ActionModule(boolean ingestEnabled, boolean transportClient, Settings settings, IndexNameExpressionResolver resolver,
+            ClusterSettings clusterSettings, List<ActionPlugin> actionPlugins) {
+        this.transportClient = transportClient;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins, ingestEnabled);
+        autoCreateIndex = transportClient ? null : new AutoCreateIndex(settings, resolver);
+        destructiveOperations = new DestructiveOperations(settings, clusterSettings);
     }
 
     private Map<String, ActionHandler<?, ?>> setupActions(List<ActionPlugin> actionPlugins) {
@@ -335,7 +343,7 @@ public class ActionModule extends AbstractModule {
 
     private List<Class<? extends ActionFilter>> setupActionFilters(List<ActionPlugin> actionPlugins, boolean ingestEnabled) {
         List<Class<? extends ActionFilter>> filters = new ArrayList<>();
-        if (proxy == false) {
+        if (transportClient == false) {
             if (ingestEnabled) {
                 filters.add(IngestActionFilter.class);
             } else {
@@ -356,8 +364,7 @@ public class ActionModule extends AbstractModule {
             actionFilterMultibinder.addBinding().to(actionFilter);
         }
         bind(ActionFilters.class).asEagerSingleton();
-        bind(AutoCreateIndex.class).asEagerSingleton();
-        bind(DestructiveOperations.class).asEagerSingleton();
+        bind(DestructiveOperations.class).toInstance(destructiveOperations);
 
         // register Name -> GenericAction Map that can be injected to instances.
         @SuppressWarnings("rawtypes")
@@ -369,7 +376,8 @@ public class ActionModule extends AbstractModule {
         }
         // register GenericAction -> transportAction Map that can be injected to instances.
         // also register any supporting classes
-        if (!proxy) {
+        if (false == transportClient) {
+            bind(AutoCreateIndex.class).toInstance(autoCreateIndex);
             bind(TransportLivenessAction.class).asEagerSingleton();
             @SuppressWarnings("rawtypes")
             MapBinder<GenericAction, TransportAction> transportActionsBinder

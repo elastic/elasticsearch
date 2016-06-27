@@ -203,7 +203,7 @@
         "requests_per_second": {
           "type": "float",
           "default": 0,
-          "description": "The throttle for this request in sub-requests per second. 0 means set no throttle."
+          "description": "The throttle to set on this request in sub-requests per second. -1 means set no throttle as does \"unlimited\" which is the only non-float this accepts."
         }
       }
     },

@@ -137,20 +137,20 @@ public abstract class AbstractBaseReindexRestHandler<
         if (requestsPerSecondString == null) {
             return null;
         }
-        if ("unlimited".equals(requestsPerSecondString)) {
-            return  Float.POSITIVE_INFINITY;
-        }
         float requestsPerSecond;
         try {
             requestsPerSecond = Float.parseFloat(requestsPerSecondString);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException(
-                    "[requests_per_second] must be a float greater than 0. Use \"unlimited\" to disable throttling.", e);
+                    "[requests_per_second] must be a float greater than 0. Use -1 to disable throttling.", e);
+        }
+        if (requestsPerSecond == -1) {
+            return Float.POSITIVE_INFINITY;
         }
         if (requestsPerSecond <= 0) {
-            // We validate here and in the setters because the setters use "Float.POSITIVE_INFINITY" instead of "unlimited"
+            // We validate here and in the setters because the setters use "Float.POSITIVE_INFINITY" instead of -1
             throw new IllegalArgumentException(
-                    "[requests_per_second] must be a float greater than 0. Use \"unlimited\" to disable throttling.");
+                    "[requests_per_second] must be a float greater than 0. Use -1 to disable throttling.");
         }
         return requestsPerSecond;
     }

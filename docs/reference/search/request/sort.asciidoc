@@ -165,7 +165,10 @@ scripts and sorting by geo distance.
 The `missing` parameter specifies how docs which are missing
 the field should be treated: The `missing` value can be
 set to `_last`, `_first`, or a custom value (that
-will be used for missing docs as the sort value). For example:
+will be used for missing docs as the sort value).
+The default is `_last`.
+
+For example:
 
 [source,js]
 --------------------------------------------------

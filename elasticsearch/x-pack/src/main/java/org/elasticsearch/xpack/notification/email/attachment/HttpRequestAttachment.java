@@ -16,12 +16,14 @@ import java.util.Objects;
 public class HttpRequestAttachment implements EmailAttachmentParser.EmailAttachment {
 
     private final HttpRequestTemplate requestTemplate;
+    private boolean inline;
     private final String contentType;
     private final String id;
 
-    public HttpRequestAttachment(String id, HttpRequestTemplate requestTemplate, @Nullable String contentType) {
+    public HttpRequestAttachment(String id, HttpRequestTemplate requestTemplate, boolean inline, @Nullable String contentType) {
         this.id = id;
         this.requestTemplate = requestTemplate;
+        this.inline = inline;
         this.contentType = contentType;
     }
 
@@ -39,12 +41,20 @@ public class HttpRequestAttachment implements EmailAttachmentParser.EmailAttachm
     }
 
     @Override
+    public boolean inline() {
+        return inline;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(id)
                 .startObject(HttpEmailAttachementParser.TYPE)
                 .field(HttpEmailAttachementParser.Fields.REQUEST.getPreferredName(), requestTemplate, params);
         if (Strings.hasLength(contentType)) {
             builder.field(HttpEmailAttachementParser.Fields.CONTENT_TYPE.getPreferredName(), contentType);
+        }
+        if (inline) {
+            builder.field(HttpEmailAttachementParser.Fields.INLINE.getPreferredName(), inline);
         }
         return builder.endObject().endObject();
     }
@@ -65,12 +75,12 @@ public class HttpRequestAttachment implements EmailAttachmentParser.EmailAttachm
 
         HttpRequestAttachment otherDataAttachment = (HttpRequestAttachment) o;
         return Objects.equals(id, otherDataAttachment.id) && Objects.equals(requestTemplate, otherDataAttachment.requestTemplate)
-                && Objects.equals(contentType, otherDataAttachment.contentType);
+                && Objects.equals(contentType, otherDataAttachment.contentType) && Objects.equals(inline, otherDataAttachment.inline);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, requestTemplate, contentType);
+        return Objects.hash(id, requestTemplate, contentType, inline);
     }
 
     public static class Builder {
@@ -78,6 +88,7 @@ public class HttpRequestAttachment implements EmailAttachmentParser.EmailAttachm
         private String id;
         private HttpRequestTemplate httpRequestTemplate;
         private String contentType;
+        private boolean inline = false;
 
         private Builder(String id) {
             this.id = id;
@@ -93,8 +104,13 @@ public class HttpRequestAttachment implements EmailAttachmentParser.EmailAttachm
             return this;
         }
 
+        public Builder inline(boolean inline) {
+            this.inline = inline;
+            return this;
+        }
+
         public HttpRequestAttachment build() {
-            return new HttpRequestAttachment(id, httpRequestTemplate, contentType);
+            return new HttpRequestAttachment(id, httpRequestTemplate, inline, contentType);
         }
 
     }

@@ -5,10 +5,13 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -20,7 +23,6 @@ import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.Collections;
@@ -115,30 +117,36 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
 
     public void testUserImpersonationUsingHttp() throws Exception {
         // use the transport client user and try to run as
-        HttpResponse response = httpClient().method("GET")
-                .path("/_nodes")
-                .addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue(TRANSPORT_CLIENT_USER,
-                        SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD)))
-                .addHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, SecuritySettingsSource.DEFAULT_USER_NAME)
-                .execute();
-        assertThat(response.getStatusCode(), is(403));
+        try {
+            getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                            UsernamePasswordToken.basicAuthHeaderValue(TRANSPORT_CLIENT_USER,
+                                    SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD))),
+                    new BasicHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, SecuritySettingsSource.DEFAULT_USER_NAME));
+            fail("request should have failed");
+        } catch(ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
+        }
 
-        //the run as user shouldn't have access to the nodes api
-        response = httpClient().method("GET")
-                .path("/_nodes")
-                .addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                        SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD)))
-                .execute();
-        assertThat(response.getStatusCode(), is(403));
+        try {
+            //the run as user shouldn't have access to the nodes api
+            getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                            UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
+                                    SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD))));
+            fail("request should have failed");
+        } catch(ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
+        }
 
         // but when running as a different user it should work
-        response = httpClient().method("GET")
-                .path("/_nodes")
-                .addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                        SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD)))
-                .addHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, SecuritySettingsSource.DEFAULT_USER_NAME)
-                .execute();
-        assertThat(response.getStatusCode(), is(200));
+        try (Response response = getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+                new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                        UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
+                                SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD))),
+                new BasicHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, SecuritySettingsSource.DEFAULT_USER_NAME))) {
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+        }
     }
 
     public void testEmptyUserImpersonationHeader() throws Exception {
@@ -164,13 +172,16 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
     }
 
     public void testEmptyHeaderUsingHttp() throws Exception {
-        HttpResponse response = httpClient().method("GET")
-                .path("/_nodes")
-                .addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                        SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD)))
-                .addHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, "")
-                .execute();
-        assertThat(response.getStatusCode(), is(401));
+        try {
+            getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                            UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
+                            SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD))),
+                    new BasicHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, ""));
+            fail("request should have failed");
+        } catch(ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
+        }
     }
 
     public void testNonExistentRunAsUser() throws Exception {
@@ -196,13 +207,16 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
     }
 
     public void testNonExistentRunAsUserUsingHttp() throws Exception {
-        HttpResponse response = httpClient().method("GET")
-                .path("/_nodes")
-                .addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                        SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD)))
-                .addHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, "idontexist")
-                .execute();
-        assertThat(response.getStatusCode(), is(403));
+        try {
+            getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                            UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
+                            SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD))),
+                    new BasicHeader(InternalAuthenticationService.RUN_AS_USER_HEADER, "idontexist"));
+            fail("request should have failed");
+        } catch (ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
+        }
     }
 
     // build our own here to better mimic an actual client...

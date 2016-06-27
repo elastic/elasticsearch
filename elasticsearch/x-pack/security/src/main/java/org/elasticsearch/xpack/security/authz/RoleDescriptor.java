@@ -235,10 +235,6 @@ public class RoleDescriptor implements ToXContent {
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.PRIVILEGES)) {
                 privileges = readStringArray(roleName, parser, true);
-                if (names.length == 0) {
-                    throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. [{}] cannot be an empty " +
-                            "array", roleName, currentFieldName);
-                }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.FIELDS)) {
                 fields = readStringArray(roleName, parser, true);
             } else {

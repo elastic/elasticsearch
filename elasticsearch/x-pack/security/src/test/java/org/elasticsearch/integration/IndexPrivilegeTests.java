@@ -5,20 +5,21 @@
  */
 package org.elasticsearch.integration;
 
-import org.apache.lucene.util.LuceneTestCase.BadApple;
+import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
+import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.junit.Before;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
-import static org.hamcrest.Matchers.containsString;
+import static org.apache.lucene.util.LuceneTestCase.BadApple;
 import static org.hamcrest.Matchers.is;
 
 //test is just too slow, please fix it to not be sleep-based
@@ -303,8 +304,14 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
     }
 
     public void testThatUnknownUserIsRejectedProperly() throws Exception {
-        HttpResponse response = executeRequest("idonotexist", "GET", "/", null, new HashMap<>());
-        assertThat(response.getStatusCode(), is(401));
+        try {
+            getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
+                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                            UsernamePasswordToken.basicAuthHeaderValue("idonotexist", new SecuredString("passwd".toCharArray()))));
+            fail("request should have failed");
+        } catch(ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
+        }
     }
 
     private void assertUserExecutes(String user, String action, String index, boolean userIsAllowed) throws Exception {

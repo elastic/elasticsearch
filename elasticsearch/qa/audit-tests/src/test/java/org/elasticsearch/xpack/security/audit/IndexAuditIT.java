@@ -6,9 +6,11 @@
 package org.elasticsearch.xpack.security.audit;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -19,7 +21,6 @@ import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.Collection;
@@ -35,12 +36,12 @@ public class IndexAuditIT extends ESIntegTestCase {
     private static final String USER = "test_user";
     private static final String PASS = "changeme";
 
-    public void testIndexAuditTrailWorking() throws Exception {
-        HttpResponse response = httpClient().path("/")
-                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(USER, new SecuredString(PASS.toCharArray())))
-                .execute();
-        assertThat(response.getStatusCode(), is(200));
-
+    public void testShieldIndexAuditTrailWorking() throws Exception {
+        try (Response response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
+                new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                        UsernamePasswordToken.basicAuthHeaderValue(USER, new SecuredString(PASS.toCharArray()))))) {
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+        }
         final AtomicReference<ClusterState> lastClusterState = new AtomicReference<>();
         final AtomicBoolean indexExists = new AtomicBoolean(false);
         boolean found = awaitBusy(() -> {

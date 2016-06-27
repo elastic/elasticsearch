@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.notification.email;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -16,19 +17,26 @@ import javax.activation.DataHandler;
 import javax.activation.DataSource;
 import javax.activation.FileDataSource;
 import javax.mail.MessagingException;
-import javax.mail.Part;
 import javax.mail.internet.MimeBodyPart;
 import javax.mail.util.ByteArrayDataSource;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Path;
+
+import static javax.mail.Part.ATTACHMENT;
+import static javax.mail.Part.INLINE;
 
 /**
 *
 */
 public abstract class Attachment extends BodyPartSource {
 
-    protected Attachment(String id, String name, String contentType) {
+    private final boolean inline;
+
+    protected Attachment(String id, String name, String contentType, boolean inline) {
         super(id, name, contentType);
+        this.inline = inline;
     }
 
     @Override
@@ -36,12 +44,16 @@ public abstract class Attachment extends BodyPartSource {
         MimeBodyPart part = new MimeBodyPart();
         part.setContentID(id);
         part.setFileName(name);
-        part.setDisposition(Part.ATTACHMENT);
+        part.setDisposition(inline ? INLINE : ATTACHMENT);
         writeTo(part);
         return part;
     }
 
     public abstract String type();
+
+    public boolean isInline() {
+        return inline;
+    }
 
     /**
      * intentionally not emitting path as it may come as an information leak
@@ -65,22 +77,22 @@ public abstract class Attachment extends BodyPartSource {
         private final Path path;
         private final DataSource dataSource;
 
-        public File(String id, Path path) {
-            this(id, path.getFileName().toString(), path);
+        public File(String id, Path path, boolean inline) {
+            this(id, path.getFileName().toString(), path, inline);
         }
 
-        public File(String id, Path path, String contentType) {
-            this(id, path.getFileName().toString(), path, contentType);
-        }
-
-        @SuppressForbidden(reason = "uses toFile")
-        public File(String id, String name, Path path) {
-            this(id, name, path, fileTypeMap.getContentType(path.toFile()));
+        public File(String id, Path path, String contentType, boolean inline) {
+            this(id, path.getFileName().toString(), path, contentType, inline);
         }
 
         @SuppressForbidden(reason = "uses toFile")
-        public File(String id, String name, Path path, String contentType) {
-            super(id, name, contentType);
+        public File(String id, String name, Path path, boolean inline) {
+            this(id, name, path, fileTypeMap.getContentType(path.toFile()), inline);
+        }
+
+        @SuppressForbidden(reason = "uses toFile")
+        public File(String id, String name, Path path, String contentType, boolean inline) {
+            super(id, name, contentType, inline);
             this.path = path;
             this.dataSource = new FileDataSource(path.toFile());
         }
@@ -105,16 +117,16 @@ public abstract class Attachment extends BodyPartSource {
 
         private final byte[] bytes;
 
-        public Bytes(String id, byte[] bytes, String contentType) {
-            this(id, id, bytes, contentType);
+        public Bytes(String id, byte[] bytes, String contentType, boolean inline) {
+            this(id, id, bytes, contentType, inline);
         }
 
-        public Bytes(String id, String name, byte[] bytes) {
-            this(id, name, bytes, fileTypeMap.getContentType(name));
+        public Bytes(String id, String name, byte[] bytes, boolean inline) {
+            this(id, name, bytes, fileTypeMap.getContentType(name), inline);
         }
 
-        public Bytes(String id, String name, byte[] bytes, String contentType) {
-            super(id, name, contentType);
+        public Bytes(String id, String name, byte[] bytes, String contentType, boolean inline) {
+            super(id, name, contentType, inline);
             this.bytes = bytes;
         }
 
@@ -134,6 +146,68 @@ public abstract class Attachment extends BodyPartSource {
         }
     }
 
+    public static class Stream extends Attachment {
+
+        static final String TYPE = "stream";
+
+        private final Provider<InputStream> source;
+
+        public Stream(String id, String name, boolean inline, Provider<InputStream> source) {
+            this(id, name, fileTypeMap.getContentType(name), inline, source);
+        }
+
+        public Stream(String id, String name, String contentType, boolean inline, Provider<InputStream> source) {
+            super(id, name, contentType, inline);
+            this.source = source;
+        }
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        protected void writeTo(MimeBodyPart part) throws MessagingException {
+            DataSource ds = new StreamDataSource(name, contentType, source);
+            DataHandler dh = new DataHandler(ds);
+            part.setDataHandler(dh);
+        }
+
+        static class StreamDataSource implements DataSource {
+
+            private final String name;
+            private final String contentType;
+            private final Provider<InputStream> source;
+
+            public StreamDataSource(String name, String contentType, Provider<InputStream> source) {
+                this.name = name;
+                this.contentType = contentType;
+                this.source = source;
+            }
+
+            @Override
+            public InputStream getInputStream() throws IOException {
+                return source.get();
+            }
+
+            @Override
+            public OutputStream getOutputStream() throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String getContentType() {
+                return contentType;
+            }
+
+            @Override
+            public String getName() {
+                return name;
+            }
+        }
+
+    }
+
     public static class XContent extends Bytes {
 
         protected XContent(String id, ToXContent content, XContentType type) {
@@ -141,7 +215,7 @@ public abstract class Attachment extends BodyPartSource {
         }
 
         protected XContent(String id, String name, ToXContent content, XContentType type) {
-            super(id, name, bytes(name, content, type), mimeType(type));
+            super(id, name, bytes(name, content, type), mimeType(type), false);
         }
 
         static String mimeType(XContentType type) {

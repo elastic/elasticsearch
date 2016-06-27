@@ -5,27 +5,25 @@
  */
 package org.elasticsearch.smoketest;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.URL;
-
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.conn.BasicHttpClientConnectionManager;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.junit.After;
 import org.junit.Before;
 
+
+import java.io.IOException;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+
 
 public class WatcherWithSecurityIT extends ESRestTestCase {
 
@@ -43,24 +41,12 @@ public class WatcherWithSecurityIT extends ESRestTestCase {
 
     @Before
     public void startWatcher() throws Exception {
-        try(CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
-            URL url = getClusterUrls()[0];
-            HttpPut request = new HttpPut(new URI("http", null, url.getHost(), url.getPort(), "/_xpack/watcher/_start", null, null));
-            String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecuredString(TEST_ADMIN_PASSWORD.toCharArray()));
-            request.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, token);
-            client.execute(request);
-        }
+        getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
     }
 
     @After
     public void stopWatcher() throws Exception {
-        try(CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
-            URL url = getClusterUrls()[0];
-            HttpPut request = new HttpPut(new URI("http", null, url.getHost(), url.getPort(), "/_xpack/watcher/_stop", null, null));
-            String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecuredString(TEST_ADMIN_PASSWORD.toCharArray()));
-            request.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, token);
-            client.execute(request);
-        }
+        getAdminExecutionContext().callApi("xpack.watcher.stop", emptyMap(), emptyList(), emptyMap());
     }
 
     @Override

@@ -23,6 +23,21 @@
   - match: { role: { created: true } }
 
   - do:
+      xpack.security.put_role:
+        name: "backwards_role"
+        body:  >
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "privileges": ["all"],
+                  "names": "*"
+                }
+              ]
+            }
+  - match: { role: { created: true } }
+
+  - do:
       xpack.security.put_user:
         username: "joe"
         body:  >

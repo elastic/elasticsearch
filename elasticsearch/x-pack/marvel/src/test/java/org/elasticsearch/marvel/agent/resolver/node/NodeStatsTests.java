@@ -43,6 +43,7 @@ public class NodeStatsTests extends MarvelIntegTestCase {
         wipeMarvelIndices();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/2588")
     public void testNodeStats() throws Exception {
         logger.debug("--> creating some indices for future node stats");
         final int numDocs = between(50, 150);

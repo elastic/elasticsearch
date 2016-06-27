@@ -29,7 +29,7 @@ dependencies {
   compile 'com.unboundid:unboundid-ldapsdk:2.3.8'
   compile 'org.bouncycastle:bcprov-jdk15on:1.54'
   compile 'org.bouncycastle:bcpkix-jdk15on:1.54'
-  testCompile 'com.google.jimfs:jimfs:1.0'
+  testCompile 'com.google.jimfs:jimfs:1.1'
 
   // watcher deps
   compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:r239'

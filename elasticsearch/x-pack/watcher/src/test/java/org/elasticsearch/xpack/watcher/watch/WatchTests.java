@@ -5,14 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.watch;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
@@ -25,12 +17,31 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.common.ScriptServiceProxy;
+import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.common.http.HttpMethod;
+import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
+import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
+import org.elasticsearch.xpack.common.secret.SecretService;
+import org.elasticsearch.xpack.common.text.TextTemplate;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.notification.email.DataAttachment;
+import org.elasticsearch.xpack.notification.email.EmailService;
+import org.elasticsearch.xpack.notification.email.EmailTemplate;
+import org.elasticsearch.xpack.notification.email.HtmlSanitizer;
+import org.elasticsearch.xpack.notification.email.Profile;
+import org.elasticsearch.xpack.notification.email.attachment.EmailAttachments;
+import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentsParser;
+import org.elasticsearch.xpack.support.clock.Clock;
+import org.elasticsearch.xpack.support.clock.ClockMock;
+import org.elasticsearch.xpack.support.clock.SystemClock;
+import org.elasticsearch.xpack.watcher.WatcherLicensee;
 import org.elasticsearch.xpack.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.actions.ActionRegistry;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
-import org.elasticsearch.xpack.notification.email.DataAttachment;
 import org.elasticsearch.xpack.watcher.actions.email.EmailAction;
 import org.elasticsearch.xpack.watcher.actions.email.EmailActionFactory;
 import org.elasticsearch.xpack.watcher.actions.email.ExecutableEmailAction;
@@ -68,28 +79,15 @@ import org.elasticsearch.xpack.watcher.input.search.SearchInputFactory;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
-import org.elasticsearch.xpack.watcher.WatcherLicensee;
 import org.elasticsearch.xpack.watcher.support.Script;
-import org.elasticsearch.xpack.watcher.support.WatcherUtils;
-import org.elasticsearch.xpack.support.clock.Clock;
-import org.elasticsearch.xpack.support.clock.ClockMock;
-import org.elasticsearch.xpack.support.clock.SystemClock;
-import org.elasticsearch.xpack.common.http.HttpClient;
-import org.elasticsearch.xpack.common.http.HttpMethod;
-import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
-import org.elasticsearch.xpack.common.secret.SecretService;
-import org.elasticsearch.xpack.common.text.TextTemplate;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.transform.TransformFactory;
 import org.elasticsearch.xpack.watcher.transform.TransformRegistry;
 import org.elasticsearch.xpack.watcher.transform.chain.ChainTransform;
-import org.elasticsearch.xpack.watcher.transform.chain.ChainTransformFactory;
 import org.elasticsearch.xpack.watcher.transform.chain.ExecutableChainTransform;
 import org.elasticsearch.xpack.watcher.transform.script.ExecutableScriptTransform;
 import org.elasticsearch.xpack.watcher.transform.script.ScriptTransform;
@@ -116,21 +114,23 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.support.Month;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.MonthTimes;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.WeekTimes;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.YearTimes;
-import org.elasticsearch.xpack.notification.email.EmailService;
-import org.elasticsearch.xpack.notification.email.EmailTemplate;
-import org.elasticsearch.xpack.notification.email.HtmlSanitizer;
-import org.elasticsearch.xpack.notification.email.Profile;
-import org.elasticsearch.xpack.notification.email.attachment.EmailAttachments;
-import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentsParser;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
-
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
+import static org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.matchAllRequest;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.hamcrest.Matchers.equalTo;
@@ -153,6 +153,7 @@ public class WatchTests extends ESTestCase {
     private WatcherLicensee watcherLicensee;
     private ESLogger logger;
     private Settings settings = Settings.EMPTY;
+    private WatcherSearchTemplateService searchTemplateService;
 
     @Before
     public void init() throws Exception {
@@ -166,6 +167,7 @@ public class WatchTests extends ESTestCase {
         watcherLicensee = mock(WatcherLicensee.class);
         authRegistry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(secretService)));
         logger = Loggers.getLogger(WatchTests.class);
+        searchTemplateService = mock(WatcherSearchTemplateService.class);
     }
 
     public void testParserSelfGenerated() throws Exception {
@@ -341,7 +343,7 @@ public class WatchTests extends ESTestCase {
         switch (type) {
             case SearchInput.TYPE:
                 SearchInput searchInput = searchInput(WatcherTestUtils.newInputSearchRequest("idx")).build();
-                return new ExecutableSearchInput(searchInput, logger, client, null);
+                return new ExecutableSearchInput(searchInput, logger, client, searchTemplateService, null);
             default:
                 SimpleInput simpleInput = InputBuilders.simpleInput(singletonMap("_key", "_val")).build();
                 return new ExecutableSimpleInput(simpleInput, logger);
@@ -355,7 +357,7 @@ public class WatchTests extends ESTestCase {
                 IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry();
                 QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
                 queryRegistry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
-                parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, queryRegistry, null, null));
+                parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, queryRegistry, null, null, scriptService));
                 return new InputRegistry(Settings.EMPTY, parsers);
             default:
                 parsers.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
@@ -406,15 +408,19 @@ public class WatchTests extends ESTestCase {
             case ScriptTransform.TYPE:
                 return new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService);
             case SearchTransform.TYPE:
-                return new ExecutableSearchTransform(new SearchTransform(
-                        matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone), logger, client, null);
+                SearchTransform transform = new SearchTransform(
+                        new WatcherSearchTemplateRequest(matchAllRequest(DEFAULT_INDICES_OPTIONS), null), timeout, timeZone);
+                return new ExecutableSearchTransform(transform, logger, client, searchTemplateService, null);
             default: // chain
-                ChainTransform chainTransform = new ChainTransform(Arrays.asList(
-                        new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone),
-                        new ScriptTransform(Script.inline("_script").build())));
+                SearchTransform searchTransform = new SearchTransform(
+                        new WatcherSearchTemplateRequest(matchAllRequest(DEFAULT_INDICES_OPTIONS), null), timeout, timeZone);
+                ScriptTransform scriptTransform = new ScriptTransform(Script.inline("_script").build());
+
+                ChainTransform chainTransform = new ChainTransform(Arrays.asList(searchTransform, scriptTransform));
                 return new ExecutableChainTransform(chainTransform, logger, Arrays.<ExecutableTransform>asList(
                         new ExecutableSearchTransform(new SearchTransform(
-                                matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS), timeout, timeZone), logger, client, null),
+                                new WatcherSearchTemplateRequest(matchAllRequest(DEFAULT_INDICES_OPTIONS), null), timeout, timeZone),
+                                logger, client, searchTemplateService, null),
                         new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService)));
         }
     }
@@ -425,7 +431,7 @@ public class WatchTests extends ESTestCase {
         queryRegistry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
         Map<String, TransformFactory> factories = new HashMap<>();
         factories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
-        factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, queryRegistry, null, null));
+        factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, queryRegistry, null, null, scriptService));
         TransformRegistry registry = new TransformRegistry(Settings.EMPTY, unmodifiableMap(factories));
         return registry;
     }

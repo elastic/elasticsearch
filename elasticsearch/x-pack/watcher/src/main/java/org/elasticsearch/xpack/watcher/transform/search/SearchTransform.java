@@ -16,9 +16,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
-import org.elasticsearch.xpack.watcher.support.SearchRequestEquivalence;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.xpack.watcher.support.WatcherUtils;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.joda.time.DateTimeZone;
@@ -32,11 +31,11 @@ public class SearchTransform implements Transform {
 
     public static final String TYPE = "search";
 
-    private final SearchRequest request;
+    private final WatcherSearchTemplateRequest request;
     private final @Nullable TimeValue timeout;
     private final @Nullable DateTimeZone dynamicNameTimeZone;
 
-    public SearchTransform(SearchRequest request, @Nullable TimeValue timeout, @Nullable DateTimeZone dynamicNameTimeZone) {
+    public SearchTransform(WatcherSearchTemplateRequest request, @Nullable TimeValue timeout, @Nullable DateTimeZone dynamicNameTimeZone) {
         this.request = request;
         this.timeout = timeout;
         this.dynamicNameTimeZone = dynamicNameTimeZone;
@@ -47,7 +46,7 @@ public class SearchTransform implements Transform {
         return TYPE;
     }
 
-    public SearchRequest getRequest() {
+    public WatcherSearchTemplateRequest getRequest() {
         return request;
     }
 
@@ -66,14 +65,14 @@ public class SearchTransform implements Transform {
 
         SearchTransform that = (SearchTransform) o;
 
-        if (!SearchRequestEquivalence.INSTANCE.equivalent(request, this.request)) return false;
+        if (request != null ? !request.equals(that.request) : that.request != null) return false;
         if (timeout != null ? !timeout.equals(that.timeout) : that.timeout != null) return false;
         return !(dynamicNameTimeZone != null ? !dynamicNameTimeZone.equals(that.dynamicNameTimeZone) : that.dynamicNameTimeZone != null);
     }
 
     @Override
     public int hashCode() {
-        int result = request.hashCode();
+        int result = request != null ? request.hashCode() : 0;
         result = 31 * result + (timeout != null ? timeout.hashCode() : 0);
         result = 31 * result + (dynamicNameTimeZone != null ? dynamicNameTimeZone.hashCode() : 0);
         return result;
@@ -82,8 +81,9 @@ public class SearchTransform implements Transform {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Field.REQUEST.getPreferredName());
-        builder = WatcherUtils.writeSearchRequest(request, builder, params);
+        if (request != null) {
+            builder.field(Field.REQUEST.getPreferredName(), request);
+        }
         if (timeout != null) {
             builder.field(Field.TIMEOUT.getPreferredName(), timeout);
         }
@@ -97,7 +97,7 @@ public class SearchTransform implements Transform {
     public static SearchTransform parse(String watchId, XContentParser parser, QueryParseContext context,
                                         AggregatorParsers aggParsers, Suggesters suggesters)
             throws IOException {
-        SearchRequest request = null;
+        WatcherSearchTemplateRequest request = null;
         TimeValue timeout = null;
         DateTimeZone dynamicNameTimeZone = null;
 
@@ -108,7 +108,7 @@ public class SearchTransform implements Transform {
                 currentFieldName = parser.currentName();
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.REQUEST)) {
                 try {
-                    request = WatcherUtils.readSearchRequest(parser, ExecutableSearchTransform.DEFAULT_SEARCH_TYPE, context,
+                    request = WatcherSearchTemplateRequest.fromXContent(parser, ExecutableSearchTransform.DEFAULT_SEARCH_TYPE, context,
                                                              aggParsers, suggesters);
                 } catch (ElasticsearchParseException srpe) {
                     throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse [{}]", srpe,
@@ -136,7 +136,7 @@ public class SearchTransform implements Transform {
         return new SearchTransform(request, timeout, dynamicNameTimeZone);
     }
 
-    public static Builder builder(SearchRequest request) {
+    public static Builder builder(WatcherSearchTemplateRequest request) {
         return new Builder(request);
     }
 
@@ -162,8 +162,7 @@ public class SearchTransform implements Transform {
         protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
             if (request != null) {
                 builder.startObject(type);
-                builder.field(Field.REQUEST.getPreferredName());
-                WatcherUtils.writeSearchRequest(request, builder, params);
+                builder.field(Field.REQUEST.getPreferredName(), new WatcherSearchTemplateRequest(request));
                 builder.endObject();
             }
             return builder;
@@ -172,11 +171,11 @@ public class SearchTransform implements Transform {
 
     public static class Builder implements Transform.Builder<SearchTransform> {
 
-        private final SearchRequest request;
+        private final WatcherSearchTemplateRequest request;
         private TimeValue timeout;
         private DateTimeZone dynamicNameTimeZone;
 
-        public Builder(SearchRequest request) {
+        public Builder(WatcherSearchTemplateRequest request) {
             this.request = request;
         }
 

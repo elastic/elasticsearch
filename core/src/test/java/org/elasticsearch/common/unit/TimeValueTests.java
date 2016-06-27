@@ -143,6 +143,11 @@ public class TimeValueTests extends ESTestCase {
         assertEqualityAfterSerialize(timeValueNanos(-1), 2);
         assertEqualityAfterSerialize(timeValueNanos(1), 2);
         assertEqualityAfterSerialize(timeValueSeconds(30), 2);
+
+        final TimeValue timeValue = new TimeValue(randomIntBetween(0, 1024), randomFrom(TimeUnit.values()));
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeZLong(timeValue.duration());
+        assertEqualityAfterSerialize(timeValue, 1 + out.bytes().length());
     }
 
     public void testFailOnUnknownUnits() {

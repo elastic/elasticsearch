@@ -26,6 +26,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.Stash;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -195,6 +196,13 @@ public class ObjectPathTests extends ESTestCase {
         Stash stash = new Stash();
         stash.stashValue("placeholder", "elements");
         Object object = objectPath.evaluate("field1.$placeholder.element1", stash);
+        assertThat(object, notNullValue());
+        assertThat(object.toString(), equalTo("value1"));
+
+        Map<String, Object> stashedObject = new HashMap<>();
+        stashedObject.put("subobject", "elements");
+        stash.stashValue("object", stashedObject);
+        object = objectPath.evaluate("field1.$object\\.subobject.element1", stash);
         assertThat(object, notNullValue());
         assertThat(object.toString(), equalTo("value1"));
     }

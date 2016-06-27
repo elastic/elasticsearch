@@ -42,7 +42,7 @@ public class ObjectPath {
         }
     }
 
-    public ObjectPath(Object object) throws IOException {
+    public ObjectPath(Object object) {
         this.object = object;
     }
 

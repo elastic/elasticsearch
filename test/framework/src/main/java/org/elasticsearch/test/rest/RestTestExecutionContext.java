@@ -76,7 +76,7 @@ public class RestTestExecutionContext implements Closeable {
         try {
             response = callApiInternal(apiName, requestParams, body, headers);
             //we always stash the last response body
-            stash.stashResponse(response);
+            stash.stashValue("body", response.getBody());
             return response;
         } catch(ResponseException e) {
             response = new RestTestResponse(e);

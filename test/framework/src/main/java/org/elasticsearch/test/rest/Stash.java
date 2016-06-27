@@ -24,7 +24,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.rest.client.RestTestResponse;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -42,7 +41,7 @@ public class Stash implements ToXContent {
     public static final Stash EMPTY = new Stash();
 
     private final Map<String, Object> stash = new HashMap<>();
-    private RestTestResponse response;
+    private final ObjectPath stashObjectPath = new ObjectPath(stash);
 
     /**
      * Allows to saved a specific field in the stash as key-value pair
@@ -53,12 +52,6 @@ public class Stash implements ToXContent {
         if (old != null && old != value) {
             logger.trace("replaced stashed value [{}] with same key [{}]", old, key);
         }
-    }
-
-    public void stashResponse(RestTestResponse response) throws IOException {
-        // TODO we can almost certainly save time by lazily evaluating the body
-        stashValue("body", response.getBody());
-        this.response = response;
     }
 
     /**
@@ -88,13 +81,7 @@ public class Stash implements ToXContent {
      * as arguments for following requests (e.g. scroll_id)
      */
     public Object getValue(String key) throws IOException {
-        if (key.startsWith("$body.")) {
-            if (response == null) {
-                return null;
-            }
-            return response.evaluate(key.substring("$body".length()), this);
-        }
-        Object stashedValue = stash.get(key.substring(1));
+        Object stashedValue = stashObjectPath.evaluate(key.substring(1));
         if (stashedValue == null) {
             throw new IllegalArgumentException("stashed value not found for key [" + key + "]");
         }

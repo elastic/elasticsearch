@@ -1,8 +1,5 @@
 ---
-"Simple alias with yaml body through format argument":
-
-  - skip:
-      features: yaml
+"Simple alias with json body through format argument":
 
   - do:
         indices.create:
@@ -15,7 +12,7 @@
 
   - do:
       cat.aliases:
-        format: yaml
+        format: json
 
   - match: {0.alias: test_alias}
   - match: {0.index: test}

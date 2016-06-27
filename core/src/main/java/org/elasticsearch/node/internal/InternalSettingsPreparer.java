@@ -97,7 +97,7 @@ public class InternalSettingsPreparer {
         initializeSettings(output, input, true, properties);
         Environment environment = new Environment(output.build());
 
-        boolean settingsFileFound = false;
+        boolean settingsFileFound;
         Set<String> foundSuffixes = new HashSet<>();
         for (String allowedSuffix : ALLOWED_SUFFIXES) {
             Path path = environment.configFile().resolve("elasticsearch" + allowedSuffix);

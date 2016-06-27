@@ -124,17 +124,21 @@ Set<String> getVersions() {
 }
 
 task updatePackagingTestUpgradeFromVersions {
-  Set<String> versions = getVersions()
-  new File(project.projectDir, 'versions').text = versions.join('\n') + '\n'
+  doLast {
+    Set<String> versions = getVersions()
+    new File(project.projectDir, 'versions').text = versions.join('\n') + '\n'
+  }
 }
 
 task verifyPackagingTestUpgradeFromVersions {
-  String maybeUpdateFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
-  if (maybeUpdateFromVersions == null) {
-    Set<String> versions = getVersions()
-    Set<String> actualVersions = new HashSet<>(Arrays.asList(upgradeFromVersions))
-    if (!versions.equals(actualVersions)) {
-      throw new GradleException("out-of-date versions [" + actualVersions + "], expected [" + versions + "]; run gradle updatePackagingTestUpgradeFromVersions")
+  doLast {
+    String maybeUpdateFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
+    if (maybeUpdateFromVersions == null) {
+      Set<String> versions = getVersions()
+      Set<String> actualVersions = new HashSet<>(Arrays.asList(upgradeFromVersions))
+      if (!versions.equals(actualVersions)) {
+        throw new GradleException("out-of-date versions [" + actualVersions + "], expected [" + versions + "]; run gradle updatePackagingTestUpgradeFromVersions")
+      }
     }
   }
 }

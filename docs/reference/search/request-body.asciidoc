@@ -143,11 +143,11 @@ include::request/sort.asciidoc[]
 
 include::request/source-filtering.asciidoc[]
 
-include::request/stored-fields.asciidoc[]
+include::request/fields.asciidoc[]
 
 include::request/script-fields.asciidoc[]
 
-include::request/docvalue-fields.asciidoc[]
+include::request/fielddata-fields.asciidoc[]
 
 include::request/post-filter.asciidoc[]
 

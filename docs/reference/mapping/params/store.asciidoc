@@ -48,7 +48,7 @@ PUT my_index/my_type/1
 
 GET my_index/_search
 {
-  "stored_fields": [ "title", "date" ] <2>
+  "fields": [ "title", "date" ] <2>
 }
 --------------------------------------------------
 // CONSOLE

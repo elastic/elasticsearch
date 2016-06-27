@@ -245,7 +245,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      * @throws IllegalArgumentException if more than one node matches the request or no nodes have been resolved
      */
     public DiscoveryNode resolveNode(String node) {
-        String[] resolvedNodeIds = resolveNodesIds(node);
+        String[] resolvedNodeIds = resolveNodes(node);
         if (resolvedNodeIds.length > 1) {
             throw new IllegalArgumentException("resolved [" + node + "] into [" + resolvedNodeIds.length + "] nodes, where expected to be resolved to a single node");
         }
@@ -255,17 +255,25 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         return nodes.get(resolvedNodeIds[0]);
     }
 
-    public String[] resolveNodesIds(String... nodesIds) {
-        if (isAllNodes(nodesIds)) {
+    /**
+     * resolves a set of node "descriptions" to concrete and existing node ids. "descriptions" can be (resolved in this order):
+     * - "_local" or "_master" for the relevant nodes
+     * - a node id
+     * - a wild card pattern that will be matched against node names
+     * - a "attr:value" pattern, where attr can be a node role (master, data, ingest etc.) in which case the value can be true of false
+     *   or a generic node attribute name in which case value will be treated as a wildcard and matched against the node attribute values.
+     */
+    public String[] resolveNodes(String... nodes) {
+        if (isAllNodes(nodes)) {
             int index = 0;
-            nodesIds = new String[nodes.size()];
+            nodes = new String[this.nodes.size()];
             for (DiscoveryNode node : this) {
-                nodesIds[index++] = node.getId();
+                nodes[index++] = node.getId();
             }
-            return nodesIds;
+            return nodes;
         } else {
-            ObjectHashSet<String> resolvedNodesIds = new ObjectHashSet<>(nodesIds.length);
-            for (String nodeId : nodesIds) {
+            ObjectHashSet<String> resolvedNodesIds = new ObjectHashSet<>(nodes.length);
+            for (String nodeId : nodes) {
                 if (nodeId.equals("_local")) {
                     String localNodeId = getLocalNodeId();
                     if (localNodeId != null) {

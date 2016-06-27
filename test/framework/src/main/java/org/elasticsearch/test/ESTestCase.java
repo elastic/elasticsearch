@@ -28,6 +28,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -45,7 +46,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -55,6 +55,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -62,6 +63,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -773,29 +775,34 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Creates an AnalysisService to test analysis factories and analyzers.
+     * Creates an AnalysisService with all the default analyzers configured.
      */
-    @SafeVarargs
-    public static AnalysisService createAnalysisService(Index index, Settings settings, Consumer<AnalysisModule>... moduleConsumers) throws IOException {
+    public static AnalysisService createAnalysisService(Index index, Settings settings, AnalysisPlugin... analysisPlugins)
+            throws IOException {
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        return createAnalysisService(index, nodeSettings, settings, moduleConsumers);
+        return createAnalysisService(index, nodeSettings, settings, analysisPlugins);
     }
 
     /**
-     * Creates an AnalysisService to test analysis factories and analyzers.
+     * Creates an AnalysisService with all the default analyzers configured.
      */
-    @SafeVarargs
-    public static AnalysisService createAnalysisService(Index index, Settings nodeSettings, Settings settings, Consumer<AnalysisModule>... moduleConsumers) throws IOException {
+    public static AnalysisService createAnalysisService(Index index, Settings nodeSettings, Settings settings,
+            AnalysisPlugin... analysisPlugins) throws IOException {
         Settings indexSettings = Settings.builder().put(settings)
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build();
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .build();
+        return createAnalysisService(IndexSettingsModule.newIndexSettings(index, indexSettings), nodeSettings, analysisPlugins);
+    }
+
+    /**
+     * Creates an AnalysisService with all the default analyzers configured.
+     */
+    public static AnalysisService createAnalysisService(IndexSettings indexSettings, Settings nodeSettings,
+            AnalysisPlugin... analysisPlugins) throws IOException {
         Environment env = new Environment(nodeSettings);
-        AnalysisModule analysisModule = new AnalysisModule(env);
-        for (Consumer<AnalysisModule> consumer : moduleConsumers) {
-            consumer.accept(analysisModule);
-        }
-        SettingsModule settingsModule = new SettingsModule(nodeSettings, InternalSettingsPlugin.VERSION_CREATED);
-        final AnalysisService analysisService = analysisModule.buildRegistry().build(IndexSettingsModule.newIndexSettings(index, indexSettings));
+        AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins));
+        final AnalysisService analysisService = analysisModule.getAnalysisRegistry()
+                .build(indexSettings);
         return analysisService;
     }
 

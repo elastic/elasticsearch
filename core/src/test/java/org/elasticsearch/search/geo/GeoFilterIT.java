@@ -415,13 +415,13 @@ public class GeoFilterIT extends ESIntegTestCase {
             assertThat(hit.getId(), equalTo(key));
         }
 
-        SearchResponse world = client().prepareSearch().addStoredField("pin").setQuery(
+        SearchResponse world = client().prepareSearch().addField("pin").setQuery(
                 geoBoundingBoxQuery("pin").setCorners(90, -179.99999, -90, 179.99999)
         ).execute().actionGet();
 
         assertHitCount(world, 53);
 
-        SearchResponse distance = client().prepareSearch().addStoredField("pin").setQuery(
+        SearchResponse distance = client().prepareSearch().addField("pin").setQuery(
                 geoDistanceQuery("pin").distance("425km").point(51.11, 9.851)
                 ).execute().actionGet();
 

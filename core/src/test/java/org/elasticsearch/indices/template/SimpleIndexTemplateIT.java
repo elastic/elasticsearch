@@ -116,7 +116,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         ensureGreen();
         SearchResponse searchResponse = client().prepareSearch("test_index")
                 .setQuery(termQuery("field1", "value1"))
-                .addStoredField("field1").addStoredField("field2")
+                .addField("field1").addField("field2")
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 1);
@@ -130,7 +130,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         // now only match on one template (template_1)
         searchResponse = client().prepareSearch("text_index")
                 .setQuery(termQuery("field1", "value1"))
-                .addStoredField("field1").addStoredField("field2")
+                .addField("field1").addField("field2")
                 .execute().actionGet();
         if (searchResponse.getFailedShards() > 0) {
             logger.warn("failed search {}", Arrays.toString(searchResponse.getShardFailures()));

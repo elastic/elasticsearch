@@ -72,6 +72,7 @@ import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -86,6 +87,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -228,6 +230,7 @@ public class Node implements Closeable {
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             final ScriptModule scriptModule = ScriptModule.create(settings, environment, resourceWatcherService,
                     pluginsService.filterPlugins(ScriptPlugin.class));
+            AnalysisModule analysisModule = new AnalysisModule(environment, pluginsService.filterPlugins(AnalysisPlugin.class));
             additionalSettings.addAll(scriptModule.getSettings());
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
@@ -261,7 +264,6 @@ public class Node implements Closeable {
             modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false));
             modules.add(new GatewayModule());
             modules.add(new RepositoriesModule());
-            modules.add(new AnalysisModule(environment));
             pluginsService.processModules(modules);
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
@@ -280,6 +282,7 @@ public class Node implements Closeable {
                     b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
                     b.bind(BigArrays.class).toInstance(bigArrays);
                     b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
+                    b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                 }
             );
             injector = modules.createInjector();

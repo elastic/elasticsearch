@@ -37,10 +37,10 @@ public class SourceFetchingIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("test").get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
 
-        response = client().prepareSearch("test").addStoredField("bla").get();
+        response = client().prepareSearch("test").addField("bla").get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
 
-        response = client().prepareSearch("test").addStoredField("_source").get();
+        response = client().prepareSearch("test").addField("_source").get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
 
     }

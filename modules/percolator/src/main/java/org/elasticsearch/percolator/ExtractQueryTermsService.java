@@ -37,6 +37,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanFirstQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
@@ -90,6 +91,7 @@ public final class ExtractQueryTermsService {
         map.put(SpanNotQuery.class, spanNotQuery());
         map.put(BooleanQuery.class, booleanQuery());
         map.put(DisjunctionMaxQuery.class, disjunctionMaxQuery());
+        map.put(SynonymQuery.class, synonymQuery());
         queryProcessors = Collections.unmodifiableMap(map);
     }
 
@@ -217,6 +219,13 @@ public final class ExtractQueryTermsService {
             for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
                 terms.add(new Term(iterator.field(), term));
             }
+            return new Result(true, terms);
+        };
+    }
+
+    static Function<Query, Result> synonymQuery() {
+        return query -> {
+            Set<Term> terms = new HashSet<>(((SynonymQuery) query).getTerms());
             return new Result(true, terms);
         };
     }

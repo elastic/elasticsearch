@@ -112,9 +112,8 @@ public final class AzureStorageSettings {
     }
 
     private static List<AzureStorageSettings> createStorageSettings(Settings settings) {
-        Setting<Settings> storageGroupSetting = Setting.groupSetting(Storage.PREFIX, Setting.Property.NodeScope);
         // ignore global timeout which has the same prefix but does not belong to any group
-        Settings groups = storageGroupSetting.get(settings.filter((k) -> k.equals(Storage.TIMEOUT_SETTING.getKey()) == false));
+        Settings groups = Storage.STORAGE_ACCOUNTS.get(settings.filter((k) -> k.equals(Storage.TIMEOUT_SETTING.getKey()) == false));
         List<AzureStorageSettings> storageSettings = new ArrayList<>();
         for (String groupName : groups.getAsGroups().keySet()) {
             storageSettings.add(

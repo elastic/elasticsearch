@@ -190,5 +190,5 @@ depending on the file extension using the <<file-system,`index.store.preload`>>
 setting.
 
 WARNING: Loading data into the filesystem cache eagerly on too many indices or
-too many files will make searh _slower_ if the filesystem cache is not large
+too many files will make search _slower_ if the filesystem cache is not large
 enough to hold all the data. Use with caution.

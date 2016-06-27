@@ -37,7 +37,7 @@ public class SimpleIcuNormalizerCharFilterTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")
             .build();
-        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisICUPlugin()::onModule);
+        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
         CharFilterFactory charFilterFactory = analysisService.charFilter("myNormalizerChar");
 
         String input = "ʰ㌰゙5℃№㈱㌘，バッファーの正規化のテスト．㋐㋑㋒㋓㋔ｶｷｸｹｺｻﾞｼﾞｽﾞｾﾞｿﾞg̈각/각நிเกषिchkʷक्षि";
@@ -61,7 +61,7 @@ public class SimpleIcuNormalizerCharFilterTests extends ESTestCase {
             .put("index.analysis.char_filter.myNormalizerChar.name", "nfkc")
             .put("index.analysis.char_filter.myNormalizerChar.mode", "decompose")
             .build();
-        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisICUPlugin()::onModule);
+        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
         CharFilterFactory charFilterFactory = analysisService.charFilter("myNormalizerChar");
 
         String input = "ʰ㌰゙5℃№㈱㌘，バッファーの正規化のテスト．㋐㋑㋒㋓㋔ｶｷｸｹｺｻﾞｼﾞｽﾞｾﾞｿﾞg̈각/각நிเกषिchkʷक्षि";

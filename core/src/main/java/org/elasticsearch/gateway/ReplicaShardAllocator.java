@@ -38,13 +38,13 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  */
@@ -91,7 +91,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 ShardRouting primaryShard = allocation.routingNodes().activePrimary(shard.shardId());
                 assert primaryShard != null : "the replica shard can be allocated on at least one node, so there must be an active primary";
                 TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore = findStore(primaryShard, allocation, shardStores);
-                if (primaryStore == null || primaryStore.allocated() == false) {
+                if (primaryStore == null) {
                     // if we can't find the primary data, it is probably because the primary shard is corrupted (and listing failed)
                     // just let the recovery find it out, no need to do anything about it for the initializing shard
                     logger.trace("{}: no primary shard store found or allocated, letting actual allocation figure it out", shard);
@@ -102,8 +102,15 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 if (matchingNodes.getNodeWithHighestMatch() != null) {
                     DiscoveryNode currentNode = allocation.nodes().get(shard.currentNodeId());
                     DiscoveryNode nodeWithHighestMatch = matchingNodes.getNodeWithHighestMatch();
+                    // current node will not be in matchingNodes as it is filtered away by SameShardAllocationDecider
+                    final String currentSyncId;
+                    if (shardStores.getData().containsKey(currentNode)) {
+                        currentSyncId = shardStores.getData().get(currentNode).storeFilesMetaData().syncId();
+                    } else {
+                        currentSyncId = null;
+                    }
                     if (currentNode.equals(nodeWithHighestMatch) == false
-                            && matchingNodes.isNodeMatchBySyncID(currentNode) == false
+                            && Objects.equals(currentSyncId, primaryStore.syncId()) == false
                             && matchingNodes.isNodeMatchBySyncID(nodeWithHighestMatch) == true) {
                         // we found a better match that has a full sync id match, the existing allocation is not fully synced
                         // so we found a better one, cancel this one
@@ -160,7 +167,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             ShardRouting primaryShard = routingNodes.activePrimary(shard.shardId());
             assert primaryShard != null : "the replica shard can be allocated on at least one node, so there must be an active primary";
             TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore = findStore(primaryShard, allocation, shardStores);
-            if (primaryStore == null || primaryStore.allocated() == false) {
+            if (primaryStore == null) {
                 // if we can't find the primary data, it is probably because the primary shard is corrupted (and listing failed)
                 // we want to let the replica be allocated in order to expose the actual problem with the primary that the replica
                 // will try and recover from
@@ -257,8 +264,8 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
         for (Map.Entry<DiscoveryNode, TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> nodeStoreEntry : data.getData().entrySet()) {
             DiscoveryNode discoNode = nodeStoreEntry.getKey();
             TransportNodesListShardStoreMetaData.StoreFilesMetaData storeFilesMetaData = nodeStoreEntry.getValue().storeFilesMetaData();
-            if (storeFilesMetaData == null) {
-                // already allocated on that node...
+            // we don't have any files at all, it is an empty index
+            if (storeFilesMetaData.isEmpty()) {
                 continue;
             }
 
@@ -272,16 +279,6 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             // then we will try and assign it next time
             Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
             if (decision.type() == Decision.Type.NO) {
-                continue;
-            }
-
-            // if it is already allocated, we can't assign to it... (and it might be primary as well)
-            if (storeFilesMetaData.allocated()) {
-                continue;
-            }
-
-            // we don't have any files at all, it is an empty index
-            if (storeFilesMetaData.iterator().hasNext() == false) {
                 continue;
             }
 

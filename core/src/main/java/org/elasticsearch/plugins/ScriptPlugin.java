@@ -27,8 +27,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * An additional extension point to {@link Plugin}. Plugins extending the scripting functionality must implement this inteface
- * to provide access to script engines or script factories.
+ * An additional extension point for {@link Plugin}s that extends Elasticsearch's scripting functionality.
  */
 public interface ScriptPlugin {
 

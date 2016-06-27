@@ -135,7 +135,7 @@ public class IndexModuleTests extends ESTestCase {
         environment = new Environment(settings);
         nodeServicesProvider = newNodeServiceProvider(settings, environment, null);
         nodeEnvironment = new NodeEnvironment(settings, environment);
-        mapperRegistry = new IndicesModule(new NamedWriteableRegistry()).getMapperRegistry();
+        mapperRegistry = new IndicesModule(new NamedWriteableRegistry(), Collections.emptyList()).getMapperRegistry();
     }
 
     @Override

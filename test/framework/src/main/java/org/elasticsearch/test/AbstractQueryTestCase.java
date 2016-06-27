@@ -895,7 +895,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         b.bind(Environment.class).toInstance(new Environment(settings));
                         b.bind(ThreadPool.class).toInstance(threadPool);
                     },
-                    settingsModule, new IndicesModule(namedWriteableRegistry) {
+                    settingsModule, new IndicesModule(namedWriteableRegistry, Collections.emptyList()) {
                         @Override
                         public void configure() {
                             // skip services

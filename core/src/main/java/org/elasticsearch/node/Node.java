@@ -86,6 +86,7 @@ import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -258,7 +259,7 @@ public class Node implements Closeable {
             modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
             modules.add(new DiscoveryModule(this.settings));
             modules.add(new ClusterModule(this.settings, clusterService));
-            modules.add(new IndicesModule(namedWriteableRegistry));
+            modules.add(new IndicesModule(namedWriteableRegistry, pluginsService.filterPlugins(MapperPlugin.class)));
             modules.add(new SearchModule(settings, namedWriteableRegistry));
             modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false));
             modules.add(new GatewayModule());

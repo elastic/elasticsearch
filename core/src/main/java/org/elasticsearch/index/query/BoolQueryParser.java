@@ -62,7 +62,7 @@ public class BoolQueryParser implements QueryParser {
         List<BooleanClause> clauses = new ArrayList<>();
         boolean adjustPureNegative = true;
         String queryName = null;
-        
+
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -102,6 +102,10 @@ public class BoolQueryParser implements QueryParser {
                     break;
                 default:
                     throw new QueryParsingException(parseContext, "[bool] query does not support [" + currentFieldName + "]");
+                }
+                if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
+                    throw new QueryParsingException(parseContext, "expected [END_OBJECT] but got [{}], possibly too many query clauses",
+                            parser.currentToken());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

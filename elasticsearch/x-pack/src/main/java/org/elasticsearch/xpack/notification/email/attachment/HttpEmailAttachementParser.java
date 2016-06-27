@@ -14,15 +14,15 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.support.Variables;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.notification.email.Attachment;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.support.Variables;
+import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,6 +30,7 @@ import java.util.Map;
 public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpRequestAttachment> {
 
     public interface Fields {
+        ParseField INLINE = new ParseField("inline");
         ParseField REQUEST = new ParseField("request");
         ParseField CONTENT_TYPE = new ParseField("content_type");
     }
@@ -56,6 +57,7 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
 
     @Override
     public HttpRequestAttachment parse(String id, XContentParser parser) throws IOException {
+        boolean inline = false;
         String contentType = null;
         HttpRequestTemplate requestTemplate = null;
 
@@ -66,6 +68,8 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
                 currentFieldName = parser.currentName();
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.CONTENT_TYPE)) {
                 contentType = parser.text();
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.INLINE)) {
+                inline = parser.booleanValue();
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.REQUEST)) {
                 requestTemplate = requestTemplateParser.parse(parser);
             } else {
@@ -75,7 +79,7 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
         }
 
         if (requestTemplate != null) {
-            return new HttpRequestAttachment(id, requestTemplate, contentType);
+            return new HttpRequestAttachment(id, requestTemplate, inline, contentType);
         }
 
         throw new ElasticsearchParseException("Could not parse http request attachment");
@@ -94,7 +98,7 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
                 if (response.hasContent()) {
                     String contentType = attachment.getContentType();
                     String attachmentContentType = Strings.hasLength(contentType) ? contentType : response.contentType();
-                    return new Attachment.Bytes(attachment.id(), response.body().toBytes(), attachmentContentType);
+                    return new Attachment.Bytes(attachment.id(), response.body().toBytes(), attachmentContentType, attachment.inline());
                 } else {
                     logger.error("Empty response body: [host[{}], port[{}], method[{}], path[{}]: response status [{}]", httpRequest.host(),
                             httpRequest.port(), httpRequest.method(), httpRequest.path(), response.status());

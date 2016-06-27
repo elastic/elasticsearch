@@ -49,11 +49,10 @@ public class Email implements ToXContent {
     final String textBody;
     final String htmlBody;
     final Map<String, Attachment> attachments;
-    final Map<String, Inline> inlines;
 
     public Email(String id, Address from, AddressList replyTo, Priority priority, DateTime sentDate,
                  AddressList to, AddressList cc, AddressList bcc, String subject, String textBody, String htmlBody,
-                 Map<String, Attachment> attachments, Map<String, Inline> inlines) {
+                 Map<String, Attachment> attachments) {
 
         this.id = id;
         this.from = from;
@@ -67,7 +66,6 @@ public class Email implements ToXContent {
         this.textBody = textBody;
         this.htmlBody = htmlBody;
         this.attachments = attachments;
-        this.inlines = inlines;
     }
 
     public String id() {
@@ -116,10 +114,6 @@ public class Email implements ToXContent {
 
     public Map<String, Attachment> attachments() {
         return attachments;
-    }
-
-    public Map<String, Inline> inlines() {
-        return inlines;
     }
 
     @Override
@@ -249,7 +243,6 @@ public class Email implements ToXContent {
         private String textBody;
         private String htmlBody;
         private Map<String, Attachment> attachments = new HashMap<>();
-        private Map<String, Inline> inlines = new HashMap<>();
 
         private Builder() {
         }
@@ -267,7 +260,6 @@ public class Email implements ToXContent {
             textBody = email.textBody;
             htmlBody = email.htmlBody;
             attachments.putAll(email.attachments);
-            inlines.putAll(email.inlines);
             return this;
         }
 
@@ -358,14 +350,6 @@ public class Email implements ToXContent {
             return this;
         }
 
-        public Builder inline(Inline inline) {
-            if (inlines == null) {
-                throw new IllegalStateException("Email has already been built!");
-            }
-            inlines.put(inline.id(), inline);
-            return this;
-        }
-
         /**
          * Build the email. Note that adding items to attachments or inlines
          * after this is called is incorrect.
@@ -373,9 +357,8 @@ public class Email implements ToXContent {
         public Email build() {
             assert id != null : "email id should not be null (should be set to the watch id";
             Email email = new Email(id, from, replyTo, priority, sentDate, to, cc, bcc, subject, textBody, htmlBody,
-                    unmodifiableMap(attachments), unmodifiableMap(inlines));
+                    unmodifiableMap(attachments));
             attachments = null;
-            inlines = null;
             return email;
         }
 

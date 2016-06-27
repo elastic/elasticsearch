@@ -610,7 +610,8 @@ public class EmailActionTests extends ESTestCase {
             when(httpClient.execute(any(HttpRequest.class))).thenReturn(mockResponse);
 
             HttpRequestTemplate template = HttpRequestTemplate.builder("localhost", 1234).build();
-            attachments.add(new HttpRequestAttachment(randomAsciiOfLength(10), template, randomFrom("my/custom-type", null)));
+            attachments.add(new HttpRequestAttachment(randomAsciiOfLength(10), template,
+                    randomBoolean(), randomFrom("my/custom-type", null)));
         } else if ("data".equals(attachmentType)) {
             attachments.add(new org.elasticsearch.xpack.notification.email.attachment.DataAttachment(randomAsciiOfLength(10),
                     randomFrom(DataAttachment.JSON, DataAttachment.YAML)));

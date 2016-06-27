@@ -109,7 +109,8 @@ public class ManualPublicSmtpServersTester {
                     .textBody("_text_body")
                     .htmlBody("<b>html body</b><p/><p/><img src=\"cid:logo.png\"/>")
                     .attach(new Attachment.XContent.Yaml("test.yml", content))
-                    .inline(new Inline.Stream("logo.png", "logo.png", () -> InternalEmailServiceTests.class.getResourceAsStream(path)))
+                    .attach(new Attachment.Stream("logo.png", "logo.png", true,
+                            () -> InternalEmailServiceTests.class.getResourceAsStream(path)))
                     .build();
 
             EmailService.EmailSent sent = service.send(email, null, profile);

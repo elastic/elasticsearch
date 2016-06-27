@@ -142,12 +142,7 @@ public class TransportClient extends AbstractClient {
                 }
                 modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
                 modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
-                modules.add(new SearchModule(settings, namedWriteableRegistry) {
-                    @Override
-                    protected void configure() {
-                        // noop
-                    }
-                });
+                modules.add(new SearchModule(settings, namedWriteableRegistry, true));
                 modules.add(new ActionModule(false, true, settings, null, settingsModule.getClusterSettings(),
                         pluginsService.filterPlugins(ActionPlugin.class)));
 

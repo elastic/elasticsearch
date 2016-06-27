@@ -145,7 +145,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
                         bindMapperExtension();
                     }
                 },
-                new SearchModule(settings, namedWriteableRegistry) {
+                new SearchModule(settings, namedWriteableRegistry, false) {
                     @Override
                     protected void configureSearch() {
                         // Skip me

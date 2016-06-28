@@ -20,7 +20,13 @@
 package org.elasticsearch.cloud.aws.blobstore;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.s3.model.*;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
+import com.amazonaws.services.s3.model.CopyObjectRequest;
+import com.amazonaws.services.s3.model.ObjectListing;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -33,6 +39,9 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Map;
 
 /**
@@ -55,10 +64,19 @@ public class S3BlobContainer extends AbstractLegacyBlobContainer {
     }
 
     @Override
-    public boolean blobExists(String blobName) {
+    public boolean blobExists(final String blobName) {
         try {
-            blobStore.client().getObjectMetadata(blobStore.bucket(), buildKey(blobName));
-            return true;
+            return doPrivileged(new PrivilegedExceptionAction<Boolean>() {
+                @Override
+                public Boolean run() throws Exception {
+                    try {
+                        blobStore.client().getObjectMetadata(blobStore.bucket(), buildKey(blobName));
+                        return true;
+                    } catch (AmazonS3Exception e) {
+                        return false;
+                    }
+                }
+            });
         } catch (AmazonS3Exception e) {
             return false;
         } catch (Throwable e) {
@@ -159,4 +177,18 @@ public class S3BlobContainer extends AbstractLegacyBlobContainer {
         return keyPath + blobName;
     }
 
+    /**
+     * Executes a {@link PrivilegedExceptionAction} with privileges enabled.
+     */
+    <T> T doPrivileged(PrivilegedExceptionAction<T> operation) throws IOException {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
+        try {
+            return AccessController.doPrivileged(operation);
+        } catch (PrivilegedActionException e) {
+            throw (IOException) e.getException();
+        }
+    }
 }

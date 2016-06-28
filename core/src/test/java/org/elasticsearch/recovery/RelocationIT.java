@@ -479,7 +479,7 @@ public class RelocationIT extends ESIntegTestCase {
         indexRandom(true, docs);
         numDocs *= 2;
 
-        logger.info(" --> waiting for relocation to complete", numDocs);
+        logger.info(" --> waiting for relocation to complete");
         ensureGreen("test");// move all shards to the new node (it waits on relocation)
         final int numIters = randomIntBetween(10, 20);
         for (int i = 0; i < numIters; i++) {

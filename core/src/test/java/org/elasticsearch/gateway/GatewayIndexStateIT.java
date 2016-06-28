@@ -298,15 +298,10 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 
         logger.info("--> restarting the nodes");
-        final Gateway gateway1 = internalCluster().getInstance(GatewayService.class, node_1).getGateway();
         internalCluster().fullRestart(new RestartCallback() {
             @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                if (node_1.equals(nodeName)) {
-                    logger.info("--> deleting the data for the first node");
-                    gateway1.reset();
-                }
-                return null;
+            public boolean clearData(String nodeName) {
+                return node_1.equals(nodeName);
             }
         });
 

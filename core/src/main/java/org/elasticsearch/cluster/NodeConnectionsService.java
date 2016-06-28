@@ -91,7 +91,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent<NodeConne
                 try {
                     transportService.disconnectFromNode(node);
                 } catch (Throwable e) {
-                    logger.warn("failed to disconnect to node [" + node + "]", e);
+                    logger.warn("failed to disconnect to node [{}]", e, node);
                 }
             }
         }

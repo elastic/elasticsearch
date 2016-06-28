@@ -343,7 +343,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         } else {
             // test with a shadow replica index
             final Path dataPath = createTempDir();
-            logger.info("--> created temp data path for shadow replicas [" + dataPath + "]");
+            logger.info("--> created temp data path for shadow replicas [{}]", dataPath);
             logger.info("--> starting a cluster with " + numNodes + " nodes");
             final Settings nodeSettings = Settings.builder()
                                                   .put("node.add_id_to_custom_path", false)

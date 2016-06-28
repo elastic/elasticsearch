@@ -20,6 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.test.ESTestCase;
@@ -46,6 +47,7 @@ public class MaxMapCountCheckTests extends ESTestCase {
         }
     }
 
+    @SuppressLoggerChecks(reason = "mock usage")
     public void testGetMaxMapCount() throws IOException {
         final long procSysVmMaxMapCount = randomIntBetween(1, Integer.MAX_VALUE);
         final BufferedReader reader = mock(BufferedReader.class);

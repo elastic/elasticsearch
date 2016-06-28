@@ -404,7 +404,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
                 @Override
                 public void onFailure(Throwable e) {
-                    logger.warn("Failed to clear scroll [" + scrollId + ']', e);
+                    logger.warn("Failed to clear scroll [{}]", e, scrollId);
                 }
             });
         }

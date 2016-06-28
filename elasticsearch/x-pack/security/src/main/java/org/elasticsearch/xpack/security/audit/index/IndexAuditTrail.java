@@ -740,7 +740,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             for (String host : hosts) {
                 List<String> hostPort = Arrays.asList(host.trim().split(":"));
                 if (hostPort.size() != 1 && hostPort.size() != 2) {
-                    logger.warn("invalid host:port specified: [{}] for setting [" + REMOTE_CLIENT_SETTINGS.getKey() + ".hosts]", host);
+                    logger.warn("invalid host:port specified: [{}] for setting [{}.hosts]", REMOTE_CLIENT_SETTINGS.getKey(), host);
                 }
                 hostPortPairs.add(new Tuple<>(hostPort.get(0), hostPort.size() == 2 ? Integer.valueOf(hostPort.get(1)) : 9300));
             }

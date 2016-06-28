@@ -69,7 +69,7 @@
   - is_false: deleted
 
   - do:
-      task.get:
+      tasks.get:
         wait_for_completion: true
         task_id: $task
   - is_false: node_failures

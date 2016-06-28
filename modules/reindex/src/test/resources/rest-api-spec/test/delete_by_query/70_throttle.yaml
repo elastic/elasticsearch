@@ -134,7 +134,7 @@
         task_id: $task
 
   - do:
-      task.get:
+      tasks.get:
         wait_for_completion: true
         task_id: $task
 
@@ -197,6 +197,6 @@
         task_id: $task
 
   - do:
-      task.get:
+      tasks.get:
         wait_for_completion: true
         task_id: $task

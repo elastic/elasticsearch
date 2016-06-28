@@ -412,10 +412,12 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
     }
 
     /**
-     * This method verifies that the given {@link IndexMetaData} holds sane values to create an {@link IndexService}. This method will throw an
-     * exception if the creation fails. The created {@link IndexService} will not be registered and will be closed immediately.
+     * This method verifies that the given {@code metaData} holds sane values to create an {@link IndexService}.
+     * This method tries to update the meta data of the created {@link IndexService} if the given {@code metaDataUpdate} is different from the given {@code metaData}.
+     * This method will throw an exception if the creation or the update fails.
+     * The created {@link IndexService} will not be registered and will be closed immediately.
      */
-    public synchronized void verifyIndexMetadata(final NodeServicesProvider nodeServicesProvider, IndexMetaData metaData) throws IOException {
+    public synchronized void verifyIndexMetadata(final NodeServicesProvider nodeServicesProvider, IndexMetaData metaData, IndexMetaData metaDataUpdate) throws IOException {
         final List<Closeable> closeables = new ArrayList<>();
         try {
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {});
@@ -431,7 +433,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
                 service.mapperService().merge(typeMapping.value.type(), typeMapping.value.source(),
                     MapperService.MergeReason.MAPPING_RECOVERY, true);
             }
-            service.getIndexSettings().getScopedSettings().validateUpdate(metaData.getSettings());
+            if (metaData.equals(metaDataUpdate) == false) {
+                service.updateMetaData(metaDataUpdate);
+            }
         } finally {
             IOUtils.close(closeables);
         }

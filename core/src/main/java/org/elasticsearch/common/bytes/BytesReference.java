@@ -19,19 +19,18 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.channels.GatheringByteChannel;
 
 /**
  * A reference to bytes.
  */
 public interface BytesReference {
 
-    public static class Helper {
+    class Helper {
 
         public static boolean bytesEqual(BytesReference a, BytesReference b) {
             if (a == b) {
@@ -108,10 +107,6 @@ public interface BytesReference {
      */
     void writeTo(OutputStream os) throws IOException;
 
-    /**
-     * Writes the bytes directly to the channel.
-     */
-    void writeTo(GatheringByteChannel channel) throws IOException;
 
     /**
      * Returns the bytes as a single byte array.
@@ -127,11 +122,6 @@ public interface BytesReference {
      * Returns the bytes copied over as a byte array.
      */
     BytesArray copyBytesArray();
-
-    /**
-     * Returns the bytes as a channel buffer.
-     */
-    ChannelBuffer toChannelBuffer();
 
     /**
      * Is there an underlying byte array for this bytes reference.
@@ -162,4 +152,22 @@ public interface BytesReference {
      * Converts to a copied Lucene BytesRef.
      */
     BytesRef copyBytesRef();
+
+    /**
+     * Returns a BytesRefIterator for this BytesReference. This method allows
+     * access to the internal pages of this reference without copying them. Use with care!
+     * @see BytesRefIterator
+     */
+    default BytesRefIterator iterator() {
+        return new BytesRefIterator() {
+            BytesRef ref = toBytesRef();
+            @Override
+            public BytesRef next() throws IOException {
+                BytesRef r = ref;
+                ref = null; // only return it once...
+                return r;
+            }
+        };
+    }
+
 }

@@ -21,8 +21,8 @@ package org.elasticsearch.transport.netty;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ChannelBufferBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.netty.NettyUtils;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.EOFException;
@@ -37,10 +37,6 @@ public class ChannelBufferStreamInput extends StreamInput {
     private final int startIndex;
     private final int endIndex;
 
-    public ChannelBufferStreamInput(ChannelBuffer buffer) {
-        this(buffer, buffer.readableBytes());
-    }
-
     public ChannelBufferStreamInput(ChannelBuffer buffer, int length) {
         if (length > buffer.readableBytes()) {
             throw new IndexOutOfBoundsException();
@@ -53,7 +49,7 @@ public class ChannelBufferStreamInput extends StreamInput {
 
     @Override
     public BytesReference readBytesReference(int length) throws IOException {
-        ChannelBufferBytesReference ref = new ChannelBufferBytesReference(buffer.slice(buffer.readerIndex(), length));
+        BytesReference ref = NettyUtils.toBytesReference(buffer.slice(buffer.readerIndex(), length));
         buffer.skipBytes(length);
         return ref;
     }

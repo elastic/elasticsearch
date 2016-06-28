@@ -21,6 +21,7 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,16 +30,11 @@ import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.jboss.netty.buffer.ChannelBuffer;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.nio.channels.FileChannel;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 
 public class PagedBytesReferenceTests extends ESTestCase {
@@ -52,12 +48,6 @@ public class PagedBytesReferenceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), false);
-    }
-
-    @Override
-    @After
-    public void tearDown() throws Exception {
-        super.tearDown();
     }
 
     public void testGet() {
@@ -265,17 +255,6 @@ public class PagedBytesReferenceTests extends ESTestCase {
         out.close();
     }
 
-    public void testWriteToChannel() throws IOException {
-        int length = randomIntBetween(10, PAGE_SIZE * 4);
-        BytesReference pbr = getRandomizedPagedBytesReference(length);
-        Path tFile = createTempFile();
-        try (FileChannel channel = FileChannel.open(tFile, StandardOpenOption.WRITE)) {
-            pbr.writeTo(channel);
-            assertEquals(pbr.length(), channel.position());
-        }
-        assertArrayEquals(pbr.toBytes(), Files.readAllBytes(tFile));
-    }
-
     public void testSliceWriteToOutputStream() throws IOException {
         int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2, 5));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
@@ -287,20 +266,6 @@ public class PagedBytesReferenceTests extends ESTestCase {
         assertEquals(slice.length(), sliceOut.size());
         assertArrayEquals(slice.toBytes(), sliceOut.bytes().toBytes());
         sliceOut.close();
-    }
-
-    public void testSliceWriteToChannel() throws IOException {
-        int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2, 5));
-        BytesReference pbr = getRandomizedPagedBytesReference(length);
-        int sliceOffset = randomIntBetween(1, length / 2);
-        int sliceLength = length - sliceOffset;
-        BytesReference slice = pbr.slice(sliceOffset, sliceLength);
-        Path tFile = createTempFile();
-        try (FileChannel channel = FileChannel.open(tFile, StandardOpenOption.WRITE)) {
-            slice.writeTo(channel);
-            assertEquals(slice.length(), channel.position());
-        }
-        assertArrayEquals(slice.toBytes(), Files.readAllBytes(tFile));
     }
 
     public void testToBytes() {
@@ -377,35 +342,57 @@ public class PagedBytesReferenceTests extends ESTestCase {
         assertArrayEquals(ba1.array(), ba2.array());
     }
 
-    public void testToChannelBuffer() {
+    public void testEmptyToBytesRefIterator() throws IOException {
+        BytesReference pbr = getRandomizedPagedBytesReference(0);
+        assertNull(pbr.iterator().next());
+    }
+
+    public void testIterator() throws IOException {
         int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2, 8));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
-        ChannelBuffer cb = pbr.toChannelBuffer();
-        assertNotNull(cb);
-        byte[] bufferBytes = new byte[length];
-        cb.getBytes(0, bufferBytes);
-        assertArrayEquals(pbr.toBytes(), bufferBytes);
+        BytesRefIterator iterator = pbr.iterator();
+        BytesRef ref;
+        BytesRefBuilder builder = new BytesRefBuilder();
+        while((ref = iterator.next()) != null) {
+            builder.append(ref);
+        }
+        assertArrayEquals(pbr.toBytes(), BytesRef.deepCopyOf(builder.toBytesRef()).bytes);
     }
 
-    public void testEmptyToChannelBuffer() {
-        BytesReference pbr = getRandomizedPagedBytesReference(0);
-        ChannelBuffer cb = pbr.toChannelBuffer();
-        assertNotNull(cb);
-        assertEquals(0, pbr.length());
-        assertEquals(0, cb.capacity());
-    }
-
-    public void testSliceToChannelBuffer() {
+    public void testSliceIterator() throws IOException {
         int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2, 8));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         int sliceOffset = randomIntBetween(0, pbr.length());
         int sliceLength = randomIntBetween(pbr.length() - sliceOffset, pbr.length() - sliceOffset);
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
-        ChannelBuffer cbSlice = slice.toChannelBuffer();
-        assertNotNull(cbSlice);
-        byte[] sliceBufferBytes = new byte[sliceLength];
-        cbSlice.getBytes(0, sliceBufferBytes);
-        assertArrayEquals(slice.toBytes(), sliceBufferBytes);
+        BytesRefIterator iterator = slice.iterator();
+        BytesRef ref = null;
+        BytesRefBuilder builder = new BytesRefBuilder();
+        while((ref = iterator.next()) != null) {
+            builder.append(ref);
+        }
+        assertArrayEquals(slice.toBytes(), BytesRef.deepCopyOf(builder.toBytesRef()).bytes);
+    }
+
+    public void testIteratorRandom() throws IOException {
+        int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2, 8));
+        BytesReference pbr = getRandomizedPagedBytesReference(length);
+        if (randomBoolean()) {
+            int sliceOffset = randomIntBetween(0, pbr.length());
+            int sliceLength = randomIntBetween(pbr.length() - sliceOffset, pbr.length() - sliceOffset);
+            pbr = pbr.slice(sliceOffset, sliceLength);
+        }
+
+        if (randomBoolean()) {
+            pbr = pbr.toBytesArray();
+        }
+        BytesRefIterator iterator = pbr.iterator();
+        BytesRef ref = null;
+        BytesRefBuilder builder = new BytesRefBuilder();
+        while((ref = iterator.next()) != null) {
+            builder.append(ref);
+        }
+        assertArrayEquals(pbr.toBytes(), BytesRef.deepCopyOf(builder.toBytesRef()).bytes);
     }
 
     public void testHasArray() {

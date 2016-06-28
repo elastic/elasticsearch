@@ -18,11 +18,19 @@
  */
 package org.elasticsearch.common.netty;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.netty.NettyInternalESLoggerFactory;
+import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.logging.InternalLogger;
 import org.jboss.netty.logging.InternalLoggerFactory;
 import org.jboss.netty.util.ThreadNameDeterminer;
 import org.jboss.netty.util.ThreadRenamingRunnable;
+
+import java.io.IOException;
+import java.util.ArrayList;
 
 /**
  */
@@ -97,5 +105,37 @@ public class NettyUtils {
 
     public static void setup() {
 
+    }
+
+    /**
+     * Turns the given BytesReference into a ChannelBuffer. Note: the returned ChannelBuffer will reference the internal
+     * pages of the BytesReference. Don't free the bytes of reference before the ChannelBuffer goes out of scope.
+     */
+    public static ChannelBuffer toChannelBuffer(BytesReference reference) {
+        if (reference.length() == 0) {
+            return ChannelBuffers.EMPTY_BUFFER;
+        }
+        if (reference instanceof ChannelBufferBytesReference) {
+            return ((ChannelBufferBytesReference) reference).toChannelBuffer();
+        } else {
+            final BytesRefIterator iterator = reference.iterator();
+            BytesRef slice;
+            final ArrayList<ChannelBuffer> buffers = new ArrayList<>();
+            try {
+                while ((slice = iterator.next()) != null) {
+                    buffers.add(ChannelBuffers.wrappedBuffer(slice.bytes, slice.offset, slice.length));
+                }
+                return ChannelBuffers.wrappedBuffer(DEFAULT_GATHERING, buffers.toArray(new ChannelBuffer[buffers.size()]));
+            } catch (IOException ex) {
+                throw new AssertionError("no IO happens here", ex);
+            }
+        }
+    }
+
+    /**
+     * Wraps the given ChannelBuffer with a BytesReference
+     */
+    public static BytesReference toBytesReference(ChannelBuffer channelBuffer) {
+        return new ChannelBufferBytesReference(channelBuffer);
     }
 }

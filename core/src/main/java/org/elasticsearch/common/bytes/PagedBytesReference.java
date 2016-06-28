@@ -20,19 +20,15 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.channels.GatheringByteChannel;
 import java.util.Arrays;
 
 /**
@@ -114,30 +110,6 @@ public class PagedBytesReference implements BytesReference {
     }
 
     @Override
-    public void writeTo(GatheringByteChannel channel) throws IOException {
-        // nothing to do
-        if (length == 0) {
-            return;
-        }
-
-        int currentLength = length;
-        int currentOffset = offset;
-        BytesRef ref = new BytesRef();
-
-        while (currentLength > 0) {
-            // try to align to the underlying pages while writing, so no new arrays will be created.
-            int fragmentSize = Math.min(currentLength, PAGE_SIZE - (currentOffset % PAGE_SIZE));
-            boolean newArray = bytearray.get(currentOffset, fragmentSize, ref);
-            assert !newArray : "PagedBytesReference failed to align with underlying bytearray. offset [" + currentOffset + "], size [" + fragmentSize + "]";
-            Channels.writeToChannel(ref.bytes, ref.offset, ref.length, channel);
-            currentLength -= ref.length;
-            currentOffset += ref.length;
-        }
-
-        assert currentLength == 0;
-    }
-
-    @Override
     public byte[] toBytes() {
         if (length == 0) {
             return BytesRef.EMPTY_BYTES;
@@ -176,60 +148,6 @@ public class PagedBytesReference implements BytesReference {
             byte[] copy = Arrays.copyOfRange(ref.bytes, ref.offset, ref.offset + ref.length);
             return new BytesArray(copy);
         }
-    }
-
-    @Override
-    public ChannelBuffer toChannelBuffer() {
-        // nothing to do
-        if (length == 0) {
-            return ChannelBuffers.EMPTY_BUFFER;
-        }
-
-        ChannelBuffer[] buffers;
-        ChannelBuffer currentBuffer = null;
-        BytesRef ref = new BytesRef();
-        int pos = 0;
-
-        // are we a slice?
-        if (offset != 0) {
-            // remaining size of page fragment at offset
-            int fragmentSize = Math.min(length, PAGE_SIZE - (offset % PAGE_SIZE));
-            bytearray.get(offset, fragmentSize, ref);
-            currentBuffer = ChannelBuffers.wrappedBuffer(ref.bytes, ref.offset, fragmentSize);
-            pos += fragmentSize;
-        }
-
-        // no need to create a composite buffer for a single page
-        if (pos == length && currentBuffer != null) {
-            return currentBuffer;
-        }
-
-        // a slice > pagesize will likely require extra buffers for initial/trailing fragments
-        int numBuffers = countRequiredBuffers((currentBuffer != null ? 1 : 0), length - pos);
-
-        buffers = new ChannelBuffer[numBuffers];
-        int bufferSlot = 0;
-
-        if (currentBuffer != null) {
-            buffers[bufferSlot] = currentBuffer;
-            bufferSlot++;
-        }
-
-        // handle remainder of pages + trailing fragment
-        while (pos < length) {
-            int remaining = length - pos;
-            int bulkSize = (remaining > PAGE_SIZE) ? PAGE_SIZE : remaining;
-            bytearray.get(offset + pos, bulkSize, ref);
-            currentBuffer = ChannelBuffers.wrappedBuffer(ref.bytes, ref.offset, bulkSize);
-            buffers[bufferSlot] = currentBuffer;
-            bufferSlot++;
-            pos += bulkSize;
-        }
-
-        // this would indicate that our numBuffer calculation is off by one.
-        assert (numBuffers == bufferSlot);
-
-        return ChannelBuffers.wrappedBuffer(NettyUtils.DEFAULT_GATHERING, buffers);
     }
 
     @Override
@@ -338,17 +256,6 @@ public class PagedBytesReference implements BytesReference {
         return true;
     }
 
-    private int countRequiredBuffers(int initialCount, int numBytes) {
-        int numBuffers = initialCount;
-        // an "estimate" of how many pages remain - rounded down
-        int pages = numBytes / PAGE_SIZE;
-        // a remaining fragment < pagesize needs at least one buffer
-        numBuffers += (pages == 0) ? 1 : pages;
-        // a remainder that is not a multiple of pagesize also needs an extra buffer
-        numBuffers += (pages > 0 && numBytes % PAGE_SIZE > 0) ? 1 : 0;
-        return numBuffers;
-    }
-
     private static class PagedBytesReferenceStreamInput extends StreamInput {
 
         private final ByteArray bytearray;
@@ -450,5 +357,31 @@ public class PagedBytesReference implements BytesReference {
             return length - pos;
         }
 
+    }
+
+    @Override
+    public BytesRefIterator iterator() {
+        final BytesRef slice = new BytesRef();
+        return new BytesRefIterator() {
+            int position = 0;
+            @Override
+            public BytesRef next() throws IOException {
+                if (position == 0 && offset == 0 && length > 0) {
+                    // we are a slice and we are starting somewhere in the middle of a page
+                    int fragmentSize = Math.min(length, PAGE_SIZE - (offset % PAGE_SIZE));
+                    bytearray.get(offset, fragmentSize, slice);
+                    position += fragmentSize;
+                    return slice;
+                } else if (position >= length) {
+                    return null;
+                } else {
+                    final int remaining = length - position;
+                    final int bulkSize = Math.min(remaining, PAGE_SIZE);
+                    bytearray.get(offset + position, bulkSize, slice);
+                    position += bulkSize;
+                    return slice;
+                }
+            }
+        };
     }
 }

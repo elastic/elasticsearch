@@ -27,25 +27,25 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.support.AbstractClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
-import static java.util.Collections.unmodifiableMap;
-
 /**
- *
+ * {@link Client} implementation for executing actions on the local node.
  */
 public class NodeClient extends AbstractClient {
+    @SuppressWarnings("rawtypes")
+    private Map<GenericAction, TransportAction> actions;
 
-    private final Map<GenericAction, TransportAction> actions;
-
-    @Inject
-    public NodeClient(Settings settings, ThreadPool threadPool, Map<GenericAction, TransportAction> actions) {
+    public NodeClient(Settings settings, ThreadPool threadPool) {
         super(settings, threadPool);
-        this.actions = unmodifiableMap(actions);
+    }
+
+    @SuppressWarnings("rawtypes")
+    public void initialize(Map<GenericAction, TransportAction> actions) {
+        this.actions = actions;
     }
 
     @Override
@@ -55,8 +55,13 @@ public class NodeClient extends AbstractClient {
 
     @SuppressWarnings("unchecked")
     @Override
-    public <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
-            Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+    public <    Request extends ActionRequest<Request>,
+                Response extends ActionResponse,
+                RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>
+            > void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+        if (actions == null) {
+            throw new IllegalStateException("Client not initialized");
+        }
         TransportAction<Request, Response> transportAction = actions.get(action);
         if (transportAction == null) {
             throw new IllegalStateException("failed to find action [" + action + "] to execute");

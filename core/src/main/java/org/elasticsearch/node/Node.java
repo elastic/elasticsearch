@@ -26,18 +26,33 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
+import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.MetaDataMappingService;
+import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.SimpleReflectiveInstantiator;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -56,6 +71,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -70,6 +86,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -80,6 +97,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.monitor.MonitorService;
@@ -93,11 +111,16 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.action.SearchTransportService;
+import org.elasticsearch.search.controller.SearchPhaseController;
+import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskPersistenceService;
@@ -164,7 +187,7 @@ public class Node implements Closeable {
     private final Settings settings;
     private final Environment environment;
     private final PluginsService pluginsService;
-    private final Client client;
+    private final NodeClient client;
 
     /**
      * Constructs a node with the given settings.
@@ -263,9 +286,11 @@ public class Node implements Closeable {
             modules.add(clusterModule);
             modules.add(new IndicesModule(namedWriteableRegistry, pluginsService.filterPlugins(MapperPlugin.class)));
             modules.add(new SearchModule(settings, namedWriteableRegistry));
-            modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false, settings,
+            client = new NodeClient(settings, threadPool);
+            ActionModule actionModule = new ActionModule(client, DiscoveryNode.isIngestNode(settings), settings,
                     clusterModule.getIndexNameExpressionResolver(), settingsModule.getClusterSettings(),
-                    pluginsService.filterPlugins(ActionPlugin.class)));
+                    pluginsService.filterPlugins(ActionPlugin.class));
+            modules.add(actionModule);
             modules.add(new GatewayModule());
             modules.add(new RepositoriesModule());
             pluginsService.processModules(modules);
@@ -277,7 +302,7 @@ public class Node implements Closeable {
             modules.add(settingsModule);
             modules.add(b -> {
                     b.bind(PluginsService.class).toInstance(pluginsService);
-                    b.bind(Client.class).to(NodeClient.class).asEagerSingleton();
+                    b.bind(Client.class).toInstance(client);
                     b.bind(Environment.class).toInstance(environment);
                     b.bind(ThreadPool.class).toInstance(threadPool);
                     b.bind(NodeEnvironment.class).toInstance(nodeEnvironment);
@@ -290,7 +315,47 @@ public class Node implements Closeable {
                 }
             );
             injector = modules.createInjector();
-            client = injector.getInstance(Client.class);
+            // Each one of the injector.getInstance calls need individual attention....
+            SimpleReflectiveInstantiator instantiator = new SimpleReflectiveInstantiator();
+            instantiator.addCtorArg(environment);
+            instantiator.addCtorArg(threadPool);
+            instantiator.addCtorArg(clusterService);
+            instantiator.addCtorArg(TransportService.class, injector.getInstance(TransportService.class));
+            instantiator.addCtorArg(injector.getInstance(MetaDataIndexStateService.class));
+            instantiator.addCtorArg(injector.getInstance(MetaDataIndexAliasesService.class));
+            instantiator.addCtorArg(injector.getInstance(MetaDataIndexTemplateService.class));
+            instantiator.addCtorArg(injector.getInstance(MetaDataCreateIndexService.class));
+            instantiator.addCtorArg(injector.getInstance(MetaDataDeleteIndexService.class));
+            instantiator.addCtorArg(injector.getInstance(MetaDataMappingService.class));
+            instantiator.addCtorArg(injector.getInstance(MetaDataUpdateSettingsService.class));
+            instantiator.addCtorArg(injector.getInstance(ActionFilters.class));
+            instantiator.addCtorArg(injector.getInstance(IndexNameExpressionResolver.class));
+            instantiator.addCtorArg(scriptModule.getScriptService());
+            instantiator.addCtorArg(injector.getInstance(IndicesService.class));
+            instantiator.addCtorArg(injector.getInstance(AllocationService.class));
+            instantiator.addCtorArg(injector.getInstance(AllocationDeciders.class));
+            instantiator.addCtorArg(ShardsAllocator.class, injector.getInstance(ShardsAllocator.class));
+            instantiator.addCtorArg(injector.getInstance(RoutingService.class));
+            instantiator.addCtorArg(bigArrays);
+            instantiator.addCtorArg(injector.getInstance(FetchPhase.class));
+            instantiator.addCtorArg(injector.getInstance(SnapshotsService.class));
+            instantiator.addCtorArg(injector.getInstance(RepositoriesService.class));
+            instantiator.addCtorArg(injector.getInstance(SyncedFlushService.class));
+            instantiator.addCtorArg(injector.getInstance(TransportNodesListGatewayStartedShards.class));
+            instantiator.addCtorArg(injector.getInstance(SearchPhaseController.class));
+            instantiator.addCtorArg(injector.getInstance(SearchTransportService.class));
+            instantiator.addCtorArg(injector.getInstance(GatewayAllocator.class));
+            instantiator.addCtorArg(injector.getInstance(MappingUpdatedAction.class));
+            instantiator.addCtorArg(injector.getInstance(UpdateHelper.class));
+            instantiator.addCtorArg(settingsModule.getClusterSettings());
+            instantiator.addCtorArg(settingsModule.getIndexScopedSettings());
+            instantiator.addCtorArg(injector.getInstance(NodeService.class));
+            instantiator.addCtorArg(injector.getInstance(SnapshotShardsService.class));
+            instantiator.addCtorArg(injector.getInstance(RestoreService.class));
+            instantiator.addCtorArg(injector.getInstance(SettingsFilter.class));
+            instantiator.addCtorArg(ClusterInfoService.class, injector.getInstance(ClusterInfoService.class));
+
+            actionModule.buildActions(instantiator);
             success = true;
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to bind service", ex);

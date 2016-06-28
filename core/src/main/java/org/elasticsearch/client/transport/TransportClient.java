@@ -148,7 +148,7 @@ public class TransportClient extends AbstractClient {
                         // noop
                     }
                 });
-                modules.add(new ActionModule(false, true, settings, null, settingsModule.getClusterSettings(),
+                modules.add(new ActionModule(null, false, settings, null, settingsModule.getClusterSettings(),
                         pluginsService.filterPlugins(ActionPlugin.class)));
 
                 pluginsService.processModules(modules);

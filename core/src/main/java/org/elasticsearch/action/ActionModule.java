@@ -59,6 +59,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshot
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusAction;
+import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.TransportSnapshotsStatusAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
@@ -95,6 +96,7 @@ import org.elasticsearch.action.admin.indices.exists.types.TypesExistsAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushAction;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
+import org.elasticsearch.action.admin.indices.flush.TransportShardFlushAction;
 import org.elasticsearch.action.admin.indices.flush.TransportSyncedFlushAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.TransportForceMergeAction;
@@ -113,6 +115,7 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.TransportRecoveryAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
@@ -189,8 +192,12 @@ import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction
 import org.elasticsearch.action.termvectors.TransportTermVectorsAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.NamedRegistry;
+import org.elasticsearch.common.SimpleReflectiveInstantiator;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
@@ -200,6 +207,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -211,18 +219,20 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class ActionModule extends AbstractModule {
 
-    private final boolean transportClient;
+    private final NodeClient nodeClient;
+    private final Settings settings;
     private final Map<String, ActionHandler<?, ?>> actions;
     private final List<Class<? extends ActionFilter>> actionFilters;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
 
-    public ActionModule(boolean ingestEnabled, boolean transportClient, Settings settings, IndexNameExpressionResolver resolver,
+    public ActionModule(NodeClient nodeClient, boolean ingestEnabled, Settings settings, IndexNameExpressionResolver resolver,
             ClusterSettings clusterSettings, List<ActionPlugin> actionPlugins) {
-        this.transportClient = transportClient;
+        this.nodeClient = nodeClient;
+        this.settings = settings;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins, ingestEnabled);
-        autoCreateIndex = transportClient ? null : new AutoCreateIndex(settings, resolver);
+        autoCreateIndex = nodeClient == null ? null : new AutoCreateIndex(settings, resolver);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
     }
 
@@ -269,7 +279,7 @@ public class ActionModule extends AbstractModule {
         actions.register(DeleteSnapshotAction.INSTANCE, TransportDeleteSnapshotAction.class);
         actions.register(CreateSnapshotAction.INSTANCE, TransportCreateSnapshotAction.class);
         actions.register(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
-        actions.register(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class);
+        actions.register(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class, TransportNodesSnapshotsStatus.class);
 
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
@@ -294,8 +304,8 @@ public class ActionModule extends AbstractModule {
         actions.register(GetIndexTemplatesAction.INSTANCE, TransportGetIndexTemplatesAction.class);
         actions.register(DeleteIndexTemplateAction.INSTANCE, TransportDeleteIndexTemplateAction.class);
         actions.register(ValidateQueryAction.INSTANCE, TransportValidateQueryAction.class);
-        actions.register(RefreshAction.INSTANCE, TransportRefreshAction.class);
-        actions.register(FlushAction.INSTANCE, TransportFlushAction.class);
+        actions.register(RefreshAction.INSTANCE, TransportRefreshAction.class, TransportShardRefreshAction.class);
+        actions.register(FlushAction.INSTANCE, TransportFlushAction.class, TransportShardFlushAction.class);
         actions.register(SyncedFlushAction.INSTANCE, TransportSyncedFlushAction.class);
         actions.register(ForceMergeAction.INSTANCE, TransportForceMergeAction.class);
         actions.register(UpgradeAction.INSTANCE, TransportUpgradeAction.class);
@@ -306,20 +316,21 @@ public class ActionModule extends AbstractModule {
         actions.register(AliasesExistAction.INSTANCE, TransportAliasesExistAction.class);
         actions.register(GetSettingsAction.INSTANCE, TransportGetSettingsAction.class);
 
-        actions.register(IndexAction.INSTANCE, TransportIndexAction.class);
+        actions.register(IndexAction.INSTANCE, TransportIndexAction.class, TransportCreateIndexAction.class);
         actions.register(GetAction.INSTANCE, TransportGetAction.class);
         actions.register(TermVectorsAction.INSTANCE, TransportTermVectorsAction.class);
         actions.register(MultiTermVectorsAction.INSTANCE, TransportMultiTermVectorsAction.class,
                 TransportShardMultiTermsVectorAction.class);
         actions.register(DeleteAction.INSTANCE, TransportDeleteAction.class);
-        actions.register(UpdateAction.INSTANCE, TransportUpdateAction.class);
+        actions.register(UpdateAction.INSTANCE, TransportUpdateAction.class, TransportCreateIndexAction.class, TransportIndexAction.class,
+                TransportDeleteAction.class);
         actions.register(MultiGetAction.INSTANCE, TransportMultiGetAction.class,
                 TransportShardMultiGetAction.class);
         actions.register(BulkAction.INSTANCE, TransportBulkAction.class,
                 TransportShardBulkAction.class);
         actions.register(SearchAction.INSTANCE, TransportSearchAction.class);
         actions.register(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
-        actions.register(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
+        actions.register(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class, TransportSearchAction.class);
         actions.register(ExplainAction.INSTANCE, TransportExplainAction.class);
         actions.register(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
         actions.register(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
@@ -331,7 +342,7 @@ public class ActionModule extends AbstractModule {
 
         actions.register(FieldStatsAction.INSTANCE, TransportFieldStatsAction.class);
 
-        actions.register(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
+        actions.register(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class, TransportNodesInfoAction.class);
         actions.register(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);
         actions.register(DeletePipelineAction.INSTANCE, DeletePipelineTransportAction.class);
         actions.register(SimulatePipelineAction.INSTANCE, SimulatePipelineTransportAction.class);
@@ -341,9 +352,10 @@ public class ActionModule extends AbstractModule {
         return unmodifiableMap(actions.getRegistry());
     }
 
-    private List<Class<? extends ActionFilter>> setupActionFilters(List<ActionPlugin> actionPlugins, boolean ingestEnabled) {
+    private List<Class<? extends ActionFilter>> setupActionFilters(List<ActionPlugin> actionPlugins,
+            boolean ingestEnabled) {
         List<Class<? extends ActionFilter>> filters = new ArrayList<>();
-        if (transportClient == false) {
+        if (nodeClient != null) {
             if (ingestEnabled) {
                 filters.add(IngestActionFilter.class);
             } else {
@@ -357,6 +369,27 @@ public class ActionModule extends AbstractModule {
         return unmodifiableList(filters);
     }
 
+    public void buildActions(SimpleReflectiveInstantiator instantiator) {
+        instantiator.addCtorArg(Client.class, nodeClient);
+        instantiator.addCtorArg(autoCreateIndex);
+        instantiator.addCtorArg(destructiveOperations);
+        instantiator.addCtorArg(settings);
+
+        instantiator.addCtorArg(instantiator.instantiate(ShardStateAction.class));
+        @SuppressWarnings("rawtypes")
+        Map<GenericAction, TransportAction> transportActions = new HashMap<>();
+        for (ActionHandler<?, ?> handler : actions.values()) {
+            SimpleReflectiveInstantiator handlerInstantiator = instantiator;
+            for (Class<?> supportAction : handler.getSupportTransportActions()) {
+                handlerInstantiator.addCtorArg(instantiator.instantiate(supportAction));
+            }
+            transportActions.put(handler.getAction(), handlerInstantiator.instantiate(handler.getTransportAction()));
+        }
+        nodeClient.initialize(transportActions);
+
+        instantiator.instantiate(TransportLivenessAction.class);
+    }
+
     @Override
     protected void configure() {
         Multibinder<ActionFilter> actionFilterMultibinder = Multibinder.newSetBinder(binder(), ActionFilter.class);
@@ -364,7 +397,6 @@ public class ActionModule extends AbstractModule {
             actionFilterMultibinder.addBinding().to(actionFilter);
         }
         bind(ActionFilters.class).asEagerSingleton();
-        bind(DestructiveOperations.class).toInstance(destructiveOperations);
 
         // register Name -> GenericAction Map that can be injected to instances.
         @SuppressWarnings("rawtypes")
@@ -374,22 +406,8 @@ public class ActionModule extends AbstractModule {
         for (Map.Entry<String, ActionHandler<?, ?>> entry : actions.entrySet()) {
             actionsBinder.addBinding(entry.getKey()).toInstance(entry.getValue().getAction());
         }
-        // register GenericAction -> transportAction Map that can be injected to instances.
-        // also register any supporting classes
-        if (false == transportClient) {
+        if (nodeClient != null) {
             bind(AutoCreateIndex.class).toInstance(autoCreateIndex);
-            bind(TransportLivenessAction.class).asEagerSingleton();
-            @SuppressWarnings("rawtypes")
-            MapBinder<GenericAction, TransportAction> transportActionsBinder
-                    = MapBinder.newMapBinder(binder(), GenericAction.class, TransportAction.class);
-            for (ActionHandler<?, ?> action : actions.values()) {
-                // bind the action as eager singleton, so the map binder one will reuse it
-                bind(action.getTransportAction()).asEagerSingleton();
-                transportActionsBinder.addBinding(action.getAction()).to(action.getTransportAction()).asEagerSingleton();
-                for (Class<?> supportAction : action.getSupportTransportActions()) {
-                    bind(supportAction).asEagerSingleton();
-                }
-            }
         }
     }
 }

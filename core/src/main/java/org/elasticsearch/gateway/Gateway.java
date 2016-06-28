@@ -141,7 +141,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                     try {
                         if (electedIndexMetaData.getState() == IndexMetaData.State.OPEN) {
                             // verify that we can actually create this index - if not we recover it as closed with lots of warn logs
-                            indicesService.verifyIndexMetadata(nodeServicesProvider, electedIndexMetaData);
+                            indicesService.verifyIndexMetadata(nodeServicesProvider, electedIndexMetaData, electedIndexMetaData);
                         }
                     } catch (Exception e) {
                         logger.warn("recovering index {} failed - recovering as closed", e, electedIndexMetaData.getIndex());

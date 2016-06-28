@@ -275,13 +275,17 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
                 try {
                     for (Index index : openIndices) {
-                        indicesService.verifyIndexMetadata(nodeServiceProvider, updatedState.getMetaData().getIndexSafe(index));
+                        final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
+                        final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
+                        indicesService.verifyIndexMetadata(nodeServiceProvider, currentMetaData, updatedMetaData);
                     }
                     for (Index index : closeIndices) {
-                        indicesService.verifyIndexMetadata(nodeServiceProvider, updatedState.getMetaData().getIndexSafe(index));
+                        final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
+                        final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
+                        indicesService.verifyIndexMetadata(nodeServiceProvider, currentMetaData, updatedMetaData);
                     }
                 } catch (IOException ex) {
-                    ExceptionsHelper.convertToElastic(ex);
+                    throw ExceptionsHelper.convertToElastic(ex);
                 }
                 return updatedState;
             }

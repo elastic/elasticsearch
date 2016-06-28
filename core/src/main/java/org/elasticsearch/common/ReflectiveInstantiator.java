@@ -26,34 +26,66 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Type;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
-public class SimpleReflectiveInstantiator {
+/**
+ * Instantiates classes from a pool of ready constructor arguments. It has some hard rules to make it simpler:
+ * <ul>
+ * <li>Only instantiate things that are explicitly requested. DI containers build dependencies as needed. Elasticsearch wants dependencies
+ * to be explicit.</li>
+ * <li>Only ever instantiate a class once. If you attempt to instantiate a class twice you just get the same instance back.</li>
+ * <li>If a constructor argument isn't available on the pool then it is ok to provide it from the instantiated classes but *only* if it has
+ * been explicitly permitted</li>
+ * </ul> 
+ */
+public class ReflectiveInstantiator {
     private final Map<Type, Object> ctorArgs = new HashMap<>();
     private final Map<Class<?>, Object> built = new HashMap<>();
 
+    /**
+     * Add a constructor argument to the pool, inferring its {@link Type} reflectively. This works fine if the constructor takes concrete
+     * classes as arguments but as soon as it takes interfaces you must use {@link #addCtorArg(Type, Object)}.
+     */
     public void addCtorArg(Object o) {
         addCtorArg(o.getClass(), o);
     }
 
+    /**
+     * Add a constructor argument to the pool with an explicit type. Prefer {@link #addCtorArg(Object)} if it works.
+     */
     public void addCtorArg(Type type, Object o) {
-        ctorArgs.put(type, o);
+        Object old = ctorArgs.putIfAbsent(type, o);
+        if (old != null) {
+            throw new IllegalArgumentException("Attempted to register a duplicate ctor argument for [" + type.getTypeName() + "]. Was ["
+                    + old + "] and attempted to register [" + o + "]");
+        }
     }
 
-    public <T> T instantiate(Class<T> clazz) { // TODO set of classes allowed to load from built
+    public <T> T instantiate(Class<T> clazz, Set<Type> allowedPreBuilt) {
         Object fetched = built.get(clazz);
         if (fetched != null) {
             return clazz.cast(fetched);
         }
         try {
             Constructor<?> ctor = pickConstructor(clazz);
-            if (ctor == null) {
-                return clazz.newInstance();
-            }
             Type[] params = ctor.getGenericParameterTypes();
             Object[] args = new Object[params.length];
             for (int p = 0; p < args.length; p++) {
+                args[p] = ctorArgs.get(params[p]);
+                if (args[p] != null) {
+                    // Found argument in pool of constructor arguments. Great, just move on.
+                    continue;
+                }
                 args[p] = built.get(params[p]);
-                if (args[p] != null) continue;
+                if (args[p] != null) {
+                    // Argument has already been built. Check to see if we are allowed to reuse it.
+                    if (allowedPreBuilt.contains(params[p])) {
+                        continue;
+                    } else {
+                        throw new IllegalArgumentException(
+                                "Attempting to reuse a [" + params[p].getTypeName() + "] but that hasn't been explicitly permitted.");
+                    }
+                }
                 args[p] = ctorArgs.get(params[p]);
                 if (args[p] == null) {
                     throw new IllegalArgumentException("Don't have a [" + params[p].getTypeName() + "] available.");
@@ -69,9 +101,6 @@ public class SimpleReflectiveInstantiator {
 
     private Constructor<?> pickConstructor(Class<?> clazz) {
         Constructor<?>[] ctors = (Constructor<?>[]) clazz.getConstructors();
-        if (ctors.length == 0) {
-            return null; // NOCOMMIT is this a thing?
-        }
         if (ctors.length == 1) {
             return ctors[0];
         }

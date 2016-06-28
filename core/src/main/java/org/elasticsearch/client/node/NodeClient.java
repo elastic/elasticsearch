@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;

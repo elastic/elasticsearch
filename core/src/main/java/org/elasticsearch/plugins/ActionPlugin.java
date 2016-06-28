@@ -64,6 +64,10 @@ public interface ActionPlugin {
         /**
          * Create a record of an action, the {@linkplain TransportAction} that handles it, and any supporting {@linkplain TransportActions}
          * that are needed by that {@linkplain TransportAction}.
+         * 
+         * @param supportTransportActions
+         *            array of supporting actions. These are built from back to front so list actions that rely on other actions in the list
+         *            before the actions on which they rely
          */
         public ActionHandler(GenericAction<Request, Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
                 Class<?>... supportTransportActions) {

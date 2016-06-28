@@ -52,7 +52,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.SimpleReflectiveInstantiator;
+import org.elasticsearch.common.ReflectiveInstantiator;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -316,7 +316,7 @@ public class Node implements Closeable {
             );
             injector = modules.createInjector();
             // Each one of the injector.getInstance calls need individual attention....
-            SimpleReflectiveInstantiator instantiator = new SimpleReflectiveInstantiator();
+            ReflectiveInstantiator instantiator = new ReflectiveInstantiator();
             instantiator.addCtorArg(environment);
             instantiator.addCtorArg(threadPool);
             instantiator.addCtorArg(clusterService);

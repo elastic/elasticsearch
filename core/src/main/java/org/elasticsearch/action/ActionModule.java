@@ -197,7 +197,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.NamedRegistry;
-import org.elasticsearch.common.SimpleReflectiveInstantiator;
+import org.elasticsearch.common.ReflectiveInstantiator;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
@@ -206,11 +206,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 
@@ -263,7 +267,8 @@ public class ActionModule extends AbstractModule {
         actions.register(GetTaskAction.INSTANCE, TransportGetTaskAction.class);
         actions.register(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
 
-        actions.register(ClusterAllocationExplainAction.INSTANCE, TransportClusterAllocationExplainAction.class);
+        actions.register(ClusterAllocationExplainAction.INSTANCE, TransportClusterAllocationExplainAction.class,
+                TransportIndicesShardStoresAction.class);
         actions.register(ClusterStatsAction.INSTANCE, TransportClusterStatsAction.class);
         actions.register(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);
         actions.register(ClusterHealthAction.INSTANCE, TransportClusterHealthAction.class);
@@ -308,7 +313,7 @@ public class ActionModule extends AbstractModule {
         actions.register(FlushAction.INSTANCE, TransportFlushAction.class, TransportShardFlushAction.class);
         actions.register(SyncedFlushAction.INSTANCE, TransportSyncedFlushAction.class);
         actions.register(ForceMergeAction.INSTANCE, TransportForceMergeAction.class);
-        actions.register(UpgradeAction.INSTANCE, TransportUpgradeAction.class);
+        actions.register(UpgradeAction.INSTANCE, TransportUpgradeAction.class, TransportUpgradeSettingsAction.class);
         actions.register(UpgradeStatusAction.INSTANCE, TransportUpgradeStatusAction.class);
         actions.register(UpgradeSettingsAction.INSTANCE, TransportUpgradeSettingsAction.class);
         actions.register(ClearIndicesCacheAction.INSTANCE, TransportClearIndicesCacheAction.class);
@@ -322,12 +327,11 @@ public class ActionModule extends AbstractModule {
         actions.register(MultiTermVectorsAction.INSTANCE, TransportMultiTermVectorsAction.class,
                 TransportShardMultiTermsVectorAction.class);
         actions.register(DeleteAction.INSTANCE, TransportDeleteAction.class);
-        actions.register(UpdateAction.INSTANCE, TransportUpdateAction.class, TransportCreateIndexAction.class, TransportIndexAction.class,
-                TransportDeleteAction.class);
+        actions.register(UpdateAction.INSTANCE, TransportUpdateAction.class, TransportIndexAction.class,
+                TransportDeleteAction.class, TransportCreateIndexAction.class);
         actions.register(MultiGetAction.INSTANCE, TransportMultiGetAction.class,
                 TransportShardMultiGetAction.class);
-        actions.register(BulkAction.INSTANCE, TransportBulkAction.class,
-                TransportShardBulkAction.class);
+        actions.register(BulkAction.INSTANCE, TransportBulkAction.class, TransportShardBulkAction.class, TransportCreateIndexAction.class);
         actions.register(SearchAction.INSTANCE, TransportSearchAction.class);
         actions.register(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
         actions.register(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class, TransportSearchAction.class);
@@ -369,25 +373,33 @@ public class ActionModule extends AbstractModule {
         return unmodifiableList(filters);
     }
 
-    public void buildActions(SimpleReflectiveInstantiator instantiator) {
+    public void buildActions(ReflectiveInstantiator instantiator) {
         instantiator.addCtorArg(Client.class, nodeClient);
         instantiator.addCtorArg(autoCreateIndex);
         instantiator.addCtorArg(destructiveOperations);
         instantiator.addCtorArg(settings);
 
-        instantiator.addCtorArg(instantiator.instantiate(ShardStateAction.class));
+        // ShardStateAction is used by so many things we just give everything access to it
+        instantiator.addCtorArg(instantiator.instantiate(ShardStateAction.class, emptySet()));
         @SuppressWarnings("rawtypes")
         Map<GenericAction, TransportAction> transportActions = new HashMap<>();
+        Set<Type> reuseOk = new HashSet<>();
         for (ActionHandler<?, ?> handler : actions.values()) {
-            SimpleReflectiveInstantiator handlerInstantiator = instantiator;
-            for (Class<?> supportAction : handler.getSupportTransportActions()) {
-                handlerInstantiator.addCtorArg(instantiator.instantiate(supportAction));
+            ReflectiveInstantiator handlerInstantiator = instantiator;
+            if (handler.getSupportTransportActions().length > 0) {
+                // Build the support actions from the end of the array to the start
+                for (int s = handler.getSupportTransportActions().length - 1; s >= 0; s--) {
+                    Class<?> supportAction = handler.getSupportTransportActions()[s];
+                    instantiator.instantiate(supportAction, reuseOk);
+                    reuseOk.add(supportAction);
+                }
             }
-            transportActions.put(handler.getAction(), handlerInstantiator.instantiate(handler.getTransportAction()));
+            transportActions.put(handler.getAction(), handlerInstantiator.instantiate(handler.getTransportAction(), reuseOk));
+            reuseOk.clear();
         }
         nodeClient.initialize(transportActions);
 
-        instantiator.instantiate(TransportLivenessAction.class);
+        instantiator.instantiate(TransportLivenessAction.class, emptySet());
     }
 
     @Override

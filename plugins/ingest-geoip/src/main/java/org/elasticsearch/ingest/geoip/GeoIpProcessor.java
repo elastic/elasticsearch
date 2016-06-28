@@ -217,7 +217,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    public static final class Factory extends AbstractProcessorFactory<GeoIpProcessor> implements Closeable {
+    public static final class Factory extends AbstractProcessorFactory<GeoIpProcessor> {
         static final Set<Property> DEFAULT_CITY_PROPERTIES = EnumSet.of(
             Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE, Property.REGION_NAME,
             Property.CITY_NAME, Property.LOCATION
@@ -266,11 +266,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
             }
 
             return new GeoIpProcessor(processorTag, ipField, databaseReader, targetField, properties);
-        }
-
-        @Override
-        public void close() throws IOException {
-            IOUtils.close(databaseReaders.values());
         }
     }
 

@@ -19,15 +19,12 @@
 
 package org.elasticsearch.common.compress.deflate;
 
-import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedIndexInput;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -35,6 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.Inflater;
@@ -70,20 +68,6 @@ public class DeflateCompressor implements Compressor {
     }
 
     @Override
-    public boolean isCompressed(ChannelBuffer buffer) {
-        if (buffer.readableBytes() < HEADER.length) {
-            return false;
-        }
-        final int offset = buffer.readerIndex();
-        for (int i = 0; i < HEADER.length; ++i) {
-            if (buffer.getByte(offset + i) != HEADER[i]) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    @Override
     public StreamInput streamInput(StreamInput in) throws IOException {
         final byte[] headerBytes = new byte[HEADER.length];
         int len = 0;
@@ -103,16 +87,14 @@ public class DeflateCompressor implements Compressor {
         InputStream decompressedIn = new InflaterInputStream(in, inflater, BUFFER_SIZE);
         decompressedIn = new BufferedInputStream(decompressedIn, BUFFER_SIZE);
         return new InputStreamStreamInput(decompressedIn) {
-            private boolean closed = false;
-
+            final AtomicBoolean closed = new AtomicBoolean(false);
             public void close() throws IOException {
                 try {
                     super.close();
                 } finally {
-                    if (closed == false) {
+                    if (closed.compareAndSet(false, true)) {
                         // important to release native memory
                         inflater.end();
-                        closed = true;
                     }
                 }
             }
@@ -128,29 +110,17 @@ public class DeflateCompressor implements Compressor {
         OutputStream compressedOut = new DeflaterOutputStream(out, deflater, BUFFER_SIZE, syncFlush);
         compressedOut = new BufferedOutputStream(compressedOut, BUFFER_SIZE);
         return new OutputStreamStreamOutput(compressedOut) {
-            private boolean closed = false;
-
+            final AtomicBoolean closed = new AtomicBoolean(false);
             public void close() throws IOException {
                 try {
                     super.close();
                 } finally {
-                    if (closed == false) {
+                    if (closed.compareAndSet(false, true)) {
                         // important to release native memory
                         deflater.end();
-                        closed = true;
                     }
                 }
             }
         };
-    }
-
-    @Override
-    public boolean isCompressed(IndexInput in) throws IOException {
-        return false;
-    }
-
-    @Override
-    public CompressedIndexInput indexInput(IndexInput in) throws IOException {
-        throw new UnsupportedOperationException();
     }
 }

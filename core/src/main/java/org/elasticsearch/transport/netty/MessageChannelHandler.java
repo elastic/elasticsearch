@@ -21,6 +21,7 @@ package org.elasticsearch.transport.netty;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.ChannelBufferBytesReference;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -110,7 +111,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             if (TransportStatus.isCompress(status) && hasMessageBytesToRead && buffer.readable()) {
                 Compressor compressor;
                 try {
-                    compressor = CompressorFactory.compressor(buffer);
+                    compressor = CompressorFactory.compressor(new ChannelBufferBytesReference(buffer));
                 } catch (NotCompressedException ex) {
                     int maxToRead = Math.min(buffer.readableBytes(), 10);
                     int offset = buffer.readerIndex();

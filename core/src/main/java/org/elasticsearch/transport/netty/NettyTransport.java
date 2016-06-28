@@ -886,7 +886,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             // the header part is compressed, and the "body" can't be extracted as compressed
             if (options.compress() && (!(request instanceof BytesTransportRequest))) {
                 status = TransportStatus.setCompress(status);
-                stream = CompressorFactory.defaultCompressor().streamOutput(stream);
+                stream = CompressorFactory.COMPRESSOR.streamOutput(stream);
             }
 
             // we pick the smallest of the 2, to support both backward and forward compatibility

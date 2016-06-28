@@ -99,7 +99,7 @@ public class NettyTransportChannel implements TransportChannel {
             StreamOutput stream = bStream;
             if (options.compress()) {
                 status = TransportStatus.setCompress(status);
-                stream = CompressorFactory.defaultCompressor().streamOutput(stream);
+                stream = CompressorFactory.COMPRESSOR.streamOutput(stream);
             }
             stream.setVersion(version);
             response.writeTo(stream);

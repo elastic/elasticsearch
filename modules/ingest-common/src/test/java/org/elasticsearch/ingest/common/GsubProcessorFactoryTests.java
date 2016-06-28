@@ -39,7 +39,7 @@ public class GsubProcessorFactoryTests extends ESTestCase {
         config.put("replacement", "-");
         String processorTag = randomAsciiOfLength(10);
         config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
-        GsubProcessor gsubProcessor = factory.create(config);
+        GsubProcessor gsubProcessor = factory.create(null, config);
         assertThat(gsubProcessor.getTag(), equalTo(processorTag));
         assertThat(gsubProcessor.getField(), equalTo("field1"));
         assertThat(gsubProcessor.getPattern().toString(), equalTo("\\."));
@@ -52,7 +52,7 @@ public class GsubProcessorFactoryTests extends ESTestCase {
         config.put("pattern", "\\.");
         config.put("replacement", "-");
         try {
-            factory.create(config);
+            factory.create(null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
@@ -65,7 +65,7 @@ public class GsubProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("replacement", "-");
         try {
-            factory.create(config);
+            factory.create(null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[pattern] required property is missing"));
@@ -78,7 +78,7 @@ public class GsubProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("pattern", "\\.");
         try {
-            factory.create(config);
+            factory.create(null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[replacement] required property is missing"));
@@ -92,7 +92,7 @@ public class GsubProcessorFactoryTests extends ESTestCase {
         config.put("pattern", "[");
         config.put("replacement", "-");
         try {
-            factory.create(config);
+            factory.create(null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("[pattern] Invalid regex pattern. Unclosed character class"));

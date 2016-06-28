@@ -58,7 +58,7 @@ public class IngestCloseIT extends ESSingleNodeTestCase {
 
     public static final class Factory extends AbstractProcessorFactory<TestProcessor> implements Closeable {
         @Override
-        protected TestProcessor doCreate(String tag, Map<String, Object> config) throws Exception {
+        protected TestProcessor doCreate(ProcessorsRegistry registry, String tag, Map<String, Object> config) throws Exception {
             return new TestProcessor("id", "test", ingestDocument -> {
                 throw new UnsupportedOperationException("this code is actually never called from the test");
             });

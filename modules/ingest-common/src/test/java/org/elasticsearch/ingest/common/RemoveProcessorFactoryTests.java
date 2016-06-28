@@ -45,7 +45,7 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         String processorTag = randomAsciiOfLength(10);
         config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
-        RemoveProcessor removeProcessor = factory.create(config);
+        RemoveProcessor removeProcessor = factory.create(null, config);
         assertThat(removeProcessor.getTag(), equalTo(processorTag));
         assertThat(removeProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
     }
@@ -53,7 +53,7 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
     public void testCreateMissingField() throws Exception {
         Map<String, Object> config = new HashMap<>();
         try {
-            factory.create(config);
+            factory.create(null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));

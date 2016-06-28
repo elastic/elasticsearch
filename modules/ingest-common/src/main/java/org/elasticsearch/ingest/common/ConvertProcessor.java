@@ -23,6 +23,7 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.ProcessorsRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -162,7 +163,7 @@ public final class ConvertProcessor extends AbstractProcessor {
 
     public static final class Factory extends AbstractProcessorFactory<ConvertProcessor> {
         @Override
-        public ConvertProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public ConvertProcessor doCreate(ProcessorsRegistry registry, String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String typeProperty = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "type");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);

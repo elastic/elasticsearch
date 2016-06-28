@@ -40,7 +40,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         config.put("patterns", Collections.singletonList("(?<foo>\\w+)"));
         String processorTag = randomAsciiOfLength(10);
         config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
-        GrokProcessor processor = factory.create(config);
+        GrokProcessor processor = factory.create(null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getMatchField(), equalTo("_field"));
         assertThat(processor.getGrok(), notNullValue());
@@ -78,7 +78,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("patterns", Collections.singletonList("%{MY_PATTERN:name}!"));
         config.put("pattern_definitions", Collections.singletonMap("MY_PATTERN", "foo"));
-        GrokProcessor processor = factory.create(config);
+        GrokProcessor processor = factory.create(null, config);
         assertThat(processor.getMatchField(), equalTo("_field"));
         assertThat(processor.getGrok(), notNullValue());
         assertThat(processor.getGrok().match("foo!"), equalTo(true));

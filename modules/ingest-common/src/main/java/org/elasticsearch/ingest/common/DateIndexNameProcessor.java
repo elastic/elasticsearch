@@ -24,6 +24,7 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -123,7 +124,7 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
     public static final class Factory extends AbstractProcessorFactory<DateIndexNameProcessor> {
 
         @Override
-        protected DateIndexNameProcessor doCreate(String tag, Map<String, Object> config) throws Exception {
+        protected DateIndexNameProcessor doCreate(ProcessorsRegistry registry, String tag, Map<String, Object> config) throws Exception {
             String localeString = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "locale");
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "timezone");
             DateTimeZone timezone = timezoneString == null ? DateTimeZone.UTC : DateTimeZone.forID(timezoneString);

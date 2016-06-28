@@ -37,7 +37,7 @@ public class RenameProcessorFactoryTests extends ESTestCase {
         config.put("target_field", "new_field");
         String processorTag = randomAsciiOfLength(10);
         config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
-        RenameProcessor renameProcessor = factory.create(config);
+        RenameProcessor renameProcessor = factory.create(null, config);
         assertThat(renameProcessor.getTag(), equalTo(processorTag));
         assertThat(renameProcessor.getField(), equalTo("old_field"));
         assertThat(renameProcessor.getTargetField(), equalTo("new_field"));
@@ -48,7 +48,7 @@ public class RenameProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("target_field", "new_field");
         try {
-            factory.create(config);
+            factory.create(null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
@@ -60,7 +60,7 @@ public class RenameProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "old_field");
         try {
-            factory.create(config);
+            factory.create(null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[target_field] required property is missing"));

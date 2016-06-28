@@ -36,7 +36,7 @@ public class TrimProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         String processorTag = randomAsciiOfLength(10);
         config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
-        TrimProcessor uppercaseProcessor = factory.create(config);
+        TrimProcessor uppercaseProcessor = factory.create(null, config);
         assertThat(uppercaseProcessor.getTag(), equalTo(processorTag));
         assertThat(uppercaseProcessor.getField(), equalTo("field1"));
     }
@@ -45,7 +45,7 @@ public class TrimProcessorFactoryTests extends ESTestCase {
         TrimProcessor.Factory factory = new TrimProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         try {
-            factory.create(config);
+            factory.create(null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));

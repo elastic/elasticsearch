@@ -20,9 +20,18 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.node.NodeModule;
+import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptService;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -36,15 +45,25 @@ import java.util.Map;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 
-public class IngestGeoIpPlugin extends Plugin {
+public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable {
 
-    public void onModule(NodeModule nodeModule) throws IOException {
-        Path geoIpConfigDirectory = nodeModule.getNode().getEnvironment().configFile().resolve("ingest-geoip");
-        Map<String, DatabaseReader> databaseReaders = loadDatabaseReaders(geoIpConfigDirectory);
-        nodeModule.registerProcessor(GeoIpProcessor.TYPE, (registry) -> new GeoIpProcessor.Factory(databaseReaders));
+    private Map<String, DatabaseReader> databaseReaders;
+
+    @Override
+    public synchronized Map<String, Processor.Factory> getProcessors(
+        Environment env, ClusterService clusterService, ScriptService scriptService, TemplateService templateService) {
+        if (databaseReaders == null) {
+            Path geoIpConfigDirectory = env.configFile().resolve("ingest-geoip");
+            try {
+                databaseReaders = loadDatabaseReaders(geoIpConfigDirectory);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return Collections.singletonMap(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(databaseReaders));
     }
 
-    public static Map<String, DatabaseReader> loadDatabaseReaders(Path geoIpConfigDirectory) throws IOException {
+    static Map<String, DatabaseReader> loadDatabaseReaders(Path geoIpConfigDirectory) throws IOException {
         if (Files.exists(geoIpConfigDirectory) == false && Files.isDirectory(geoIpConfigDirectory)) {
             throw new IllegalStateException("the geoip directory [" + geoIpConfigDirectory  + "] containing databases doesn't exist");
         }
@@ -64,5 +83,12 @@ public class IngestGeoIpPlugin extends Plugin {
             }
         }
         return Collections.unmodifiableMap(databaseReaders);
+    }
+
+    @Override
+    public synchronized void close() throws IOException {
+        if (databaseReaders != null) {
+            IOUtils.close(databaseReaders.values());
+        }
     }
 }

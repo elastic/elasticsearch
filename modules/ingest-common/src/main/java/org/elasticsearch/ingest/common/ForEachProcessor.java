@@ -84,13 +84,6 @@ public final class ForEachProcessor extends AbstractProcessor {
     }
 
     public static final class Factory extends AbstractProcessorFactory<ForEachProcessor> {
-
-        private final ProcessorsRegistry processorRegistry;
-
-        public Factory(ProcessorsRegistry processorRegistry) {
-            this.processorRegistry = processorRegistry;
-        }
-
         @Override
         protected ForEachProcessor doCreate(String tag, Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");

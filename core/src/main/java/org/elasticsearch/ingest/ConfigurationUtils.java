@@ -255,8 +255,7 @@ public final class ConfigurationUtils {
                 ConfigurationUtils.readOptionalList(null, null, config, Pipeline.ON_FAILURE_KEY);
 
             List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorRegistry);
-            Processor processor;
-            processor = factory.create(config);
+            Processor processor = factory.create(processorRegistry, config);
 
             if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
                 throw newConfigurationException(processor.getType(), processor.getTag(), Pipeline.ON_FAILURE_KEY,

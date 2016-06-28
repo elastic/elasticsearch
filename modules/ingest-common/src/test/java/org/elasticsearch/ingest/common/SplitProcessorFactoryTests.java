@@ -37,7 +37,7 @@ public class SplitProcessorFactoryTests extends ESTestCase {
         config.put("separator", "\\.");
         String processorTag = randomAsciiOfLength(10);
         config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
-        SplitProcessor splitProcessor = factory.create(config);
+        SplitProcessor splitProcessor = factory.create(null, config);
         assertThat(splitProcessor.getTag(), equalTo(processorTag));
         assertThat(splitProcessor.getField(), equalTo("field1"));
         assertThat(splitProcessor.getSeparator(), equalTo("\\."));
@@ -48,7 +48,7 @@ public class SplitProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("separator", "\\.");
         try {
-            factory.create(config);
+            factory.create(null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
@@ -60,7 +60,7 @@ public class SplitProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         try {
-            factory.create(config);
+            factory.create(null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[separator] required property is missing"));

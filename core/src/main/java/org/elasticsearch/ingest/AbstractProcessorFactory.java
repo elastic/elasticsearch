@@ -29,10 +29,10 @@ public abstract class AbstractProcessorFactory<P extends Processor> implements P
     public static final String TAG_KEY = "tag";
 
     @Override
-    public P create(Map<String, Object> config) throws Exception {
+    public P create(ProcessorsRegistry registry, Map<String, Object> config) throws Exception {
         String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
-        return doCreate(tag, config);
+        return doCreate(registry, tag, config);
     }
 
-    protected abstract P doCreate(String tag, Map<String, Object> config) throws Exception;
+    protected abstract P doCreate(ProcessorsRegistry registry, String tag, Map<String, Object> config) throws Exception;
 }

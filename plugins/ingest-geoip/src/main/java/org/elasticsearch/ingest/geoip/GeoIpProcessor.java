@@ -36,6 +36,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.ProcessorsRegistry;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -231,7 +232,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         }
 
         @Override
-        public GeoIpProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public GeoIpProcessor doCreate(ProcessorsRegistry registry, String processorTag, Map<String, Object> config) throws Exception {
             String ipField = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");
             String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb.gz");

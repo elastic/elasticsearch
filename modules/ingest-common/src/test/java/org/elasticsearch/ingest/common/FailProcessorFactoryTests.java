@@ -45,7 +45,7 @@ public class FailProcessorFactoryTests extends ESTestCase {
         config.put("message", "error");
         String processorTag = randomAsciiOfLength(10);
         config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
-        FailProcessor failProcessor = factory.create(config);
+        FailProcessor failProcessor = factory.create(null, config);
         assertThat(failProcessor.getTag(), equalTo(processorTag));
         assertThat(failProcessor.getMessage().execute(Collections.emptyMap()), equalTo("error"));
     }
@@ -53,7 +53,7 @@ public class FailProcessorFactoryTests extends ESTestCase {
     public void testCreateMissingMessageField() throws Exception {
         Map<String, Object> config = new HashMap<>();
         try {
-            factory.create(config);
+            factory.create(null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[message] required property is missing"));

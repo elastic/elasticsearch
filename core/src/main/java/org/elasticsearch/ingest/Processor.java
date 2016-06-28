@@ -53,6 +53,6 @@ public interface Processor {
          * Implementations are responsible for removing the used keys, so that after creating a pipeline ingest can
          * verify if all configurations settings have been used.
          */
-        P create(Map<String, Object> config) throws Exception;
+        P create(ProcessorsRegistry registry, Map<String, Object> config) throws Exception;
     }
 }

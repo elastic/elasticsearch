@@ -362,7 +362,7 @@ public class SearchInputIT extends ESIntegTestCase {
     protected WatcherSearchTemplateService watcherSearchTemplateService() {
         String master = internalCluster().getMasterName();
         return new WatcherSearchTemplateService(internalCluster().clusterService(master).getSettings(),
-                ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class, master), internalCluster().clusterService(master)),
+                ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class, master)),
                 internalCluster().getInstance(IndicesQueriesRegistry.class, master),
                 internalCluster().getInstance(AggregatorParsers.class, master),
                 internalCluster().getInstance(Suggesters.class, master)
@@ -370,7 +370,7 @@ public class SearchInputIT extends ESIntegTestCase {
     }
 
     protected ScriptServiceProxy scriptService() {
-        return ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class), internalCluster().clusterService());
+        return ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class));
     }
 
     private XContentSource toXContentSource(SearchInput.Result result) throws IOException {

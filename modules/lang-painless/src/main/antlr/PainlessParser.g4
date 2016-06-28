@@ -42,6 +42,7 @@ statement
     | DO block WHILE LP expression RP delimiter                                                # do
     | FOR LP initializer? SEMICOLON expression? SEMICOLON afterthought? RP ( trailer | empty ) # for
     | FOR LP decltype ID COLON expression RP trailer                                           # each
+    | FOR LP ID IN expression RP trailer                                                       # ineach
     | declaration delimiter                                                                    # decl
     | CONTINUE delimiter                                                                       # continue
     | BREAK delimiter                                                                          # break

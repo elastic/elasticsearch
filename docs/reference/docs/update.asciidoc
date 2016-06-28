@@ -32,7 +32,8 @@ Now, we can execute a script that would increment the counter:
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
     "script" : {
-        "inline": "ctx._source.counter += count",
+        "inline": "ctx._source.counter += params.count",
+        "lang": "painless",
         "params" : {
             "count" : 4
         }
@@ -47,7 +48,8 @@ will still add it, since its a list):
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
     "script" : {
-        "inline": "ctx._source.tags += tag",
+        "inline": "ctx._source.tags += params.tag",
+        "lang": "painless",
         "params" : {
             "tag" : "blue"
         }
@@ -85,7 +87,8 @@ the doc if the `tags` field contain `blue`, otherwise it does nothing
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
     "script" : {
-        "inline": "ctx._source.tags.contains(tag) ? ctx.op = \"delete\" : ctx.op = \"none\"",
+        "inline": "ctx._source.tags.contains(params.tag) ? ctx.op = \"delete\" : ctx.op = \"none\"",
+        "lang": "painless",
         "params" : {
             "tag" : "blue"
         }
@@ -144,7 +147,8 @@ will be inserted as a new document.  If the document does exist, then the
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
     "script" : {
-        "inline": "ctx._source.counter += count",
+        "inline": "ctx._source.counter += params.count",
+        "lang": "painless",
         "params" : {
             "count" : 4
         }

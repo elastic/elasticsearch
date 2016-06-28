@@ -118,7 +118,10 @@ curl -s -XPOST 'localhost:9200/_search' -d '{
          "rescore_query" : {
             "function_score" : {
                "script_score": {
-                  "script": "log10(doc['numeric'].value + 2)"
+                  "script": {
+                    "lang": "painless",
+                    "inline": "Math.log10(doc['numeric'].value + 2)"
+                  }
                }
             }
          }

@@ -104,14 +104,17 @@ however since hashes need to be computed on the fly.
     "aggs" : {
         "author_count" : {
             "cardinality" : {
-                "script": "doc['author.first_name'].value + ' ' + doc['author.last_name'].value"
+                "script": {
+                    "lang": "painless",
+                    "inline": "doc['author.first_name'].value + ' ' + doc['author.last_name'].value"
+                }
             }
         }
     }
 }
 --------------------------------------------------
 
-This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a file script use the following syntax:
+This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a file script use the following syntax:
 
 [source,js]
 --------------------------------------------------

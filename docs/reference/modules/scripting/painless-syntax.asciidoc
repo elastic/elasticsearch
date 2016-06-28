@@ -132,6 +132,15 @@ There are only a few minor differences and add-ons:
 Java's https://docs.oracle.com/javase/tutorial/java/nutsandbolts/flow.html[control flow statements] are supported, with the exception
 of the `switch` statement.
 
+In addition to Java's `enhanced for` loop, the `for in` syntax from groovy can also be used:
+
+[source,js]
+---------------------------------------------------------
+for (item : list) {
+  ...
+}
+---------------------------------------------------------
+
 [float]
 [[painless-functions]]
 === Functions

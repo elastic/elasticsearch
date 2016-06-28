@@ -857,7 +857,7 @@ public class HistogramTests extends ESIntegTestCase {
         boolean invalidBoundsError = boundsMin > boundsMax;
 
         // constructing the newly expected bucket list
-        int bucketsCount = numValueBuckets + addedBucketsLeft + addedBucketsRight;
+        int bucketsCount = (int) ((boundsMaxKey - boundsMinKey) / interval) + 1;
         long[] extendedValueCounts = new long[bucketsCount];
         System.arraycopy(valueCounts, 0, extendedValueCounts, addedBucketsLeft, valueCounts.length);
 
@@ -893,7 +893,7 @@ public class HistogramTests extends ESIntegTestCase {
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat(buckets.size(), equalTo(bucketsCount));
 
-        long key = Math.min(boundsMinKey, 0);
+        long key = boundsMinKey;
         for (int i = 0; i < bucketsCount; i++) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());

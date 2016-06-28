@@ -31,6 +31,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
@@ -41,7 +42,7 @@ import java.util.Map;
 
 /**
  */
-public class InternalTopHits extends InternalMetricsAggregation implements TopHits {
+public class InternalTopHits extends InternalNumericMetricsAggregation.SingleValue implements TopHits {
 
     public static final InternalAggregation.Type TYPE = new Type("top_hits");
 
@@ -130,13 +131,8 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
         }
     }
 
-    @Override
-    public Object getProperty(List<String> path) {
-        if (path.isEmpty()) {
-            return this;
-        } else {
-            throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
-        }
+    public double value() {
+        return topDocs.getMaxScore();
     }
 
     @Override

@@ -157,7 +157,6 @@ public class TopHitsIT extends ESIntegTestCase {
                 .startObject()
                 .field("group", "a")
                 .field("text", "term x y z n rare")
-                .field("value", 1)
                 .endObject()));
         builders.add(client().prepareIndex("idx", "field-collapsing", "3").setSource(jsonBuilder()
                 .startObject()
@@ -178,7 +177,6 @@ public class TopHitsIT extends ESIntegTestCase {
                 .startObject()
                 .field("group", "b")
                 .field("text", "term rare")
-                .field("value", 3)
                 .endObject()));
         builders.add(client().prepareIndex("idx", "field-collapsing", "7").setSource(jsonBuilder()
                 .startObject()
@@ -194,7 +192,6 @@ public class TopHitsIT extends ESIntegTestCase {
                 .startObject()
                 .field("group", "c")
                 .field("text", "rare x term")
-                .field("value", 2)
                 .endObject()));
 
         numArticles = scaledRandomIntBetween(10, 100);
@@ -286,9 +283,9 @@ public class TopHitsIT extends ESIntegTestCase {
             assertThat(hits.totalHits(), equalTo(10L));
             assertThat(hits.getHits().length, equalTo(3));
             higestSortValue += 10;
-            assertThat((Long) hits.getAt(0).sortValues()[0], equalTo(higestSortValue));
-            assertThat((Long) hits.getAt(1).sortValues()[0], equalTo(higestSortValue - 1));
-            assertThat((Long) hits.getAt(2).sortValues()[0], equalTo(higestSortValue - 2));
+            assertThat(hits.getAt(0).sortValues()[0], equalTo(higestSortValue));
+            assertThat(hits.getAt(1).sortValues()[0], equalTo(higestSortValue - 1));
+            assertThat(hits.getAt(2).sortValues()[0], equalTo(higestSortValue - 2));
 
             assertThat(hits.getAt(0).sourceAsMap().size(), equalTo(4));
         }
@@ -429,7 +426,7 @@ public class TopHitsIT extends ESIntegTestCase {
         TopHits topHits = global.getAggregations().get("hits");
         assertThat(topHits, notNullValue());
         assertThat(topHits.getName(), equalTo("hits"));
-        assertThat((TopHits) global.getProperty("hits"), sameInstance(topHits));
+        assertThat(global.getProperty("hits"), sameInstance(topHits));
 
     }
 
@@ -508,9 +505,9 @@ public class TopHitsIT extends ESIntegTestCase {
             SearchHits hits = topHits.getHits();
             assertThat(hits.totalHits(), equalTo(10L));
             assertThat(hits.getHits().length, equalTo(3));
-            assertThat((Long) hits.getAt(0).sortValues()[0], equalTo(higestSortValue));
-            assertThat((Long) hits.getAt(1).sortValues()[0], equalTo(higestSortValue - 1));
-            assertThat((Long) hits.getAt(2).sortValues()[0], equalTo(higestSortValue - 2));
+            assertThat(hits.getAt(0).sortValues()[0], equalTo(higestSortValue));
+            assertThat(hits.getAt(1).sortValues()[0], equalTo(higestSortValue - 1));
+            assertThat(hits.getAt(2).sortValues()[0], equalTo(higestSortValue - 2));
             Max max = bucket.getAggregations().get("max_sort");
             assertThat(max.getValue(), equalTo(((Long) higestSortValue).doubleValue()));
             higestSortValue -= 10;
@@ -525,8 +522,8 @@ public class TopHitsIT extends ESIntegTestCase {
                 .setQuery(matchQuery("text", "term rare"))
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field("group")
-                                .order(Terms.Order.aggregation("max_score", false)).subAggregation(topHits("hits").size(1))
-                                .subAggregation(max("max_score").field("value"))).get();
+                                .order(Terms.Order.aggregation("hits", false)).subAggregation(topHits("hits").size(1)))
+                                .get();
         assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
@@ -717,7 +714,7 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(searchHits.totalHits(), equalTo(1L));
         assertThat(searchHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(searchHits.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
-        assertThat((Integer) searchHits.getAt(0).getSource().get("date"), equalTo(1));
+        assertThat(searchHits.getAt(0).getSource().get("date"), equalTo(1));
 
         bucket = terms.getBucketByKey("b");
         assertThat(bucket.getDocCount(), equalTo(2L));
@@ -726,10 +723,10 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(searchHits.totalHits(), equalTo(2L));
         assertThat(searchHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(searchHits.getAt(0).getNestedIdentity().getOffset(), equalTo(1));
-        assertThat((Integer) searchHits.getAt(0).getSource().get("date"), equalTo(2));
+        assertThat(searchHits.getAt(0).getSource().get("date"), equalTo(2));
         assertThat(searchHits.getAt(1).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(searchHits.getAt(1).getNestedIdentity().getOffset(), equalTo(0));
-        assertThat((Integer) searchHits.getAt(1).getSource().get("date"), equalTo(3));
+        assertThat(searchHits.getAt(1).getSource().get("date"), equalTo(3));
 
         bucket = terms.getBucketByKey("c");
         assertThat(bucket.getDocCount(), equalTo(1L));
@@ -738,7 +735,7 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(searchHits.totalHits(), equalTo(1L));
         assertThat(searchHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(searchHits.getAt(0).getNestedIdentity().getOffset(), equalTo(1));
-        assertThat((Integer) searchHits.getAt(0).getSource().get("date"), equalTo(4));
+        assertThat(searchHits.getAt(0).getSource().get("date"), equalTo(4));
     }
 
     public void testTopHitsInSecondLayerNested() throws Exception {
@@ -791,49 +788,49 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(topReviewers.getHits().getHits().length, equalTo(7));
 
         assertThat(topReviewers.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat((String) topReviewers.getHits().getAt(0).sourceAsMap().get("name"), equalTo("user a"));
+        assertThat(topReviewers.getHits().getAt(0).sourceAsMap().get("name"), equalTo("user a"));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getChild().getOffset(), equalTo(0));
 
         assertThat(topReviewers.getHits().getAt(1).getId(), equalTo("1"));
-        assertThat((String) topReviewers.getHits().getAt(1).sourceAsMap().get("name"), equalTo("user b"));
+        assertThat(topReviewers.getHits().getAt(1).sourceAsMap().get("name"), equalTo("user b"));
         assertThat(topReviewers.getHits().getAt(1).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(1).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(topReviewers.getHits().getAt(1).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
         assertThat(topReviewers.getHits().getAt(1).getNestedIdentity().getChild().getOffset(), equalTo(1));
 
         assertThat(topReviewers.getHits().getAt(2).getId(), equalTo("1"));
-        assertThat((String) topReviewers.getHits().getAt(2).sourceAsMap().get("name"), equalTo("user c"));
+        assertThat(topReviewers.getHits().getAt(2).sourceAsMap().get("name"), equalTo("user c"));
         assertThat(topReviewers.getHits().getAt(2).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(2).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(topReviewers.getHits().getAt(2).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
         assertThat(topReviewers.getHits().getAt(2).getNestedIdentity().getChild().getOffset(), equalTo(2));
 
         assertThat(topReviewers.getHits().getAt(3).getId(), equalTo("1"));
-        assertThat((String) topReviewers.getHits().getAt(3).sourceAsMap().get("name"), equalTo("user c"));
+        assertThat(topReviewers.getHits().getAt(3).sourceAsMap().get("name"), equalTo("user c"));
         assertThat(topReviewers.getHits().getAt(3).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(3).getNestedIdentity().getOffset(), equalTo(1));
         assertThat(topReviewers.getHits().getAt(3).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
         assertThat(topReviewers.getHits().getAt(3).getNestedIdentity().getChild().getOffset(), equalTo(0));
 
         assertThat(topReviewers.getHits().getAt(4).getId(), equalTo("1"));
-        assertThat((String) topReviewers.getHits().getAt(4).sourceAsMap().get("name"), equalTo("user d"));
+        assertThat(topReviewers.getHits().getAt(4).sourceAsMap().get("name"), equalTo("user d"));
         assertThat(topReviewers.getHits().getAt(4).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(4).getNestedIdentity().getOffset(), equalTo(1));
         assertThat(topReviewers.getHits().getAt(4).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
         assertThat(topReviewers.getHits().getAt(4).getNestedIdentity().getChild().getOffset(), equalTo(1));
 
         assertThat(topReviewers.getHits().getAt(5).getId(), equalTo("1"));
-        assertThat((String) topReviewers.getHits().getAt(5).sourceAsMap().get("name"), equalTo("user e"));
+        assertThat(topReviewers.getHits().getAt(5).sourceAsMap().get("name"), equalTo("user e"));
         assertThat(topReviewers.getHits().getAt(5).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(5).getNestedIdentity().getOffset(), equalTo(1));
         assertThat(topReviewers.getHits().getAt(5).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
         assertThat(topReviewers.getHits().getAt(5).getNestedIdentity().getChild().getOffset(), equalTo(2));
 
         assertThat(topReviewers.getHits().getAt(6).getId(), equalTo("2"));
-        assertThat((String) topReviewers.getHits().getAt(6).sourceAsMap().get("name"), equalTo("user f"));
+        assertThat(topReviewers.getHits().getAt(6).sourceAsMap().get("name"), equalTo("user f"));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getChild().getField().string(), equalTo("reviewers"));
@@ -923,7 +920,7 @@ public class TopHitsIT extends ESIntegTestCase {
             for (int j = 0; j < 3; j++) {
                 assertThat(searchHits.getAt(j).getNestedIdentity().getField().string(), equalTo("comments"));
                 assertThat(searchHits.getAt(j).getNestedIdentity().getOffset(), equalTo(0));
-                assertThat((Integer) searchHits.getAt(j).sourceAsMap().get("id"), equalTo(0));
+                assertThat(searchHits.getAt(j).sourceAsMap().get("id"), equalTo(0));
 
                 HighlightField highlightField = searchHits.getAt(j).getHighlightFields().get("comments.message");
                 assertThat(highlightField.getFragments().length, equalTo(1));

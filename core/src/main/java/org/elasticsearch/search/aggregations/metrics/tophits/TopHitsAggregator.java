@@ -36,7 +36,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -50,17 +50,23 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- */
-public class TopHitsAggregator extends MetricsAggregator {
+public class TopHitsAggregator extends NumericMetricsAggregator.SingleValue {
 
     /** Simple wrapper around a top-level collector and the current leaf collector. */
     private static class TopDocsAndLeafCollector {
         final TopDocsCollector<?> topLevelCollector;
         LeafCollector leafCollector;
+        TopDocs topDocs;
 
         TopDocsAndLeafCollector(TopDocsCollector<?> topLevelCollector) {
             this.topLevelCollector = topLevelCollector;
+        }
+
+        TopDocs topDocs() {
+            if (topDocs == null) {
+                topDocs = topLevelCollector.topDocs();
+            }
+            return topDocs;
         }
     }
 
@@ -85,6 +91,12 @@ public class TopHitsAggregator extends MetricsAggregator {
             // sort by score
             return true;
         }
+    }
+
+    @Override
+    public double metric(long owningBucketOrd) {
+        TopDocs topDocs = topDocsCollectors.get(owningBucketOrd).topDocs();
+        return topDocs.getMaxScore();
     }
 
     @Override
@@ -135,7 +147,7 @@ public class TopHitsAggregator extends MetricsAggregator {
         if (topDocsCollector == null) {
             topHits = buildEmptyAggregation();
         } else {
-            final TopDocs topDocs = topDocsCollector.topLevelCollector.topDocs();
+            final TopDocs topDocs = topDocsCollector.topDocs();
 
             subSearchContext.queryResult().topDocs(topDocs, subSearchContext.sort() == null ? null : subSearchContext.sort().formats);
             int[] docIdsToLoad = new int[topDocs.scoreDocs.length];

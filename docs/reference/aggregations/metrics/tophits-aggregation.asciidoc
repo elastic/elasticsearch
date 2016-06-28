@@ -157,8 +157,8 @@ In the example below we search across crawled webpages. For each webpage we stor
 belong to. By defining a `terms` aggregator on the `domain` field we group the result set of webpages by domain. The
 `top_hits` aggregator is then defined as sub-aggregator, so that the top matching hits are collected per bucket.
 
-Also a `max` aggregator is defined which is used by the `terms` aggregator's order feature the return the buckets by
-relevancy order of the most relevant document in a bucket.
+The `terms` aggregator order feature is used to return the buckets by relevancy order, based on the highest scoring
+document captured by the `top_hits` aggregation.
 
 [source,js]
 --------------------------------------------------
@@ -173,17 +173,12 @@ relevancy order of the most relevant document in a bucket.
       "terms": {
         "field": "domain",
         "order": {
-          "top_hit": "desc"
+          "top_tags_hits": "desc"
         }
       },
       "aggs": {
         "top_tags_hits": {
           "top_hits": {}
-        },
-        "top_hit" : {
-          "max": {
-            "script": "_score"
-          }
         }
       }
     }
@@ -191,9 +186,7 @@ relevancy order of the most relevant document in a bucket.
 }
 --------------------------------------------------
 
-At the moment the `max` (or `min`) aggregator is needed to make sure the buckets from the `terms` aggregator are
-ordered according to the score of the most relevant webpage per domain. Unfortunately the `top_hits` aggregator
-can't be used in the `order` option of the `terms` aggregator yet.
+Note, the `top_hits` aggregator can only sort buckets by `max_score`.
 
 ==== top_hits support in a nested or reverse_nested aggregator
 

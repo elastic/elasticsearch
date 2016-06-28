@@ -246,6 +246,7 @@ public class Node implements Closeable {
             resourcesToClose.add(resourceWatcherService);
             final NetworkService networkService = new NetworkService(settings);
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
+            clusterService.add(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
             final TribeService tribeService = new TribeService(settings, clusterService);
             resourcesToClose.add(tribeService);

@@ -79,16 +79,16 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public void initialize(InternalAggregation.ReduceContext context) {
-        initialize(context.scriptService(), context.clusterState());
+        initialize(context.scriptService());
     }
 
     @Override
     public void initialize(SearchContext context) {
-        initialize(context.scriptService(), context.getQueryShardContext().getClusterState());
+        initialize(context.scriptService());
     }
 
-    public void initialize(ScriptService scriptService, ClusterState state) {
-        searchScript = scriptService.executable(script, ScriptContext.Standard.AGGS, Collections.emptyMap(), state);
+    public void initialize(ScriptService scriptService) {
+        searchScript = scriptService.executable(script, ScriptContext.Standard.AGGS, Collections.emptyMap());
         searchScript.setNextVar("_subset_freq", subsetDfHolder);
         searchScript.setNextVar("_subset_size", subsetSizeHolder);
         searchScript.setNextVar("_superset_freq", supersetDfHolder);

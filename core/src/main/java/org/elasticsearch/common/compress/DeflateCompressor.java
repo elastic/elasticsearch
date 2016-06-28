@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.compress.deflate;
+package org.elasticsearch.common.compress;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.Compressor;

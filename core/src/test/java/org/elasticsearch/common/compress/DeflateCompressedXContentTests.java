@@ -21,7 +21,6 @@ package org.elasticsearch.common.compress;
 
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.deflate.DeflateCompressor;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
@@ -36,7 +35,7 @@ import static org.hamcrest.Matchers.not;
 /**
  *
  */
-public class DeflateCompressedXContentTestCase extends ESTestCase {
+public class DeflateCompressedXContentTests extends ESTestCase {
 
     private final Compressor compressor = new DeflateCompressor();
 

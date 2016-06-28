@@ -21,7 +21,6 @@ package org.elasticsearch.common.compress;
 
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.common.compress.deflate.DeflateCompressor;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;

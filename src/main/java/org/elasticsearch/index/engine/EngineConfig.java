@@ -60,7 +60,7 @@ public final class EngineConfig {
     private volatile boolean enableGcDeletes = true;
     private final String codecName;
     private final boolean optimizeAutoGenerateId;
-    private volatile boolean checksumOnMerge;
+    private volatile boolean checksumOnMerge = true;
     private final ThreadPool threadPool;
     private final ShardIndexingService indexingService;
     private final IndexSettingsService indexSettingsService;

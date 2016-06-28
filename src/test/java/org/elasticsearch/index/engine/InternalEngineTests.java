@@ -1749,4 +1749,12 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             });
         }
     }
+
+    public void testEngineDefaults() {
+        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(),
+                ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        EngineConfig config = config(indexSettingsService, engine.store, engine.config().getTranslog(),
+                engine.config().getMergeScheduler());
+        assertTrue(config.isChecksumOnMerge());
+    }
 }

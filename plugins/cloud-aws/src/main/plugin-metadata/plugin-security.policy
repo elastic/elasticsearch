@@ -23,4 +23,10 @@ grant {
   // NOTE: no tests fail without this, but we know the problem
   // exists in AWS sdk, and tests here are not thorough
   permission java.lang.RuntimePermission "getClassLoader";
+  // Required by AmazonS3Client because when the region is not
+  // explicitly set the AmazonS3Client.resolveServiceEndpoint()
+  // method tries to load all known regions using PartitionsLoader
+  // and this one uses Jackson databinding and reflections to load
+  // the com/amazonaws/partitions/endpoints.json file.
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };

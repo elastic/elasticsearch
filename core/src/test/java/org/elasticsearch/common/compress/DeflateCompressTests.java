@@ -37,7 +37,7 @@ import java.util.concurrent.CountDownLatch;
 /**
  * Test streaming compression (e.g. used for recovery)
  */
-public abstract class DeflateCompressTests extends ESTestCase {
+public class DeflateCompressTests extends ESTestCase {
 
     private final Compressor compressor = new DeflateCompressor();
 

@@ -4,7 +4,7 @@
     "methods": ["GET"],
     "url": {
       "path": "/_tasks",
-      "paths": ["/_tasks", "/_tasks/{task_id}"],
+      "paths": ["/_tasks"],
       "parts": {},
       "params": {
         "node_id": {

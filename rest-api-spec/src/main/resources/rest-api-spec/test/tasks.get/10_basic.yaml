@@ -6,5 +6,5 @@
 
   - do:
       catch: missing
-      task.get:
+      tasks.get:
         task_id: foo:1

@@ -890,7 +890,7 @@ public final class InternalTestCluster extends TestCluster {
                 NodeEnvironment nodeEnv = node.getNodeEnvironment();
                 if (nodeEnv.hasNodeFile()) {
                     final Path[] locations = nodeEnv.nodeDataPaths();
-                    logger.debug("removing node data paths: [{}]", (Object[]) locations);
+                    logger.debug("removing node data paths: [{}]", Arrays.toString(locations));
                     IOUtils.rm(locations);
                 }
             }
@@ -1039,7 +1039,7 @@ public final class InternalTestCluster extends TestCluster {
             ClusterHealthResponse response = client().admin().cluster().prepareHealth()
                 .setWaitForNodes(Integer.toString(newSize)).get();
             if (response.isTimedOut()) {
-                logger.warn("failed to wait for a cluster of size [{}], got", newSize, response);
+                logger.warn("failed to wait for a cluster of size [{}], got [{}]", newSize, response);
                 throw new IllegalStateException("cluster failed to reach the expected size of [" + newSize + "]");
             }
         }

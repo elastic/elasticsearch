@@ -54,6 +54,7 @@ discovery:
     type: azure
 ----
 
+WARNING: The keystore file must be placed in a directory accessible by elasticsearch like the `config` directory.
 
 [IMPORTANT]
 .Binding the network host

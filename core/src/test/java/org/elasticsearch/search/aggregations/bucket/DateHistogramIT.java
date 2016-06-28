@@ -57,6 +57,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -253,7 +254,48 @@ public class DateHistogramIT extends ESIntegTestCase {
     }
 
     @Test
-    public void singleValuedField_OrderedByKeyAsc() throws Exception {
+    public void testSingleValued_timeZone_epoch() throws Exception {
+        String format = randomBoolean() ? "epoch_millis" : "epoch_second";
+        int millisDivider = format.equals("epoch_millis") ? 1 : 1000;
+        if (randomBoolean()) {
+            format = format + "||date_optional_time";
+        }
+        DateTimeZone tz = DateTimeZone.forID("+01:00");
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(dateHistogram("histo").field("date")
+                        .interval(DateHistogramInterval.DAY).minDocCount(1)
+                        .timeZone(tz.getID()).format(format))
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(6));
+
+        List<DateTime> expectedKeys = new ArrayList<>();
+        expectedKeys.add(new DateTime(2012, 1, 1, 23, 0, DateTimeZone.UTC));
+        expectedKeys.add(new DateTime(2012, 2, 1, 23, 0, DateTimeZone.UTC));
+        expectedKeys.add(new DateTime(2012, 2, 14, 23, 0, DateTimeZone.UTC));
+        expectedKeys.add(new DateTime(2012, 3, 1, 23, 0, DateTimeZone.UTC));
+        expectedKeys.add(new DateTime(2012, 3, 14, 23, 0, DateTimeZone.UTC));
+        expectedKeys.add(new DateTime(2012, 3, 22, 23, 0, DateTimeZone.UTC));
+
+
+        Iterator<DateTime> keyIterator = expectedKeys.iterator();
+        for (Histogram.Bucket bucket : buckets) {
+            assertThat(bucket, notNullValue());
+            DateTime expectedKey = keyIterator.next();
+            assertThat(bucket.getKeyAsString(), equalTo(Long.toString(expectedKey.getMillis() / millisDivider)));
+            assertThat(((DateTime) bucket.getKey()), equalTo(expectedKey));
+            assertThat(bucket.getDocCount(), equalTo(1L));
+        }
+    }
+
+    @Test
+    public void testSingleValuedFieldOrderedByKeyAsc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
                         .field("date")

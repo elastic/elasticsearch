@@ -20,11 +20,25 @@
 package org.elasticsearch.common.joda;
 
 import org.elasticsearch.common.Strings;
-import org.joda.time.*;
+import org.joda.time.Chronology;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeField;
+import org.joda.time.DateTimeFieldType;
+import org.joda.time.DateTimeZone;
+import org.joda.time.DurationField;
+import org.joda.time.DurationFieldType;
+import org.joda.time.ReadablePartial;
 import org.joda.time.field.DividedDateTimeField;
 import org.joda.time.field.OffsetDateTimeField;
 import org.joda.time.field.ScaledDurationField;
-import org.joda.time.format.*;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.DateTimeFormatterBuilder;
+import org.joda.time.format.DateTimeParser;
+import org.joda.time.format.DateTimeParserBucket;
+import org.joda.time.format.DateTimePrinter;
+import org.joda.time.format.ISODateTimeFormat;
+import org.joda.time.format.StrictISODateTimeFormat;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -371,21 +385,30 @@ public class Joda {
             return hasMilliSecondPrecision ? 13 : 10;
         }
 
+
+        /**
+         * We adjust the instant by displayOffset to adjust for the offset that might have been added in
+         * {@link DateTimeFormatter#printTo(Appendable, long, Chronology)} when using a time zone.
+         */
         @Override
         public void printTo(StringBuffer buf, long instant, Chronology chrono, int displayOffset, DateTimeZone displayZone, Locale locale) {
             if (hasMilliSecondPrecision) {
-                buf.append(instant);
+                buf.append(instant - displayOffset);
             } else {
-                buf.append(instant / 1000);
+                buf.append((instant  - displayOffset) / 1000);
             }
         }
 
+        /**
+         * We adjust the instant by displayOffset to adjust for the offset that might have been added in
+         * {@link DateTimeFormatter#printTo(Appendable, long, Chronology)} when using a time zone.
+         */
         @Override
         public void printTo(Writer out, long instant, Chronology chrono, int displayOffset, DateTimeZone displayZone, Locale locale) throws IOException {
             if (hasMilliSecondPrecision) {
-                out.write(String.valueOf(instant));
+                out.write(String.valueOf(instant - displayOffset));
             } else {
-                out.append(String.valueOf(instant / 1000));
+                out.append(String.valueOf((instant - displayOffset) / 1000));
             }
         }
 

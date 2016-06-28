@@ -28,6 +28,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -311,12 +312,12 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public long timeoutInMillis() {
-        return 0;
+    public TimeValue timeout() {
+        return TimeValue.ZERO;
     }
 
     @Override
-    public void timeoutInMillis(long timeoutInMillis) {
+    public void timeout(TimeValue timeout) {
     }
 
     @Override

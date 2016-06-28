@@ -21,6 +21,7 @@ package org.elasticsearch.indices.analysis;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -143,12 +144,7 @@ import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFil
 import org.elasticsearch.plugins.AnalysisPlugin;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-
-import static java.util.Objects.requireNonNull;
 
 /**
  * Sets up {@link AnalysisRegistry}.
@@ -170,12 +166,12 @@ public final class AnalysisModule {
     public AnalysisModule(Environment environment, List<AnalysisPlugin> plugins) throws IOException {
         NamedRegistry<AnalysisProvider<CharFilterFactory>> charFilters = setupCharFilters(plugins);
         NamedRegistry<org.apache.lucene.analysis.hunspell.Dictionary> hunspellDictionaries = setupHunspellDictionaries(plugins);
-        hunspellService = new HunspellService(environment.settings(), environment, hunspellDictionaries.registry);
+        hunspellService = new HunspellService(environment.settings(), environment, hunspellDictionaries.getRegistry());
         NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = setupTokenFilters(plugins, hunspellService);
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = setupTokenizers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = setupAnalyzers(plugins);
-        analysisRegistry = new AnalysisRegistry(environment, charFilters.registry, tokenFilters.registry,
-                tokenizers.registry, analyzers.registry);
+        analysisRegistry = new AnalysisRegistry(environment, charFilters.getRegistry(), tokenFilters.getRegistry(),
+                tokenizers.getRegistry(), analyzers.getRegistry());
     }
 
     HunspellService getHunspellService() {
@@ -191,13 +187,13 @@ public final class AnalysisModule {
         charFilters.register("html_strip", HtmlStripCharFilterFactory::new);
         charFilters.register("pattern_replace", requriesAnalysisSettings(PatternReplaceCharFilterFactory::new));
         charFilters.register("mapping", requriesAnalysisSettings(MappingCharFilterFactory::new));
-        charFilters.registerPlugins(plugins, AnalysisPlugin::getCharFilters);
+        charFilters.extractAndRegister(plugins, AnalysisPlugin::getCharFilters);
         return charFilters;
     }
 
     public NamedRegistry<org.apache.lucene.analysis.hunspell.Dictionary> setupHunspellDictionaries(List<AnalysisPlugin> plugins) {
         NamedRegistry<org.apache.lucene.analysis.hunspell.Dictionary> hunspellDictionaries = new NamedRegistry<>("dictionary");
-        hunspellDictionaries.registerPlugins(plugins, AnalysisPlugin::getHunspellDictionaries);
+        hunspellDictionaries.extractAndRegister(plugins, AnalysisPlugin::getHunspellDictionaries);
         return hunspellDictionaries;
     }
 
@@ -262,7 +258,7 @@ public final class AnalysisModule {
         tokenFilters.register("classic", ClassicFilterFactory::new);
         tokenFilters.register("decimal_digit", DecimalDigitFilterFactory::new);
         tokenFilters.register("fingerprint", FingerprintTokenFilterFactory::new);
-        tokenFilters.registerPlugins(plugins, AnalysisPlugin::getTokenFilters);
+        tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
         return tokenFilters;
     }
 
@@ -283,7 +279,7 @@ public final class AnalysisModule {
         tokenizers.register("pattern", PatternTokenizerFactory::new);
         tokenizers.register("classic", ClassicTokenizerFactory::new);
         tokenizers.register("thai", ThaiTokenizerFactory::new);
-        tokenizers.registerPlugins(plugins, AnalysisPlugin::getTokenizers);
+        tokenizers.extractAndRegister(plugins, AnalysisPlugin::getTokenizers);
         return tokenizers;
     }
 
@@ -333,7 +329,7 @@ public final class AnalysisModule {
         analyzers.register("turkish", TurkishAnalyzerProvider::new);
         analyzers.register("thai", ThaiAnalyzerProvider::new);
         analyzers.register("fingerprint", FingerprintAnalyzerProvider::new);
-        analyzers.registerPlugins(plugins, AnalysisPlugin::getAnalyzers);
+        analyzers.extractAndRegister(plugins, AnalysisPlugin::getAnalyzers);
         return analyzers;
     }
 
@@ -390,31 +386,6 @@ public final class AnalysisModule {
          */
         default boolean requiresAnalysisSettings() {
             return false;
-        }
-    }
-
-    private static class NamedRegistry<T> {
-        private final Map<String, T> registry = new HashMap<>();
-        private final String targetName;
-
-        public NamedRegistry(String targetName) {
-            this.targetName = targetName;
-        }
-
-        private void register(String name, T t) {
-            requireNonNull(name, "name is required");
-            requireNonNull(t, targetName + " is required");
-            if (registry.putIfAbsent(name, t) != null) {
-                throw new IllegalArgumentException(targetName + " for name " + name + " already registered");
-            }
-        }
-
-        private <P> void registerPlugins(List<P> plugins, Function<P, Map<String, T>> lookup) {
-            for (P plugin : plugins) {
-                for (Map.Entry<String, T> entry : lookup.apply(plugin).entrySet()) {
-                    register(entry.getKey(), entry.getValue());
-                }
-            }
         }
     }
 }

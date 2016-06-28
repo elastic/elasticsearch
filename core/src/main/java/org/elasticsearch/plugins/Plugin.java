@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
@@ -111,6 +112,14 @@ public abstract class Plugin {
      */
     @Deprecated
     public final void onModule(AnalysisModule module) {}
+
+    /**
+     * Old-style action extension point.
+     *
+     * @deprecated implement {@link ActionPlugin} instead
+     */
+    @Deprecated
+    public final void onModule(ActionModule module) {}
 
     /**
      * Provides the list of this plugin's custom thread pools, empty if

@@ -403,12 +403,12 @@ public final class InternalTestCluster extends TestCluster {
             builder.put("cache.recycler.page.type", RandomPicks.randomFrom(random, PageCacheRecycler.Type.values()));
         }
         if (random.nextInt(10) == 0) { // 10% of the nodes have a very frequent check interval
-            builder.put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(10 + random.nextInt(2000)));
+            builder.put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(10 + random.nextInt(2000)).getStringRep());
         } else if (random.nextInt(10) != 0) { // 90% of the time - 10% of the time we don't set anything
-            builder.put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(10 + random.nextInt(5 * 60)));
+            builder.put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(10 + random.nextInt(5 * 60)).getStringRep());
         }
         if (random.nextBoolean()) { // sometimes set a
-            builder.put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(100 + random.nextInt(5 * 60)));
+            builder.put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(100 + random.nextInt(5 * 60)).getStringRep());
         }
 
         builder.put(EsExecutors.PROCESSORS_SETTING.getKey(), 1 + random.nextInt(3));
@@ -462,7 +462,7 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), RandomInts.randomIntBetween(random, 0, 2000));
         }
         if (random.nextBoolean()) {
-            builder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getKey(), TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 750, 10000000)));
+            builder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getKey(), TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 750, 10000000)).getStringRep());
         }
 
         return builder.build();

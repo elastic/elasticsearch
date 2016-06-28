@@ -349,12 +349,12 @@ public class QueryPhase implements SearchPhase {
                 }
             }
 
-            final boolean timeoutSet = searchContext.timeoutInMillis() != SearchService.NO_TIMEOUT.millis();
+            final boolean timeoutSet = searchContext.timeout() != null && !searchContext.timeout().equals(SearchService.NO_TIMEOUT);
             if (timeoutSet && collector != null) { // collector might be null if no collection is actually needed
                 final Collector child = collector;
                 // TODO: change to use our own counter that uses the scheduler in ThreadPool
                 // throws TimeLimitingCollector.TimeExceededException when timeout has reached
-                collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeEstimateCounter(), searchContext.timeoutInMillis());
+                collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeEstimateCounter(), searchContext.timeout().millis());
                 if (doProfile) {
                     collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_TIMEOUT,
                             Collections.singletonList((InternalProfileCollector) child));

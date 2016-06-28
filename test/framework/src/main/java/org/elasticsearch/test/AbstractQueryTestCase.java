@@ -91,6 +91,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.Script.ScriptParseException;
@@ -894,7 +895,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         b.bind(Environment.class).toInstance(new Environment(settings));
                         b.bind(ThreadPool.class).toInstance(threadPool);
                     },
-                    settingsModule, new IndicesModule(namedWriteableRegistry, Collections.emptyList()) {
+                    settingsModule, new IndicesModule(namedWriteableRegistry, pluginsService.filterPlugins(MapperPlugin.class)) {
                         @Override
                         public void configure() {
                             // skip services

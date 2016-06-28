@@ -28,6 +28,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -226,9 +227,9 @@ public abstract class SearchContext implements Releasable {
 
     public abstract IndexFieldDataService fieldData();
 
-    public abstract long timeoutInMillis();
+    public abstract TimeValue timeout();
 
-    public abstract void timeoutInMillis(long timeoutInMillis);
+    public abstract void timeout(TimeValue timeout);
 
     public abstract int terminateAfter();
 

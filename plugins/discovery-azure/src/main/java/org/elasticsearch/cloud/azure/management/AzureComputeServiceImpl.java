@@ -20,19 +20,21 @@
 package org.elasticsearch.cloud.azure.management;
 
 import com.microsoft.windowsazure.Configuration;
+import com.microsoft.windowsazure.core.Builder;
+import com.microsoft.windowsazure.core.DefaultBuilder;
 import com.microsoft.windowsazure.core.utils.KeyStoreType;
 import com.microsoft.windowsazure.management.compute.ComputeManagementClient;
 import com.microsoft.windowsazure.management.compute.ComputeManagementService;
 import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
 import com.microsoft.windowsazure.management.configuration.ManagementConfiguration;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cloud.azure.AzureServiceDisableException;
 import org.elasticsearch.cloud.azure.AzureServiceRemoteException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
+import java.util.ServiceLoader;
 
 /**
  *
@@ -40,7 +42,7 @@ import java.io.IOException;
 public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureComputeServiceImpl>
     implements AzureComputeService {
 
-    private final ComputeManagementClient computeManagementClient;
+    private final ComputeManagementClient client;
     private final String serviceName;
 
     @Inject
@@ -54,28 +56,36 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
         KeyStoreType keystoreType = Management.KEYSTORE_TYPE_SETTING.get(settings);
 
         logger.trace("creating new Azure client for [{}], [{}]", subscriptionId, serviceName);
-        ComputeManagementClient result;
         try {
-            // Check that we have all needed properties
-            Configuration configuration = ManagementConfiguration.configure(Management.ENDPOINT_SETTING.get(settings),
-                subscriptionId, keystorePath, keystorePassword, keystoreType);
-            result = ComputeManagementService.create(configuration);
+            // Azure SDK configuration uses DefaultBuilder which uses java.util.ServiceLoader to load the
+            // various Azure services. By default, this will use the current thread's context classloader
+            // to load services. Since the current thread refers to the main application classloader it
+            // won't find any Azure service implementation.
+
+            // Here we basically create a new DefaultBuilder that uses the current class classloader to load services.
+            DefaultBuilder builder = new DefaultBuilder();
+            for (Builder.Exports exports : ServiceLoader.load(Builder.Exports.class, getClass().getClassLoader())) {
+                exports.register(builder);
+            }
+
+            // And create a new blank configuration based on the previous DefaultBuilder
+            Configuration configuration = new Configuration(builder);
+            configuration.setProperty(Configuration.PROPERTY_LOG_HTTP_REQUESTS, logger.isTraceEnabled());
+
+            Configuration managementConfig = ManagementConfiguration.configure(null, configuration,
+                    Management.ENDPOINT_SETTING.get(settings), subscriptionId, keystorePath, keystorePassword, keystoreType);
+
+            logger.debug("creating new Azure client for [{}], [{}]", subscriptionId, serviceName);
+            client = ComputeManagementService.create(managementConfig);
         } catch (IOException e) {
-            logger.error("can not start azure client: {}", e.getMessage());
-            result = null;
+            throw new ElasticsearchException("Unable to configure Azure compute service", e);
         }
-        this.computeManagementClient = result;
     }
 
     @Override
     public HostedServiceGetDetailedResponse getServiceDetails() {
-        if (computeManagementClient == null) {
-            // Azure plugin is disabled
-            throw new AzureServiceDisableException("azure plugin is disabled.");
-        }
-
         try {
-            return computeManagementClient.getHostedServicesOperations().getDetailed(serviceName);
+            return client.getHostedServicesOperations().getDetailed(serviceName);
         } catch (Exception e) {
             throw new AzureServiceRemoteException("can not get list of azure nodes", e);
         }
@@ -91,9 +101,9 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
 
     @Override
     protected void doClose() throws ElasticsearchException {
-        if (computeManagementClient != null) {
+        if (client != null) {
             try {
-                computeManagementClient.close();
+                client.close();
             } catch (IOException e) {
                 logger.error("error while closing Azure client", e);
             }

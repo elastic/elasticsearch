@@ -189,27 +189,27 @@ public class InternalTestClusterTests extends ESTestCase {
             cluster.beforeTest(random(), 0.0);
             final Map<String,Path[]> shardNodePaths = new HashMap<>();
             for (String name: cluster.getNodeNames()) {
-                shardNodePaths.put(name, cluster.getInstance(NodeEnvironment.class, name).nodeDataPaths());
+                shardNodePaths.put(name, getNodePaths(cluster, name));
             }
             String poorNode = randomFrom(cluster.getNodeNames());
-            Path dataPath = cluster.getInstance(NodeEnvironment.class, poorNode).nodeDataPaths()[0];
+            Path dataPath = getNodePaths(cluster, poorNode)[0];
             final Path testMarker = dataPath.resolve("testMarker");
             Files.createDirectories(testMarker);
             cluster.stopRandomNode(InternalTestCluster.nameFilter(poorNode));
             assertFileExists(testMarker); // stopping a node half way shouldn't clean data
 
             final String stableNode = randomFrom(cluster.getNodeNames());
-            final Path stableDataPath = cluster.getInstance(NodeEnvironment.class, stableNode).nodeDataPaths()[0];
+            final Path stableDataPath = getNodePaths(cluster, stableNode)[0];
             final Path stableTestMarker = stableDataPath.resolve("stableTestMarker");
             assertThat(stableDataPath, not(dataPath));
             Files.createDirectories(stableTestMarker);
 
             final String newNode1 =  cluster.startNode();
-            assertThat(cluster.getInstance(NodeEnvironment.class, newNode1).nodeDataPaths()[0], equalTo(dataPath));
+            assertThat(getNodePaths(cluster, newNode1)[0], equalTo(dataPath));
             assertFileExists(testMarker); // starting a node should re-use data folders and not clean it
 
             final String newNode2 =  cluster.startNode();
-            final Path newDataPath = cluster.getInstance(NodeEnvironment.class, newNode2).nodeDataPaths()[0];
+            final Path newDataPath = getNodePaths(cluster, newNode2)[0];
             final Path newTestMarker = newDataPath.resolve("newTestMarker");
             assertThat(newDataPath, not(dataPath));
             Files.createDirectories(newTestMarker);
@@ -218,19 +218,27 @@ public class InternalTestClusterTests extends ESTestCase {
             assertFileNotExists(testMarker); // a new unknown node used this path, it should be cleaned
             assertFileExists(stableTestMarker); // but leaving the structure of existing, reused nodes
             for (String name: cluster.getNodeNames()) {
-                assertThat("data paths for " + name + " changed", cluster.getInstance(NodeEnvironment.class, name).nodeDataPaths(),
-                    equalTo(shardNodePaths.get(name)));
+                assertThat("data paths for " + name + " changed", getNodePaths(cluster, name), equalTo(shardNodePaths.get(name)));
             }
 
             cluster.beforeTest(random(), 0.0);
             assertFileExists(stableTestMarker); // but leaving the structure of existing, reused nodes
             for (String name: cluster.getNodeNames()) {
-                assertThat("data paths for " + name + " changed", cluster.getInstance(NodeEnvironment.class, name).nodeDataPaths(),
+                assertThat("data paths for " + name + " changed", getNodePaths(cluster, name),
                     equalTo(shardNodePaths.get(name)));
             }
 
         } finally {
             cluster.close();
+        }
+    }
+
+    private Path[] getNodePaths(InternalTestCluster cluster, String name) {
+        final NodeEnvironment nodeEnvironment = cluster.getInstance(NodeEnvironment.class, name);
+        if (nodeEnvironment.hasNodeFile()) {
+            return nodeEnvironment.nodeDataPaths();
+        } else {
+            return new Path[0];
         }
     }
 
@@ -267,8 +275,9 @@ public class InternalTestClusterTests extends ESTestCase {
                     default:
                         throw new IllegalStateException("get your story straight");
                 }
-                for (NodeEnvironment.NodePath nodePath : cluster.getInstance(NodeEnvironment.class, node).nodePaths()) {
-                    assertTrue(pathsPerRole.computeIfAbsent(role, k -> new HashSet<>()).add(nodePath.path.toString()));
+                Set<String> rolePaths = pathsPerRole.computeIfAbsent(role, k -> new HashSet<>());
+                for (Path path : getNodePaths(cluster, node)) {
+                    assertTrue(rolePaths.add(path.toString()));
                 }
             }
             cluster.fullRestart();
@@ -276,8 +285,7 @@ public class InternalTestClusterTests extends ESTestCase {
             Map<DiscoveryNode.Role, Set<String>> result = new HashMap<>();
             for (String name : cluster.getNodeNames()) {
                 DiscoveryNode node = cluster.getInstance(ClusterService.class, name).localNode();
-                List<String> paths = Arrays.stream(cluster.getInstance(NodeEnvironment.class, name).nodePaths())
-                    .map(np -> np.path.toString()).collect(Collectors.toList());
+                List<String> paths = Arrays.stream(getNodePaths(cluster, name)).map(Path::toString).collect(Collectors.toList());
                 if (node.isMasterNode()) {
                     result.computeIfAbsent(MASTER, k -> new HashSet<>()).addAll(paths);
                 } else if (node.isDataNode()) {

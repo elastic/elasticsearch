@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.test.ESTestCase;
@@ -67,6 +68,7 @@ public class AbstractLifecycleRunnableTests extends ESTestCase {
         inOrder.verifyNoMoreInteractions();
     }
 
+    @SuppressLoggerChecks(reason = "mock usage")
     public void testDoRunDoesNotRunWhenStoppedOrClosed() throws Exception {
         Callable<?> runCallable = mock(Callable.class);
 

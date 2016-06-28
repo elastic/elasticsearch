@@ -343,7 +343,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         } else {
             // test with a shadow replica index
             final Path dataPath = createTempDir();
-            logger.info("--> created temp data path for shadow replicas [" + dataPath + "]");
+            logger.info("--> created temp data path for shadow replicas [{}]", dataPath);
             logger.info("--> starting a cluster with " + numNodes + " nodes");
             final Settings nodeSettings = Settings.builder()
                                                   .put("node.add_lock_id_to_custom_path", false)
@@ -441,13 +441,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertNotNull(ex.getCause());
         assertEquals(IllegalArgumentException.class, ex.getCause().getClass());
         assertEquals(ex.getCause().getMessage(), "Unknown tokenfilter type [icu_collation] for [myCollator]");
-
-        client().admin().indices().prepareUpdateSettings()
-            .setSettings(Settings.builder().putNull("index.analysis.filter.myCollator.type")).get();
-        client().admin().indices().prepareOpen("test").get();
-        ensureYellow();
-        logger.info("--> verify 1 doc in the index");
-        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
     }
 
     /**
@@ -505,13 +498,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertNotNull(ex.getCause());
         assertEquals(MapperParsingException.class, ex.getCause().getClass());
         assertEquals(ex.getCause().getMessage(), "analyzer [test] not found for field [field1]");
-
-        client().admin().indices().prepareUpdateSettings()
-            .setSettings(Settings.builder().put("index.analysis.analyzer.test.tokenizer", "keyword")).get();
-        client().admin().indices().prepareOpen("test").get();
-        ensureYellow();
-        logger.info("--> verify 1 doc in the index");
-        assertHitCount(client().prepareSearch().setQuery(matchQuery("field1", "value one")).get(), 1L);
     }
 
     public void testArchiveBrokenClusterSettings() throws Exception {

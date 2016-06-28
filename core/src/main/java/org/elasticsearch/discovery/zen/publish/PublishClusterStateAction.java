@@ -335,7 +335,7 @@ public class PublishClusterStateAction extends AbstractComponent {
 
     public static BytesReference serializeFullClusterState(ClusterState clusterState, Version nodeVersion) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
-        try (StreamOutput stream = CompressorFactory.defaultCompressor().streamOutput(bStream)) {
+        try (StreamOutput stream = CompressorFactory.COMPRESSOR.streamOutput(bStream)) {
             stream.setVersion(nodeVersion);
             stream.writeBoolean(true);
             clusterState.writeTo(stream);
@@ -345,7 +345,7 @@ public class PublishClusterStateAction extends AbstractComponent {
 
     public static BytesReference serializeDiffClusterState(Diff diff, Version nodeVersion) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
-        try (StreamOutput stream = CompressorFactory.defaultCompressor().streamOutput(bStream)) {
+        try (StreamOutput stream = CompressorFactory.COMPRESSOR.streamOutput(bStream)) {
             stream.setVersion(nodeVersion);
             stream.writeBoolean(false);
             diff.writeTo(stream);

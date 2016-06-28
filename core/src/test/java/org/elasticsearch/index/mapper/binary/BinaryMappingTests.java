@@ -76,7 +76,7 @@ public class BinaryMappingTests extends ESSingleNodeTestCase {
 
         // case 2: a value that looks compressed: this used to fail in 1.x
         BytesStreamOutput out = new BytesStreamOutput();
-        try (StreamOutput compressed = CompressorFactory.defaultCompressor().streamOutput(out)) {
+        try (StreamOutput compressed = CompressorFactory.COMPRESSOR.streamOutput(out)) {
             new BytesArray(binaryValue1).writeTo(compressed);
         }
         final byte[] binaryValue2 = out.bytes().toBytes();

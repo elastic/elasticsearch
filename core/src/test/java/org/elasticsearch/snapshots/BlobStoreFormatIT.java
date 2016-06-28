@@ -138,7 +138,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
         private BytesReference write(T obj) throws IOException {
             try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
                 if (compress) {
-                    try (StreamOutput compressedStreamOutput = CompressorFactory.defaultCompressor().streamOutput(bytesStreamOutput)) {
+                    try (StreamOutput compressedStreamOutput = CompressorFactory.COMPRESSOR.streamOutput(bytesStreamOutput)) {
                         write(obj, compressedStreamOutput);
                     }
                 } else {

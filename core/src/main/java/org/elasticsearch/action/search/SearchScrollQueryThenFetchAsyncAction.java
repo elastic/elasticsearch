@@ -107,7 +107,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
                 executeQueryPhase(i, counter, node, target.getScrollId());
             } else {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("Node [" + target.getNode() + "] not available for scroll request [" + scrollId.getSource() + "]");
+                    logger.debug("Node [{}] not available for scroll request [{}]", target.getNode(), scrollId.getSource());
                 }
                 successfulOps.decrementAndGet();
                 if (counter.decrementAndGet() == 0) {

@@ -49,18 +49,14 @@ public class WatcherTemplateTests extends ESTestCase {
     public void init() throws Exception {
         Settings setting = Settings.builder().put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, true).build();
         Environment environment = Mockito.mock(Environment.class);
-        Set<ScriptEngineService> engines = Collections.singleton(new MustacheScriptEngineService(setting));
         ResourceWatcherService resourceWatcherService = Mockito.mock(ResourceWatcherService.class);
         ScriptContextRegistry registry = new ScriptContextRegistry(Collections.singletonList(ScriptServiceProxy.INSTANCE));
 
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(
-                Arrays.asList(
-                        new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class,
-                                MustacheScriptEngineService.NAME)
-                )
+                Collections.singleton(new MustacheScriptEngineService(setting))
         );
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, registry);
-        ScriptService scriptService = new ScriptService(setting, environment, engines, resourceWatcherService, scriptEngineRegistry,
+        ScriptService scriptService = new ScriptService(setting, environment, resourceWatcherService, scriptEngineRegistry,
                 registry, scriptSettings);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         Mockito.when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name")).build());

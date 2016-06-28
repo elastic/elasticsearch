@@ -18,12 +18,13 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.condition.script.ExecutableScriptCondition;
 import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Script;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.junit.After;
@@ -50,7 +51,7 @@ public class ScriptConditionSearchIT extends AbstractWatcherIntegrationTestCase 
 
     @Before
     public void init() throws Exception {
-        tp = new ThreadPool(ThreadPool.Names.SAME);
+        tp = new TestThreadPool(ThreadPool.Names.SAME);
         scriptService = MessyTestUtils.getScriptServiceProxy(tp);
     }
 
@@ -60,18 +61,14 @@ public class ScriptConditionSearchIT extends AbstractWatcherIntegrationTestCase 
     }
 
     public void testExecuteWithAggs() throws Exception {
-        client().admin().indices().prepareCreate("my-index")
-                .addMapping("my-type", "_timestamp", "enabled=true")
-                .get();
-
-        client().prepareIndex("my-index", "my-type").setTimestamp("2005-01-01T00:00").setSource("{}").get();
-        client().prepareIndex("my-index", "my-type").setTimestamp("2005-01-01T00:10").setSource("{}").get();
-        client().prepareIndex("my-index", "my-type").setTimestamp("2005-01-01T00:20").setSource("{}").get();
-        client().prepareIndex("my-index", "my-type").setTimestamp("2005-01-01T00:30").setSource("{}").get();
+        client().prepareIndex("my-index", "my-type").setSource("@timestamp", "2005-01-01T00:00").get();
+        client().prepareIndex("my-index", "my-type").setSource("@timestamp", "2005-01-01T00:10").get();
+        client().prepareIndex("my-index", "my-type").setSource("@timestamp", "2005-01-01T00:20").get();
+        client().prepareIndex("my-index", "my-type").setSource("@timestamp", "2005-01-01T00:30").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("my-index")
-                .addAggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp")
+                .addAggregation(AggregationBuilders.dateHistogram("rate").field("@timestamp")
                         .dateHistogramInterval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
                 .get();
 
@@ -82,10 +79,10 @@ public class ScriptConditionSearchIT extends AbstractWatcherIntegrationTestCase 
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         assertFalse(condition.execute(ctx).met());
 
-        client().prepareIndex("my-index", "my-type").setTimestamp("2005-01-01T00:40").setSource("{}").get();
+        client().prepareIndex("my-index", "my-type").setSource("@timestamp", "2005-01-01T00:40").get();
         refresh();
 
-        response = client().prepareSearch("my-index").addAggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp")
+        response = client().prepareSearch("my-index").addAggregation(AggregationBuilders.dateHistogram("rate").field("@timestamp")
                 .dateHistogramInterval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
                 .get();
 

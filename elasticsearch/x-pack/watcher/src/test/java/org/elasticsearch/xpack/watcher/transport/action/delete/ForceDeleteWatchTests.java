@@ -20,8 +20,8 @@ import java.util.List;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.scriptCondition;
-import static org.elasticsearch.xpack.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.xpack.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -35,7 +35,7 @@ public class ForceDeleteWatchTests extends AbstractWatcherIntegrationTestCase {
     }
 
     @Override
-    protected boolean enableShield() {
+    protected boolean enableSecurity() {
         return false;
     }
 

@@ -35,8 +35,8 @@ import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBu
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.xContentSource;
-import static org.elasticsearch.xpack.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.xpack.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -47,7 +47,7 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Path resource = getDataPath("/org/elasticsearch/shield/keystore/testnode.jks");
+        Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks");
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(HttpClient.SETTINGS_SSL_KEYSTORE, resource.toString())

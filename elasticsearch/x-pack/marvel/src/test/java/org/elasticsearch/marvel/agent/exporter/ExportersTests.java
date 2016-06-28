@@ -19,8 +19,8 @@ import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
 import org.elasticsearch.marvel.cleaner.CleanerService;
-import org.elasticsearch.marvel.support.init.proxy.MonitoringClientProxy;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.common.init.proxy.ClientProxy;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -69,7 +69,7 @@ public class ExportersTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
 
         // we always need to have the local exporter as it serves as the default one
-        factories.put(LocalExporter.TYPE, new LocalExporter.Factory(MonitoringClientProxy.of(client), clusterService,
+        factories.put(LocalExporter.TYPE, new LocalExporter.Factory(ClientProxy.fromClient(client), clusterService,
                 mock(CleanerService.class)));
         clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(MonitoringSettings.COLLECTORS,
                 MonitoringSettings.INTERVAL, MonitoringSettings.EXPORTERS_SETTINGS)));
@@ -223,7 +223,8 @@ public class ExportersTests extends ESTestCase {
 
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
         when(nodes.isLocalNodeElectedMaster()).thenReturn(true);
-        when(clusterService.state()).thenReturn(ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build());
+        when(clusterService.state()).thenReturn(ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .nodes(nodes).build());
 
         ExportBulk bulk = exporters.openBulk();
         assertThat(bulk, notNullValue());
@@ -247,7 +248,8 @@ public class ExportersTests extends ESTestCase {
 
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
         when(nodes.isLocalNodeElectedMaster()).thenReturn(false);
-        when(clusterService.state()).thenReturn(ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build());
+        when(clusterService.state()).thenReturn(ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .nodes(nodes).build());
 
         ExportBulk bulk = exporters.openBulk();
         assertThat(bulk, notNullValue());

@@ -30,11 +30,11 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.xpack.support.DateTimeUtils.parseDate;
-import static org.elasticsearch.xpack.support.DateTimeUtils.readDate;
-import static org.elasticsearch.xpack.support.DateTimeUtils.readOptionalDate;
-import static org.elasticsearch.xpack.support.DateTimeUtils.writeDate;
-import static org.elasticsearch.xpack.support.DateTimeUtils.writeOptionalDate;
+import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.parseDate;
+import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.readDate;
+import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.readOptionalDate;
+import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.writeDate;
+import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.writeOptionalDate;
 
 /**
  *

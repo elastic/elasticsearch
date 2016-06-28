@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.common.http;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -13,9 +12,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.common.http.HttpResponse;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,8 +28,8 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -122,9 +121,9 @@ public class HttpResponseTests extends ESTestCase {
         Map<String, Object> responseHeaders = (Map<String, Object>) responseMap.get("headers");
 
         assertThat(responseHeaders, not(hasKey("es.index")));
-        assertThat(responseHeaders, hasEntry("es_index", Lists.newArrayList("value")));
+        assertThat(responseHeaders, hasEntry("es_index", Collections.singletonList("value")));
 
         assertThat(responseHeaders, not(hasKey("es.index.2")));
-        assertThat(responseHeaders, hasEntry("es_index_2", Lists.newArrayList("value")));
+        assertThat(responseHeaders, hasEntry("es_index_2", Collections.singletonList("value")));
     }
 }

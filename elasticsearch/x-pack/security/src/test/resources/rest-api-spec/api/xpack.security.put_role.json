@@ -1,0 +1,27 @@
+{
+  "xpack.security.put_role": {
+    "documentation": "Update or create a role for the native realm",
+    "methods": [ "PUT", "POST" ],
+    "url": {
+      "path": "/_xpack/security/role/{name}",
+      "paths": [ "/_xpack/security/role/{name}" ],
+      "parts": {
+        "name": {
+          "type" : "string",
+          "description" : "Role name",
+          "required" : true
+        }
+      },
+      "params": {
+        "refresh": {
+          "type" : "boolean",
+          "description" : "Refresh the index after performing the operation"
+        }
+      }
+    },
+    "body": {
+      "description" : "The role to add",
+      "required" : true
+    }
+  }
+}

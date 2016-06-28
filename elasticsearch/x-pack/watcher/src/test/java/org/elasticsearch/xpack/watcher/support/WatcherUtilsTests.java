@@ -6,23 +6,6 @@
 package org.elasticsearch.xpack.watcher.support;
 
 
-import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.support.DateTimeUtils.formatDate;
-import static org.elasticsearch.xpack.watcher.support.WatcherUtils.DEFAULT_INDICES_OPTIONS;
-import static org.elasticsearch.xpack.watcher.support.WatcherUtils.flattenModel;
-import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.is;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -40,14 +23,29 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.input.search.ExecutableSearchInput;
 import org.elasticsearch.xpack.support.clock.SystemClock;
-import org.elasticsearch.xpack.common.text.TextTemplate;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.joda.time.DateTime;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.watcher.input.search.ExecutableSearchInput.DEFAULT_SEARCH_TYPE;
+import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.formatDate;
+import static org.elasticsearch.xpack.watcher.support.WatcherUtils.flattenModel;
+import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -100,6 +98,7 @@ public class WatcherUtilsTests extends ESTestCase {
     public void testSerializeSearchRequest() throws Exception {
         String[] randomIndices = generateRandomStringArray(5, 5, false);
         SearchRequest expectedRequest = new SearchRequest(randomIndices);
+        Script expectedTemplate = null;
 
         if (randomBoolean()) {
             String[] randomTypes = generateRandomStringArray(2, 5, false);
@@ -107,7 +106,7 @@ public class WatcherUtilsTests extends ESTestCase {
         }
 
         expectedRequest.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
-                randomBoolean(), WatcherUtils.DEFAULT_INDICES_OPTIONS));
+                randomBoolean(), WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS));
         expectedRequest.searchType(getRandomSupportedSearchType());
 
         SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()).size(11);
@@ -122,30 +121,29 @@ public class WatcherUtilsTests extends ESTestCase {
                 }
             }
             String text = randomAsciiOfLengthBetween(1, 5);
-            Template template = randomFrom(
-                    new Template(text, ScriptType.INLINE, null, null, params),
-                    new Template(text, ScriptType.FILE, null, null, params),
-                    new Template(text, ScriptType.STORED, null, null, params)
-            );
-            expectedRequest.template(template);
+            expectedTemplate = randomFrom(Script.inline(text), Script.file(text), Script.indexed(text)).params(params).build();
         }
 
+        WatcherSearchTemplateRequest request = new WatcherSearchTemplateRequest(expectedRequest, expectedTemplate);
+
         XContentBuilder builder = jsonBuilder();
-        builder = WatcherUtils.writeSearchRequest(expectedRequest, builder, ToXContent.EMPTY_PARAMS);
+        request.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
         QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
         registry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
         QueryParseContext context = new QueryParseContext(registry, parser, ParseFieldMatcher.STRICT);
-        SearchRequest result = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE, context, null, null);
+        WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE, context, null, null);
 
-        assertThat(result.indices(), arrayContainingInAnyOrder(expectedRequest.indices()));
-        assertThat(result.types(), arrayContainingInAnyOrder(expectedRequest.types()));
-        assertThat(result.indicesOptions(), equalTo(expectedRequest.indicesOptions()));
-        assertThat(result.searchType(), equalTo(expectedRequest.searchType()));
-        assertThat(result.source(), equalTo(searchSourceBuilder));
-        assertThat(result.template(), equalTo(expectedRequest.template()));
+        assertThat(result.getRequest(), is(notNullValue()));
+        assertThat(result.getRequest().indices(), arrayContainingInAnyOrder(expectedRequest.indices()));
+        assertThat(result.getRequest().types(), arrayContainingInAnyOrder(expectedRequest.types()));
+        assertThat(result.getRequest().indicesOptions(), equalTo(expectedRequest.indicesOptions()));
+        assertThat(result.getRequest().searchType(), equalTo(expectedRequest.searchType()));
+        assertThat(result.getRequest().source(), equalTo(searchSourceBuilder));
+
+        assertThat(result.getTemplate(), equalTo(expectedTemplate));
     }
 
     public void testDeserializeSearchRequest() throws Exception {
@@ -172,10 +170,10 @@ public class WatcherUtilsTests extends ESTestCase {
             }
         }
 
-        IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
+        IndicesOptions indicesOptions = WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS;
         if (randomBoolean()) {
             indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
-                    randomBoolean(), WatcherUtils.DEFAULT_INDICES_OPTIONS);
+                    randomBoolean(), WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS);
             builder.startObject("indices_options")
                     .field("allow_no_indices", indicesOptions.allowNoIndices())
                     .field("expand_wildcards", indicesOptions.expandWildcardsClosed() && indicesOptions.expandWildcardsOpen() ? "all" :
@@ -201,7 +199,7 @@ public class WatcherUtilsTests extends ESTestCase {
             source = searchSourceBuilder.buildAsBytes(XContentType.JSON);
             builder.rawField("body", source);
         }
-        Template templateSource = null;
+        Script template = null;
         if (randomBoolean()) {
             Map<String, Object> params = new HashMap<>();
             if (randomBoolean()) {
@@ -211,14 +209,8 @@ public class WatcherUtilsTests extends ESTestCase {
                 }
             }
             String text = randomAsciiOfLengthBetween(1, 5);
-            TextTemplate template = randomFrom(
-                    TextTemplate.inline(text).params(params).build(),
-                    TextTemplate.file(text).params(params).build(),
-                    TextTemplate.indexed(text).params(params).build()
-            );
+            template = randomFrom(Script.inline(text), Script.file(text), Script.indexed(text)) .params(params).build();
             builder.field("template", template);
-            templateSource = new Template(template.getTemplate(), template.getType(), null, template.getContentType(),
-                    template.getParams());
         }
         builder.endObject();
 
@@ -228,14 +220,15 @@ public class WatcherUtilsTests extends ESTestCase {
         QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
         registry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
         QueryParseContext context = new QueryParseContext(registry, parser, ParseFieldMatcher.STRICT);
-        SearchRequest result = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE, context, null, null);
+        WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE, context, null, null);
 
-        assertThat(result.indices(), arrayContainingInAnyOrder(indices));
-        assertThat(result.types(), arrayContainingInAnyOrder(types));
-        assertThat(result.indicesOptions(), equalTo(indicesOptions));
-        assertThat(result.searchType(), equalTo(searchType));
-        assertThat(result.source(), equalTo(searchSourceBuilder));
-        assertThat(result.template(), equalTo(templateSource));
+        assertThat(result.getRequest(), is(notNullValue()));
+        assertThat(result.getRequest().indices(), arrayContainingInAnyOrder(indices));
+        assertThat(result.getRequest().types(), arrayContainingInAnyOrder(types));
+        assertThat(result.getRequest().indicesOptions(), equalTo(indicesOptions));
+        assertThat(result.getRequest().searchType(), equalTo(searchType));
+        assertThat(result.getRequest().source(), equalTo(searchSourceBuilder));
+        assertThat(result.getTemplate(), equalTo(template));
     }
 
 }

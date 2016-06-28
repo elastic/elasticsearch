@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.support.Exceptions.invalidScript;
+import static org.elasticsearch.xpack.watcher.support.Exceptions.invalidScript;
 import static org.elasticsearch.xpack.watcher.support.Variables.createCtxModel;
 
 /**

@@ -6,24 +6,21 @@
 package org.elasticsearch.xpack.watcher;
 
 import org.apache.http.HttpStatus;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.marvel.Monitoring;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.Security;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
-import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -43,7 +40,7 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
 
-                // disable shield because of query cache check and authentication/authorization
+                // disable security because of query cache check and authentication/authorization
                 .put(XPackPlugin.featureEnabledSetting(Security.NAME), false)
                 .put(XPackPlugin.featureEnabledSetting(Monitoring.NAME), false)
 
@@ -70,12 +67,11 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
 
     public void testRestEndpoints() throws Exception {
         HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            HttpRequestBuilder request = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport)
-                    .method("GET")
-                    .path("/_xpack/watcher");
-            HttpResponse response = request.execute();
-            assertThat(response.getStatusCode(), is(HttpStatus.SC_BAD_REQUEST));
+        try {
+            getRestClient().performRequest("GET", "/_xpack/watcher", Collections.emptyMap(), null);
+            fail("request should have failed");
+        } catch(ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(HttpStatus.SC_BAD_REQUEST));
         }
     }
 

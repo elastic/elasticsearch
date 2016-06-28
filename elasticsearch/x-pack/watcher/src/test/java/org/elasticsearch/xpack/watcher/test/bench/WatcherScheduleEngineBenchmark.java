@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.test.bench;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -50,8 +49,8 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.percenti
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
-import static org.elasticsearch.xpack.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.xpack.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 
 /**
  */
@@ -138,7 +137,7 @@ public class WatcherScheduleEngineBenchmark {
                     .put("xpack.watcher.trigger.schedule.engine", engine)
                     .put("node.data", false)
                     .build();
-            try (Node node = new MockNode(settings, Version.CURRENT, Arrays.asList(XPackPlugin.class, XPackPlugin.class))) {
+            try (Node node = new MockNode(settings, Arrays.asList(XPackPlugin.class, XPackPlugin.class))) {
                 try (final Client client = node.client()) {
                     client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
                     client.admin().indices().prepareDelete(HistoryStore.INDEX_PREFIX + "*").get();

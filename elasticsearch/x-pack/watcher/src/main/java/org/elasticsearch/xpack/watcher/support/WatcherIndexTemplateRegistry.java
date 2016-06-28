@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -20,9 +19,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.template.TemplateUtils;
+import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -62,9 +63,9 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
 
     @Inject
     public WatcherIndexTemplateRegistry(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService,
-                                        ThreadPool threadPool, WatcherClientProxy client) {
+                                        ThreadPool threadPool, InternalClient client) {
         super(settings);
-        this.client = client;
+        this.client = new WatcherClientProxy(settings, client);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indexTemplates = TEMPLATE_CONFIGS;
@@ -167,7 +168,7 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
         }
         executor.execute(() -> {
             final byte[] template = TemplateUtils.loadTemplate("/" + config.getFileName()+ ".json", INDEX_TEMPLATE_VERSION,
-                    Pattern.quote("${xpack.watcher.template.version}")).getBytes(Charsets.UTF_8);
+                    Pattern.quote("${xpack.watcher.template.version}")).getBytes(StandardCharsets.UTF_8);
 
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(config.getTemplateName()).source(template);
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));

@@ -17,6 +17,7 @@ import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.condition.script.ExecutableScriptCondition;
@@ -36,7 +37,7 @@ import java.io.IOException;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.messy.tests.MessyTestUtils.getScriptServiceProxy;
-import static org.elasticsearch.xpack.support.Exceptions.illegalArgument;
+import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -49,7 +50,7 @@ public class ScriptConditionTests extends ESTestCase {
     
     @Before
     public void init() {
-        tp = new ThreadPool(ThreadPool.Names.SAME);
+        tp = new TestThreadPool(ThreadPool.Names.SAME);
     }
 
     @After

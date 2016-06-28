@@ -27,8 +27,8 @@ import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.compar
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.matchAllRequest;
 import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.searchTransform;
-import static org.elasticsearch.xpack.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.xpack.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
@@ -49,7 +49,7 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
     }
 
     @Override
-    protected boolean enableShield() {
+    protected boolean enableSecurity() {
         return false;
     }
 

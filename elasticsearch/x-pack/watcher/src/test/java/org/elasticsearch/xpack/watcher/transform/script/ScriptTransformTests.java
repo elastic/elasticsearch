@@ -15,6 +15,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Script;
@@ -32,7 +33,7 @@ import java.util.Map;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.support.Exceptions.illegalArgument;
+import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.EMPTY_PAYLOAD;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.getScriptServiceProxy;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
@@ -53,7 +54,7 @@ public class ScriptTransformTests extends ESTestCase {
 
     @Before
     public void init() {
-        tp = new ThreadPool(ThreadPool.Names.SAME);
+        tp = new TestThreadPool(ThreadPool.Names.SAME);
     }
 
     @After

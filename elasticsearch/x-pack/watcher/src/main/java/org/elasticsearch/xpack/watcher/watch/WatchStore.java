@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 
 import java.io.IOException;
@@ -40,7 +41,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.xpack.support.Exceptions.illegalState;
+import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
 
 /**
  */
@@ -59,6 +60,10 @@ public class WatchStore extends AbstractComponent {
     private final TimeValue scrollTimeout;
 
     @Inject
+    public WatchStore(Settings settings, InternalClient client, Watch.Parser watchParser) {
+        this(settings, new WatcherClientProxy(settings, client), watchParser);
+    }
+
     public WatchStore(Settings settings, WatcherClientProxy client, Watch.Parser watchParser) {
         super(settings);
         this.client = client;

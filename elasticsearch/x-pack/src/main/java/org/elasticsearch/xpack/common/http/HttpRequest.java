@@ -19,7 +19,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.support.DateTimeUtils;
+import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.watcher.support.WatcherUtils;
 import org.elasticsearch.xpack.common.http.auth.HttpAuth;
 
@@ -272,14 +272,14 @@ public class HttpRequest implements ToXContent {
                     builder.auth(httpAuthRegistry.parse(parser));
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.CONNECTION_TIMEOUT)) {
                     try {
-                        builder.connectionTimeout(DateTimeUtils.parseTimeValue(parser, Field.CONNECTION_TIMEOUT.toString()));
+                        builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser, Field.CONNECTION_TIMEOUT.toString()));
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse http request. invalid time value for [{}] field", pe,
                                 currentFieldName);
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.READ_TIMEOUT)) {
                     try {
-                        builder.readTimeout(DateTimeUtils.parseTimeValue(parser, Field.READ_TIMEOUT.toString()));
+                        builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, Field.READ_TIMEOUT.toString()));
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse http request. invalid time value for [{}] field", pe,
                                 currentFieldName);

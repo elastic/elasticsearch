@@ -34,23 +34,19 @@ import static org.mockito.Mockito.when;
 public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
-    protected boolean enableShield() {
+    protected boolean enableSecurity() {
         return true;
     }
 
     public void testExecuteWithAggs() throws Exception {
-        client().admin().indices().prepareCreate("my-index")
-                .addMapping("my-type", "_timestamp", "enabled=true")
-                .get();
-
-        client().prepareIndex("my-index", "my-type").setTimestamp("2005-01-01T00:00").setSource("{}").get();
-        client().prepareIndex("my-index", "my-type").setTimestamp("2005-01-01T00:10").setSource("{}").get();
-        client().prepareIndex("my-index", "my-type").setTimestamp("2005-01-01T00:20").setSource("{}").get();
-        client().prepareIndex("my-index", "my-type").setTimestamp("2005-01-01T00:30").setSource("{}").get();
+        client().prepareIndex("my-index", "my-type").setSource("@timestamp", "2005-01-01T00:00").get();
+        client().prepareIndex("my-index", "my-type").setSource("@timestamp", "2005-01-01T00:10").get();
+        client().prepareIndex("my-index", "my-type").setSource("@timestamp", "2005-01-01T00:20").get();
+        client().prepareIndex("my-index", "my-type").setSource("@timestamp", "2005-01-01T00:30").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("my-index")
-                .addAggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp")
+                .addAggregation(AggregationBuilders.dateHistogram("rate").field("@timestamp")
                         .dateHistogramInterval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
                 .get();
 
@@ -65,12 +61,12 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         assertThat(resolvedValues.size(), is(1));
         assertThat(resolvedValues, hasEntry("ctx.payload.aggregations.rate.buckets.0.doc_count", (Object) 4));
 
-        client().prepareIndex("my-index", "my-type").setTimestamp("2005-01-01T00:40").setSource("{}").get();
+        client().prepareIndex("my-index", "my-type").setSource("@timestamp", "2005-01-01T00:40").get();
         refresh();
 
         response = client().prepareSearch("my-index")
                 .addAggregation(AggregationBuilders.dateHistogram("rate")
-                        .field("_timestamp").dateHistogramInterval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
+                        .field("@timestamp").dateHistogramInterval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
                 .get();
 
         ctx = mockExecutionContext("_name", new Payload.XContent(response));

@@ -11,25 +11,28 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.Template;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustachePlugin;
+import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
 import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
@@ -37,15 +40,19 @@ import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
+import org.elasticsearch.xpack.watcher.support.Script;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
+import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.transform.TransformBuilders;
 import org.elasticsearch.xpack.watcher.transform.search.ExecutableSearchTransform;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransform;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransformFactory;
-import org.elasticsearch.xpack.trigger.schedule.IntervalSchedule;
-import org.elasticsearch.xpack.trigger.schedule.ScheduleTrigger;
-import org.elasticsearch.xpack.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
@@ -74,7 +81,7 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-import static org.elasticsearch.xpack.support.DateTimeUtils.parseDate;
+import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.parseDate;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.EMPTY_PAYLOAD;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
@@ -100,6 +107,7 @@ public class SearchTransformIT extends ESIntegTestCase {
         Collection<Class<? extends Plugin>> types = new ArrayList<>();
         types.addAll(super.nodePlugins());
         types.add(MustachePlugin.class);
+        types.add(CustomScriptContextPlugin.class);
         return types;
     }
 
@@ -154,7 +162,8 @@ public class SearchTransformIT extends ESIntegTestCase {
 
         SearchRequest request = Requests.searchRequest("idx").source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
-        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, WatcherClientProxy.of(client()), null);
+        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, WatcherClientProxy.of(client()),
+                watcherSearchTemplateService(), null);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
 
@@ -188,7 +197,8 @@ public class SearchTransformIT extends ESIntegTestCase {
                 new SearchSourceBuilder().query(QueryBuilders.wrapperQuery(jsonBuilder().startObject()
                         .startObject("_unknown_query_").endObject().endObject().bytes())));
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
-        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, WatcherClientProxy.of(client()), null);
+        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, WatcherClientProxy.of(client()),
+                watcherSearchTemplateService(), null);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
 
@@ -200,23 +210,27 @@ public class SearchTransformIT extends ESIntegTestCase {
         assertThat(result.reason(), containsString("no [query] registered for [_unknown_query_]"));
 
         // extract the base64 encoded query from the template script, path is: query -> wrapper -> query
-        String jsonQuery = result.executedRequest().template().getScript();
-        Map<String, Object> map = XContentFactory.xContent(jsonQuery).createParser(jsonQuery).map();
+        try (XContentBuilder builder = jsonBuilder()) {
+            result.executedRequest().source().toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        assertThat(map, hasKey("query"));
-        assertThat(map.get("query"), instanceOf(Map.class));
+            String jsonQuery = builder.string();
+            Map<String, Object> map = XContentFactory.xContent(jsonQuery).createParser(jsonQuery).map();
 
-        map = (Map<String, Object>) map.get("query");
-        assertThat(map, hasKey("wrapper"));
-        assertThat(map.get("wrapper"), instanceOf(Map.class));
+            assertThat(map, hasKey("query"));
+            assertThat(map.get("query"), instanceOf(Map.class));
 
-        map = (Map<String, Object>) map.get("wrapper");
-        assertThat(map, hasKey("query"));
-        assertThat(map.get("query"), instanceOf(String.class));
+            map = (Map<String, Object>) map.get("query");
+            assertThat(map, hasKey("wrapper"));
+            assertThat(map.get("wrapper"), instanceOf(Map.class));
 
-        String queryAsBase64 = (String) map.get("query");
-        String decodedQuery = new String(Base64.getDecoder().decode(queryAsBase64), StandardCharsets.UTF_8);
-        assertThat(decodedQuery, containsString("_unknown_query_"));
+            map = (Map<String, Object>) map.get("wrapper");
+            assertThat(map, hasKey("query"));
+            assertThat(map.get("query"), instanceOf(String.class));
+
+            String queryAsBase64 = (String) map.get("query");
+            String decodedQuery = new String(Base64.getDecoder().decode(queryAsBase64), StandardCharsets.UTF_8);
+            assertThat(decodedQuery, containsString("_unknown_query_"));
+        }
     }
 
     public void testExecuteMustacheTemplate() throws Exception {
@@ -252,7 +266,8 @@ public class SearchTransformIT extends ESIntegTestCase {
                 .must(termQuery("value", "{{ctx.payload.value}}"))));
 
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
-        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, WatcherClientProxy.of(client()), null);
+        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, WatcherClientProxy.of(client()),
+                watcherSearchTemplateService(), null);
 
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_name", parseDate("2015-01-04T00:00:00", UTC),
                 parseDate("2015-01-01T00:00:00", UTC));
@@ -319,24 +334,24 @@ public class SearchTransformIT extends ESIntegTestCase {
 
         IndicesQueriesRegistry indicesQueryRegistry = internalCluster().getInstance(IndicesQueriesRegistry.class);
         SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, WatcherClientProxy.of(client()),
-                                                                             indicesQueryRegistry, null, null);
+                                                                             indicesQueryRegistry, null, null, scriptService());
         ExecutableSearchTransform executable = transformFactory.parseExecutable("_id", parser);
 
         assertThat(executable, notNullValue());
         assertThat(executable.type(), is(SearchTransform.TYPE));
         assertThat(executable.transform().getRequest(), notNullValue());
         if (indices != null) {
-            assertThat(executable.transform().getRequest().indices(), arrayContainingInAnyOrder(indices));
+            assertThat(executable.transform().getRequest().getRequest().indices(), arrayContainingInAnyOrder(indices));
         }
         if (searchType != null) {
-            assertThat(executable.transform().getRequest().searchType(), is(searchType));
+            assertThat(executable.transform().getRequest().getRequest().searchType(), is(searchType));
         }
         if (templateName != null) {
-            assertThat(executable.transform().getRequest().template(),
-                    equalTo(new Template("template1", ScriptType.FILE, null, null, null)));
+            assertThat(executable.transform().getRequest().getTemplate(),
+                    equalTo(Script.file("template1").build()));
         }
         SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery());
-        assertThat(executable.transform().getRequest().source(), equalTo(source));
+        assertThat(executable.transform().getRequest().getRequest().source(), equalTo(source));
         assertThat(executable.transform().getTimeout(), equalTo(readTimeout));
     }
 
@@ -347,11 +362,6 @@ public class SearchTransformIT extends ESIntegTestCase {
                 "\"type\":\"boolean\"}}},{\"range\":{\"_timestamp\":" +
                 "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
                 "\"include_lower\":true,\"include_upper\":true}}}]}}}";
-
-        final String expectedTemplateString = "{\"query\":{\"bool\":{\"must\":[{\"match\":{\"event_type\":{\"query\":\"a\","
-                + "\"type\":\"boolean\"}}},{\"range\":{\"_timestamp\":"
-                + "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\","
-                + "\"include_lower\":true,\"include_upper\":true}}}]}}}";
 
         Map<String, Object> triggerParams = new HashMap<String, Object>();
         triggerParams.put("triggered_time", new DateTime(1970, 01, 01, 00, 01, 00, 000, ISOChronology.getInstanceUTC()));
@@ -367,18 +377,24 @@ public class SearchTransformIT extends ESIntegTestCase {
         Map<String, Object> expectedParams = new HashMap<String, Object>();
         expectedParams.put("seconds_param", "30s");
         expectedParams.put("ctx", ctxParams);
-        Template expectedTemplate = new Template(expectedTemplateString, ScriptType.INLINE, null, XContentType.JSON, expectedParams);
 
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
-        Template template = new Template(templateQuery, ScriptType.INLINE, null, XContentType.JSON, params);
+        Script template = Script.inline(templateQuery).lang("mustache").params(params).build();
         SearchRequest request = client().prepareSearch().setSearchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE)
-                .setIndices("test-search-index").setTemplate(template).request();
+                .setIndices("test-search-index").request();
 
-        SearchTransform.Result executedResult = executeSearchTransform(request, ctx);
+        SearchTransform.Result executedResult = executeSearchTransform(request, template, ctx);
 
-        assertThat(executedResult.executedRequest().template(), equalTo(expectedTemplate));
+        assertThat(executedResult.status(), is(Transform.Result.Status.SUCCESS));
+        assertEquals(executedResult.executedRequest().searchType(), request.searchType());
+        assertArrayEquals(executedResult.executedRequest().indices(), request.indices());
+        assertEquals(executedResult.executedRequest().indicesOptions(), request.indicesOptions());
+
+        XContentSource source = toXContentSource(executedResult);
+        assertThat(source.getValue("query.bool.must.1.range._timestamp.from"), equalTo("1970-01-01T00:01:00.000Z||-30s"));
+        assertThat(source.getValue("query.bool.must.1.range._timestamp.to"), equalTo("1970-01-01T00:01:00.000Z"));
     }
 
     public void testSearchIndexedTemplate() throws Exception {
@@ -399,24 +415,24 @@ public class SearchTransformIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
-        BytesReference templateSource = jsonBuilder()
-                .value(TextTemplate.indexed("test-script").params(params).build())
-                .bytes();
-        Template template = new Template("test-script", ScriptType.STORED, null, null, null);
+        Script template = Script.indexed("test-script").lang("mustache").params(params).build();
 
         SearchRequest request = client()
                 .prepareSearch()
                 .setSearchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE)
                 .setIndices("test-search-index")
-                .setTemplate(template)
                 .request();
 
-        SearchTransform.Result result = executeSearchTransform(request, ctx);
+        SearchTransform.Result result = executeSearchTransform(request, template, ctx);
+
         assertNotNull(result.executedRequest());
-        Template resultTemplate = result.executedRequest().template();
-        assertThat(resultTemplate, notNullValue());
-        assertThat(resultTemplate.getScript(), equalTo("test-script"));
-        assertThat(resultTemplate.getType(), equalTo(ScriptType.STORED));
+        assertThat(result.status(), is(Transform.Result.Status.SUCCESS));
+        assertArrayEquals(result.executedRequest().indices(), request.indices());
+        assertEquals(result.executedRequest().indicesOptions(), request.indicesOptions());
+
+        XContentSource source = toXContentSource(result);
+        assertThat(source.getValue("query.bool.must.1.range._timestamp.from"), equalTo("1970-01-01T00:01:00.000Z||-30s"));
+        assertThat(source.getValue("query.bool.must.1.range._timestamp.to"), equalTo("1970-01-01T00:01:00.000Z"));
     }
 
     public void testSearchOnDiskTemplate() throws Exception {
@@ -425,16 +441,20 @@ public class SearchTransformIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
-        Template template = new Template("test_disk_template", ScriptType.FILE, null, null, null);
+        Script template = Script.file("test_disk_template").lang("mustache").params(params).build();
         SearchRequest request = client().prepareSearch().setSearchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE)
-                .setIndices("test-search-index").setTemplate(template).request();
+                .setIndices("test-search-index").request();
 
-        SearchTransform.Result result = executeSearchTransform(request, ctx);
+        SearchTransform.Result result = executeSearchTransform(request, template, ctx);
+
         assertNotNull(result.executedRequest());
-        Template resultTemplate = result.executedRequest().template();
-        assertThat(resultTemplate, notNullValue());
-        assertThat(resultTemplate.getScript(), equalTo("test_disk_template"));
-        assertThat(resultTemplate.getType(), equalTo(ScriptType.FILE));
+        assertThat(result.status(), is(Transform.Result.Status.SUCCESS));
+        assertArrayEquals(result.executedRequest().indices(), request.indices());
+        assertEquals(result.executedRequest().indicesOptions(), request.indicesOptions());
+
+        XContentSource source = toXContentSource(result);
+        assertThat(source.getValue("query.bool.must.1.range._timestamp.from"), equalTo("1970-01-01T00:01:00.000Z||-30s"));
+        assertThat(source.getValue("query.bool.must.1.range._timestamp.to"), equalTo("1970-01-01T00:01:00.000Z"));
     }
 
     public void testDifferentSearchType() throws Exception {
@@ -453,13 +473,18 @@ public class SearchTransformIT extends ESIntegTestCase {
                 .request()
                 .source(searchSourceBuilder);
 
-        SearchTransform.Result result = executeSearchTransform(request, ctx);
+        SearchTransform.Result result = executeSearchTransform(request, null, ctx);
 
-        assertThat((Integer) XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
+        assertThat(XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
         assertThat(result.executedRequest(), notNullValue());
+        assertThat(result.status(), is(Transform.Result.Status.SUCCESS));
         assertThat(result.executedRequest().searchType(), is(searchType));
         assertThat(result.executedRequest().indices(), arrayContainingInAnyOrder(request.indices()));
         assertThat(result.executedRequest().indicesOptions(), equalTo(request.indicesOptions()));
+
+        XContentSource source = toXContentSource(result);
+        assertThat(source.getValue("query.bool.must.1.range._timestamp.from"), equalTo("1970-01-01T00:01:00.000Z||-30s"));
+        assertThat(source.getValue("query.bool.must.1.range._timestamp.to"), equalTo("1970-01-01T00:01:00.000Z"));
     }
 
     private WatchExecutionContext createContext() {
@@ -479,17 +504,31 @@ public class SearchTransformIT extends ESIntegTestCase {
                 timeValueSeconds(5));
     }
 
-    private SearchTransform.Result executeSearchTransform(SearchRequest request, WatchExecutionContext ctx) throws IOException {
+    private SearchTransform.Result executeSearchTransform(SearchRequest request, Script template, WatchExecutionContext ctx)
+            throws IOException {
         createIndex("test-search-index");
         ensureGreen("test-search-index");
 
-        SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
+        SearchTransform searchTransform = TransformBuilders.searchTransform(new WatcherSearchTemplateRequest(request, template)).build();
         ExecutableSearchTransform executableSearchTransform = new ExecutableSearchTransform(searchTransform, logger,
-                WatcherClientProxy.of(client()), null);
+                WatcherClientProxy.of(client()), watcherSearchTemplateService(), null);
 
         return executableSearchTransform.execute(ctx, Payload.Simple.EMPTY);
     }
 
+    protected WatcherSearchTemplateService watcherSearchTemplateService() {
+        String master = internalCluster().getMasterName();
+        return new WatcherSearchTemplateService(internalCluster().clusterService(master).getSettings(),
+                ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class, master), internalCluster().clusterService(master)),
+                internalCluster().getInstance(IndicesQueriesRegistry.class, master),
+                internalCluster().getInstance(AggregatorParsers.class, master),
+                internalCluster().getInstance(Suggesters.class, master)
+        );
+    }
+
+    protected ScriptServiceProxy scriptService() {
+        return ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class), internalCluster().clusterService());
+    }
 
     private static Map<String, Object> doc(String date, String value) {
         Map<String, Object> doc = new HashMap<>();
@@ -498,4 +537,21 @@ public class SearchTransformIT extends ESIntegTestCase {
         return doc;
     }
 
+    private XContentSource toXContentSource(SearchTransform.Result result) throws IOException {
+        try (XContentBuilder builder = jsonBuilder()) {
+            result.executedRequest().source().toXContent(builder, ToXContent.EMPTY_PARAMS);
+            return new XContentSource(builder);
+        }
+    }
+
+    /**
+     * Custom plugin that registers XPack script context.
+     */
+    public static class CustomScriptContextPlugin extends Plugin implements ScriptPlugin {
+
+        @Override
+        public ScriptContext.Plugin getCustomScriptContexts() {
+            return ScriptServiceProxy.INSTANCE;
+        }
+    }
 }

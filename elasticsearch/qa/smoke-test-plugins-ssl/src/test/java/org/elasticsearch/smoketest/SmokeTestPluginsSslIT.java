@@ -11,10 +11,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
-import org.elasticsearch.test.rest.client.RestClient;
+import org.elasticsearch.test.rest.client.RestTestClient;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -24,7 +24,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 public class SmokeTestPluginsSslIT extends ESRestTestCase {
 
@@ -65,9 +65,9 @@ public class SmokeTestPluginsSslIT extends ESRestTestCase {
         String token = basicAuthHeaderValue(USER, new SecuredString(PASS.toCharArray()));
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", token)
-                .put(RestClient.PROTOCOL, "https")
-                .put(RestClient.TRUSTSTORE_PATH, keyStore)
-                .put(RestClient.TRUSTSTORE_PASSWORD, KEYSTORE_PASS)
+                .put(RestTestClient.PROTOCOL, "https")
+                .put(RestTestClient.TRUSTSTORE_PATH, keyStore)
+                .put(RestTestClient.TRUSTSTORE_PASSWORD, KEYSTORE_PASS)
                 .build();
     }
 }

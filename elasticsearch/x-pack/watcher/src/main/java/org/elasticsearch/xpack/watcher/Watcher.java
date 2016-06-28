@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher;
 
-import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Booleans;
@@ -19,18 +20,19 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.common.init.LazyInitializationModule;
 import org.elasticsearch.xpack.watcher.actions.WatcherActionModule;
 import org.elasticsearch.xpack.watcher.client.WatcherClientModule;
 import org.elasticsearch.xpack.watcher.condition.ConditionModule;
 import org.elasticsearch.xpack.watcher.execution.ExecutionModule;
+import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
 import org.elasticsearch.xpack.watcher.history.HistoryModule;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.input.InputModule;
-import org.elasticsearch.xpack.watcher.input.chain.ChainInputFactory;
 import org.elasticsearch.xpack.watcher.rest.action.RestAckWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestActivateWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestDeleteWatchAction;
@@ -40,13 +42,10 @@ import org.elasticsearch.xpack.watcher.rest.action.RestHijackOperationAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestPutWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatcherStatsAction;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.xpack.watcher.transform.TransformModule;
-import org.elasticsearch.xpack.watcher.transform.chain.ChainTransformFactory;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.TransportAckWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.activate.ActivateWatchAction;
@@ -63,8 +62,8 @@ import org.elasticsearch.xpack.watcher.transport.actions.service.TransportWatche
 import org.elasticsearch.xpack.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.TransportWatcherStatsAction;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsAction;
-import org.elasticsearch.xpack.trigger.TriggerModule;
-import org.elasticsearch.xpack.trigger.schedule.ScheduleModule;
+import org.elasticsearch.xpack.watcher.trigger.TriggerModule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.xpack.watcher.watch.WatchModule;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -76,7 +75,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-public class Watcher {
+import static java.util.Collections.emptyList;
+
+public class Watcher implements ActionPlugin {
 
     public static final String NAME = "watcher";
 
@@ -132,43 +133,49 @@ public class Watcher {
     }
 
     public Settings additionalSettings() {
-        if (enabled == false || transportClient) {
-            return Settings.EMPTY;
-        }
-        Settings additionalSettings = Settings.builder()
-                .put(HistoryModule.additionalSettings(settings))
-                .build();
-
-        return additionalSettings;
+        return Settings.EMPTY;
     }
 
-    public void onModule(ScriptModule module) {
-        module.registerScriptContext(ScriptServiceProxy.INSTANCE);
-    }
 
-    public void onModule(SettingsModule module) {
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> settings = new ArrayList<>();
         for (TemplateConfig templateConfig : WatcherIndexTemplateRegistry.TEMPLATE_CONFIGS) {
-            module.registerSetting(templateConfig.getSetting());
+            settings.add(templateConfig.getSetting());
         }
-        module.registerSetting(INDEX_WATCHER_VERSION_SETTING);
-        module.registerSetting(INDEX_WATCHER_TEMPLATE_VERSION_SETTING);
-        module.registerSetting(Setting.intSetting("xpack.watcher.execution.scroll.size", 0, Setting.Property.NodeScope));
-        module.registerSetting(Setting.intSetting("xpack.watcher.watch.scroll.size", 0, Setting.Property.NodeScope));
-        module.registerSetting(Setting.boolSetting(XPackPlugin.featureEnabledSetting(Watcher.NAME), true, Setting.Property.NodeScope));
-        module.registerSetting(ENCRYPT_SENSITIVE_DATA_SETTING);
+        settings.add(INDEX_WATCHER_VERSION_SETTING);
+        settings.add(INDEX_WATCHER_TEMPLATE_VERSION_SETTING);
+        settings.add(Setting.intSetting("xpack.watcher.execution.scroll.size", 0, Setting.Property.NodeScope));
+        settings.add(Setting.intSetting("xpack.watcher.watch.scroll.size", 0, Setting.Property.NodeScope));
+        settings.add(Setting.boolSetting(XPackPlugin.featureEnabledSetting(Watcher.NAME), true, Setting.Property.NodeScope));
+        settings.add(ENCRYPT_SENSITIVE_DATA_SETTING);
 
-        module.registerSetting(Setting.simpleString("xpack.watcher.internal.ops.search.default_timeout", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.internal.ops.bulk.default_timeout", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.internal.ops.index.default_timeout", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.execution.default_throttle_period", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.actions.index.default_timeout", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.index.rest.direct_access", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.trigger.schedule.engine", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.input.search.default_timeout", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.transform.search.default_timeout", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.trigger.schedule.ticker.tick_interval", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.execution.scroll.timeout", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.start_immediately", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.internal.ops.search.default_timeout", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.internal.ops.bulk.default_timeout", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.internal.ops.index.default_timeout", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.execution.default_throttle_period", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.actions.index.default_timeout", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.index.rest.direct_access", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.trigger.schedule.engine", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.input.search.default_timeout", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.transform.search.default_timeout", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.trigger.schedule.ticker.tick_interval", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.execution.scroll.timeout", Setting.Property.NodeScope));
+        settings.add(Setting.simpleString("xpack.watcher.start_immediately", Setting.Property.NodeScope));
+        return settings;
+    }
+
+    public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
+        if (XPackPlugin.featureEnabled(settings, Watcher.NAME, true)) {
+            final FixedExecutorBuilder builder =
+                    new FixedExecutorBuilder(
+                            settings,
+                            InternalWatchExecutor.THREAD_POOL_NAME,
+                            5 * EsExecutors.boundedNumberOfProcessors(settings),
+                            1000,
+                            "xpack.watcher.thread_pool");
+            return Collections.singletonList(builder);
+        }
+        return Collections.emptyList();
     }
 
     public void onModule(NetworkModule module) {
@@ -185,25 +192,19 @@ public class Watcher {
         }
     }
 
-    public void onModule(ActionModule module) {
-        if (enabled) {
-            module.registerAction(PutWatchAction.INSTANCE, TransportPutWatchAction.class);
-            module.registerAction(DeleteWatchAction.INSTANCE, TransportDeleteWatchAction.class);
-            module.registerAction(GetWatchAction.INSTANCE, TransportGetWatchAction.class);
-            module.registerAction(WatcherStatsAction.INSTANCE, TransportWatcherStatsAction.class);
-            module.registerAction(AckWatchAction.INSTANCE, TransportAckWatchAction.class);
-            module.registerAction(ActivateWatchAction.INSTANCE, TransportActivateWatchAction.class);
-            module.registerAction(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class);
-            module.registerAction(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class);
+    @Override
+    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+        if (false == enabled) {
+            return emptyList();
         }
-    }
-
-    public void onModule(LazyInitializationModule module) {
-        if (enabled) {
-            module.registerLazyInitializable(WatcherClientProxy.class);
-            module.registerLazyInitializable(ChainTransformFactory.class);
-            module.registerLazyInitializable(ChainInputFactory.class);
-        }
+        return Arrays.asList(new ActionHandler<>(PutWatchAction.INSTANCE, TransportPutWatchAction.class),
+                new ActionHandler<>(DeleteWatchAction.INSTANCE, TransportDeleteWatchAction.class),
+                new ActionHandler<>(GetWatchAction.INSTANCE, TransportGetWatchAction.class),
+                new ActionHandler<>(WatcherStatsAction.INSTANCE, TransportWatcherStatsAction.class),
+                new ActionHandler<>(AckWatchAction.INSTANCE, TransportAckWatchAction.class),
+                new ActionHandler<>(ActivateWatchAction.INSTANCE, TransportActivateWatchAction.class),
+                new ActionHandler<>(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class),
+                new ActionHandler<>(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class));
     }
 
     public static boolean enabled(Settings settings) {
@@ -269,5 +270,6 @@ public class Watcher {
                 " that any future history indices after 6 months with the pattern " +
                 "[.watcher-history-YYYY.MM.dd] are allowed to be created", value);
     }
+
 
 }

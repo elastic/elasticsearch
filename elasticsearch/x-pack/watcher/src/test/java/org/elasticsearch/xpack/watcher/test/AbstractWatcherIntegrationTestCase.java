@@ -27,12 +27,12 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.shield.Security;
-import org.elasticsearch.shield.authc.file.FileRealm;
-import org.elasticsearch.shield.authc.support.Hasher;
-import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.authz.store.FileRolesStore;
-import org.elasticsearch.shield.crypto.InternalCryptoService;
+import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.authc.file.FileRealm;
+import org.elasticsearch.xpack.security.authc.support.Hasher;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
+import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
+import org.elasticsearch.xpack.security.crypto.InternalCryptoService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.TestCluster;
@@ -52,9 +52,9 @@ import org.elasticsearch.xpack.support.clock.ClockMock;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
-import org.elasticsearch.xpack.trigger.ScheduleTriggerEngineMock;
-import org.elasticsearch.xpack.trigger.TriggerService;
-import org.elasticsearch.xpack.trigger.schedule.ScheduleModule;
+import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
+import org.elasticsearch.xpack.watcher.trigger.TriggerService;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.TimeWarpedXPackPlugin;
 import org.elasticsearch.xpack.XPackClient;
@@ -88,7 +88,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME;
@@ -109,14 +109,14 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     private TimeWarp timeWarp;
 
-    private static Boolean shieldEnabled;
+    private static Boolean securityEnabled;
 
     private static ScheduleModule.Engine scheduleEngine;
 
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
-        if (shieldEnabled == null) {
-            shieldEnabled = enableShield();
+        if (securityEnabled == null) {
+            securityEnabled = enableSecurity();
             scheduleEngine = randomFrom(ScheduleModule.Engine.values());
         }
         return super.buildTestCluster(scope, seed);
@@ -134,7 +134,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 .put("index.store.mock.check_index_on_close", false)
                 .put("xpack.watcher.execution.scroll.size", randomIntBetween(1, 100))
                 .put("xpack.watcher.watch.scroll.size", randomIntBetween(1, 100))
-                .put(ShieldSettings.settings(shieldEnabled))
+                .put(SecuritySettings.settings(securityEnabled))
                 .put("xpack.watcher.trigger.schedule.engine", scheduleImplName)
                 .put("script.inline", "true")
                 .build();
@@ -152,9 +152,9 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
         Set<Class<? extends Plugin>> plugins = new HashSet<>(super.getMockPlugins());
-        // shield has its own transport service
+        // security has its own transport service
         plugins.remove(MockTransportService.TestPlugin.class);
-        // shield has its own transport
+        // security has its own transport
         plugins.remove(AssertingLocalTransport.TestPlugin.class);
         // we have to explicitly add it otherwise we will fail to set the check_index_on_close setting
         plugins.add(MockFSIndexStore.TestPlugin.class);
@@ -174,16 +174,16 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     @Override
     protected Function<Client,Client> getClientWrapper() {
-        if (shieldEnabled == false) {
+        if (securityEnabled == false) {
             return Function.identity();
         }
         Map<String, String> headers = Collections.singletonMap("Authorization",
-                basicAuthHeaderValue(ShieldSettings.TEST_USERNAME, new SecuredString(ShieldSettings.TEST_PASSWORD.toCharArray())));
-        // we need to wrap node clients because we do not specify a shield user for nodes and all requests will use the system
+                basicAuthHeaderValue(SecuritySettings.TEST_USERNAME, new SecuredString(SecuritySettings.TEST_PASSWORD.toCharArray())));
+        // we need to wrap node clients because we do not specify a user for nodes and all requests will use the system
         // user. This is ok for internal n2n stuff but the test framework does other things like wiping indices, repositories, etc
         // that the system user cannot do. so we wrap the node client with a user that can do these things since the client() calls
         // are randomized to return both node clients and transport clients
-        // transport clients do not need to be wrapped since we specify the shield.user setting that sets the default user to be
+        // transport clients do not need to be wrapped since we specify the xpack.security.user setting that sets the default user to be
         // used for the transport client. If we did not set a default user then the transport client would not even be allowed
         // to connect
         return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
@@ -210,10 +210,10 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     /**
-     * @return whether shield has been enabled
+     * @return whether security has been enabled
      */
-    protected final boolean shieldEnabled() {
-        return shieldEnabled;
+    protected final boolean securityEnabled() {
+        return securityEnabled;
     }
 
     /**
@@ -224,9 +224,9 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     /**
-     * Override and returns {@code false} to force running without shield
+     * Override and returns {@code false} to force running without security
      */
-    protected boolean enableShield() {
+    protected boolean enableSecurity() {
         return randomBoolean();
     }
 
@@ -252,13 +252,13 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     @AfterClass
     public static void _cleanupClass() {
-        shieldEnabled = null;
+        securityEnabled = null;
         scheduleEngine = null;
     }
 
     @Override
     protected Settings transportClientSettings() {
-        if (shieldEnabled == false) {
+        if (securityEnabled == false) {
             return super.transportClientSettings();
         }
 
@@ -351,7 +351,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected WatcherClient watcherClient() {
-        Client client = shieldEnabled ? internalCluster().transportClient() : client();
+        Client client = securityEnabled ? internalCluster().transportClient() : client();
         return randomBoolean() ? new XPackClient(client).watcher() : new WatcherClient(client);
     }
 
@@ -640,9 +640,9 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
 
-    /** Shield related settings */
+    /** Security related settings */
 
-    public static class ShieldSettings {
+    public static class SecuritySettings {
 
         public static final String TEST_USERNAME = "test";
         public static final String TEST_PASSWORD = "changeme";
@@ -691,7 +691,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 return builder.put("xpack.security.enabled", false).build();
             }
             try {
-                Path folder = createTempDir().resolve("watcher_shield");
+                Path folder = createTempDir().resolve("watcher_security");
                 Files.createDirectories(folder);
                 return builder.put("xpack.security.enabled", true)
                         .put("xpack.security.authc.realms.esusers.type", FileRealm.TYPE)
@@ -704,7 +704,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                         .put("xpack.security.audit.enabled", auditLogsEnabled)
                         .build();
             } catch (IOException ex) {
-                throw new RuntimeException("failed to build settings for shield", ex);
+                throw new RuntimeException("failed to build settings for security", ex);
             }
         }
 

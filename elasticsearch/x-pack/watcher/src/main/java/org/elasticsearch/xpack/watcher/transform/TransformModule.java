@@ -38,9 +38,6 @@ public class TransformModule extends AbstractModule {
         bind(ScriptTransformFactory.class).asEagerSingleton();
         mbinder.addBinding(ScriptTransform.TYPE).to(ScriptTransformFactory.class);
 
-        // no bind() needed, done using the LazyInitializationModule
-        mbinder.addBinding(ChainTransform.TYPE).to(ChainTransformFactory.class);
-
         for (Map.Entry<String, Class<? extends TransformFactory>> entry : factories.entrySet()) {
             bind(entry.getValue()).asEagerSingleton();
             mbinder.addBinding(entry.getKey()).to(entry.getValue());

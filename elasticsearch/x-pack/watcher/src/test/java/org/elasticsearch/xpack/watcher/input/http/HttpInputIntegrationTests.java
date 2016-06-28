@@ -20,10 +20,11 @@ import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
-import org.elasticsearch.xpack.trigger.schedule.IntervalSchedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 
 import java.net.InetSocketAddress;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -33,8 +34,8 @@ import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBu
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.xContentSource;
-import static org.elasticsearch.xpack.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.xpack.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
 
 public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCase {
@@ -49,7 +50,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
     @TestLogging("watcher.support.http:TRACE")
     public void testHttpInput() throws Exception {
         createIndex("index");
-        client().prepareIndex("index", "type", "id").setSource("{}").setRefresh(true).get();
+        client().prepareIndex("index", "type", "id").setSource("{}").setRefreshPolicy(IMMEDIATE).get();
 
         InetSocketAddress address = internalCluster().httpAddresses()[0];
         watcherClient().preparePutWatch("_name")
@@ -58,7 +59,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                         .input(httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())
                                 .path("/index/_search")
                                 .body(jsonBuilder().startObject().field("size", 1).endObject())
-                                .auth(shieldEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null)))
+                                .auth(securityEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null)))
                         .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
                         .addAction("_id", loggingAction("watch [{{ctx.watch_id}}] matched")))
                 .get();
@@ -77,7 +78,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                         .trigger(schedule(interval("1s")))
                         .input(httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())
                                 .path("/_cluster/stats")
-                                .auth(shieldEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null)))
+                                .auth(securityEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null)))
                         .condition(compareCondition("ctx.payload.nodes.count.total", CompareCondition.Op.GTE, 1L))
                         .addAction("_id", loggingAction("watch [{{ctx.watch_id}}] matched")))
                 .get();
@@ -105,7 +106,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
         HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder(address.getHostString(), address.getPort())
                 .path(TextTemplate.inline("/idx/_search"))
                 .body(body);
-        if (shieldEnabled()) {
+        if (securityEnabled()) {
             requestBuilder.auth(new BasicAuth("test", "changeme".toCharArray()));
         }
 

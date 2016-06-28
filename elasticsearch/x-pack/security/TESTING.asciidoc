@@ -1,0 +1,31 @@
+[[Testing Framework Cheatsheet]]
+= Testing
+
+[partintro]
+
+Elasticsearch and X-Pack use jUnit for testing, they also use randomness
+in the tests, that can be set using a seed, please refer to the
+Elasticsearch TESTING.asciidoc cheatsheet to know all about it.
+
+Tests are executed with network transport and unicast discovery, as this is
+the configuration that's secured by X-Pack.
+
+== Testing the REST layer
+
+The available integration tests are specific for Security functionalities
+and make use of the java API to communicate with the elasticsearch nodes,
+using the internal binary transport (port 9300 by default).
+Security is also tested using the REST tests provided by Elasticsearch core,
+just by running those same tests against a cluster with X-Pack installed.
+
+The REST tests are run automatically during the integration test phase
+(`gradle integTest`). Some tests are blacklisted as they are known to fail against
+X-Pack due to different behaviours introduced by the security plugin.
+
+---------------------------------------------------------------------------
+gradle integTest
+---------------------------------------------------------------------------
+
+`XPackRestIT` is the executable test class that runs all the
+yaml suites available within the `rest-api-spec` folder.
+

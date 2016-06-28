@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.marvel;
 
-import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.marvel.action.MonitoringBulkAction;
 import org.elasticsearch.marvel.action.TransportMonitoringBulkAction;
 import org.elasticsearch.marvel.agent.AgentService;
@@ -19,9 +19,8 @@ import org.elasticsearch.marvel.agent.exporter.ExporterModule;
 import org.elasticsearch.marvel.cleaner.CleanerService;
 import org.elasticsearch.marvel.client.MonitoringClientModule;
 import org.elasticsearch.marvel.rest.action.RestMonitoringBulkAction;
-import org.elasticsearch.marvel.support.init.proxy.MonitoringClientProxy;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.common.init.LazyInitializationModule;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,13 +28,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+
 /**
  * This class activates/deactivates the monitoring modules depending if we're running a node client, transport client or tribe client:
  * - node clients: all modules are binded
  * - transport clients: only action/transport actions are binded
  * - tribe clients: everything is disables by default but can be enabled per tribe cluster
  */
-public class Monitoring {
+public class Monitoring implements ActionPlugin {
 
     public static final String NAME = "monitoring";
 
@@ -79,25 +81,17 @@ public class Monitoring {
                 CleanerService.class);
     }
 
-    public void onModule(SettingsModule module) {
-        MonitoringSettings.register(module);
-    }
-
-    public void onModule(ActionModule module) {
+    @Override
+    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
         if (enabled && tribeNode == false) {
-            module.registerAction(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class);
+            return singletonList(new ActionHandler<>(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class));
         }
+        return emptyList();
     }
 
     public void onModule(NetworkModule module) {
         if (enabled && transportClientMode == false && tribeNode == false) {
             module.registerRestHandler(RestMonitoringBulkAction.class);
-        }
-    }
-
-    public void onModule(LazyInitializationModule module) {
-        if (enabled && tribeNode == false) {
-            module.registerLazyInitializable(MonitoringClientProxy.class);
         }
     }
 

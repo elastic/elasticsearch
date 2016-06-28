@@ -10,16 +10,16 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.support.clock.SystemClock;
-import org.elasticsearch.xpack.trigger.Trigger;
-import org.elasticsearch.xpack.trigger.TriggerEngine;
-import org.elasticsearch.xpack.trigger.TriggerEvent;
-import org.elasticsearch.xpack.trigger.schedule.Schedule;
-import org.elasticsearch.xpack.trigger.schedule.ScheduleRegistry;
-import org.elasticsearch.xpack.trigger.schedule.ScheduleTrigger;
-import org.elasticsearch.xpack.trigger.schedule.ScheduleTriggerEngine;
-import org.elasticsearch.xpack.trigger.schedule.ScheduleTriggerEvent;
-import org.elasticsearch.xpack.trigger.schedule.engine.SchedulerScheduleTriggerEngine;
-import org.elasticsearch.xpack.trigger.schedule.engine.TickerScheduleTriggerEngine;
+import org.elasticsearch.xpack.watcher.trigger.Trigger;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
+import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEngine;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.watcher.trigger.schedule.engine.SchedulerScheduleTriggerEngine;
+import org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleTriggerEngine;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 
 /**
  *

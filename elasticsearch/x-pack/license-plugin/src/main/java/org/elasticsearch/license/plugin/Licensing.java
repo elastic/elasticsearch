@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.license.plugin;
 
-import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -13,7 +14,6 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseAction;
 import org.elasticsearch.license.plugin.action.delete.TransportDeleteLicenseAction;
 import org.elasticsearch.license.plugin.action.get.GetLicenseAction;
@@ -25,16 +25,19 @@ import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.license.plugin.rest.RestDeleteLicenseAction;
 import org.elasticsearch.license.plugin.rest.RestGetLicenseAction;
 import org.elasticsearch.license.plugin.rest.RestPutLicenseAction;
+import org.elasticsearch.plugins.ActionPlugin;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
-import static org.elasticsearch.xpack.XPackPlugin.isTribeClientNode;
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.XPackPlugin.isTribeNode;
 import static org.elasticsearch.xpack.XPackPlugin.transportClientMode;
 
 
-public class Licensing {
+public class Licensing implements ActionPlugin {
 
     public static final String NAME = "license";
     private final boolean isTransportClient;
@@ -58,12 +61,14 @@ public class Licensing {
         }
     }
 
-    public void onModule(ActionModule module) {
-        if (isTribeNode == false) {
-            module.registerAction(PutLicenseAction.INSTANCE, TransportPutLicenseAction.class);
-            module.registerAction(GetLicenseAction.INSTANCE, TransportGetLicenseAction.class);
-            module.registerAction(DeleteLicenseAction.INSTANCE, TransportDeleteLicenseAction.class);
+    @Override
+    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+        if (isTribeNode) {
+            return emptyList();
         }
+        return Arrays.asList(new ActionHandler<>(PutLicenseAction.INSTANCE, TransportPutLicenseAction.class),
+                new ActionHandler<>(GetLicenseAction.INSTANCE, TransportGetLicenseAction.class),
+                new ActionHandler<>(DeleteLicenseAction.INSTANCE, TransportDeleteLicenseAction.class));
     }
 
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
@@ -80,8 +85,8 @@ public class Licensing {
         return Collections.emptyList();
     }
 
-    public void onModule(SettingsModule module) {
+    public List<Setting<?>> getSettings() {
         // TODO convert this wildcard to a real setting
-        module.registerSetting(Setting.groupSetting("license.", Setting.Property.NodeScope));
+        return Collections.singletonList(Setting.groupSetting("license.", Setting.Property.NodeScope));
     }
 }

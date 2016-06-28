@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.xpack.support.Exceptions.illegalState;
+import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
 
 
 /**

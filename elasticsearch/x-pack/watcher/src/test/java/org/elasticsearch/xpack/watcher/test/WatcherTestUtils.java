@@ -31,6 +31,13 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.common.ScriptServiceProxy;
+import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.common.http.HttpMethod;
+import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.common.secret.Secret;
+import org.elasticsearch.xpack.common.text.TextTemplate;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.notification.email.Authentication;
 import org.elasticsearch.xpack.notification.email.EmailService;
 import org.elasticsearch.xpack.notification.email.EmailTemplate;
@@ -49,22 +56,16 @@ import org.elasticsearch.xpack.watcher.execution.Wid;
 import org.elasticsearch.xpack.watcher.input.search.ExecutableSearchInput;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
-import org.elasticsearch.xpack.watcher.support.WatcherUtils;
-import org.elasticsearch.xpack.common.http.HttpClient;
-import org.elasticsearch.xpack.common.http.HttpMethod;
-import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
-import org.elasticsearch.xpack.common.secret.Secret;
-import org.elasticsearch.xpack.common.text.TextTemplate;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.transform.search.ExecutableSearchTransform;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransform;
-import org.elasticsearch.xpack.trigger.TriggerEvent;
-import org.elasticsearch.xpack.trigger.schedule.CronSchedule;
-import org.elasticsearch.xpack.trigger.schedule.ScheduleTrigger;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
+import org.elasticsearch.xpack.watcher.trigger.schedule.CronSchedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
@@ -76,7 +77,6 @@ import javax.mail.internet.AddressException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -122,7 +122,7 @@ public final class WatcherTestUtils {
     public static SearchRequest newInputSearchRequest(String... indices) {
         SearchRequest request = new SearchRequest();
         request.indices(indices);
-        request.indicesOptions(WatcherUtils.DEFAULT_INDICES_OPTIONS);
+        request.indicesOptions(WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS);
         request.searchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE);
         return request;
     }
@@ -175,13 +175,14 @@ public final class WatcherTestUtils {
 
 
     public static Watch createTestWatch(String watchName, HttpClient httpClient, EmailService emailService,
-                                        ESLogger logger) throws AddressException {
-        return createTestWatch(watchName, WatcherClientProxy.of(ESIntegTestCase.client()), httpClient, emailService, logger);
+                                        WatcherSearchTemplateService searchTemplateService, ESLogger logger) throws AddressException {
+        WatcherClientProxy client = WatcherClientProxy.of(ESIntegTestCase.client());
+        return createTestWatch(watchName, client, httpClient, emailService, searchTemplateService, logger);
     }
 
 
     public static Watch createTestWatch(String watchName, WatcherClientProxy client, HttpClient httpClient, EmailService emailService,
-                                        ESLogger logger) throws AddressException {
+                                        WatcherSearchTemplateService searchTemplateService, ESLogger logger) throws AddressException {
 
         SearchRequest conditionRequest = newInputSearchRequest("my-condition-index").source(searchSource().query(matchAllQuery()));
         SearchRequest transformRequest = newInputSearchRequest("my-payload-index").source(searchSource().query(matchAllQuery()));
@@ -229,12 +230,15 @@ public final class WatcherTestUtils {
         Map<String, ActionStatus> statuses = new HashMap<>();
         statuses.put("_webhook", new ActionStatus(now));
         statuses.put("_email", new ActionStatus(now));
+
+        SearchTransform searchTransform = new SearchTransform(new WatcherSearchTemplateRequest(transformRequest), null, null);
+
         return new Watch(
                 watchName,
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
                 new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(inputData)), logger),
                 new ExecutableAlwaysCondition(logger),
-                new ExecutableSearchTransform(new SearchTransform(transformRequest, null, null), logger, client, null),
+                new ExecutableSearchTransform(searchTransform, logger, client, searchTemplateService, null),
                 new TimeValue(0),
                 new ExecutableActions(actions),
                 metadata,
@@ -247,14 +251,14 @@ public final class WatcherTestUtils {
                 .put("script.indexed", "true")
                 .put("path.home", createTempDir())
                 .build();
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Arrays.asList(ScriptServiceProxy.INSTANCE));
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.singletonList(ScriptServiceProxy.INSTANCE));
 
         ScriptEngineRegistry scriptEngineRegistry =
                 new ScriptEngineRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         Mockito.when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name")).build());
-        return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings), Collections.emptySet(),
+        return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings),
                 new ResourceWatcherService(settings, tp), scriptEngineRegistry, scriptContextRegistry, scriptSettings),
                 clusterService);
     }

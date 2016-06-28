@@ -1,3 +1,0 @@
-admin:
-   - "CN=SHIELD,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"
-   - "cn=SHIELD,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com"

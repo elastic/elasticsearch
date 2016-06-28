@@ -27,7 +27,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.shield.InternalClient;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.common.init.proxy.ClientProxy;
 
 /**
@@ -40,8 +40,8 @@ public class WatcherClientProxy extends ClientProxy {
     private final TimeValue defaultIndexTimeout;
     private final TimeValue defaultBulkTimeout;
 
-    @Inject
-    public WatcherClientProxy(Settings settings) {
+    public WatcherClientProxy(Settings settings, InternalClient client) {
+        super(client);
         defaultSearchTimeout = settings.getAsTime("xpack.watcher.internal.ops.search.default_timeout", TimeValue.timeValueSeconds(30));
         defaultIndexTimeout = settings.getAsTime("xpack.watcher.internal.ops.index.default_timeout", TimeValue.timeValueSeconds(60));
         defaultBulkTimeout = settings.getAsTime("xpack.watcher.internal.ops.bulk.default_timeout", TimeValue.timeValueSeconds(120));
@@ -51,9 +51,8 @@ public class WatcherClientProxy extends ClientProxy {
      * Creates a proxy to the given internal client (can be used for testing)
      */
     public static WatcherClientProxy of(Client client) {
-        WatcherClientProxy proxy = new WatcherClientProxy(Settings.EMPTY);
-        proxy.client = client instanceof InternalClient ? (InternalClient) client : new InternalClient.Insecure(client);
-        return proxy;
+        return new WatcherClientProxy(Settings.EMPTY, client instanceof InternalClient ? (InternalClient) client :
+                new InternalClient.Insecure(client.settings(), client.threadPool(), client));
     }
 
     public IndexResponse index(IndexRequest request, TimeValue timeout) {

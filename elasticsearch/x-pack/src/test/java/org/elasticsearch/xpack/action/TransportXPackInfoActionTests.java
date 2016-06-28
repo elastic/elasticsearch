@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.LicensesService;
-import org.elasticsearch.shield.user.AnonymousUser;
+import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;

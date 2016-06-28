@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
-import org.elasticsearch.xpack.trigger.TriggerEvent;
-import org.elasticsearch.xpack.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.elasticsearch.xpack.notification.email.support.EmailServer;
 import org.joda.time.DateTime;
@@ -32,8 +32,8 @@ import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.emailAction
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
-import static org.elasticsearch.xpack.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.xpack.trigger.schedule.Schedules.cron;
+import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -62,7 +62,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
             server = EmailServer.localhost("2500-2600", USERNAME, PASSWORD, logger);
         }
         if (encryptSensitiveData == null) {
-            encryptSensitiveData = shieldEnabled() && randomBoolean();
+            encryptSensitiveData = securityEnabled() && randomBoolean();
         }
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
@@ -95,7 +95,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         Map<String, Object> source = response.getSource();
         Object value = XContentMapValues.extractValue("actions._email.email.password", source);
         assertThat(value, notNullValue());
-        if (shieldEnabled() && encryptSensitiveData) {
+        if (securityEnabled() && encryptSensitiveData) {
             assertThat(value, not(is((Object) PASSWORD)));
             SecretService secretService = getInstanceFromMaster(SecretService.class);
             assertThat(secretService, instanceOf(SecretService.Secure.class));
@@ -103,7 +103,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         } else {
             assertThat(value, is((Object) PASSWORD));
             SecretService secretService = getInstanceFromMaster(SecretService.class);
-            if (shieldEnabled()) {
+            if (securityEnabled()) {
                 assertThat(secretService, instanceOf(SecretService.Secure.class));
             } else {
                 assertThat(secretService, instanceOf(SecretService.Insecure.class));

@@ -16,8 +16,6 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class LazyLicenseRegistrationConsumerPlugin extends TestConsumerPluginBase {
 
-    public static String NAME = "test_consumer_plugin_2";
-
     @Inject
     public LazyLicenseRegistrationConsumerPlugin(Settings settings) {
         super(settings);
@@ -26,11 +24,6 @@ public class LazyLicenseRegistrationConsumerPlugin extends TestConsumerPluginBas
     @Override
     public Class<? extends TestPluginServiceBase> service() {
         return LazyLicenseRegistrationPluginService.class;
-    }
-
-    @Override
-    protected String pluginName() {
-        return NAME;
     }
 
     @Override

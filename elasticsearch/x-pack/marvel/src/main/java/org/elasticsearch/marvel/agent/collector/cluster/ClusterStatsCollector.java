@@ -20,7 +20,7 @@ import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.MonitoringLicensee;
-import org.elasticsearch.shield.InternalClient;
+import org.elasticsearch.xpack.security.InternalClient;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -41,17 +41,15 @@ public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollect
 
     public static final String NAME = "cluster-stats-collector";
 
-    private final ClusterName clusterName;
     private final LicensesManagerService licensesManagerService;
     private final Client client;
 
     @Inject
     public ClusterStatsCollector(Settings settings, ClusterService clusterService,
                                  MonitoringSettings monitoringSettings, MonitoringLicensee licensee, InternalClient client,
-                                 LicensesManagerService licensesManagerService, ClusterName clusterName) {
+                                 LicensesManagerService licensesManagerService) {
         super(settings, NAME, clusterService, monitoringSettings, licensee);
         this.client = client;
-        this.clusterName = clusterName;
         this.licensesManagerService = licensesManagerService;
     }
 
@@ -86,7 +84,7 @@ public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollect
         clusterInfoDoc.setClusterUUID(clusterUUID);
         clusterInfoDoc.setTimestamp(timestamp);
         clusterInfoDoc.setSourceNode(sourceNode);
-        clusterInfoDoc.setClusterName(clusterName.value());
+        clusterInfoDoc.setClusterName(clusterService.getClusterName().value());
         clusterInfoDoc.setVersion(Version.CURRENT.toString());
         clusterInfoDoc.setLicense(licensesManagerService.getLicense());
         clusterInfoDoc.setClusterStats(clusterStats);

@@ -392,7 +392,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                     long issueDate = clock.millis();
                     License.Builder specBuilder = License.builder()
                             .uid(UUID.randomUUID().toString())
-                            .issuedTo(clusterService.state().getClusterName().value())
+                            .issuedTo(clusterService.getClusterName().value())
                             .maxNodes(trialLicenseMaxNodes)
                             .issueDate(issueDate)
                             .expiryDate(issueDate + trialLicenseDuration.getMillis());

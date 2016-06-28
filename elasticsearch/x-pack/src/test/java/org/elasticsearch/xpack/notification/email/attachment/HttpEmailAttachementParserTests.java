@@ -37,15 +37,13 @@ import static org.mockito.Mockito.when;
 
 public class HttpEmailAttachementParserTests extends ESTestCase {
 
-    private SecretService.Insecure secretService;
-    private HttpAuthRegistry authRegistry;
     private HttpRequestTemplate.Parser httpRequestTemplateParser;
     private HttpClient httpClient;
 
     @Before
     public void init() throws Exception {
-        secretService = SecretService.Insecure.INSTANCE;
-        authRegistry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(secretService)));
+        SecretService.Insecure secretService = SecretService.Insecure.INSTANCE;
+        HttpAuthRegistry authRegistry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(secretService)));
         httpRequestTemplateParser = new HttpRequestTemplate.Parser(authRegistry);
         httpClient = mock(HttpClient.class);
 
@@ -77,9 +75,12 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
         if (configureContentType) {
             builder.field("content_type", "application/foo");
         }
+        boolean isInline = randomBoolean();
+        if (isInline) {
+            builder.field("inline", true);
+        }
         builder.endObject().endObject().endObject();
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
-        logger.info("JSON: {}", builder.string());
 
         EmailAttachments emailAttachments = emailAttachmentsParser.parse(parser);
         assertThat(emailAttachments.getAttachments(), hasSize(1));
@@ -89,6 +90,7 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
         attachments.get(0).toXContent(toXcontentBuilder, ToXContent.EMPTY_PARAMS);
         toXcontentBuilder.endObject();
         assertThat(toXcontentBuilder.string(), is(builder.string()));
-    }
 
+        assertThat(attachments.get(0).inline(), is(isInline));
+    }
 }

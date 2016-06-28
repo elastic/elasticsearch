@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.common.http;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -87,11 +86,11 @@ public class HttpResponse implements ToXContent {
      * in the payload
      */
     public Map<String, List<String>> headers() {
-        ImmutableMap.Builder<String, List<String>> builder = ImmutableMap.builder();
+        MapBuilder<String, List<String>> builder = MapBuilder.newMapBuilder();
         for (Map.Entry<String, String[]> entry : headers.entrySet()) {
             builder.put(entry.getKey().toLowerCase(Locale.ROOT), Arrays.asList(entry.getValue()));
         }
-        return builder.build();
+        return builder.immutableMap();
     }
 
     public String[] header(String header) {

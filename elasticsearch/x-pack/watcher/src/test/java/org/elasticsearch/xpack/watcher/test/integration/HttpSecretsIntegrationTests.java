@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
-import org.elasticsearch.xpack.trigger.TriggerEvent;
-import org.elasticsearch.xpack.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.joda.time.DateTime;
 import org.junit.After;
@@ -39,8 +39,8 @@ import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBu
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
-import static org.elasticsearch.xpack.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.xpack.trigger.schedule.Schedules.cron;
+import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -84,7 +84,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         if (encryptSensitiveData == null) {
-            encryptSensitiveData = shieldEnabled() && randomBoolean();
+            encryptSensitiveData = securityEnabled() && randomBoolean();
         }
         if (encryptSensitiveData) {
             return Settings.builder()
@@ -107,7 +107,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
                         .addAction("_logging", loggingAction("executed")))
                         .get();
 
-        // verifying the basic auth password is stored encrypted in the index when shield
+        // verifying the basic auth password is stored encrypted in the index when security
         // is enabled, and when it's not enabled, it's stored in plain text
         GetResponse response = client().prepareGet(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id").get();
         assertThat(response, notNullValue());
@@ -115,7 +115,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         Map<String, Object> source = response.getSource();
         Object value = XContentMapValues.extractValue("input.http.request.auth.basic.password", source);
         assertThat(value, notNullValue());
-        if (shieldEnabled() && encryptSensitiveData) {
+        if (securityEnabled() && encryptSensitiveData) {
             assertThat(value, not(is((Object) PASSWORD)));
             SecretService secretService = getInstanceFromMaster(SecretService.class);
             assertThat(secretService, instanceOf(SecretService.Secure.class));
@@ -123,7 +123,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         } else {
             assertThat(value, is((Object) PASSWORD));
             SecretService secretService = getInstanceFromMaster(SecretService.class);
-            if (shieldEnabled()) {
+            if (securityEnabled()) {
                 assertThat(secretService, instanceOf(SecretService.Secure.class));
             } else {
                 assertThat(secretService, instanceOf(SecretService.Insecure.class));
@@ -178,7 +178,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
                                 .auth(new BasicAuth(USERNAME, PASSWORD.toCharArray())))))
                         .get();
 
-        // verifying the basic auth password is stored encrypted in the index when shield
+        // verifying the basic auth password is stored encrypted in the index when security
         // is enabled, when it's not enabled, the the passowrd should be stored in plain text
         GetResponse response = client().prepareGet(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id").get();
         assertThat(response, notNullValue());
@@ -187,7 +187,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         Object value = XContentMapValues.extractValue("actions._webhook.webhook.auth.basic.password", source);
         assertThat(value, notNullValue());
 
-        if (shieldEnabled() && encryptSensitiveData) {
+        if (securityEnabled() && encryptSensitiveData) {
             assertThat(value, not(is((Object) PASSWORD)));
             SecretService secretService = getInstanceFromMaster(SecretService.class);
             assertThat(secretService, instanceOf(SecretService.Secure.class));
@@ -195,7 +195,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         } else {
             assertThat(value, is((Object) PASSWORD));
             SecretService secretService = getInstanceFromMaster(SecretService.class);
-            if (shieldEnabled()) {
+            if (securityEnabled()) {
                 assertThat(secretService, instanceOf(SecretService.Secure.class));
             } else {
                 assertThat(secretService, instanceOf(SecretService.Insecure.class));

@@ -12,8 +12,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.support.WatcherUtils;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
@@ -25,12 +25,14 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
     public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.QUERY_THEN_FETCH;
 
     protected final WatcherClientProxy client;
+    private final WatcherSearchTemplateService searchTemplateService;
     protected final @Nullable TimeValue timeout;
 
     public ExecutableSearchTransform(SearchTransform transform, ESLogger logger, WatcherClientProxy client,
-                                     @Nullable TimeValue defaultTimeout) {
+                                     WatcherSearchTemplateService searchTemplateService, @Nullable TimeValue defaultTimeout) {
         super(transform, logger);
         this.client = client;
+        this.searchTemplateService = searchTemplateService;
         this.timeout = transform.getTimeout() != null ? transform.getTimeout() : defaultTimeout;
     }
 
@@ -38,7 +40,7 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
     public SearchTransform.Result execute(WatchExecutionContext ctx, Payload payload) {
         SearchRequest request = null;
         try {
-            request = WatcherUtils.createSearchRequestFromPrototype(transform.getRequest(), ctx, payload);
+            request = searchTemplateService.createSearchRequestFromPrototype(transform.getRequest(), ctx, payload);
             SearchResponse resp = client.search(request, timeout);
             return new SearchTransform.Result(request, new Payload.XContent(resp));
         } catch (Exception e) {

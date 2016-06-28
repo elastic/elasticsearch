@@ -8,6 +8,8 @@ package org.elasticsearch.marvel.agent.collector;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SysGlobals;
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -26,7 +28,8 @@ import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.InternalClient;
+import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -39,6 +42,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.SUITE, randomDynamicTemplates = false, transportClientRatio = 0.0)
@@ -204,7 +208,8 @@ public abstract class AbstractCollectorTestCase extends MarvelIntegTestCase {
         }
 
         @Override
-        public void onModule(ActionModule module) {
+        public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+            return emptyList();
         }
 
         @Override

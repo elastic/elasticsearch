@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysConditio
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.input.InputRegistry;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
-import org.elasticsearch.xpack.support.DateTimeUtils;
+import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.support.clock.HaltedClock;
 import org.elasticsearch.xpack.common.secret.SecretService;
@@ -38,9 +38,9 @@ import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.transform.TransformRegistry;
-import org.elasticsearch.xpack.trigger.Trigger;
-import org.elasticsearch.xpack.trigger.TriggerEngine;
-import org.elasticsearch.xpack.trigger.TriggerService;
+import org.elasticsearch.xpack.watcher.trigger.Trigger;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
+import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.joda.time.DateTime;
 import org.joda.time.PeriodType;
 
@@ -53,7 +53,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
-import static org.elasticsearch.xpack.support.Exceptions.ioException;
+import static org.elasticsearch.xpack.watcher.support.Exceptions.ioException;
 
 public class Watch implements TriggerEngine.Job, ToXContent {
 
@@ -250,9 +250,9 @@ public class Watch implements TriggerEngine.Job, ToXContent {
          * source might contain (e.g. passwords) will be converted to {@link Secret secrets}
          * Such that the returned watch will potentially hide this sensitive data behind a "secret". A secret
          * is an abstraction around sensitive data (text). There can be different implementations of how the
-         * secret holds the data, depending on the wired up {@link SecretService}. When shield is installed, a
+         * secret holds the data, depending on the wired up {@link SecretService}. When security is enabled, a
          * {@link SecretService.Secure} is used, that potentially encrypts the data
-         * using Shield's configured system key.
+         * using the configured system key.
          *
          * This method is only called once - when the user adds a new watch. From that moment on, all representations
          * of the watch in the system will be use secrets for sensitive data.
@@ -310,7 +310,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                     transform = transformRegistry.parse(id, parser);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.THROTTLE_PERIOD)) {
                     try {
-                        throttlePeriod = DateTimeUtils.parseTimeValue(parser, Field.THROTTLE_PERIOD.toString());
+                        throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, Field.THROTTLE_PERIOD.toString());
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse watch [{}]. failed to parse time value for field [{}]",
                                 pe, id, currentFieldName);

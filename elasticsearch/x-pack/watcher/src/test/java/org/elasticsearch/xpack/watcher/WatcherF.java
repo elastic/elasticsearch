@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
@@ -20,7 +19,7 @@ import java.util.concurrent.CountDownLatch;
 
 /**
  * Main class to easily run Watcher from a IDE.
- * It sets all the options to run the Watcher plugin and access it from Sense, but doesn't run with Shield.
+ * It sets all the options to run the Watcher plugin and access it from Sense, but doesn't run with security.
  *
  * In order to run this class set configure the following:
  * 1) Set `-Des.path.home=` to a directory containing an ES config directory
@@ -58,7 +57,7 @@ public class WatcherF {
                 "fc082467005d4072a914e0bb041882d0");
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final Node node = new MockNode(settings.build(), Version.CURRENT, Arrays.asList(XPackPlugin.class, XPackPlugin.class));
+        final Node node = new MockNode(settings.build(), Arrays.asList(XPackPlugin.class, XPackPlugin.class));
         Runtime.getRuntime().addShutdownHook(new Thread() {
 
             @Override

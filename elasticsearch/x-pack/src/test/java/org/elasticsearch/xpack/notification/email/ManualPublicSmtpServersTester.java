@@ -6,14 +6,13 @@
 package org.elasticsearch.xpack.notification.email;
 
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.common.secret.SecretService;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Locale;
 
@@ -26,13 +25,13 @@ public class ManualPublicSmtpServersTester {
 
         public static void main(String[] args) throws Exception {
             test(Profile.GMAIL, Settings.builder()
-                    .put("xpack.notification.email.service.account.gmail.smtp.auth", true)
-                    .put("xpack.notification.email.service.account.gmail.smtp.starttls.enable", true)
-                    .put("xpack.notification.email.service.account.gmail.smtp.host", "smtp.gmail.com")
-                    .put("xpack.notification.email.service.account.gmail.smtp.port", 587)
-                    .put("xpack.notification.email.service.account.gmail.smtp.user", terminal.readText("username: "))
-                    .put("xpack.notification.email.service.account.gmail.smtp.password", new String(terminal.readSecret("password: ")))
-                    .put("xpack.notification.email.service.account.gmail.email_defaults.to", terminal.readText("to: "))
+                    .put("xpack.notification.email.account.gmail.smtp.auth", true)
+                    .put("xpack.notification.email.account.gmail.smtp.starttls.enable", true)
+                    .put("xpack.notification.email.account.gmail.smtp.host", "smtp.gmail.com")
+                    .put("xpack.notification.email.account.gmail.smtp.port", 587)
+                    .put("xpack.notification.email.account.gmail.smtp.user", terminal.readText("username: "))
+                    .put("xpack.notification.email.account.gmail.smtp.password", new String(terminal.readSecret("password: ")))
+                    .put("xpack.notification.email.account.gmail.email_defaults.to", terminal.readText("to: "))
             );
         }
     }
@@ -41,13 +40,13 @@ public class ManualPublicSmtpServersTester {
 
         public static void main(String[] args) throws Exception {
             test(Profile.STANDARD, Settings.builder()
-                    .put("xpack.notification.email.service.account.outlook.smtp.auth", true)
-                    .put("xpack.notification.email.service.account.outlook.smtp.starttls.enable", true)
-                    .put("xpack.notification.email.service.account.outlook.smtp.host", "smtp-mail.outlook.com")
-                    .put("xpack.notification.email.service.account.outlook.smtp.port", 587)
-                    .put("xpack.notification.email.service.account.outlook.smtp.user", "elastic.user@outlook.com")
-                    .put("xpack.notification.email.service.account.outlook.smtp.password", "fantastic42")
-                    .put("xpack.notification.email.service.account.outlook.email_defaults.to", "elastic.user@outlook.com")
+                    .put("xpack.notification.email.account.outlook.smtp.auth", true)
+                    .put("xpack.notification.email.account.outlook.smtp.starttls.enable", true)
+                    .put("xpack.notification.email.account.outlook.smtp.host", "smtp-mail.outlook.com")
+                    .put("xpack.notification.email.account.outlook.smtp.port", 587)
+                    .put("xpack.notification.email.account.outlook.smtp.user", "elastic.user@outlook.com")
+                    .put("xpack.notification.email.account.outlook.smtp.password", "fantastic42")
+                    .put("xpack.notification.email.account.outlook.email_defaults.to", "elastic.user@outlook.com")
                     .put()
             );
         }
@@ -57,15 +56,15 @@ public class ManualPublicSmtpServersTester {
 
         public static void main(String[] args) throws Exception {
             test(Profile.STANDARD, Settings.builder()
-                            .put("xpack.notification.email.service.account.yahoo.smtp.starttls.enable", true)
-                            .put("xpack.notification.email.service.account.yahoo.smtp.auth", true)
-                            .put("xpack.notification.email.service.account.yahoo.smtp.host", "smtp.mail.yahoo.com")
-                            .put("xpack.notification.email.service.account.yahoo.smtp.port", 587)
-                            .put("xpack.notification.email.service.account.yahoo.smtp.user", "elastic.user@yahoo.com")
-                            .put("xpack.notification.email.service.account.yahoo.smtp.password", "fantastic42")
+                            .put("xpack.notification.email.account.yahoo.smtp.starttls.enable", true)
+                            .put("xpack.notification.email.account.yahoo.smtp.auth", true)
+                            .put("xpack.notification.email.account.yahoo.smtp.host", "smtp.mail.yahoo.com")
+                            .put("xpack.notification.email.account.yahoo.smtp.port", 587)
+                            .put("xpack.notification.email.account.yahoo.smtp.user", "elastic.user@yahoo.com")
+                            .put("xpack.notification.email.account.yahoo.smtp.password", "fantastic42")
                             // note: from must be set to the same authenticated user account
-                            .put("xpack.notification.email.service.account.yahoo.email_defaults.from", "elastic.user@yahoo.com")
-                            .put("xpack.notification.email.service.account.yahoo.email_defaults.to", "elastic.user@yahoo.com")
+                            .put("xpack.notification.email.account.yahoo.email_defaults.from", "elastic.user@yahoo.com")
+                            .put("xpack.notification.email.account.yahoo.email_defaults.to", "elastic.user@yahoo.com")
             );
         }
     }
@@ -75,42 +74,43 @@ public class ManualPublicSmtpServersTester {
 
         public static void main(String[] args) throws Exception {
             test(Profile.STANDARD, Settings.builder()
-                            .put("xpack.notification.email.service.account.ses.smtp.auth", true)
-                            .put("xpack.notification.email.service.account.ses.smtp.starttls.enable", true)
-                            .put("xpack.notification.email.service.account.ses.smtp.starttls.required", true)
-                            .put("xpack.notification.email.service.account.ses.smtp.host", "email-smtp.us-east-1.amazonaws.com")
-                            .put("xpack.notification.email.service.account.ses.smtp.port", 587)
-                            .put("xpack.notification.email.service.account.ses.smtp.user", terminal.readText("user: "))
-                            .put("xpack.notification.email.service.account.ses.email_defaults.from", "dummy.user@elasticsearch.com")
-                            .put("xpack.notification.email.service.account.ses.email_defaults.to", terminal.readText("to: "))
-                            .put("xpack.notification.email.service.account.ses.smtp.password",
+                            .put("xpack.notification.email.account.ses.smtp.auth", true)
+                            .put("xpack.notification.email.account.ses.smtp.starttls.enable", true)
+                            .put("xpack.notification.email.account.ses.smtp.starttls.required", true)
+                            .put("xpack.notification.email.account.ses.smtp.host", "email-smtp.us-east-1.amazonaws.com")
+                            .put("xpack.notification.email.account.ses.smtp.port", 587)
+                            .put("xpack.notification.email.account.ses.smtp.user", terminal.readText("user: "))
+                            .put("xpack.notification.email.account.ses.email_defaults.from", "dummy.user@elasticsearch.com")
+                            .put("xpack.notification.email.account.ses.email_defaults.to", terminal.readText("to: "))
+                            .put("xpack.notification.email.account.ses.smtp.password",
                                     new String(terminal.readSecret("password: ")))
             );
         }
     }
 
-    static void test(Profile profile, Settings.Builder builder) throws Exception {
-        InternalEmailService service = startEmailService(builder);
+    static void test(Profile profile, Settings.Builder settingsBuilder) throws Exception {
+        String path = "/org/elasticsearch/xpack/watcher/actions/email/service/logo.png";
+        if (InternalEmailServiceTests.class.getResourceAsStream(path) == null) {
+            throw new ElasticsearchException("Could not find logo at path {}", path);
+        }
+
+        InternalEmailService service = startEmailService(settingsBuilder);
         try {
 
-            ToXContent content = new ToXContent() {
-                @Override
-                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                    return builder.startObject()
-                            .field("key1", "value1")
-                            .field("key2", "value2")
-                            .field("key3", "value3")
-                            .endObject();
-                }
-            };
+            ToXContent content = (xContentBuilder, params) -> xContentBuilder.startObject()
+                    .field("key1", "value1")
+                    .field("key2", "value2")
+                    .field("key3", "value3")
+                    .endObject();
 
             Email email = Email.builder()
                     .id("_id")
                     .subject("_subject")
                     .textBody("_text_body")
-                    .htmlBody("<b>html body</b><p/><p/><img src=\"cid:logo\"/>")
+                    .htmlBody("<b>html body</b><p/><p/><img src=\"cid:logo.png\"/>")
                     .attach(new Attachment.XContent.Yaml("test.yml", content))
-                    .inline(new Inline.Stream("logo", "logo.jpg", () -> InternalEmailServiceTests.class.getResourceAsStream("logo.png")))
+                    .attach(new Attachment.Stream("logo.png", "logo.png", true,
+                            () -> InternalEmailServiceTests.class.getResourceAsStream(path)))
                     .build();
 
             EmailService.EmailSent sent = service.send(email, null, profile);

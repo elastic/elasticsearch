@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.xpack.watcher.transform.Transform;
-import org.elasticsearch.xpack.trigger.TriggerEvent;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchLockService;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;

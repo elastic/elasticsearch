@@ -17,7 +17,10 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
+import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.transform.TransformFactory;
 
 /**
@@ -31,10 +34,15 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
     private final AggregatorParsers aggParsers;
     private final Suggesters suggesters;
     private final ParseFieldMatcher parseFieldMatcher;
+    private final WatcherSearchTemplateService searchTemplateService;
 
     @Inject
+    public SearchTransformFactory(Settings settings, InternalClient client, IndicesQueriesRegistry queryRegistry,
+                                  AggregatorParsers aggParsers, Suggesters suggesters, ScriptServiceProxy scriptService) {
+        this(settings, new WatcherClientProxy(settings, client), queryRegistry, aggParsers, suggesters, scriptService);
+    }
     public SearchTransformFactory(Settings settings, WatcherClientProxy client, IndicesQueriesRegistry queryRegistry,
-                                  AggregatorParsers aggParsers, Suggesters suggesters) {
+                                  AggregatorParsers aggParsers, Suggesters suggesters, ScriptServiceProxy scriptService) {
         super(Loggers.getLogger(ExecutableSearchTransform.class, settings));
         this.client = client;
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
@@ -42,6 +50,7 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
         this.aggParsers = aggParsers;
         this.suggesters = suggesters;
         this.defaultTimeout = settings.getAsTime("xpack.watcher.transform.search.default_timeout", null);
+        this.searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, queryRegistry, aggParsers, suggesters);
     }
 
     @Override
@@ -57,6 +66,6 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
 
     @Override
     public ExecutableSearchTransform createExecutable(SearchTransform transform) {
-        return new ExecutableSearchTransform(transform, transformLogger, client, defaultTimeout);
+        return new ExecutableSearchTransform(transform, transformLogger, client,  searchTemplateService, defaultTimeout);
     }
 }

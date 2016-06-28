@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.transform.chain;
 
-import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -13,41 +12,16 @@ import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.transform.TransformFactory;
 import org.elasticsearch.xpack.watcher.transform.TransformRegistry;
-import org.elasticsearch.xpack.common.init.LazyInitializable;
 
 import java.io.IOException;
 import java.util.ArrayList;
 
-/**
- *
- */
-public class ChainTransformFactory extends TransformFactory<ChainTransform, ChainTransform.Result, ExecutableChainTransform> implements
-        LazyInitializable {
+public final class ChainTransformFactory extends TransformFactory<ChainTransform, ChainTransform.Result, ExecutableChainTransform> {
 
-    private TransformRegistry registry;
+    private final TransformRegistry registry;
 
-    // used by guice
-    public ChainTransformFactory(Settings settings) {
+    public ChainTransformFactory(Settings settings, TransformRegistry registry) {
         super(Loggers.getLogger(ExecutableChainTransform.class, settings));
-    }
-
-    // used for tests
-    public ChainTransformFactory(TransformRegistry registry) {
-        super(Loggers.getLogger(ExecutableChainTransform.class));
-        this.registry = registry;
-    }
-
-    // used for tests
-    public ChainTransformFactory() {
-        super(Loggers.getLogger(ExecutableChainTransform.class));
-    }
-
-    @Override
-    public void init(Injector injector) {
-        init(injector.getInstance(TransformRegistry.class));
-    }
-
-    public void init(TransformRegistry registry) {
         this.registry = registry;
     }
 

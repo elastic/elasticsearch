@@ -27,8 +27,8 @@ import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.webhookActi
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
-import static org.elasticsearch.xpack.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.xpack.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -68,8 +68,8 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
     }
 
     @Override
-    protected boolean enableShield() {
-        return false; // remove shield noise from this test
+    protected boolean enableSecurity() {
+        return false; // remove security noise from this test
     }
 
     public void testHttpFields() throws Exception {

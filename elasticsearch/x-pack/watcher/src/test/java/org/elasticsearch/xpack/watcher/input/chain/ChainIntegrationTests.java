@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import java.net.InetSocketAddress;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
@@ -24,9 +25,9 @@ import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBu
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.chainInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
-import static org.elasticsearch.xpack.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.xpack.trigger.schedule.IntervalSchedule.Interval.Unit.SECONDS;
-import static org.elasticsearch.xpack.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.Interval.Unit.SECONDS;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.containsString;
 
 public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
@@ -42,13 +43,13 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
     public void testChainedInputsAreWorking() throws Exception {
         String index = "the-most-awesome-index-ever";
         createIndex(index);
-        client().prepareIndex(index, "type", "id").setSource("{}").setRefresh(true).get();
+        client().prepareIndex(index, "type", "id").setSource("{}").setRefreshPolicy(IMMEDIATE).get();
 
         InetSocketAddress address = internalCluster().httpAddresses()[0];
         HttpInput.Builder httpInputBuilder = httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())
                 .path("/" + index  + "/_search")
                 .body(jsonBuilder().startObject().field("size", 1).endObject())
-                .auth(shieldEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null));
+                .auth(securityEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null));
 
         ChainInput.Builder chainedInputBuilder = chainInput()
                 .add("first", simpleInput("url", "/" + index  + "/_search"))

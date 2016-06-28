@@ -12,34 +12,43 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.Template;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustachePlugin;
+import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
 import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.input.search.ExecutableSearchInput;
 import org.elasticsearch.xpack.watcher.input.search.SearchInput;
 import org.elasticsearch.xpack.watcher.input.search.SearchInputFactory;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
+import org.elasticsearch.xpack.watcher.support.Script;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
-import org.elasticsearch.xpack.trigger.schedule.IntervalSchedule;
-import org.elasticsearch.xpack.trigger.schedule.ScheduleTrigger;
-import org.elasticsearch.xpack.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
+import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
@@ -67,7 +76,6 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.joda.time.DateTimeZone.UTC;
 
 /**
@@ -81,10 +89,11 @@ public class SearchInputIT extends ESIntegTestCase {
         Collection<Class<? extends Plugin>> types = new ArrayList<>();
         types.addAll(super.nodePlugins());
         types.add(MustachePlugin.class);
+        types.add(CustomScriptContextPlugin.class);
         return types;
     }
 
-    private final static String TEMPLATE_QUERY = "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
+    private final static String TEMPLATE_QUERY = "{\"query\":{\"bool\":{\"must\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
             "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":" +
             "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
             "\"include_lower\":true,\"include_upper\":true}}}}}}";
@@ -100,7 +109,6 @@ public class SearchInputIT extends ESIntegTestCase {
             throw new RuntimeException("failed to create config dir");
 
         }
-        String path = "/org/elasticsearch/xpack/watcher/input/search/config/scripts/test_disk_template.mustache";
         try (InputStream stream  = SearchInputIT.class.getResourceAsStream("/org/elasticsearch/xpack/watcher/input/search/config/scripts" +
                 "/test_disk_template.mustache");
              OutputStream out = Files.newOutputStream(scriptPath.resolve("test_disk_template.mustache"))) {
@@ -126,14 +134,15 @@ public class SearchInputIT extends ESIntegTestCase {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(
                 boolQuery().must(matchQuery("event_type", "a")).must(rangeQuery("_timestamp")
                         .from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}")));
-        SearchRequest request = client()
+        SearchRequest searchRequest = client()
                 .prepareSearch()
                 .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
                 .request()
                 .source(searchSourceBuilder);
 
+        WatcherSearchTemplateRequest request = new WatcherSearchTemplateRequest(searchRequest);
         ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null), logger,
-                WatcherClientProxy.of(client()), null);
+                WatcherClientProxy.of(client()), watcherSearchTemplateService(), null);
         WatchExecutionContext ctx = new TriggeredExecutionContext(
                 new Watch("test-watch",
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
@@ -149,20 +158,20 @@ public class SearchInputIT extends ESIntegTestCase {
                 timeValueSeconds(5));
         SearchInput.Result result = searchInput.execute(ctx, new Payload.Simple());
 
-        assertThat((Integer) XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
+        assertThat(XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
         assertNotNull(result.executedRequest());
-        assertEquals(result.executedRequest().searchType(), request.searchType());
-        assertArrayEquals(result.executedRequest().indices(), request.indices());
-        assertEquals(result.executedRequest().indicesOptions(), request.indicesOptions());
+        assertThat(result.status(), is(Input.Result.Status.SUCCESS));
+        assertEquals(result.executedRequest().searchType(), request.getRequest().searchType());
+        assertArrayEquals(result.executedRequest().indices(), request.getRequest().indices());
+        assertEquals(result.executedRequest().indicesOptions(), request.getRequest().indicesOptions());
+
+        XContentSource source = toXContentSource(result);
+        assertThat(source.getValue("query.bool.must.1.range._timestamp.from"), equalTo("1970-01-01T00:00:00.000Z||-30s"));
+        assertThat(source.getValue("query.bool.must.1.range._timestamp.to"), equalTo("1970-01-01T00:00:00.000Z"));
     }
 
     public void testSearchInlineTemplate() throws Exception {
         WatchExecutionContext ctx = createContext();
-
-        final String expectedTemplateString = "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\","
-                + "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":"
-                + "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\","
-                + "\"include_lower\":true,\"include_upper\":true}}}}}}";
 
         Map<String, Object> triggerParams = new HashMap<String, Object>();
         triggerParams.put("triggered_time", new DateTime(1970, 01, 01, 00, 01, 00, 000, ISOChronology.getInstanceUTC()));
@@ -178,17 +187,28 @@ public class SearchInputIT extends ESIntegTestCase {
         Map<String, Object> expectedParams = new HashMap<String, Object>();
         expectedParams.put("seconds_param", "30s");
         expectedParams.put("ctx", ctxParams);
-        Template expectedTemplate = new Template(expectedTemplateString, ScriptType.INLINE, null, XContentType.JSON, expectedParams);
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
-        Template template = new Template(TEMPLATE_QUERY, ScriptType.INLINE, null, XContentType.JSON, params);
+        Script template = Script.inline(TEMPLATE_QUERY).lang("mustache").params(params).build();
 
-        SearchRequest request = client().prepareSearch().setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
-                .setIndices("test-search-index").setTemplate(template).request();
+        SearchRequest request = client().prepareSearch()
+                .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
+                .setIndices("test-search-index").request();
 
-        SearchInput.Result executedResult = executeSearchInput(request, ctx);
-        assertThat(executedResult.executedRequest().template(), equalTo(expectedTemplate));
+        SearchInput.Result executedResult = executeSearchInput(request, template, ctx);
+
+        assertNotNull(executedResult.executedRequest());
+        assertThat(executedResult.status(), is(Input.Result.Status.SUCCESS));
+        if (getNumShards("test-search-index").numPrimaries > 1) {
+            assertEquals(executedResult.executedRequest().searchType(), request.searchType());
+        }
+        assertArrayEquals(executedResult.executedRequest().indices(), request.indices());
+        assertEquals(executedResult.executedRequest().indicesOptions(), request.indicesOptions());
+
+        XContentSource source = toXContentSource(executedResult);
+        assertThat(source.getValue("query.bool.filter.0.range._timestamp.from"), equalTo("1970-01-01T00:01:00.000Z||-30s"));
+        assertThat(source.getValue("query.bool.filter.0.range._timestamp.to"), equalTo("1970-01-01T00:01:00.000Z"));
     }
 
     public void testSearchIndexedTemplate() throws Exception {
@@ -204,17 +224,26 @@ public class SearchInputIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
-        Template template = new Template("test-template", ScriptType.STORED, null, null, params);
+        Script template = Script.indexed("test-template").lang("mustache").params(params).build();
 
         jsonBuilder().value(TextTemplate.indexed("test-template").params(params).build()).bytes();
         SearchRequest request = client().prepareSearch().setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
-                .setIndices("test-search-index").setTemplate(template).request();
+                .setIndices("test-search-index").request();
 
-        SearchInput.Result executedResult = executeSearchInput(request, ctx);
-        Template resultTemplate = executedResult.executedRequest().template();
-        assertThat(resultTemplate, notNullValue());
-        assertThat(resultTemplate.getScript(), equalTo("test-template"));
-        assertThat(resultTemplate.getType(), equalTo(ScriptType.STORED));
+        SearchInput.Result executedResult = executeSearchInput(request, template, ctx);
+
+        assertNotNull(executedResult.executedRequest());
+        assertThat(executedResult.status(), is(Input.Result.Status.SUCCESS));
+        if (getNumShards("test-search-index").numPrimaries > 1) {
+            assertEquals(executedResult.executedRequest().searchType(), request.searchType());
+        }
+        assertArrayEquals(executedResult.executedRequest().indices(), request.indices());
+        assertEquals(executedResult.executedRequest().indicesOptions(), request.indicesOptions());
+
+        XContentSource source = toXContentSource(executedResult);
+        assertThat(source.getValue("query.bool.filter.0.range._timestamp.from"), equalTo("1970-01-01T00:01:00.000Z||-30s"));
+        assertThat(source.getValue("query.bool.filter.0.range._timestamp.to"), equalTo("1970-01-01T00:01:00.000Z"));
+
     }
 
     public void testSearchOnDiskTemplate() throws Exception {
@@ -223,15 +252,16 @@ public class SearchInputIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
-        Template template = new Template("test_disk_template", ScriptType.FILE, null, null, params);
+        Script template = Script.file("test_disk_template").lang("mustache").params(params).build();
         SearchRequest request = client().prepareSearch().setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
-                .setIndices("test-search-index").setTemplate(template).request();
+                .setIndices("test-search-index").request();
 
-        SearchInput.Result executedResult = executeSearchInput(request, ctx);
-        Template resultTemplate = executedResult.executedRequest().template();
-        assertThat(resultTemplate, notNullValue());
-        assertThat(resultTemplate.getScript(), equalTo("test_disk_template"));
-        assertThat(resultTemplate.getType(), equalTo(ScriptType.FILE));
+        SearchInput.Result executedResult = executeSearchInput(request, template, ctx);
+
+        assertNotNull(executedResult.executedRequest());
+        assertThat(executedResult.status(), is(Input.Result.Status.SUCCESS));
+        assertArrayEquals(executedResult.executedRequest().indices(), request.indices());
+        assertEquals(executedResult.executedRequest().indicesOptions(), request.indicesOptions());
     }
 
     public void testDifferentSearchType() throws Exception {
@@ -241,14 +271,16 @@ public class SearchInputIT extends ESIntegTestCase {
         );
         SearchType searchType = getRandomSupportedSearchType();
 
-        SearchRequest request = client()
+        SearchRequest searchRequest = client()
                 .prepareSearch()
                 .setSearchType(searchType)
                 .request()
                 .source(searchSourceBuilder);
 
+        WatcherSearchTemplateRequest request = new WatcherSearchTemplateRequest(searchRequest);
+
         ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null), logger,
-                WatcherClientProxy.of(client()), null);
+                WatcherClientProxy.of(client()), watcherSearchTemplateService(), null);
         WatchExecutionContext ctx = new TriggeredExecutionContext(
                 new Watch("test-watch",
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
@@ -264,15 +296,20 @@ public class SearchInputIT extends ESIntegTestCase {
                 timeValueSeconds(5));
         SearchInput.Result result = searchInput.execute(ctx, new Payload.Simple());
 
-        assertThat((Integer) XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
+        assertThat(XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
         assertNotNull(result.executedRequest());
+        assertThat(result.status(), is(Input.Result.Status.SUCCESS));
         assertEquals(result.executedRequest().searchType(), searchType);
-        assertArrayEquals(result.executedRequest().indices(), request.indices());
-        assertEquals(result.executedRequest().indicesOptions(), request.indicesOptions());
+        assertArrayEquals(result.executedRequest().indices(), searchRequest.indices());
+        assertEquals(result.executedRequest().indicesOptions(), searchRequest.indicesOptions());
+
+        XContentSource source = toXContentSource(result);
+        assertThat(source.getValue("query.bool.must.1.range._timestamp.from"), equalTo("1970-01-01T00:00:00.000Z||-30s"));
+        assertThat(source.getValue("query.bool.must.1.range._timestamp.to"), equalTo("1970-01-01T00:00:00.000Z"));
     }
 
     public void testParserValid() throws Exception {
-        SearchRequest request = client().prepareSearch()
+        SearchRequest searchRequest = client().prepareSearch()
                 .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
                 .request()
                 .source(searchSource()
@@ -280,13 +317,14 @@ public class SearchInputIT extends ESIntegTestCase {
                                 .from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
 
         TimeValue timeout = randomBoolean() ? TimeValue.timeValueSeconds(randomInt(10)) : null;
-        XContentBuilder builder = jsonBuilder().value(new SearchInput(request, null, timeout, null));
+        XContentBuilder builder = jsonBuilder().value(
+                new SearchInput(new WatcherSearchTemplateRequest(searchRequest), null, timeout, null));
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
         IndicesQueriesRegistry indicesQueryRegistry = internalCluster().getInstance(IndicesQueriesRegistry.class);
         SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, WatcherClientProxy.of(client()), indicesQueryRegistry,
-                                                            null, null);
+                                                            null, null, scriptService());
 
         SearchInput searchInput = factory.parseInput("_id", parser);
         assertEquals(SearchInput.TYPE, searchInput.type());
@@ -309,15 +347,47 @@ public class SearchInputIT extends ESIntegTestCase {
                 timeValueSeconds(5));
     }
 
-    private SearchInput.Result executeSearchInput(SearchRequest request, WatchExecutionContext ctx) throws IOException {
+    private SearchInput.Result executeSearchInput(SearchRequest request, Script template, WatchExecutionContext ctx) throws IOException {
         createIndex("test-search-index");
         ensureGreen("test-search-index");
-        SearchInput.Builder siBuilder = SearchInput.builder(request);
+        SearchInput.Builder siBuilder = SearchInput.builder(new WatcherSearchTemplateRequest(request, template));
 
         SearchInput si = siBuilder.build();
 
-        ExecutableSearchInput searchInput = new ExecutableSearchInput(si, logger, WatcherClientProxy.of(client()), null);
+        ExecutableSearchInput searchInput = new ExecutableSearchInput(si, logger, WatcherClientProxy.of(client()),
+                watcherSearchTemplateService(), null);
         return searchInput.execute(ctx, new Payload.Simple());
     }
 
+    protected WatcherSearchTemplateService watcherSearchTemplateService() {
+        String master = internalCluster().getMasterName();
+        return new WatcherSearchTemplateService(internalCluster().clusterService(master).getSettings(),
+                ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class, master), internalCluster().clusterService(master)),
+                internalCluster().getInstance(IndicesQueriesRegistry.class, master),
+                internalCluster().getInstance(AggregatorParsers.class, master),
+                internalCluster().getInstance(Suggesters.class, master)
+        );
+    }
+
+    protected ScriptServiceProxy scriptService() {
+        return ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class), internalCluster().clusterService());
+    }
+
+    private XContentSource toXContentSource(SearchInput.Result result) throws IOException {
+        try (XContentBuilder builder = jsonBuilder()) {
+            result.executedRequest().source().toXContent(builder, ToXContent.EMPTY_PARAMS);
+            return new XContentSource(builder);
+        }
+    }
+
+    /**
+     * Custom plugin that registers XPack script context.
+     */
+    public static class CustomScriptContextPlugin extends Plugin implements ScriptPlugin {
+
+        @Override
+        public ScriptContext.Plugin getCustomScriptContexts() {
+            return ScriptServiceProxy.INSTANCE;
+        }
+    }
 }

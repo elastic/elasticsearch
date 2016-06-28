@@ -9,7 +9,7 @@ import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
-import static org.elasticsearch.xpack.support.Exceptions.illegalArgument;
+import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 
 /**
  *

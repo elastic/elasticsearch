@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.execution;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.xpack.trigger.TriggerEngine;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 
 /**
  */

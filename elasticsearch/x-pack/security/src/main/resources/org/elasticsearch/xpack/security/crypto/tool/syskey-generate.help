@@ -1,0 +1,22 @@
+NAME
+
+    syskeygen - Generates the system key
+
+SYNOPSIS
+
+    syskeygen [<file>]
+
+DESCRIPTION
+
+    Generates the system key and stores in the system_key file. By default
+    it will be stored in 'config/x-pack/system_key' file. If the file location
+    is customized in the elasticsearch.yml (under the 'xpack.security.system_key.file'
+    setting), the generated key will be stored in that custom location.
+
+    It is also possible to pass the file location (where the key will be stored)
+    as an argument to this command.
+
+ARGUMENTS
+
+    <file>  (optional)     Specifies the file where the generated key will be
+                           written to

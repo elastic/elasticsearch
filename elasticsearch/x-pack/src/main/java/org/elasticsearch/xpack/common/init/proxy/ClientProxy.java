@@ -11,22 +11,21 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.shield.InternalClient;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.transport.TransportMessage;
-import org.elasticsearch.xpack.common.init.LazyInitializable;
 
 /**
  * A lazily initialized proxy to an elasticsearch {@link Client}. Inject this proxy whenever a client
  * needs to injected to be avoid circular dependencies issues.
  */
-public class ClientProxy implements LazyInitializable {
+public class ClientProxy  {
 
-    protected InternalClient client;
+    protected final InternalClient client;
 
-    @Override
-    public void init(Injector injector) {
-        this.client = injector.getInstance(InternalClient.class);
+    public ClientProxy(InternalClient client) {
+        this.client = client;
     }
 
     public AdminClient admin() {
@@ -43,5 +42,10 @@ public class ClientProxy implements LazyInitializable {
 
     protected <M extends TransportMessage> M preProcess(M message) {
         return message;
+    }
+
+    public static InternalClient fromClient(Client client) {
+        return client instanceof InternalClient ? (InternalClient) client :
+                new InternalClient.Insecure(client.settings(), client.threadPool(), client);
     }
 }

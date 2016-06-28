@@ -30,6 +30,7 @@ import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -74,7 +75,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new ThreadPool(TransportMonitoringBulkActionTests.class.getSimpleName());
+        threadPool = new TestThreadPool(TransportMonitoringBulkActionTests.class.getSimpleName());
     }
 
     @AfterClass
@@ -87,9 +88,9 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         CapturingTransport transport = new CapturingTransport();
-        clusterService =  new ClusterService(Settings.EMPTY, null, new ClusterSettings(Settings.EMPTY,
-                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool,
-                new ClusterName(TransportMonitoringBulkActionTests.class.getName()));
+        clusterService =  new ClusterService(Settings.builder().put("cluster.name",
+                TransportMonitoringBulkActionTests.class.getName()).build(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool);
         clusterService.setLocalNode(new DiscoveryNode("node", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
         clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
@@ -105,7 +106,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         clusterService.setClusterStatePublisher((event, ackListener) -> {});
         clusterService.start();
 
-        transportService = new TransportService(Settings.EMPTY, transport, threadPool, clusterService.state().getClusterName());
+        transportService = new TransportService(clusterService.getSettings(), transport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
         exportService = new CapturingExporters();

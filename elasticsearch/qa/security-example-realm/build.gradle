@@ -1,0 +1,69 @@
+import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.VersionProperties
+
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  provided "org.elasticsearch:elasticsearch:${versions.elasticsearch}"
+  testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
+  provided project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
+}
+
+Map generateSubstitutions() {
+  def stringSnap = { version ->
+    if (version.endsWith("-SNAPSHOT")) {
+      return version.substring(0, version.length() - 9)
+    }
+    return version
+  }
+  return [
+    'version': stringSnap(version),
+    'xpack.version': stringSnap(VersionProperties.elasticsearch),
+    'java.version': targetCompatibility as String
+  ]
+}
+
+String outputDir = "generated-resources/${project.name}"
+task copyXPackPluginProps(type: Copy) {
+  from project(':x-plugins:elasticsearch:x-pack').file('src/main/plugin-metadata')
+  from project(':x-plugins:elasticsearch:x-pack').tasks.pluginProperties
+  into outputDir
+}
+project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
+
+processResources {
+  MavenFilteringHack.filter(it, generateSubstitutions())
+}
+
+task buildZip(type:Zip, dependsOn: [jar]) {
+  from 'build/resources/main/x-pack-extension-descriptor.properties'
+  from 'build/resources/main/x-pack-extension-security.policy'
+  from project.jar
+}
+
+task integTest(type: org.elasticsearch.gradle.test.RestIntegTestTask, dependsOn: buildZip) {
+  cluster {
+    plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
+    setting 'xpack.security.authc.realms.custom.order', '0'
+    setting 'xpack.security.authc.realms.custom.type', 'custom'
+    setting 'xpack.security.authc.realms.esusers.order', '1'
+    setting 'xpack.security.authc.realms.esusers.type', 'file'
+
+    setupCommand 'setupDummyUser',
+                 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
+    setupCommand 'installExtension',
+                  'bin/x-pack/extension', 'install', 'file:' + buildZip.archivePath
+    waitCondition = { node, ant ->
+      File tmpFile = new File(node.cwd, 'wait.success')
+      ant.get(src: "http://${node.httpUri()}",
+              dest: tmpFile.toString(),
+              username: 'test_user',
+              password: 'changeme',
+              ignoreerrors: true,
+              retries: 10)
+      return tmpFile.exists()
+    }
+  }
+}
+check.dependsOn integTest
+integTest.mustRunAfter precommit

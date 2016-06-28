@@ -25,10 +25,14 @@ import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.common.inject.Injector;
 
+import java.lang.reflect.Type;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 
 /**
  * An additional extension point for {@link Plugin}s that extends Elasticsearch's scripting functionality. Implement it like this:
@@ -54,6 +58,19 @@ public interface ActionPlugin {
      */
     default List<Class<? extends ActionFilter>> getActionFilters() {
         return emptyList();
+    }
+    /**
+     * Resolve the dependencies needed to build the actions. Called when and if actions are built (so, not for the transport client).
+     */
+    default Map<Type, ? extends Object> getActionDependencies() {
+        return emptyMap();
+    }
+    /**
+     * Resolve the dependencies needed to build the actions from a guice {@link Injector}. Called when and if actions are built (so, not for
+     * the transport client). Prefer {@link #getActionDependencies()} where possible.
+     */
+    default Map<Type, ? extends Object> getActionDependencies(Injector injector) {
+        return getActionDependencies();
     }
 
     public static final class ActionHandler<Request extends ActionRequest<Request>, Response extends ActionResponse> {

@@ -199,6 +199,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.ReflectiveInstantiator;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -225,6 +226,7 @@ public class ActionModule extends AbstractModule {
 
     private final NodeClient nodeClient;
     private final Settings settings;
+    private final List<ActionPlugin> actionPlugins;
     private final Map<String, ActionHandler<?, ?>> actions;
     private final List<Class<? extends ActionFilter>> actionFilters;
     private final AutoCreateIndex autoCreateIndex;
@@ -234,13 +236,14 @@ public class ActionModule extends AbstractModule {
             ClusterSettings clusterSettings, List<ActionPlugin> actionPlugins) {
         this.nodeClient = nodeClient;
         this.settings = settings;
-        actions = setupActions(actionPlugins);
-        actionFilters = setupActionFilters(actionPlugins, ingestEnabled);
+        this.actionPlugins = actionPlugins;
+        actions = setupActions();
+        actionFilters = setupActionFilters(ingestEnabled);
         autoCreateIndex = nodeClient == null ? null : new AutoCreateIndex(settings, resolver);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
     }
 
-    private Map<String, ActionHandler<?, ?>> setupActions(List<ActionPlugin> actionPlugins) {
+    private Map<String, ActionHandler<?, ?>> setupActions() {
         // Subclass NamedRegistry for easy registration
         class ActionRegistry extends NamedRegistry<ActionHandler<?, ?>> {
             public ActionRegistry() {
@@ -356,8 +359,7 @@ public class ActionModule extends AbstractModule {
         return unmodifiableMap(actions.getRegistry());
     }
 
-    private List<Class<? extends ActionFilter>> setupActionFilters(List<ActionPlugin> actionPlugins,
-            boolean ingestEnabled) {
+    private List<Class<? extends ActionFilter>> setupActionFilters(boolean ingestEnabled) {
         List<Class<? extends ActionFilter>> filters = new ArrayList<>();
         if (nodeClient != null) {
             if (ingestEnabled) {
@@ -373,11 +375,16 @@ public class ActionModule extends AbstractModule {
         return unmodifiableList(filters);
     }
 
-    public void buildActions(ReflectiveInstantiator instantiator) {
+    public void buildActions(ReflectiveInstantiator instantiator, Injector injector) {
         instantiator.addCtorArg(Client.class, nodeClient);
         instantiator.addCtorArg(autoCreateIndex);
         instantiator.addCtorArg(destructiveOperations);
         instantiator.addCtorArg(settings);
+        for (ActionPlugin plugin : actionPlugins) {
+            for (Map.Entry<Type, ? extends Object> entry : plugin.getActionDependencies(injector).entrySet()) {
+                instantiator.addCtorArg(entry.getKey(), entry.getValue());
+            }
+        }
 
         // ShardStateAction is used by so many things we just give everything access to it
         instantiator.addCtorArg(instantiator.instantiate(ShardStateAction.class, emptySet()));

@@ -35,7 +35,8 @@ import java.util.Set;
  * to be explicit.</li>
  * <li>Only ever instantiate a class once. If you attempt to instantiate a class twice you just get the same instance back.</li>
  * <li>If a constructor argument isn't available on the pool then it is ok to provide it from the instantiated classes but *only* if it has
- * been explicitly permitted</li>
+ * been explicitly permitted. This makes instantiation order dependent but prevents unapproved dependencies from leaking into instantiated
+ * objects.</li>
  * </ul> 
  */
 public class ReflectiveInstantiator {
@@ -86,10 +87,7 @@ public class ReflectiveInstantiator {
                                 "Attempting to reuse a [" + params[p].getTypeName() + "] but that hasn't been explicitly permitted.");
                     }
                 }
-                args[p] = ctorArgs.get(params[p]);
-                if (args[p] == null) {
-                    throw new IllegalArgumentException("Don't have a [" + params[p].getTypeName() + "] available.");
-                }
+                throw new IllegalArgumentException("Don't have a [" + params[p].getTypeName() + "] available.");
             }
             T instantiated = clazz.cast(ctor.newInstance(args));
             built.put(clazz, instantiated);

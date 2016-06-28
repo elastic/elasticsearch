@@ -98,6 +98,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.flush.SyncedFlushService;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.monitor.MonitorService;
@@ -118,8 +119,10 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.action.SearchTransportService;
+import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -354,8 +357,11 @@ public class Node implements Closeable {
             instantiator.addCtorArg(injector.getInstance(RestoreService.class));
             instantiator.addCtorArg(injector.getInstance(SettingsFilter.class));
             instantiator.addCtorArg(ClusterInfoService.class, injector.getInstance(ClusterInfoService.class));
+            instantiator.addCtorArg(injector.getInstance(IndicesQueriesRegistry.class));
+            instantiator.addCtorArg(injector.getInstance(AggregatorParsers.class));
+            instantiator.addCtorArg(injector.getInstance(Suggesters.class));
 
-            actionModule.buildActions(instantiator);
+            actionModule.buildActions(instantiator, injector);
             success = true;
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to bind service", ex);

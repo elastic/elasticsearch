@@ -21,6 +21,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.template.MultiSearchTemplateAction;
 import org.elasticsearch.action.search.template.SearchTemplateAction;
 import org.elasticsearch.action.search.template.TransportMultiSearchTemplateAction;
@@ -50,8 +51,10 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
 
     @Override
     public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(new ActionHandler<>(SearchTemplateAction.INSTANCE, TransportSearchTemplateAction.class),
-                new ActionHandler<>(MultiSearchTemplateAction.INSTANCE, TransportMultiSearchTemplateAction.class));
+        return Arrays.asList(
+                new ActionHandler<>(SearchTemplateAction.INSTANCE, TransportSearchTemplateAction.class, TransportSearchAction.class),
+                new ActionHandler<>(MultiSearchTemplateAction.INSTANCE, TransportMultiSearchTemplateAction.class,
+                        TransportSearchTemplateAction.class, TransportSearchAction.class));
     }
 
     public void onModule(NetworkModule module) {

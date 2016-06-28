@@ -887,7 +887,7 @@ public final class InternalTestCluster extends TestCluster {
 
         private void clearDataIfNeeded(RestartCallback callback) throws IOException {
             if (callback.clearData(name)) {
-                NodeEnvironment nodeEnv = getInstanceFromNode(NodeEnvironment.class, node);
+                NodeEnvironment nodeEnv = node.getNodeEnvironment();
                 if (nodeEnv.hasNodeFile()) {
                     final Path[] locations = nodeEnv.nodeDataPaths();
                     logger.debug("removing node data paths: [{}]", (Object[]) locations);
@@ -1130,7 +1130,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private void markNodeDataDirsAsPendingForWipe(Node node) {
         assert Thread.holdsLock(this);
-        NodeEnvironment nodeEnv = getInstanceFromNode(NodeEnvironment.class, node);
+        NodeEnvironment nodeEnv = node.getNodeEnvironment();
         if (nodeEnv.hasNodeFile()) {
             dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataPaths()));
         }
@@ -1138,7 +1138,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private void markNodeDataDirsAsNotEligableForWipe(Node node) {
         assert Thread.holdsLock(this);
-        NodeEnvironment nodeEnv = getInstanceFromNode(NodeEnvironment.class, node);
+        NodeEnvironment nodeEnv = node.getNodeEnvironment();
         if (nodeEnv.hasNodeFile()) {
             dataDirToClean.removeAll(Arrays.asList(nodeEnv.nodeDataPaths()));
         }
@@ -1952,7 +1952,8 @@ public final class InternalTestCluster extends TestCluster {
     public void assertAfterTest() throws IOException {
         super.assertAfterTest();
         assertRequestsFinished();
-        for (NodeEnvironment env : this.getInstances(NodeEnvironment.class)) {
+        for (NodeAndClient nodeAndClient : nodes.values()) {
+            NodeEnvironment env = nodeAndClient.node().getNodeEnvironment();
             Set<ShardId> shardIds = env.lockedShards();
             for (ShardId id : shardIds) {
                 try {

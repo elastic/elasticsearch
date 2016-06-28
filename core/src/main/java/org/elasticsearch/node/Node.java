@@ -163,6 +163,7 @@ public class Node implements Closeable {
     private final Injector injector;
     private final Settings settings;
     private final Environment environment;
+    private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
     private final Client client;
 
@@ -236,7 +237,6 @@ public class Node implements Closeable {
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
             final SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
-            final NodeEnvironment nodeEnvironment;
             try {
                 nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
                 resourcesToClose.add(nodeEnvironment);
@@ -323,6 +323,14 @@ public class Node implements Closeable {
     public Environment getEnvironment() {
         return environment;
     }
+
+    /**
+     * Returns the {@link NodeEnvironment} instance of this node
+     */
+    public NodeEnvironment getNodeEnvironment() {
+        return nodeEnvironment;
+    }
+
 
     /**
      * Start the node. If the node is already started, this method is no-op.

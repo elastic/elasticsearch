@@ -67,7 +67,7 @@ if (maybeTestsSeed != null) {
   List<String> seeds = maybeTestsSeed.tokenize(':')
   if (seeds.size() != 0) {
     String masterSeed = seeds.get(0)
-    seed = new BigInteger(masterSeed, masterSeed.length()).longValue()
+    seed = new BigInteger(masterSeed, 16).longValue()
     formattedSeed = maybeTestsSeed
   }
 }

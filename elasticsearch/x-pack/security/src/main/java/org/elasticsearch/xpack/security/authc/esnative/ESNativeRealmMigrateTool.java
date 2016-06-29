@@ -145,6 +145,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
             URI uri = new URI(urlString);
             URL url = uri.toURL();
             HttpURLConnection conn;
+            // If using SSL, need a custom service because it's likely a self-signed certificate
             if ("https".equalsIgnoreCase(uri.getScheme())) {
                 SSLConfiguration.Global globalConfig = new SSLConfiguration.Global(settings);
                 final ClientSSLService sslService = new ClientSSLService(settings, globalConfig);
@@ -162,7 +163,6 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
             } else {
                 conn = (HttpURLConnection) url.openConnection();
             }
-            // If using SSL, need a custom service because it's likely a self-signed certificate
             conn.setRequestMethod(method);
             conn.setReadTimeout(30 * 1000); // 30 second timeout
             // Add basic-auth header

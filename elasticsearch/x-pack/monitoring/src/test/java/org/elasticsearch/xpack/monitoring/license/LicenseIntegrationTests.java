@@ -12,7 +12,6 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.Licensing;
@@ -21,7 +20,7 @@ import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
@@ -96,11 +95,12 @@ public class LicenseIntegrationTests extends MonitoringIntegTestCase {
         }
 
         @Override
-        public void onModule(NetworkModule module) {
+        public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+            return emptyList();
         }
 
         @Override
-        public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+        public List<Class<? extends RestHandler>> getRestHandlers() {
             return emptyList();
         }
 

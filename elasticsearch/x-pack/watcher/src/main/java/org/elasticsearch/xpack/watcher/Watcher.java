@@ -16,12 +16,12 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -178,20 +178,6 @@ public class Watcher implements ActionPlugin {
         return Collections.emptyList();
     }
 
-    public void onModule(NetworkModule module) {
-        if (enabled && transportClient == false) {
-            module.registerRestHandler(RestPutWatchAction.class);
-            module.registerRestHandler(RestDeleteWatchAction.class);
-            module.registerRestHandler(RestWatcherStatsAction.class);
-            module.registerRestHandler(RestGetWatchAction.class);
-            module.registerRestHandler(RestWatchServiceAction.class);
-            module.registerRestHandler(RestAckWatchAction.class);
-            module.registerRestHandler(RestActivateWatchAction.class);
-            module.registerRestHandler(RestExecuteWatchAction.class);
-            module.registerRestHandler(RestHijackOperationAction.class);
-        }
-    }
-
     @Override
     public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
         if (false == enabled) {
@@ -205,6 +191,22 @@ public class Watcher implements ActionPlugin {
                 new ActionHandler<>(ActivateWatchAction.INSTANCE, TransportActivateWatchAction.class),
                 new ActionHandler<>(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class),
                 new ActionHandler<>(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class));
+    }
+
+    @Override
+    public List<Class<? extends RestHandler>> getRestHandlers() {
+        if (false == enabled) {
+            return emptyList();
+        }
+        return Arrays.asList(RestPutWatchAction.class,
+                RestDeleteWatchAction.class,
+                RestWatcherStatsAction.class,
+                RestGetWatchAction.class,
+                RestWatchServiceAction.class,
+                RestAckWatchAction.class,
+                RestActivateWatchAction.class,
+                RestExecuteWatchAction.class,
+                RestHijackOperationAction.class);
     }
 
     public static boolean enabled(Settings settings) {

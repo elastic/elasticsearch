@@ -9,12 +9,11 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.graph.action.GraphExploreAction;
 import org.elasticsearch.xpack.graph.action.TransportGraphExploreAction;
@@ -57,18 +56,19 @@ public class Graph extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
-        if (enabled) {
-            return singletonList(new ActionHandler<>(GraphExploreAction.INSTANCE, TransportGraphExploreAction.class));
+        if (false == enabled) {
+            return emptyList();
         }
-        return emptyList();
+        return singletonList(new ActionHandler<>(GraphExploreAction.INSTANCE, TransportGraphExploreAction.class));
     }
 
-    public void onModule(NetworkModule module) {
-        if (enabled && transportClientMode == false) {
-            module.registerRestHandler(RestGraphAction.class);        
+    @Override
+    public List<Class<? extends RestHandler>> getRestHandlers() {
+        if (false == enabled) {
+            return emptyList();
         }
+        return singletonList(RestGraphAction.class);
     }
-
 
     @Override
     public List<Setting<?>> getSettings() {

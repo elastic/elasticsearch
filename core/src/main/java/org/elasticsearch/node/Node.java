@@ -552,6 +552,7 @@ public class Node implements Closeable {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getName() + ")"));
             toClose.add(injector.getInstance(plugin));
         }
+        toClose.addAll(pluginsService.filterPlugins(Closeable.class));
 
         toClose.add(() -> stopWatch.stop().start("script"));
         toClose.add(injector.getInstance(ScriptService.class));

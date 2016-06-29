@@ -33,7 +33,7 @@ import java.util.Map;
 /**
  * Holder class for several ingest related services.
  */
-public class IngestService implements Closeable {
+public class IngestService {
 
     private final PipelineStore pipelineStore;
     private final PipelineExecutionService pipelineExecutionService;
@@ -65,10 +65,4 @@ public class IngestService implements Closeable {
         }
         return new IngestInfo(processorInfoList);
     }
-
-    @Override
-    public void close() throws IOException {
-        pipelineStore.close();
-    }
-
 }

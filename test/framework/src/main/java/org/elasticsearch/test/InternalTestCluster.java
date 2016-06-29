@@ -89,7 +89,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TCPTransport;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
@@ -422,9 +422,9 @@ public final class InternalTestCluster extends TestCluster {
         // randomize netty settings
         if (random.nextBoolean()) {
             builder.put(NettyTransport.WORKER_COUNT.getKey(), random.nextInt(3) + 1);
-            builder.put(TCPTransport.CONNECTIONS_PER_NODE_RECOVERY.getKey(), random.nextInt(2) + 1);
-            builder.put(TCPTransport.CONNECTIONS_PER_NODE_BULK.getKey(), random.nextInt(3) + 1);
-            builder.put(TCPTransport.CONNECTIONS_PER_NODE_REG.getKey(), random.nextInt(6) + 1);
+            builder.put(TcpTransport.CONNECTIONS_PER_NODE_RECOVERY.getKey(), random.nextInt(2) + 1);
+            builder.put(TcpTransport.CONNECTIONS_PER_NODE_BULK.getKey(), random.nextInt(3) + 1);
+            builder.put(TcpTransport.CONNECTIONS_PER_NODE_REG.getKey(), random.nextInt(6) + 1);
         }
 
         if (random.nextBoolean()) {
@@ -456,7 +456,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            builder.put(TCPTransport.PING_SCHEDULE.getKey(), RandomInts.randomIntBetween(random, 100, 2000) + "ms");
+            builder.put(TcpTransport.PING_SCHEDULE.getKey(), RandomInts.randomIntBetween(random, 100, 2000) + "ms");
         }
 
         if (random.nextBoolean()) {

@@ -137,3 +137,6 @@ Plugins that register custom mappers should implement
 
 Plugins that register custom actions should implement `ActionPlugin` and
 remove their `onModule(ActionModule)` implementation.
+
+Plugins that register custom `RestHandler`s should implement `ActionPlugin` and
+remove their `onModule(NetworkModule)` implemnetation.

@@ -27,7 +27,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.regex.Regex;
@@ -57,7 +56,6 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     private final List<ExpressionResolver> expressionResolvers;
     private final DateMathExpressionResolver dateMathExpressionResolver;
 
-    @Inject
     public IndexNameExpressionResolver(Settings settings) {
         super(settings);
         expressionResolvers = Arrays.asList(

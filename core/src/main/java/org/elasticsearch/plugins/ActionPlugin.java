@@ -25,8 +25,11 @@ import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.rest.RestHandler;
 
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
@@ -53,6 +56,12 @@ public interface ActionPlugin {
      * Action filters added by this plugin.
      */
     default List<Class<? extends ActionFilter>> getActionFilters() {
+        return emptyList();
+    }
+    /**
+     * Rest handlers added by this plugin.
+     */
+    default List<Class<? extends RestHandler>> getRestHandlers() {
         return emptyList();
     }
 
@@ -82,6 +91,31 @@ public interface ActionPlugin {
 
         public Class<?>[] getSupportTransportActions() {
             return supportTransportActions;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder b = new StringBuilder().append(action.name()).append(" is handled by ").append(transportAction.getName());
+            if (supportTransportActions.length > 0) {
+                b.append('[').append(Strings.arrayToCommaDelimitedString(supportTransportActions)).append(']');
+            }
+            return b.toString();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || obj.getClass() != ActionHandler.class) {
+                return false;
+            }
+            ActionHandler<?, ?> other = (ActionHandler<?, ?>) obj;
+            return Objects.equals(action, other.action)
+                    && Objects.equals(transportAction, other.transportAction)
+                    && Objects.deepEquals(supportTransportActions, other.supportTransportActions);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(action, transportAction, supportTransportActions);
         }
     }
 }

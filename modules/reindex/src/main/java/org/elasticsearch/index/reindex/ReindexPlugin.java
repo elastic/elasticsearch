@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestHandler;
 
 import java.util.Arrays;
 import java.util.List;
@@ -39,11 +40,13 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class));
     }
 
+    @Override
+    public List<Class<? extends RestHandler>> getRestHandlers() {
+        return Arrays.asList(RestReindexAction.class, RestUpdateByQueryAction.class, RestDeleteByQueryAction.class,
+                RestRethrottleAction.class);
+    }
+
     public void onModule(NetworkModule networkModule) {
-        networkModule.registerRestHandler(RestReindexAction.class);
-        networkModule.registerRestHandler(RestUpdateByQueryAction.class);
-        networkModule.registerRestHandler(RestDeleteByQueryAction.class);
-        networkModule.registerRestHandler(RestRethrottleAction.class);
         networkModule.registerTaskStatus(BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new);
     }
 }

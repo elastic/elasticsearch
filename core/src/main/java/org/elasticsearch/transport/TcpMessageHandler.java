@@ -40,7 +40,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 
 /**
- * A handler (must be the last one!) that does size based frame decoding and forwards the actual message
+ * A handler that does size based frame decoding and forwards the actual message
  * to the relevant action.
  */
 public class TcpMessageHandler {
@@ -64,8 +64,8 @@ public class TcpMessageHandler {
 
     public final void messageReceived(BytesReference reference, ChannelFactory channelFactory,
                                       InetSocketAddress remoteAddress, int messageLengthBytes) throws IOException {
-        transportServiceAdapter.received(messageLengthBytes + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
         final int totalMessageSize = messageLengthBytes + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
+        transportServiceAdapter.received(totalMessageSize);
         // we have additional bytes to read, outside of the header
         boolean hasMessageBytesToRead = (totalMessageSize - TcpHeader.HEADER_SIZE) > 0;
         StreamInput streamIn = reference.streamInput();
@@ -101,7 +101,7 @@ public class TcpMessageHandler {
                 threadContext.readHeaders(streamIn);
                 handleRequest(channelFactory, streamIn, requestId, messageLengthBytes, version, remoteAddress);
             } else {
-                TransportResponseHandler<?> handler = transportServiceAdapter.onResponseReceived(requestId);
+                final TransportResponseHandler<?> handler = transportServiceAdapter.onResponseReceived(requestId);
                 // ignore if its null, the adapter logs it
                 if (handler != null) {
                     if (TransportStatus.isError(status)) {
@@ -128,13 +128,12 @@ public class TcpMessageHandler {
         }
     }
 
-    protected void handleResponse(InetSocketAddress remoteAddress, StreamInput buffer, final TransportResponseHandler handler) {
-        buffer = new NamedWriteableAwareStreamInput(buffer, namedWriteableRegistry);
+    protected void handleResponse(InetSocketAddress remoteAddress, StreamInput stream, final TransportResponseHandler handler) {
+        stream = new NamedWriteableAwareStreamInput(stream, namedWriteableRegistry);
         final TransportResponse response = handler.newInstance();
         response.remoteAddress(new InetSocketTransportAddress(remoteAddress));
-        response.remoteAddress();
         try {
-            response.readFrom(buffer);
+            response.readFrom(stream);
         } catch (Throwable e) {
             handleException(handler, new TransportSerializationException(
                     "Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
@@ -145,17 +144,26 @@ public class TcpMessageHandler {
                 //noinspection unchecked
                 handler.handleResponse(response);
             } else {
-                threadPool.executor(handler.executor()).execute(new ResponseHandler(handler, response));
+                threadPool.executor(handler.executor()).execute(() -> {
+                    try {
+                        handler.handleResponse(response);
+                    } catch (Throwable e) {
+                        handleException(handler, new ResponseHandlerFailureTransportException(e));
+                    }
+                });
             }
         } catch (Throwable e) {
             handleException(handler, new ResponseHandlerFailureTransportException(e));
         }
     }
 
-    private void handlerResponseError(StreamInput buffer, final TransportResponseHandler handler) {
+    /**
+     * Executed for a received response error
+     */
+    private void handlerResponseError(StreamInput stream, final TransportResponseHandler handler) {
         Throwable error;
         try {
-            error = buffer.readThrowable();
+            error = stream.readThrowable();
         } catch (Throwable e) {
             error = new TransportSerializationException("Failed to deserialize exception response from stream", e);
         }
@@ -167,24 +175,13 @@ public class TcpMessageHandler {
             error = new RemoteTransportException(error.getMessage(), error);
         }
         final RemoteTransportException rtx = (RemoteTransportException) error;
-        if (ThreadPool.Names.SAME.equals(handler.executor())) {
+        threadPool.executor(handler.executor()).execute(() -> { // handles SAME executor as well
             try {
                 handler.handleException(rtx);
             } catch (Throwable e) {
                 logger.error("failed to handle exception response [{}]", e, handler);
             }
-        } else {
-            threadPool.executor(handler.executor()).execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        handler.handleException(rtx);
-                    } catch (Throwable e) {
-                        logger.error("failed to handle exception response [{}]", e, handler);
-                    }
-                }
-            });
-        }
+        });
     }
 
     protected String handleRequest(ChannelFactory channelFactory, StreamInput buffer, long requestId,
@@ -242,27 +239,6 @@ public class TcpMessageHandler {
 
     public interface ChannelFactory {
         TransportChannel create(String actionName, long requestId, Version version, long reservedBytes);
-    }
-
-    class ResponseHandler implements Runnable {
-
-        private final TransportResponseHandler handler;
-        private final TransportResponse response;
-
-        public ResponseHandler(TransportResponseHandler handler, TransportResponse response) {
-            this.handler = handler;
-            this.response = response;
-        }
-
-        @SuppressWarnings({"unchecked"})
-        @Override
-        public void run() {
-            try {
-                handler.handleResponse(response);
-            } catch (Throwable e) {
-                handleException(handler, new ResponseHandlerFailureTransportException(e));
-            }
-        }
     }
 
     class RequestHandler extends AbstractRunnable {

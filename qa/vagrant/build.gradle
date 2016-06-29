@@ -64,7 +64,8 @@ String upgradeFromVersion
 
 String maybeTestsSeed = System.getProperty("tests.seed", null);
 if (maybeTestsSeed != null) {
-  seed = new BigInteger(maybeTestsSeed, 16).longValue()
+  def (masterSeed, testSeed) = maybeTestsSeed.tokenize(':')
+  seed = new BigInteger(masterSeed, masterSeed.size()).longValue()
   formattedSeed = maybeTestsSeed
 } else {
   seed = new Random().nextLong()

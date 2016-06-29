@@ -89,10 +89,18 @@ public final class ExceptionsHelper {
         return result;
     }
 
+    /**
+     * @deprecated Don't swallow exceptions, allow them to propagate.
+     */
+    @Deprecated
     public static String detailedMessage(Throwable t) {
         return detailedMessage(t, false, 0);
     }
 
+    /**
+     * @deprecated Don't swallow exceptions, allow them to propagate.
+     */
+    @Deprecated
     public static String detailedMessage(Throwable t, boolean newLines, int initialCounter) {
         if (t == null) {
             return "Unknown";

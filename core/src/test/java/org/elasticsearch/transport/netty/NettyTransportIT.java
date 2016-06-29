@@ -38,7 +38,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpMessageHandler;
 import org.elasticsearch.transport.TransportSettings;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
@@ -99,49 +98,24 @@ public class NettyTransportIT extends ESIntegTestCase {
             super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
         }
 
+        protected String handleRequest(ChannelFactory channelFactory,
+                                       StreamInput stream, long requestId, int messageLengthBytes, Version version,
+                                       InetSocketAddress remoteAddress) throws IOException {
+            String action = super.handleRequest(channelFactory, stream, requestId, messageLengthBytes, version,
+                remoteAddress);
+            channelProfileName = TransportSettings.DEFAULT_PROFILE;
+            return action;
+        }
+
         @Override
-        public ChannelPipelineFactory configureServerChannelPipelineFactory(String name, Settings groupSettings) {
-            return new ErrorPipelineFactory(this, name, groupSettings);
-        }
-
-        private static class ErrorPipelineFactory extends ServerChannelPipelineFactory {
-
-            private final ESLogger logger;
-
-            public ErrorPipelineFactory(ExceptionThrowingNettyTransport nettyTransport, String name, Settings groupSettings) {
-                super(nettyTransport, name, groupSettings);
-                this.logger = nettyTransport.logger;
-            }
-
-            @Override
-            public ChannelPipeline getPipeline() throws Exception {
-                ChannelPipeline pipeline = super.getPipeline();
-                TcpMessageHandler handler = new TcpMessageHandler(nettyTransport.getThreadPool(), nettyTransport,
-                    nettyTransport.transportServiceAdapter(), nettyTransport.getNamedWriteableRegistry(), logger) {
-                    @Override
-                    protected String handleRequest(TcpMessageHandler.ChannelFactory channelFactory,
-                                                   StreamInput stream, long requestId, int messageLengthBytes, Version version,
-                                                   InetSocketAddress remoteAddress) throws IOException {
-                        String action = super.handleRequest(channelFactory, stream, requestId, messageLengthBytes, version,
-                            remoteAddress);
-                        channelProfileName = TransportSettings.DEFAULT_PROFILE;
-                        return action;
-                    }
-
-                    @Override
-                    protected void validateRequest(StreamInput buffer, long requestId, String action)
-                        throws IOException {
-                        super.validateRequest(buffer, requestId, action);
-                        String error = threadPool.getThreadContext().getHeader("ERROR");
-                        if (error != null) {
-                            throw new ElasticsearchException(error);
-                        }
-                    }
-                };
-                pipeline.replace("dispatcher", "dispatcher",
-                    new NettyMessageChannelHandler(nettyTransport, TransportSettings.DEFAULT_PROFILE, handler));
-                return pipeline;
+        protected void validateRequest(StreamInput buffer, long requestId, String action)
+            throws IOException {
+            super.validateRequest(buffer, requestId, action);
+            String error = threadPool.getThreadContext().getHeader("ERROR");
+            if (error != null) {
+                throw new ElasticsearchException(error);
             }
         }
+
     }
 }

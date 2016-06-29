@@ -497,8 +497,7 @@ public class NettyTransport extends TcpTransport<Channel> {
             }
             channelPipeline.addLast("size", sizeHeader);
             // using a dot as a prefix means, this cannot come from any settings parsed
-            channelPipeline.addLast("dispatcher", new NettyMessageChannelHandler(nettyTransport, ".client",
-                nettyTransport.newMessageChannelHandler()));
+            channelPipeline.addLast("dispatcher", new NettyMessageChannelHandler(nettyTransport, ".client"));
             return channelPipeline;
         }
     }
@@ -535,8 +534,7 @@ public class NettyTransport extends TcpTransport<Channel> {
                 sizeHeader.setMaxCumulationBufferComponents(nettyTransport.maxCompositeBufferComponents);
             }
             channelPipeline.addLast("size", sizeHeader);
-            channelPipeline.addLast("dispatcher", new NettyMessageChannelHandler(nettyTransport, name,
-                nettyTransport.newMessageChannelHandler()));
+            channelPipeline.addLast("dispatcher", new NettyMessageChannelHandler(nettyTransport, name));
             return channelPipeline;
         }
     }

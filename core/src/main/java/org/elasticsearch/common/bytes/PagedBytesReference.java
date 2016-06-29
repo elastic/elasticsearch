@@ -297,7 +297,7 @@ public class PagedBytesReference implements BytesReference {
 
         @Override
         public int read() throws IOException {
-            return (pos < length) ? bytearray.get(offset + pos++) : -1;
+            return (pos < length) ? Byte.toUnsignedInt(bytearray.get(offset + pos++)) : -1;
         }
 
         @Override

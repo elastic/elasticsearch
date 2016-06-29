@@ -617,21 +617,22 @@ public class NettyTransport extends TCPTransport<Channel> {
 
     @Override
     protected void stopInternal() {
-        Releasables.close(serverOpenChannels);
-        for (Map.Entry<String, ServerBootstrap> entry : serverBootstraps.entrySet()) {
-            String name = entry.getKey();
-            ServerBootstrap serverBootstrap = entry.getValue();
-            try {
-                serverBootstrap.releaseExternalResources();
-            } catch (Throwable t) {
-                logger.debug("Error closing serverBootstrap for profile [{}]", t, name);
+        Releasables.close(serverOpenChannels, () ->{
+            for (Map.Entry<String, ServerBootstrap> entry : serverBootstraps.entrySet()) {
+                String name = entry.getKey();
+                ServerBootstrap serverBootstrap = entry.getValue();
+                try {
+                    serverBootstrap.releaseExternalResources();
+                } catch (Throwable t) {
+                    logger.debug("Error closing serverBootstrap for profile [{}]", t, name);
+                }
             }
-        }
-        serverBootstraps.clear();
-        if (clientBootstrap != null) {
-            clientBootstrap.releaseExternalResources();
-            clientBootstrap = null;
-        }
+            serverBootstraps.clear();
+            if (clientBootstrap != null) {
+                clientBootstrap.releaseExternalResources();
+                clientBootstrap = null;
+            }
+        });
     }
 
     @Override

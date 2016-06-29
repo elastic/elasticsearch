@@ -92,6 +92,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
@@ -344,8 +345,14 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Pick a random object from the given array. The array must not be empty. */
     public static <T> T randomFrom(T... array) {
-        return RandomPicks.randomFrom(random(), array);
+        return randomFrom(random(), array);
     }
+
+    /** Pick a random object from the given array. The array must not be empty. */
+    public static <T> T randomFrom(Random random, T... array) {
+        return RandomPicks.randomFrom(random, array);
+    }
+
 
     /** Pick a random object from the given list. */
     public static <T> T randomFrom(List<T> list) {

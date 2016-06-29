@@ -46,7 +46,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     public abstract A create(List<B> buckets);
 
     /**
-     * Create a new {@link InternalBucket} using the provided prototype bucket
+     * Create a new {@link InternalMultiBucketAggregation.Bucket} using the provided prototype bucket
      * and aggregations.
      * 
      * @param aggregations
